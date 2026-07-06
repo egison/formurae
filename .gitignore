@@ -1,0 +1,10 @@
+vendor/
+bin/
+*.o
+examples/*/check
+examples/*/run
+examples/diffusion3d/diffusion3d.c
+examples/diffusion3d/diffusion3d.h
+examples/maxwell3d/maxwell3d.c
+examples/maxwell3d/maxwell3d.h
+data/

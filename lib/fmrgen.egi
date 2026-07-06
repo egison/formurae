@@ -1,0 +1,130 @@
+--
+-- fmrgen.egi : Egison -> Formura code generation library (PoC)
+--
+-- Fields are Egison abstract functions over the coordinate symbols
+-- (e.g. `def u := function (x, y, z)`).  Discretization combinators
+-- substitute shifted coordinates (x -> x + c*hx), so a grid reference
+-- appears as an uninterpreted application `u (x + hx) y z`.
+-- The printer pattern-matches on the normalized MathValue and emits
+-- Formura source text (`u[i+1,j,k]` etc.).
+--
+
+declare symbol x, y, z, hx, hy, hz
+
+def coords : Vector MathValue := [| x, y, z |]
+def hsteps : Vector MathValue := [| hx, hy, hz |]
+
+def axisName (a: Integer) : String := nth a ["i", "j", "k"]
+
+--
+-- Discretization combinators
+--
+
+-- shift along axis a (1-based) by c cells
+def shift (a: Integer) (c: MathValue) (u: MathValue) : MathValue :=
+  substitute [(coords_a, coords_a + c * hsteps_a)] u
+
+-- central 1st difference
+def dC (a: Integer) (u: MathValue) : MathValue :=
+  (shift a 1 u - shift a (-1) u) / (2 * hsteps_a)
+
+-- central 2nd difference
+def dC2 (a: Integer) (u: MathValue) : MathValue :=
+  (shift a 1 u - 2 * u + shift a (-1) u) / ((hsteps_a) ^ 2)
+
+-- forward / backward differences
+def dF (a: Integer) (u: MathValue) : MathValue := (shift a 1 u - u) / hsteps_a
+def dB (a: Integer) (u: MathValue) : MathValue := (u - shift a (-1) u) / hsteps_a
+
+-- Laplacian
+def lap (u: MathValue) : MathValue := sum (map (\a -> dC2 a u) [1, 2, 3])
+
+-- discrete gradient tensor: (dGrad X)_a_b = d_a X_b
+def dGrad (X: Vector MathValue) : Matrix MathValue :=
+  generateTensor (\[a, b] -> dC a X_b) [3, 3]
+
+-- curl and divergence via tensor index notation
+def curl (X: Vector MathValue) : Vector MathValue :=
+  withSymbols [i, j, k] (ε 3)~i~j~k . (dGrad X)_j_k
+
+def divg (X: Vector MathValue) : MathValue := sum (map (\a -> dC a X_a) [1, 2, 3])
+
+--
+-- Printer : MathValue -> Formura expression string
+--
+
+def offsetSuffix (o: MathValue) : String :=
+  match o as mathValue with
+    | #0 -> ""
+    | #1 -> "+1"
+    | #2 -> "+2"
+    | #3 -> "+3"
+    | #(-1) -> "-1"
+    | #(-2) -> "-2"
+    | #(-3) -> "-3"
+    | #(1 / 2) -> "+1/2"
+    | #(-1 / 2) -> "-1/2"
+    | #(3 / 2) -> "+3/2"
+    | #(-3 / 2) -> "-3/2"
+    | _ -> S.concat ["+(", show o, ")"]
+
+def gridIndex (a: Integer) (arg: MathValue) : String :=
+  S.append (axisName a) (offsetSuffix ((arg - coords_a) / hsteps_a))
+
+def gridRef (g: MathValue) (args: [MathValue]) : String :=
+  S.concat
+    [show g, "[",
+     S.intercalate "," (map (\(a, arg) -> gridIndex a arg) (zip [1, 2, 3] args)),
+     "]"]
+
+-- rename lattice-constant symbols to Formura built-ins
+def symName (v: String) : String :=
+  match v as string with
+    | #"hx" -> "dx"
+    | #"hy" -> "dy"
+    | #"hz" -> "dz"
+    | _ -> v
+
+def wrapNeg (s: String) : String :=
+  if S.head s = '-' then S.concat ["(", s, ")"] else s
+
+def showFactor (f: MathValue) : String :=
+  match f as mathValue with
+    | func $g $args -> gridRef g args
+    | symbol $v _ -> symName v
+    | _ -> S.concat ["(", showFmr f, ")"]
+
+def showPow (f: MathValue) (n: Integer) : String :=
+  if n = 1 then showFactor f else S.concat [showFactor f, "**", show n]
+
+def coefPQ (c: MathValue) : (String, String) :=
+  match c as mathValue with
+    | $p / $q -> (show p, show q)
+
+def showTerm (t: MathValue) : String :=
+  match t as mathValue with
+    | term $c $xs ->
+        let (cp, cq) := coefPQ c
+         in let numFs := map (\(f, n) -> showPow f n) (filter (\(f, n) -> n > 0) xs)
+         in let denFs := map (\(f, n) -> showPow f (0 - n)) (filter (\(f, n) -> n < 0) xs)
+         in let numParts := if cp = "1" && not (numFs = []) then numFs
+                              else wrapNeg cp :: numFs
+         in let denParts := (if cq = "1" then [] else [cq]) ++ denFs
+         in let numStr := S.intercalate "*" numParts
+         in if denParts = []
+              then numStr
+              else S.concat [numStr, "/(", S.intercalate "*" denParts, ")"]
+
+def showPoly (p: MathValue) : String :=
+  match p as mathValue with
+    | #0 -> "0"
+    | poly $ts / _ -> S.intercalate " + " (map showTerm ts)
+
+def showFmr (e: MathValue) : String :=
+  match e as mathValue with
+    | #0 -> "0"
+    | $nu / #1 -> showPoly nu
+    | $nu / $de -> S.concat ["(", showPoly nu, ")/(", showPoly de, ")"]
+
+def fmrEq (lhs: String) (rhs: MathValue) : String :=
+  S.concat ["  ", lhs, " = ", showFmr rhs]

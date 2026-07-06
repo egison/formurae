@@ -1,0 +1,129 @@
+diff --git a/package.yaml b/package.yaml
+index fd1c496..2e22abf 100644
+--- a/package.yaml
++++ b/package.yaml
+@@ -41,7 +41,6 @@ library:
+   - parsers
+   - process
+   - QuickCheck
+-  - sbv
+   - syb
+   - temporary
+   - tostring
+diff --git a/src/Formura/Compiler.hs b/src/Formura/Compiler.hs
+index a2312af..d2f8828 100644
+--- a/src/Formura/Compiler.hs
++++ b/src/Formura/Compiler.hs
+@@ -37,7 +37,7 @@ defaultCompilerSyntacticState = CompilerSyntacticState Nothing ""
+ -- | The formura compiler monad.
+ newtype CompilerMonad r w s a = CompilerMonad
+   { runCompilerMonad :: ExceptT CompilerError (RWST r w s IO) a }
+-  deriving (Functor, Applicative, Monad,
++  deriving (Functor, Applicative, Monad, MonadFail,
+             MonadIO, MonadReader r, MonadState s, MonadWriter w, MonadError CompilerError)
+ 
+ compileErrMsg :: (HasCompilerSyntacticState s, MonadState s m) => P.Err -> m Ppr.Doc
+diff --git a/src/Formura/OrthotopeMachine/Graph.hs b/src/Formura/OrthotopeMachine/Graph.hs
+index 7772c5f..22edaa6 100644
+--- a/src/Formura/OrthotopeMachine/Graph.hs
++++ b/src/Formura/OrthotopeMachine/Graph.hs
+@@ -120,20 +120,6 @@ data MMLocation = MMLocation { _mmlOMNodeID :: OMNodeID,  _mmlCursor :: Vec Int}
+   deriving(Eq, Ord, Show)
+ 
+ 
+-mmInstTails :: MMInstruction -> [MMInstF MMNodeID]
+-mmInstTails mminst = rets
+-  where
+-    rets = [_nodeInst nd
+-           | nd <- M.elems mminst
+-           , let Just (MMLocation omnid2 _) = A.viewMaybe nd
+-           , omnid2==omnid ]
+-
+-    Just (MMLocation omnid _) = A.viewMaybe maxNode
+-
+-    maxNode :: MicroNode
+-    maxNode = snd $ M.findMax mminst
+-
+-
+ type OMNodeType  = Fix OMNodeTypeF
+ type OMNodeTypeF = Sum '[ TopTypeF, GridTypeF, ElemTypeF ]
+ 
+@@ -141,8 +127,9 @@ type MicroNodeType  = Fix MicroNodeTypeF
+ type MicroNodeTypeF = Sum '[ ElemTypeF ]
+ 
+ 
+-instance MeetSemiLattice OMNodeType where
++instance Lattice OMNodeType where
+   (/\) = semiLatticeOfOMNodeType
++  (\/) = error "OMNodeType join is not used"
+ 
+ semiLatticeOfOMNodeType :: OMNodeType -> OMNodeType -> OMNodeType
+ semiLatticeOfOMNodeType a b = case go a b of
+@@ -190,6 +177,21 @@ makeLenses ''Node
+ instance A.Annotated (Node v t) where
+   annotation = nodeAnnot
+ 
++-- Moved below the `makeLenses ''Node` splice so that the
++-- `A.Annotated (Node v t)` instance is visible (GHC 9.x visibility rule).
++mmInstTails :: MMInstruction -> [MMInstF MMNodeID]
++mmInstTails mminst = rets
++  where
++    rets = [_nodeInst nd
++           | nd <- M.elems mminst
++           , let Just (MMLocation omnid2 _) = A.viewMaybe nd
++           , omnid2==omnid ]
++
++    Just (MMLocation omnid _) = A.viewMaybe maxNode
++
++    maxNode :: MicroNode
++    maxNode = snd $ M.findMax mminst
++
+ -- instance (Data instType) => Data (Node instType typeType) where
+ --   gfoldl (*) z x = x{_nodeInst = gfoldl (*) z (_nodeInst x)}
+ 
+diff --git a/src/Formura/Syntax.hs b/src/Formura/Syntax.hs
+index 6ab1158..b79bb78 100644
+--- a/src/Formura/Syntax.hs
++++ b/src/Formura/Syntax.hs
+@@ -337,8 +337,9 @@ data Program = Program
+ 
+ makeLenses ''Program
+ 
+-instance MeetSemiLattice TypeExpr where
++instance Lattice TypeExpr where
+   (/\) = semiLatticeOfTypeExpr
++  (\/) = error "TypeExpr join is not used"
+ 
+ semiLatticeOfTypeExpr :: TypeExpr -> TypeExpr -> TypeExpr
+ semiLatticeOfTypeExpr a b = case go a b of
+diff --git a/src/Formura/Type.hs b/src/Formura/Type.hs
+index c13b9ab..671e0af 100644
+--- a/src/Formura/Type.hs
++++ b/src/Formura/Type.hs
+@@ -18,7 +18,8 @@ unitType = ElemType "void"
+ 
+ type ElementalType = Lang '[TopTypeF, ElemTypeF]
+ 
+-instance MeetSemiLattice ElementalType where
++instance Lattice ElementalType where
++  (\/) = error "ElementalType join is not used"
+   (ElemType ea) /\ (ElemType eb) =
+     case elementTypenameDecode (max (elementTypenameEncode ea) (elementTypenameEncode eb)) of
+      "top" -> TopType
+diff --git a/stack.yaml b/stack.yaml
+index ae28f75..be5301f 100644
+--- a/stack.yaml
++++ b/stack.yaml
+@@ -1,10 +1,5 @@
+ flags: {}
+ packages:
+ - .
+-extra-deps:
+-- sbv-7.12
+-- crackNum-2.2
+-- FloatingHex-0.4
+-# local-bin-path: ./bin
+-resolver: lts-12.13
+-# skip-ghc-check: True
++extra-deps: []
++resolver: lts-22.44

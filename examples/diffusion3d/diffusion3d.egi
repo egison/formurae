@@ -1,0 +1,36 @@
+--
+-- diffusion3d.egi : generate a Formura program for the 3D diffusion equation
+--   du/dt = kappa * laplacian(u)
+-- discretized with central differences and explicit Euler.
+--
+-- Run: egison -l fmrgen.egi diffusion3d.egi > diffusion3d.fmr
+--
+
+declare symbol kappa, dt
+
+def u := function (x, y, z)
+
+-- explicit Euler update, Laplacian written with the library combinator
+def uNext := u + dt * kappa * lap u
+
+def prog : [String] :=
+  [ "dimension :: 3"
+  , "axes :: x,y,z"
+  , ""
+  , "double :: kappa = 1.0"
+  , "double :: dt = 0.1*dx*dx"
+  , ""
+  , "extern function :: exp"
+  , "gauss = fun(x,y,z) exp(-((x-(total_grid_x*dx/2))/(5*dx))**2 - ((y-(total_grid_y*dy/2))/(5*dy))**2 - ((z-(total_grid_z*dz/2))/(5*dz))**2)"
+  , ""
+  , "begin function u = init()"
+  , "  double [] :: u = 0"
+  , "  u[i,j,k] = gauss(i*dx,j*dy,k*dz)"
+  , "end function"
+  , ""
+  , "begin function u' = step(u)"
+  , fmrEq "u'" uNext
+  , "end function"
+  ]
+
+def main (args: [String]) : IO () := print (S.intercalate "\n" prog)
