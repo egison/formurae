@@ -10,3 +10,5 @@ examples/maxwell3d/maxwell3d.h
 data/
 examples/maxwell3d_yee/maxwell3d_yee.c
 examples/maxwell3d_yee/maxwell3d_yee.h
+figures/build/
+figures/out/
