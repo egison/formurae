@@ -8,3 +8,5 @@ examples/diffusion3d/diffusion3d.h
 examples/maxwell3d/maxwell3d.c
 examples/maxwell3d/maxwell3d.h
 data/
+examples/maxwell3d_yee/maxwell3d_yee.c
+examples/maxwell3d_yee/maxwell3d_yee.h

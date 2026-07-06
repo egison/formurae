@@ -1,0 +1,68 @@
+--
+-- maxwell3d_yee.egi : Yee-FDTD Maxwell solver on staggered grids
+--   E lives on cell edges at integer times, B on cell faces at
+--   half-integer times (leapfrog):
+--     E' = E + dt * curl B     (B at t = n+1/2)
+--     B' = B - dt * curl E'    (E' at t = n+1)
+--   Every difference is between nearest half-cell neighbours, so all
+--   generated stencils have radius 1 (TB-safe), and div B = 0 is
+--   preserved exactly by the discrete update.
+--
+-- Run: egison -l fmrgen.egi maxwell3d_yee.egi > maxwell3d_yee.fmr
+--
+
+declare symbol dt
+
+def Ex := function (x, y, z)
+def Ey := function (x, y, z)
+def Ez := function (x, y, z)
+def Bx := function (x, y, z)
+def By := function (x, y, z)
+def Bz := function (x, y, z)
+def Ex' := function (x, y, z)
+def Ey' := function (x, y, z)
+def Ez' := function (x, y, z)
+
+-- Yee staggers: E on edge centers, B on face centers
+def sE := [[1 / 2, 0, 0], [0, 1 / 2, 0], [0, 0, 1 / 2]]
+def sB := [[0, 1 / 2, 1 / 2], [1 / 2, 0, 1 / 2], [1 / 2, 1 / 2, 0]]
+
+def bFlds := [(Bx, nth 1 sB), (By, nth 2 sB), (Bz, nth 3 sB)]
+def eNFlds := [(Ex', nth 1 sE), (Ey', nth 2 sE), (Ez', nth 3 sE)]
+
+def eRhs (i1: Integer) (e: MathValue) : MathValue :=
+  e + dt * curlYee i1 (nth i1 sE) bFlds
+
+def bRhs (i1: Integer) (b: MathValue) : MathValue :=
+  b - dt * curlYee i1 (nth i1 sB) eNFlds
+
+def prog : [String] :=
+  [ "dimension :: 3"
+  , "axes :: x,y,z"
+  , ""
+  , "double :: dt = 0.5*dx"
+  , ""
+  , "extern function :: exp"
+  , "gauss1 = fun(x) exp(-((x-(total_grid_x*dx/2))/(8*dx))**2)"
+  , ""
+  , "begin function (Ex,Ey,Ez,Bx,By,Bz) = init()"
+  , "  double [] :: Ex, Ey, Ez, Bx, By, Bz"
+  , "  Ex[i,j,k] = 0"
+  , "  Ey[i,j,k] = gauss1(i*dx)"
+  , "  Ez[i,j,k] = 0"
+  , "  Bx[i,j,k] = 0"
+  , "  By[i,j,k] = 0"
+  , "  Bz[i,j,k] = gauss1((i+0.5)*dx)"
+  , "end function"
+  , ""
+  , "begin function (Ex',Ey',Ez',Bx',By',Bz') = step(Ex,Ey,Ez,Bx,By,Bz)"
+  , fmrEq "Ex'" (eRhs 1 Ex)
+  , fmrEq "Ey'" (eRhs 2 Ey)
+  , fmrEq "Ez'" (eRhs 3 Ez)
+  , fmrEq "Bx'" (bRhs 1 Bx)
+  , fmrEq "By'" (bRhs 2 By)
+  , fmrEq "Bz'" (bRhs 3 Bz)
+  , "end function"
+  ]
+
+def main (args: [String]) : IO () := print (S.intercalate "\n" prog)

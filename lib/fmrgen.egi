@@ -50,6 +50,35 @@ def curl (X: Vector MathValue) : Vector MathValue :=
 def divg (X: Vector MathValue) : MathValue := sum (map (\a -> dC a X_a) [1, 2, 3])
 
 --
+-- Staggered (Yee) grids
+--
+-- A staggered field is a pair (f, s) of an abstract function and its
+-- position offset s (in cells, entries 0 or 1/2).  Update equations are
+-- anchored at the *target* component's own position (stagger sT), so a
+-- reference to field (f, sF) at physical displacement disp lands on the
+-- array offset  disp + sT - sF  along each axis.  On a Yee lattice every
+-- curl term makes this an integer, yielding radius-1 stencils.
+--
+
+def yeeRef (sT: [MathValue]) (fld: (MathValue, [MathValue])) (disp: [MathValue]) : MathValue :=
+  let (fF, sF) := fld
+   in substitute
+        (map (\a -> (coords_a, coords_a + (nth a disp + nth a sT - nth a sF) * hsteps_a)) [1, 2, 3])
+        fF
+
+def unit3 (a: Integer) (c: MathValue) : [MathValue] :=
+  map (\b -> if a = b then c else 0) [1, 2, 3]
+
+-- half-cell central derivative along axis a, evaluated at the target anchor
+def dYee (a: Integer) (sT: [MathValue]) (fld: (MathValue, [MathValue])) : MathValue :=
+  (yeeRef sT fld (unit3 a (1 / 2)) - yeeRef sT fld (unit3 a (-1 / 2))) / hsteps_a
+
+-- i-th component of the curl of a staggered vector field, at target stagger sT
+def curlYee (i1: Integer) (sT: [MathValue]) (flds: [(MathValue, [MathValue])]) : MathValue :=
+  sum (map (\(j1, k1) -> (ε 3)_i1_j1_k1 * dYee j1 sT (nth k1 flds))
+           [(1, 1), (1, 2), (1, 3), (2, 1), (2, 2), (2, 3), (3, 1), (3, 2), (3, 3)])
+
+--
 -- Printer : MathValue -> Formura expression string
 --
 
