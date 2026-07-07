@@ -1,0 +1,66 @@
+--
+-- metric_torus.egi : heat equation on a curved surface (a torus),
+-- with the Laplace-Beltrami coefficients DERIVED SYMBOLICALLY by
+-- Egison's CAS from the metric and baked into the generated init.
+--
+--   metric (R=2, r=1):  ds^2 = d(th)^2 + (2 + cos th)^2 d(ph)^2
+--   sqrt(g)   = 2 + cos th
+--   du/dt = (1/sqrt(g)) [ d_th( A d_th u ) + d_ph( B d_ph u ) ]
+--     A = sqrt(g) g^{th th} = 2 + cos th      (at half points)
+--     B = sqrt(g) g^{ph ph} = 1/(2 + cos th)
+--
+-- The coefficients are frozen into coefficient FIELDS (ca, cb, sg) at
+-- init, so the step needs no transcendental functions; conservation of
+-- the metric-weighted heat sum(sg*u) is exact by the flux form.
+--
+-- Run: egison -l fmrgen.egi metric_torus.egi > metric_torus.fmr
+--
+
+declare symbol dt
+
+-- the metric, symbolically (theta = x, phi = y)
+def sqg := 2 + cos x
+def acoef := sqg          -- sqrt(g) g^{theta theta}
+def bcoef := 1 / sqg      -- sqrt(g) g^{phi phi}
+def u0 := exp (cos x + cos y - 2)
+
+-- fields
+def u := function (x, y, z)
+def ca := function (x, y, z)
+def cb := function (x, y, z)
+def sg := function (x, y, z)
+def f1 := function (x, y, z)
+def f2 := function (x, y, z)
+
+def s0  := [0, 0, 0]
+def sH1 := [1 / 2, 0, 0]
+def sH2 := [0, 1 / 2, 0]
+
+def prog : [String] :=
+  [ "dimension :: 3"
+  , "axes :: x,y,z"
+  , ""
+  , "double :: dt = 0.0005"
+  , ""
+  , "extern function :: exp"
+  , "extern function :: cos"
+  , ""
+  , "begin function (u,ca,cb,sg) = init()"
+  , "  double [] :: u, ca, cb, sg"
+  , fmrInit "u" u0
+  , fmrInit "ca" (substitute [(x, x + hx / 2)] acoef)
+  , fmrInit "cb" bcoef
+  , fmrInit "sg" sqg
+  , "end function"
+  , ""
+  , "begin function (u',ca',cb',sg') = step(u,ca,cb,sg)"
+  , fmrEq "f1" (ca * dYee 1 sH1 (u, s0))
+  , fmrEq "f2" (cb * dYee 2 sH2 (u, s0))
+  , fmrEq "u'" (u + dt * (dYee 1 s0 (f1, sH1) + dYee 2 s0 (f2, sH2)) / sg)
+  , "  ca' = ca[i,j,k]"
+  , "  cb' = cb[i,j,k]"
+  , "  sg' = sg[i,j,k]"
+  , "end function"
+  ]
+
+def main (args: [String]) : IO () := print (S.intercalate "\n" prog)

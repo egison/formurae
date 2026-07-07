@@ -1,0 +1,57 @@
+--
+-- shallowwater.egi : shallow water equations in conservation form
+--   h_t  + (hu)_x + (hv)_y = 0
+--   mx_t + (mx^2/h + g h^2/2)_x + (mx my/h)_y = 0     (mx = hu)
+--   my_t + (mx my/h)_x        + (my^2/h + g h^2/2)_y = 0
+-- Central differences on the momentum fluxes (emitted as intermediate
+-- fields, the MHD pattern) plus a small Laplacian artificial viscosity;
+-- both pieces are in flux form, so mass and momentum telescope exactly.
+--
+-- Initial data: still water h = 1 with a 1% Gaussian bump.  It splits
+-- into two gravity waves at c = sqrt(g h0) = 1; the check driver
+-- isolates the right-mover through the Riemann invariant (h-1) + mx/c
+-- and measures its centroid speed.
+--
+-- Run: egison -l fmrgen.egi shallowwater.egi > shallowwater.fmr
+--
+
+declare symbol dt, g, lam
+
+def h := function (x, y, z)
+def mx := function (x, y, z)
+def my := function (x, y, z)
+def fmxx := function (x, y, z)
+def fmxy := function (x, y, z)
+def fmyy := function (x, y, z)
+
+def upd (q: MathValue) (fx: MathValue) (fy: MathValue) : MathValue :=
+  q - dt * (dC 1 fx + dC 2 fy) + dt * lam * (dC2 1 q + dC2 2 q)
+
+def prog : [String] :=
+  [ "dimension :: 3"
+  , "axes :: x,y,z"
+  , ""
+  , "double :: g = 1.0"
+  , "double :: lam = 0.05"
+  , "double :: dt = 0.05"
+  , ""
+  , "extern function :: exp"
+  , ""
+  , "begin function (h, mx, my) = init()"
+  , "  double [] :: h, mx, my"
+  , "  h[i,j,k] = 1.0 + 0.01*exp(-((i*dx - 32.0)/2.0)**2)"
+  , "  mx[i,j,k] = 0.0"
+  , "  my[i,j,k] = 0.0"
+  , "end function"
+  , ""
+  , "begin function (h', mx', my') = step(h, mx, my)"
+  , fmrEq "fmxx" (mx * mx / h + g * h * h / 2)
+  , fmrEq "fmxy" (mx * my / h)
+  , fmrEq "fmyy" (my * my / h + g * h * h / 2)
+  , fmrEq "h'" (upd h mx my)
+  , fmrEq "mx'" (upd mx fmxx fmxy)
+  , fmrEq "my'" (upd my fmxy fmyy)
+  , "end function"
+  ]
+
+def main (args: [String]) : IO () := print (S.intercalate "\n" prog)

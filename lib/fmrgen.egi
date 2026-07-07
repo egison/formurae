@@ -106,20 +106,29 @@ def gridRef (g: MathValue) (args: [MathValue]) : String :=
      S.intercalate "," (map (\(a, arg) -> gridIndex a arg) (zip [1, 2, 3] args)),
      "]"]
 
--- rename lattice-constant symbols to Formura built-ins
+-- rename lattice-constant symbols to Formura built-ins; coordinate
+-- symbols map to index expressions (valid in Formura init/step bodies)
 def symName (v: String) : String :=
   match v as string with
     | #"hx" -> "dx"
     | #"hy" -> "dy"
     | #"hz" -> "dz"
+    | #"x" -> "(i*dx)"
+    | #"y" -> "(j*dy)"
+    | #"z" -> "(k*dz)"
     | _ -> v
 
 def wrapNeg (s: String) : String :=
   if S.head s = '-' then S.concat ["(", s, ")"] else s
 
+-- extract the function name from a math-function value
+-- (its show form is #<lambda Var "cos" [] ...>)
+def applyName g := nth 2 (S.split "\"" (show g))
+
 def showFactor (f: MathValue) : String :=
   match f as mathValue with
     | func $g $args -> gridRef g args
+    | apply1 $g $a1 -> S.concat [applyName g, "(", showFmr a1, ")"]
     | symbol $v _ -> symName v
     | _ -> S.concat ["(", showFmr f, ")"]
 
@@ -157,3 +166,8 @@ def showFmr (e: MathValue) : String :=
 
 def fmrEq (lhs: String) (rhs: MathValue) : String :=
   S.concat ["  ", lhs, " = ", showFmr rhs]
+
+-- an init-body line: emitted from a symbolic expression over the
+-- coordinate symbols x, y, z (printed as (i*dx) etc.)
+def fmrInit (lhs: String) (rhs: MathValue) : String :=
+  S.concat ["  ", lhs, "[i,j,k] = ", showFmr rhs]

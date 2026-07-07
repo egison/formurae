@@ -1,0 +1,24 @@
+dimension :: 3
+axes :: x,y,z
+
+double :: g = 1.0
+double :: lam = 0.05
+double :: dt = 0.05
+
+extern function :: exp
+
+begin function (h, mx, my) = init()
+  double [] :: h, mx, my
+  h[i,j,k] = 1.0 + 0.01*exp(-((i*dx - 32.0)/2.0)**2)
+  mx[i,j,k] = 0.0
+  my[i,j,k] = 0.0
+end function
+
+begin function (h', mx', my') = step(h, mx, my)
+  fmxx = g*h[i,j,k]**2/(2) + mx[i,j,k]**2/(h[i,j,k])
+  fmxy = mx[i,j,k]*my[i,j,k]/(h[i,j,k])
+  fmyy = g*h[i,j,k]**2/(2) + my[i,j,k]**2/(h[i,j,k])
+  h' = h[i,j,k] + dt*my[i,j-1,k]/(2*dy) + (-1)*dt*my[i,j+1,k]/(2*dy) + dt*mx[i-1,j,k]/(2*dx) + (-1)*dt*mx[i+1,j,k]/(2*dx) + (-2)*dt*h[i,j,k]*lam/(dy**2) + (-2)*dt*h[i,j,k]*lam/(dx**2) + dt*h[i,j-1,k]*lam/(dy**2) + dt*h[i,j+1,k]*lam/(dy**2) + dt*h[i-1,j,k]*lam/(dx**2) + dt*h[i+1,j,k]*lam/(dx**2)
+  mx' = mx[i,j,k] + (-2)*dt*lam*mx[i,j,k]/(dy**2) + dt*lam*mx[i,j-1,k]/(dy**2) + dt*lam*mx[i,j+1,k]/(dy**2) + (-2)*dt*lam*mx[i,j,k]/(dx**2) + dt*lam*mx[i-1,j,k]/(dx**2) + dt*lam*mx[i+1,j,k]/(dx**2) + dt*fmxy[i,j-1,k]/(2*dy) + (-1)*dt*fmxy[i,j+1,k]/(2*dy) + dt*fmxx[i-1,j,k]/(2*dx) + (-1)*dt*fmxx[i+1,j,k]/(2*dx)
+  my' = my[i,j,k] + (-2)*dt*lam*my[i,j,k]/(dy**2) + dt*lam*my[i,j-1,k]/(dy**2) + dt*lam*my[i,j+1,k]/(dy**2) + (-2)*dt*lam*my[i,j,k]/(dx**2) + dt*lam*my[i-1,j,k]/(dx**2) + dt*lam*my[i+1,j,k]/(dx**2) + dt*fmyy[i,j-1,k]/(2*dy) + (-1)*dt*fmyy[i,j+1,k]/(2*dy) + dt*fmxy[i-1,j,k]/(2*dx) + (-1)*dt*fmxy[i+1,j,k]/(2*dx)
+end function

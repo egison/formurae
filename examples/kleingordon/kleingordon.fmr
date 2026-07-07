@@ -1,0 +1,19 @@
+dimension :: 3
+axes :: x,y,z
+
+double :: dt = 0.05
+
+extern function :: tanh
+extern function :: cosh
+
+# gamma/sqrt(2) = 0.7216878...; gamma*v/sqrt(2) = 0.1443375...
+begin function (phi, w) = init()
+  double [] :: phi, w
+  phi[i,j,k] = tanh(0.7216878364870323*(i*dx - 16.0)) - tanh(0.7216878364870323*(i*dx - 48.0)) - 1.0
+  w[i,j,k] = 0.0 - 0.14433756729740645*(1.0/cosh(0.7216878364870323*(i*dx - 16.0)))**2 - 0.14433756729740645*(1.0/cosh(0.7216878364870323*(i*dx - 48.0)))**2
+end function
+
+begin function (phi', w') = step(phi, w)
+  w' = (-1)*dt*phi[i,j,k]**3 + dt*phi[i,j,k] + w[i,j,k] + (-2)*dt*phi[i,j,k]/(dx**2) + dt*phi[i-1,j,k]/(dx**2) + dt*phi[i+1,j,k]/(dx**2)
+  phi' = dt*w'[i,j,k] + phi[i,j,k]
+end function

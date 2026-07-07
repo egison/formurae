@@ -1,0 +1,6 @@
+length_per_node: [64.0,2.0,2.0]
+grid_per_node: [256,8,8]
+grid_per_block: [8,8,8]
+temporal_blocking_interval: 4
+mpi_shape: [1,1,1]
+reduces: [pmax = absmax phi]

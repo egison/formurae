@@ -27,15 +27,15 @@ Formura 2.x + 現行 fmrgen に乗るのは次を満たす問題:
 |---|---|---|---|---|---|
 | 1 | 理想 MHD(Orszag–Tang 渦) | 保存形 8 変数 | 中間流束場+Rusanov | 保存 ~1e-12・divB 1.2e-14・正値性 | **済** (examples/mhd_ot) |
 | 2 | 弾性波・地震波(Virieux) | v–σ 定式化、σ は対称テンソル | yeeRef 流用 | vp=1.990/2・vs=0.995/1・E ドリフト 3.4e-4 | **済** (examples/elastic3d) |
-| 3 | 線形音響(p–v) | ∂t p = −K∇·v、∂t v = −∇p/ρ | Yee の scalar 版(済) | 音響エネルギー保存、c=√(K/ρ) | ◎ |
-| 4 | 浅水方程式(津波・回転流体) | h, hu の保存形(+コリオリ f) | 中心差分+人工粘性 | 質量厳密保存、重力波速 √(gh)、地衡流調整 | ◎ |
+| 3 | 線形音響(p–v) | ∂t p = −K∇·v、∂t v = −∇p/ρ | Yee の scalar 版 | 音速 0.9957/1・E ドリフト 1.6e-4・横速度 =0 | **済** (examples/acoustic3d) |
+| 4 | 浅水方程式(津波・回転流体) | h, hu の保存形(+コリオリ f) | 中心差分+人工粘性 | 波速 0.9989/1・質量 3.7e-14・対称性 max\|my\|=0 | **済** (examples/shallowwater) |
 | 5 | Burgers 方程式(1D/3D) | ∂t u + u∂x u = ν∇²u | 済 | Cole–Hopf 厳密解と 3.5e-5 一致 | **済** (examples/burgers3d) |
-| 6 | 圧縮性 Euler(Sod 衝撃管) | 保存形 5 変数、Lax–Friedrichs flux | λmax は固定パラメタ | Sod 解析解と L1 誤差、保存量 | ◎ |
-| 7 | 格子ボルツマン(D3Q19) | streaming(=shift)+局所衝突 | 19 成分場の式を map で自動生成 | 質量・運動量保存、Poiseuille 解析解 | ◎ |
+| 6 | 圧縮性 Euler(Sod 衝撃管) | 保存形 3 変数(1D 流)、LF 粘性 | λmax は固定パラメタ | 厳密 Riemann 解と L1(ρ)=0.0255・保存 ~1e-14 | **済** (examples/euler_sod) |
+| 7 | 格子ボルツマン(D3Q19) | streaming(=shift)+局所衝突 | 19 成分場の式を map で自動生成 | 実測 ν=0.10010(BGK 厳密 0.1)・質量 4.8e-14 | **済** (examples/lbm_d3q19) |
 | 8 | Cahn–Hilliard(スピノーダル分解) | μ = c³−c−κ∇²c、∂t c = M∇²μ | 中間場 μ | Σc 12桁保存・F 単調減・相分離 ±0.95 | **済** (examples/cahnhilliard3d) |
 | 9 | 時間依存 Ginzburg–Landau(超伝導渦) | ∂t ψ = ψ − \|ψ\|²ψ + ∇²ψ(実 2 場) | 多項式のみ | バルク飽和 0.978・渦芯形成 | **済** (examples/tdgl3d) |
-| 10 | 非線形 Klein–Gordon(φ⁴ キンク) | ∂tt φ = ∇²φ − m²φ − λφ³ | leapfrog 2 場 | エネルギー保存、1D kink–antikink 衝突 | ◎ |
-| 11 | 曲線座標・曲面上の拡散(計量つき) | ∂t u = (1/√g)∂i(√g g^{ij}∂j u) | **CAS が計量から係数を記号展開**(トーラスは周期と相性◎) | 質量保存、平坦極限で通常拡散に一致 | ◎ |
+| 10 | 非線形 Klein–Gordon(φ⁴ キンク) | ∂tt φ = ∇²φ − m²φ − λφ³ | leapfrog 2 場 | 速度 ±0.1993/0.2・E=2γE_kink 偏差 0.11%・ドリフト 3e-7 | **済** (examples/kleingordon) |
+| 11 | 曲線座標・曲面上の拡散(計量つき) | ∂t u = (1/√g)∂i(√g g^{ij}∂j u) | **CAS が計量から係数を記号展開**(トーラスは周期と相性◎) | 参照実装と 3.3e-16・Σ√g·u 保存 2.5e-15・最大値原理 | **済** (examples/metric_torus) |
 | 12 | Kuramoto–Sivashinsky(時空カオス) | ∂t u = −u∂x u − ∇²u − ∇⁴u | 4 階 = lap∘lap(中間場で半径 1×2 段) | カオス統計、エネルギー収支 | ◎ |
 | 13 | 樹枝状凝固 phase-field(Kobayashi) | 異方性 ε(θ)、θ = atan2(∂yφ, ∂xφ) | atan2/cos の出力対応 | 界面幅、異方性次数と枝の本数 | ○ |
 | 14 | 非線形シュレディンガー(光ソリトン) | i∂t ψ = −½∇²ψ − \|ψ\|²ψ | 実 2 場;陽解法の弱不安定に注意 | ノルム・ソリトン形状(sech 解析解) | ○ |
@@ -110,6 +110,13 @@ primed-intermediate 参照と同じ機構)。Σc の厳密保存(丸め誤差の
 **Egison の CAS が記号的に実行**し、係数が焼き込まれた .fmr が出る。
 トーラス(周期境界そのもの!)上の拡散が最初の題材として綺麗。
 Devito/GT4Py にはない芸当で、論文の差別化ポイントを増やす。
+
+**実装済**(`examples/metric_torus/`): トーラス R=2, r=1 の誘導計量
+√g = 2+cos θ から `sqg := 2 + cos x` の1行で係数 A=√g·g^{θθ}, B=√g·g^{φφ}
+を記号導出し、`fmrInit` が係数場 ca/cb/sg と初期値 exp(cos θ+cos φ−2) の
+init 本体(`ca[i,j,k] = cos((i*dx)+dx/(2))+2` 等)まで生成。流束形式
+(f1/f2 を半セル位置に置く Yee 機構の流用)で計量重みつき熱量が厳密保存。
+独立 C 参照実装と 3.3e-16 一致、最大値原理は `reduces` の umax/umin で監視。
 
 ### 16. 高次スキーム自動導出 — 応用ではなく「武器の増設」
 

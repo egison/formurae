@@ -18,9 +18,9 @@ CFLAGS  ?= -O2 -std=c11
 
 EGISON_RUN = cd $(EGISON_DIR) && cabal run -v0 egison --
 
-.PHONY: all setup diffusion3d maxwell3d maxwell3d-yee pearson3d burgers3d cahnhilliard3d tdgl3d mhd-ot elastic3d clean
+.PHONY: all setup diffusion3d maxwell3d maxwell3d-yee pearson3d burgers3d cahnhilliard3d tdgl3d mhd-ot elastic3d metric-torus kleingordon shallowwater lbm-d3q19 acoustic3d euler-sod clean
 
-all: diffusion3d maxwell3d maxwell3d-yee pearson3d burgers3d cahnhilliard3d tdgl3d mhd-ot elastic3d
+all: diffusion3d maxwell3d maxwell3d-yee pearson3d burgers3d cahnhilliard3d tdgl3d mhd-ot elastic3d metric-torus kleingordon shallowwater lbm-d3q19 acoustic3d euler-sod
 
 setup:
 	./setup.sh
@@ -88,6 +88,48 @@ elastic3d:
 	cd examples/elastic3d && $(CC) $(CFLAGS) -I$(MPISTUB) -o check elastic_check.c elastic3d.c -lm
 	cd examples/elastic3d && ./check
 
+metric-torus:
+	$(EGISON_RUN) -l $(FMRGEN) $(abspath examples/metric_torus/metric_torus.egi) \
+	  > $(abspath examples/metric_torus/metric_torus.fmr)
+	cd examples/metric_torus && $(FORMURA) metric_torus.fmr
+	cd examples/metric_torus && $(CC) $(CFLAGS) -I. -I$(MPISTUB) -o check metric_check.c metric_torus.c -lm
+	cd examples/metric_torus && ./check
+
+kleingordon:
+	$(EGISON_RUN) -l $(FMRGEN) $(abspath examples/kleingordon/kleingordon.egi) \
+	  > $(abspath examples/kleingordon/kleingordon.fmr)
+	cd examples/kleingordon && $(FORMURA) kleingordon.fmr
+	cd examples/kleingordon && $(CC) $(CFLAGS) -I. -I$(MPISTUB) -o check kg_check.c kleingordon.c -lm
+	cd examples/kleingordon && ./check
+
+shallowwater:
+	$(EGISON_RUN) -l $(FMRGEN) $(abspath examples/shallowwater/shallowwater.egi) \
+	  > $(abspath examples/shallowwater/shallowwater.fmr)
+	cd examples/shallowwater && $(FORMURA) shallowwater.fmr
+	cd examples/shallowwater && $(CC) $(CFLAGS) -I. -I$(MPISTUB) -o check sw_check.c shallowwater.c -lm
+	cd examples/shallowwater && ./check
+
+lbm-d3q19:
+	$(EGISON_RUN) -l $(FMRGEN) $(abspath examples/lbm_d3q19/lbm_d3q19.egi) \
+	  > $(abspath examples/lbm_d3q19/lbm_d3q19.fmr)
+	cd examples/lbm_d3q19 && $(FORMURA) lbm_d3q19.fmr
+	cd examples/lbm_d3q19 && $(CC) $(CFLAGS) -I. -I$(MPISTUB) -o check lbm_check.c lbm_d3q19.c -lm
+	cd examples/lbm_d3q19 && ./check
+
+acoustic3d:
+	$(EGISON_RUN) -l $(FMRGEN) $(abspath examples/acoustic3d/acoustic3d.egi) \
+	  > $(abspath examples/acoustic3d/acoustic3d.fmr)
+	cd examples/acoustic3d && $(FORMURA) acoustic3d.fmr
+	cd examples/acoustic3d && $(CC) $(CFLAGS) -I. -I$(MPISTUB) -o check ac_check.c acoustic3d.c -lm
+	cd examples/acoustic3d && ./check
+
+euler-sod:
+	$(EGISON_RUN) -l $(FMRGEN) $(abspath examples/euler_sod/euler_sod.egi) \
+	  > $(abspath examples/euler_sod/euler_sod.fmr)
+	cd examples/euler_sod && $(FORMURA) euler_sod.fmr
+	cd examples/euler_sod && $(CC) $(CFLAGS) -I. -I$(MPISTUB) -o check sod_check.c euler_sod.c -lm
+	cd examples/euler_sod && ./check
+
 clean:
 	rm -f examples/*/check examples/*/*.o examples/*/run
 	rm -f examples/diffusion3d/diffusion3d.c examples/diffusion3d/diffusion3d.h
@@ -100,3 +142,9 @@ clean:
 	rm -f examples/cahnhilliard3d/cahnhilliard3d.c examples/cahnhilliard3d/cahnhilliard3d.h
 	rm -f examples/burgers3d/burgers3d.c examples/burgers3d/burgers3d.h
 	rm -f examples/elastic3d/elastic3d.c examples/elastic3d/elastic3d.h
+	rm -f examples/metric_torus/metric_torus.c examples/metric_torus/metric_torus.h
+	rm -f examples/kleingordon/kleingordon.c examples/kleingordon/kleingordon.h
+	rm -f examples/shallowwater/shallowwater.c examples/shallowwater/shallowwater.h
+	rm -f examples/lbm_d3q19/lbm_d3q19.c examples/lbm_d3q19/lbm_d3q19.h
+	rm -f examples/acoustic3d/acoustic3d.c examples/acoustic3d/acoustic3d.h
+	rm -f examples/euler_sod/euler_sod.c examples/euler_sod/euler_sod.h

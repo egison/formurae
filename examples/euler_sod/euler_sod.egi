@@ -1,0 +1,57 @@
+--
+-- euler_sod.egi : compressible Euler (1D flow on the 3D grid), Sod tube
+--   rho_t + (mx)_x = 0
+--   mx_t  + (mx^2/rho + p)_x = 0
+--   en_t  + ((en + p) mx/rho)_x = 0,   p = (gamma-1)(en - mx^2/(2 rho))
+-- Central differences plus Lax-Friedrichs-type viscosity (lam ~ smax*dx/2),
+-- all in flux form.  The domain is periodic, so the initial data is a
+-- *double* Riemann problem (high state between the two tanh-smoothed
+-- diaphragms at x=4 and x=12); the check driver compares density around
+-- the x=12 diaphragm with the exact Sod solution before the two fans
+-- can interact.
+--
+-- Run: egison -l fmrgen.egi euler_sod.egi > euler_sod.fmr
+--
+
+declare symbol dt, lam
+
+def rho := function (x, y, z)
+def mx := function (x, y, z)
+def en := function (x, y, z)
+def pr := function (x, y, z)
+def fm := function (x, y, z)
+def fe := function (x, y, z)
+
+def upd (q: MathValue) (fx: MathValue) : MathValue :=
+  q - dt * dC 1 fx + dt * lam * dC2 1 q
+
+def prog : [String] :=
+  [ "dimension :: 3"
+  , "axes :: x,y,z"
+  , ""
+  , "# gamma = 1.4;  lam ~ smax*dx/2 with smax ~ 1.8"
+  , "double :: lam = 0.028"
+  , "double :: dt = 0.01"
+  , ""
+  , "extern function :: tanh"
+  , "# 0..1 profile: 1 between the diaphragms at x=4 and x=12"
+  , "sod = fun(x) 0.5*(tanh((x - 4.0)/0.0625) - tanh((x - 12.0)/0.0625))"
+  , ""
+  , "begin function (rho, mx, en) = init()"
+  , "  double [] :: rho, mx, en"
+  , "  rho[i,j,k] = 0.125 + 0.875*sod(i*dx)"
+  , "  mx[i,j,k] = 0.0"
+  , "  en[i,j,k] = (0.1 + 0.9*sod(i*dx))/0.4"
+  , "end function"
+  , ""
+  , "begin function (rho', mx', en') = step(rho, mx, en)"
+  , fmrEq "pr" ((2 / 5) * (en - mx * mx / (2 * rho)))
+  , fmrEq "fm" (mx * mx / rho + pr)
+  , fmrEq "fe" ((en + pr) * mx / rho)
+  , fmrEq "rho'" (upd rho mx)
+  , fmrEq "mx'" (upd mx fm)
+  , fmrEq "en'" (upd en fe)
+  , "end function"
+  ]
+
+def main (args: [String]) : IO () := print (S.intercalate "\n" prog)

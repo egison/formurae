@@ -1,0 +1,60 @@
+--
+-- acoustic3d.egi : linear acoustics, pressure-velocity formulation on a
+-- staggered grid (the scalar reduction of the Virieux/Yee scheme)
+--   dp/dt = -kap div v
+--   dv/dt = -(1/rho0) grad p
+-- p sits on cell centers, velocity components on faces.  Updating v
+-- first and then p from the primed v makes the pair symplectic.
+-- With kap = 1, rho0 = 1 the sound speed is c = sqrt(kap/rho0) = 1 and
+-- the impedance is Z = rho0 c = 1, so p = vx launches a pure
+-- right-moving plane pulse.
+--
+-- Run: egison -l fmrgen.egi acoustic3d.egi > acoustic3d.fmr
+--
+
+declare symbol dt, kap, rho0
+
+def p := function (x, y, z)
+def vx := function (x, y, z)
+def vy := function (x, y, z)
+def vz := function (x, y, z)
+def vx' := function (x, y, z)
+def vy' := function (x, y, z)
+def vz' := function (x, y, z)
+
+def s0  := [0, 0, 0]
+def sVx := [1 / 2, 0, 0]
+def sVy := [0, 1 / 2, 0]
+def sVz := [0, 0, 1 / 2]
+
+def divv' := dYee 1 s0 (vx', sVx) + dYee 2 s0 (vy', sVy) + dYee 3 s0 (vz', sVz)
+
+def prog : [String] :=
+  [ "dimension :: 3"
+  , "axes :: x,y,z"
+  , ""
+  , "# kap = rho0 = 1  ->  c = 1, Z = 1"
+  , "double :: kap = 1.0"
+  , "double :: rho0 = 1.0"
+  , "double :: dt = 0.0005"
+  , ""
+  , "extern function :: exp"
+  , "gp = fun(x) exp(-((x - 0.3)/0.02)*((x - 0.3)/0.02))"
+  , ""
+  , "begin function (p, vx, vy, vz) = init()"
+  , "  double [] :: p, vx, vy, vz"
+  , "  p[i,j,k] = gp(i*dx)"
+  , "  vx[i,j,k] = gp((i + 0.5)*dx)"
+  , "  vy[i,j,k] = 0.0"
+  , "  vz[i,j,k] = 0.0"
+  , "end function"
+  , ""
+  , "begin function (p', vx', vy', vz') = step(p, vx, vy, vz)"
+  , fmrEq "vx'" (vx - (dt / rho0) * dYee 1 sVx (p, s0))
+  , fmrEq "vy'" (vy - (dt / rho0) * dYee 2 sVy (p, s0))
+  , fmrEq "vz'" (vz - (dt / rho0) * dYee 3 sVz (p, s0))
+  , fmrEq "p'" (p - dt * kap * divv')
+  , "end function"
+  ]
+
+def main (args: [String]) : IO () := print (S.intercalate "\n" prog)

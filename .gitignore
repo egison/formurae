@@ -26,3 +26,15 @@ examples/mhd_ot/mhd_ot.c
 examples/mhd_ot/mhd_ot.h
 examples/elastic3d/elastic3d.c
 examples/elastic3d/elastic3d.h
+examples/metric_torus/metric_torus.c
+examples/metric_torus/metric_torus.h
+examples/kleingordon/kleingordon.c
+examples/kleingordon/kleingordon.h
+examples/shallowwater/shallowwater.c
+examples/shallowwater/shallowwater.h
+examples/lbm_d3q19/lbm_d3q19.c
+examples/lbm_d3q19/lbm_d3q19.h
+examples/acoustic3d/acoustic3d.c
+examples/acoustic3d/acoustic3d.h
+examples/euler_sod/euler_sod.c
+examples/euler_sod/euler_sod.h
