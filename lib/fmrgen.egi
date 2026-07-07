@@ -50,6 +50,43 @@ def curl (X: Vector MathValue) : Vector MathValue :=
 def divg (X: Vector MathValue) : MathValue := sum (map (\a -> dC a X_a) [1, 2, 3])
 
 --
+-- Derived high-order stencils
+--
+-- taylorStencil solves the Taylor-expansion conditions
+--   sum_k c_k k^mm / mm! = delta(mm, m)     (mm = 0 .. |ks|-1)
+-- with exact rational Gaussian elimination, so the difference
+-- coefficients are *derived* by the CAS rather than quoted.  dTaylor
+-- turns them into a shift-based derivative combinator of order
+-- |ks| - m (for symmetric stencils, one better).
+--
+
+def scaleRow (c: MathValue) (r: [MathValue]) : [MathValue] := map (\v -> c * v) r
+
+def subRow (r1: [MathValue]) (r2: [MathValue]) : [MathValue] :=
+  map (\(p, q) -> p - q) (zip r1 r2)
+
+-- rows are [a_1 .. a_n, rhs]; returns [x_1 .. x_n] (exact rationals)
+def gaussSolve (rows: [[MathValue]]) : [MathValue] :=
+  match rows as list (list mathValue) with
+    | [$r] -> [nth 2 r / nth 1 r]
+    | $p :: $rest ->
+        let reduced := map (\r -> tail (subRow r (scaleRow (head r / head p) p))) rest
+         in let xs := gaussSolve reduced
+         in let s := sum (map (\(c, xv) -> c * xv) (zip (tail (take (length p - 1) p)) xs))
+         in [(nth (length p) p - s) / head p] ++ xs
+
+def factI (m: Integer) : MathValue := foldl (\p q -> p * q) 1 (between 1 m)
+
+def taylorStencil (m: Integer) (ks: [MathValue]) : [MathValue] :=
+  gaussSolve
+    (map (\mm -> map (\k -> k ^ mm / factI mm) ks ++ [if mm = m then 1 else 0])
+         (between 0 (length ks - 1)))
+
+-- m-th derivative along axis a from the stencil offsets ks
+def dTaylor (m: Integer) (ks: [MathValue]) (a: Integer) (u: MathValue) : MathValue :=
+  sum (map (\(c, k) -> c * shift a k u) (zip (taylorStencil m ks) ks)) / (hsteps_a ^ m)
+
+--
 -- Staggered (Yee) grids
 --
 -- A staggered field is a pair (f, s) of an abstract function and its

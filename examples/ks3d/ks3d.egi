@@ -1,0 +1,40 @@
+--
+-- ks3d.egi : Kuramoto-Sivashinsky (1D flow on the 3D grid)
+--   u_t = -(u^2/2)_x - u_xx - u_xxxx
+-- Spatio-temporal chaos: the -u_xx term pumps energy into long waves,
+-- -u_xxxx damps short ones, and the conservative nonlinearity moves
+-- energy between them.  The fourth derivative is two chained second
+-- differences through the intermediate field w = u_xx (the same
+-- two-stage pattern as Cahn-Hilliard), so every term telescopes and
+-- sum u is conserved exactly.
+--
+-- Run: egison -l fmrgen.egi ks3d.egi > ks3d.fmr
+--
+
+declare symbol dt
+
+def u := function (x, y, z)
+def w := function (x, y, z)
+
+def prog : [String] :=
+  [ "dimension :: 3"
+  , "axes :: x,y,z"
+  , ""
+  , "# L = 22 (chaotic attractor); explicit dt below the u_xxxx limit 2/kmax^4"
+  , "double :: dt = 0.00015"
+  , ""
+  , "extern function :: cos"
+  , "# wavenumbers: 2*pi/22 and its double"
+  , ""
+  , "begin function u = init()"
+  , "  double [] :: u = 0"
+  , "  u[i,j,k] = cos(0.28559933214452665*i*dx) + 0.1*cos(0.5711986642890533*i*dx)"
+  , "end function"
+  , ""
+  , "begin function u' = step(u)"
+  , fmrEq "w" (dC2 1 u)
+  , fmrEq "u'" (u - dt * (dC 1 (u * u / 2) + w + dC2 1 w))
+  , "end function"
+  ]
+
+def main (args: [String]) : IO () := print (S.intercalate "\n" prog)

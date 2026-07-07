@@ -1,0 +1,17 @@
+dimension :: 3
+axes :: x,y,z
+
+# CAS-derived 4th-order coefficients c(-2..2): [-1 / 12, 4 / 3, -5 / 2, 4 / 3, -1 / 12]
+double :: kappa = 1.0
+double :: dt = 0.0005
+
+extern function :: sin
+
+begin function u = init()
+  double [] :: u = 0
+  u[i,j,k] = sin(4.0*i*dx)
+end function
+
+begin function u' = step(u)
+  u' = u[i,j,k] + (-5)*dt*kappa*u[i,j,k]/(2*dz**2) + 4*dt*kappa*u[i,j,k-1]/(3*dz**2) + (-1)*dt*kappa*u[i,j,k-2]/(12*dz**2) + 4*dt*kappa*u[i,j,k+1]/(3*dz**2) + (-1)*dt*kappa*u[i,j,k+2]/(12*dz**2) + (-5)*dt*kappa*u[i,j,k]/(2*dy**2) + 4*dt*kappa*u[i,j-1,k]/(3*dy**2) + (-1)*dt*kappa*u[i,j-2,k]/(12*dy**2) + 4*dt*kappa*u[i,j+1,k]/(3*dy**2) + (-1)*dt*kappa*u[i,j+2,k]/(12*dy**2) + (-5)*dt*kappa*u[i,j,k]/(2*dx**2) + 4*dt*kappa*u[i-1,j,k]/(3*dx**2) + (-1)*dt*kappa*u[i-2,j,k]/(12*dx**2) + 4*dt*kappa*u[i+1,j,k]/(3*dx**2) + (-1)*dt*kappa*u[i+2,j,k]/(12*dx**2)
+end function

@@ -18,9 +18,9 @@ CFLAGS  ?= -O2 -std=c11
 
 EGISON_RUN = cd $(EGISON_DIR) && cabal run -v0 egison --
 
-.PHONY: all setup diffusion3d maxwell3d maxwell3d-yee pearson3d burgers3d cahnhilliard3d tdgl3d mhd-ot elastic3d metric-torus kleingordon shallowwater lbm-d3q19 acoustic3d euler-sod clean
+.PHONY: all setup diffusion3d maxwell3d maxwell3d-yee pearson3d burgers3d cahnhilliard3d tdgl3d mhd-ot elastic3d metric-torus kleingordon shallowwater lbm-d3q19 acoustic3d euler-sod ks3d highorder4 dirichlet-diffusion clean
 
-all: diffusion3d maxwell3d maxwell3d-yee pearson3d burgers3d cahnhilliard3d tdgl3d mhd-ot elastic3d metric-torus kleingordon shallowwater lbm-d3q19 acoustic3d euler-sod
+all: diffusion3d maxwell3d maxwell3d-yee pearson3d burgers3d cahnhilliard3d tdgl3d mhd-ot elastic3d metric-torus kleingordon shallowwater lbm-d3q19 acoustic3d euler-sod ks3d highorder4 dirichlet-diffusion
 
 setup:
 	./setup.sh
@@ -130,6 +130,27 @@ euler-sod:
 	cd examples/euler_sod && $(CC) $(CFLAGS) -I. -I$(MPISTUB) -o check sod_check.c euler_sod.c -lm
 	cd examples/euler_sod && ./check
 
+ks3d:
+	$(EGISON_RUN) -l $(FMRGEN) $(abspath examples/ks3d/ks3d.egi) \
+	  > $(abspath examples/ks3d/ks3d.fmr)
+	cd examples/ks3d && $(FORMURA) ks3d.fmr
+	cd examples/ks3d && $(CC) $(CFLAGS) -I. -I$(MPISTUB) -o check ks_check.c ks3d.c -lm
+	cd examples/ks3d && ./check
+
+highorder4:
+	$(EGISON_RUN) -l $(FMRGEN) $(abspath examples/highorder4/highorder4.egi) \
+	  > $(abspath examples/highorder4/highorder4.fmr)
+	cd examples/highorder4 && $(FORMURA) highorder4.fmr
+	cd examples/highorder4 && $(CC) $(CFLAGS) -I. -I$(MPISTUB) -o check hi4_check.c highorder4.c -lm
+	cd examples/highorder4 && ./check
+
+dirichlet-diffusion:
+	$(EGISON_RUN) -l $(FMRGEN) $(abspath examples/dirichlet_diffusion/dirichlet_diffusion.egi) \
+	  > $(abspath examples/dirichlet_diffusion/dirichlet_diffusion.fmr)
+	cd examples/dirichlet_diffusion && $(FORMURA) dirichlet_diffusion.fmr
+	cd examples/dirichlet_diffusion && $(CC) $(CFLAGS) -I. -I$(MPISTUB) -o check dirichlet_check.c dirichlet_diffusion.c -lm
+	cd examples/dirichlet_diffusion && ./check
+
 clean:
 	rm -f examples/*/check examples/*/*.o examples/*/run
 	rm -f examples/diffusion3d/diffusion3d.c examples/diffusion3d/diffusion3d.h
@@ -148,3 +169,6 @@ clean:
 	rm -f examples/lbm_d3q19/lbm_d3q19.c examples/lbm_d3q19/lbm_d3q19.h
 	rm -f examples/acoustic3d/acoustic3d.c examples/acoustic3d/acoustic3d.h
 	rm -f examples/euler_sod/euler_sod.c examples/euler_sod/euler_sod.h
+	rm -f examples/ks3d/ks3d.c examples/ks3d/ks3d.h
+	rm -f examples/highorder4/highorder4.c examples/highorder4/highorder4.h
+	rm -f examples/dirichlet_diffusion/dirichlet_diffusion.c examples/dirichlet_diffusion/dirichlet_diffusion.h
