@@ -162,13 +162,6 @@ def sigmaC (c: Integer) (k: Integer) (a: Integer) : [MathValue] :=
         else if kp = 2 then sigma2 a
         else sigma3
 
--- strip an outer quote (expandAll keeps quotes around applications,
--- and substitute cannot enter them)
-def unquoteAtom (e: MathValue) : MathValue :=
-  match e as mathValue with
-    | quote $q -> q
-    | _ -> e
-
 -- recursively remove quotes everywhere (expandAll re-quotes
 -- applications, and substitute cannot enter quotes)
 def unqF (f: MathValue) : MathValue :=

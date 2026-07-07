@@ -151,12 +151,11 @@ def pgm(name):
 # ---------- 3D surface rendering (painter's algorithm, stdlib only) ----------
 
 def _rot(p, az, ax):
-    import math as _m
     x, y, z = p
-    x1 = x * _m.cos(az) - y * _m.sin(az)
-    y1 = x * _m.sin(az) + y * _m.cos(az)
-    y2 = y1 * _m.cos(ax) - z * _m.sin(ax)
-    z2 = y1 * _m.sin(ax) + z * _m.cos(ax)
+    x1 = x * math.cos(az) - y * math.sin(az)
+    y1 = x * math.sin(az) + y * math.cos(az)
+    y2 = y1 * math.cos(ax) - z * math.sin(ax)
+    z2 = y1 * math.sin(ax) + z * math.cos(ax)
     return (x1, y2, z2)          # screen (x1, -z2), depth y2
 
 
@@ -349,20 +348,19 @@ def main():
              title='Laplacian symbol error |lam(k)+k^2|', xlabel='k', ylabel='log10 error')
 
     # 18 curved geometries rendered on their actual surfaces
-    import math as _m
     tor = mat('metric_t3000.mat')
     tny, tnx = len(tor), len(tor[0])
     def torus_embed(cx, cy):
-        th = 2 * _m.pi * cx / tnx; ph = 2 * _m.pi * cy / tny
-        return ((2 + _m.cos(th)) * _m.cos(ph), (2 + _m.cos(th)) * _m.sin(ph), _m.sin(th))
+        th = 2 * math.pi * cx / tnx; ph = 2 * math.pi * cy / tny
+        return ((2 + math.cos(th)) * math.cos(ph), (2 + math.cos(th)) * math.sin(ph), math.sin(th))
     surface3d(tor, torus_embed, os.path.join(IMG, 'torus3d.png'), True, True, step=1)
 
     sph = mat('sphere_t2000.mat')
     sny, snx = len(sph), len(sph[0])
     def sphere_embed(cx, cy):
         th = 1.0 + 1.1415926535897931 * cx / snx
-        ph = 2 * _m.pi * cy / sny
-        return (_m.sin(th) * _m.cos(ph), _m.sin(th) * _m.sin(ph), _m.cos(th))
+        ph = 2 * math.pi * cy / sny
+        return (math.sin(th) * math.cos(ph), math.sin(th) * math.sin(ph), math.cos(th))
     surface3d(sph, sphere_embed, os.path.join(IMG, 'sphere3d.png'), False, True,
               az=0.5, ax=1.15, step=1)
 
@@ -370,8 +368,8 @@ def main():
     pol = mat('polar_t2000.mat')
     pny, pnx = len(pol), len(pol[0])
     def polar_embed(cx, cy):
-        r = 1.0 + cx / (pnx - 1.0); ph = 2 * _m.pi * cy / pny
-        return (r * _m.cos(ph), r * _m.sin(ph), 0.0)
+        r = 1.0 + cx / (pnx - 1.0); ph = 2 * math.pi * cy / pny
+        return (r * math.cos(ph), r * math.sin(ph), 0.0)
     surface3d(pol, polar_embed, os.path.join(IMG, 'polar3d.png'), False, True,
               az=0.0, ax=1.25, step=1)
     heatmap(pol, os.path.join(IMG, 'polar_flat.png'))
@@ -382,8 +380,8 @@ def main():
     shlT = [[shl[j][k] for j in range(xny)] for k in range(xnx)]  # rows phi, cols theta
     def shell_embed(cx, cy):
         th = 1.0 + 1.1415926535897931 * cx / (xny - 1.0)
-        ph = 2 * _m.pi * cy / xnx
-        return (2 * _m.sin(th) * _m.cos(ph), 2 * _m.sin(th) * _m.sin(ph), 2 * _m.cos(th))
+        ph = 2 * math.pi * cy / xnx
+        return (2 * math.sin(th) * math.cos(ph), 2 * math.sin(th) * math.sin(ph), 2 * math.cos(th))
     surface3d(shlT, shell_embed, os.path.join(IMG, 'shell3d.png'), False, True,
               az=0.5, ax=1.15, step=1)
     heatmap(mat('shell_t1000.mat'), os.path.join(IMG, 'shell_rt.png'))
