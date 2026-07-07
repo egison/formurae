@@ -23,4 +23,4 @@ init:
   u := exp (cos x - 1) * exp (0 - 4 * (y - 1 / 2) ^ 2)
 
 step:
-  u' = u + dt * lb u
+  u' = u - dt * δ (d u)

@@ -8,24 +8,24 @@
 -- into coefficient fields, and assembles lb u = -delta (d u) as an
 -- exactly conservative flux form.
 --
--- Backquotes keep `(2 + cos theta) atomic during the CAS work
+-- Backquotes keep `(2 + cos θ) atomic during the CAS work
 -- (sin^2 + cos^2 collapses to 1, sqrt of the quoted square reduces),
 -- and are expanded away before the half-cell substitution.
 
 dimension 3
-axes theta, phi, z
+axes θ, φ, z
 
 param dt = 0.0005
 
 extern exp
 extern cos
 
-embedding [ `(2 + cos theta) * cos phi, `(2 + cos theta) * sin phi, sin theta, z ]
+embedding [ `(2 + cos θ) * cos φ, `(2 + cos θ) * sin φ, sin θ, z ]
 
 field u : scalar
 
 init:
-  u := exp (cos theta + cos phi - 2)
+  u := exp (cos θ + cos φ - 2)
 
 step:
-  u' = u + dt * lb u
+  u' = u + dt * Δ u

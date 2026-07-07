@@ -5,6 +5,17 @@ Formura のラテン語風複数形で *formulae*(数式)への掛詞 — 「数
 本言語の主題が名前になっている。Formura 設計者・村主崇行氏への敬意を込めた継承でもある
 (「Formura 2」は本体の現行バージョン 2.3.2 と紛れるため回避)。
 
+**v1.8(2026-07-08): Unicode と基本演算子** — ギリシャ文字識別子(θ, φ, …
+→ fec が ASCII へ字訳)・∂=d・δ=codiff・−=-・Δ=幾何のラプラシアン
+(平坦 lap/計量 lb)。`∂_x (∂_x u)` は compact 2階差分に融合、スカラーへの
+`δ (d u)` は −Δ へ降下 — いずれも生成 .fmr バイト一致で検証
+(metric_torus=θφΔ・maxwell_dec=δ・ks3d=∂2回・hyperbolic=−δd)。
+Egison 側の function symbol 改良(functionSymbol 構築子・quote 透過
+substitute・mathFunctionName・ディスパッチ修正 = egison/design/
+function-symbol-formurae.md)により **LBM の 38 defs が map 2行の族に**、
+feq の let も復活(いずれも .fmr バイト一致)。`field f : family N` の
+表層化が次の一手として解禁。
+
 2026-07-10 起草。動機はレビュー指摘:
 「現在の .egi は書きにくい。Maxwell の Ex, Ey, Ez は E というベクトルにすべき。
 Egison 流の添字記法と微分形式の記法をもつ、Formura のような DSL を新しく作るべき」。

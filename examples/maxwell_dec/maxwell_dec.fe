@@ -17,7 +17,7 @@ init:
   B = [| 0, 0, gauss1((i+0.5)*dx) |]
 
 step:
-  E' = E + dt * delta B
+  E' = E + dt * δ B
   B' = B - dt * d E'
 
 assert-dd-zero E'

@@ -277,9 +277,8 @@ def symName (v: String) : String :=
 def wrapNeg (s: String) : String :=
   if S.head s = '-' then S.concat ["(", s, ")"] else s
 
--- extract the function name from a math-function value
--- (its show form is #<lambda Var "cos" [] ...>)
-def applyName g := nth 2 (S.split "\"" (show g))
+-- name of a math-function head (apply1's binder), structurally
+def applyName g := mathFunctionName g
 
 def showFactor (f: MathValue) : String :=
   match f as mathValue with

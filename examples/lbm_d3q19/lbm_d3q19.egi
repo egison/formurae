@@ -19,51 +19,17 @@
 
 declare symbol tau, kk, u0c
 
-def f0 := function (x, y, z)
-def f1 := function (x, y, z)
-def f2 := function (x, y, z)
-def f3 := function (x, y, z)
-def f4 := function (x, y, z)
-def f5 := function (x, y, z)
-def f6 := function (x, y, z)
-def f7 := function (x, y, z)
-def f8 := function (x, y, z)
-def f9 := function (x, y, z)
-def f10 := function (x, y, z)
-def f11 := function (x, y, z)
-def f12 := function (x, y, z)
-def f13 := function (x, y, z)
-def f14 := function (x, y, z)
-def f15 := function (x, y, z)
-def f16 := function (x, y, z)
-def f17 := function (x, y, z)
-def f18 := function (x, y, z)
 def rho := function (x, y, z)
 def ux := function (x, y, z)
 def uy := function (x, y, z)
 def uz := function (x, y, z)
-def g0 := function (x, y, z)
-def g1 := function (x, y, z)
-def g2 := function (x, y, z)
-def g3 := function (x, y, z)
-def g4 := function (x, y, z)
-def g5 := function (x, y, z)
-def g6 := function (x, y, z)
-def g7 := function (x, y, z)
-def g8 := function (x, y, z)
-def g9 := function (x, y, z)
-def g10 := function (x, y, z)
-def g11 := function (x, y, z)
-def g12 := function (x, y, z)
-def g13 := function (x, y, z)
-def g14 := function (x, y, z)
-def g15 := function (x, y, z)
-def g16 := function (x, y, z)
-def g17 := function (x, y, z)
-def g18 := function (x, y, z)
 
-def fs : [MathValue] := [f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18]
-def gs : [MathValue] := [g0, g1, g2, g3, g4, g5, g6, g7, g8, g9, g10, g11, g12, g13, g14, g15, g16, g17, g18]
+-- the 19 distribution fields and their post-collision partners, as
+-- programmatically named function-symbol families (functionSymbol);
+-- previously 38 individual defs, because `function (...)` can only
+-- take its name from a definition context
+def fs : [MathValue] := map (\n -> functionSymbol (S.append "f" (show n)) [x, y, z]) (between 0 18)
+def gs : [MathValue] := map (\n -> functionSymbol (S.append "g" (show n)) [x, y, z]) (between 0 18)
 
 -- the D3Q19 velocity set: rest, 6 faces, 12 edges
 def dirs : [(MathValue, MathValue, MathValue)] :=
@@ -81,15 +47,14 @@ def wgts : [MathValue] :=
 
 def trip := zip3 wgts dirs (between 0 18)
 
--- (c.u) and u.u are inlined rather than let-bound: a let closes the
--- symbol set under this tree's let generalization, and closed-set terms
--- have no MulSemigroup instance to dispatch to
+-- (c.u) and u.u are let-bound: the let-generalization dispatch failure
+-- that once forced inlining here is fixed upstream
 def feq (w: MathValue) (c: (MathValue, MathValue, MathValue))
         (r: MathValue) (vx: MathValue) (vy: MathValue) (vz: MathValue) : MathValue :=
   let (cx, cy, cz) := c
-   in w * r * (1 + 3 * (cx * vx + cy * vy + cz * vz)
-                 + (9 / 2) * (cx * vx + cy * vy + cz * vz) * (cx * vx + cy * vy + cz * vz)
-                 - (3 / 2) * (vx * vx + vy * vy + vz * vz))
+   in let cu := cx * vx + cy * vy + cz * vz
+   in let uu := vx * vx + vy * vy + vz * vz
+   in w * r * (1 + 3 * cu + (9 / 2) * cu * cu - (3 / 2) * uu)
 
 def stream (c: (MathValue, MathValue, MathValue)) (gA: MathValue) : MathValue :=
   let (cx, cy, cz) := c

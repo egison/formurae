@@ -52,6 +52,16 @@
 --     N'_i = EXPR                   vector update (explicit index equation)
 --   assert-dd-zero NAME'            gate generation on d(d NAME') == 0
 --
+-- Unicode: Greek letters transliterate to their ASCII names (theta,
+-- phi, ...); the derivative sign is d (so d_x may be written with the
+-- partial sign), the small delta is the codifferential, the minus sign
+-- is '-'.  The capital delta is the Laplacian of the model's geometry
+-- (lap, or lb under a declared metric).  Writing d twice fuses to the
+-- compact second difference (d_a (d_a u) = d2_a u), and delta (d u) on
+-- a scalar lowers to -(Laplacian), so the heat equation reads
+-- u' = u - dt * delta (d u) with basic operators only; all of these
+-- generate byte-identical code to their named-operator forms.
+--
 -- A vector update may be written without indices (E' = E + dt * curl B);
 -- bare vector names combine elementwise and curl applies to the whole
 -- field.  X' in a RHS refers to the updated field (Formura's primed
@@ -305,13 +315,14 @@ tokenize (c:cs)
 data Elem = EId String Bool | EC Char | ERaw String
           | EMarkV String | EMarkL String
 
--- the field to which lb is applied, if any
+-- the field to which lb is applied, if any (scans the same
+-- preprocessed form the rewriter uses, so Δ and delta (d u) count)
 lbTarget :: Model -> Maybe String
 lbTarget m = case concatMap scan (mSteps m) of
                (nm:_) -> Just nm
                [] -> Nothing
   where
-    scan st = go (tokenize (sEx st))
+    scan st = go (tokenize (stepPre m (sEx st)))
     go (TId "lb" False : ts) =
       case dropWhile isSp ts of
         (TId nm False : rest) | kindOf m nm == Just Scalar -> nm : go rest
@@ -553,13 +564,74 @@ mathOps m = concatMap out . tokenize
       | not pr, Just rest <- stripPrefix "d_" nm, Just n <- lookup rest axmap = "dC " ++ n
       | not pr, nm == "lap4" =
           "(\\feU -> dTaylor 2 [-2, -1, 0, 1, 2] 1 feU + dTaylor 2 [-2, -1, 0, 1, 2] 2 feU + dTaylor 2 [-2, -1, 0, 1, 2] 3 feU)"
+      | not pr, nm == "\916" = if metricOn m then "lb" else "lap"   -- Δ: the Laplacian of the model's geometry
       | otherwise = nm ++ (if pr then "'" else "")
     out (TC c) = [c]
+
+metricOn :: Model -> Bool
+metricOn m = mMetric m /= Nothing || mEmbed m /= Nothing
+
+-- shared step-expression preprocessing: fuse repeated d, lower
+-- delta (d u), rename axes, resolve math operators (incl. Δ)
+stepPre :: Model -> String -> String
+stepPre m = mathOps m . renameAxes m . lowerDeltaD m . fuseDD
+
+isSpTok :: Tok -> Bool
+isSpTok (TC c) = isSpace c
+isSpTok _ = False
+
+untok :: [Tok] -> String
+untok = concatMap out
+  where
+    out (TId nm pr) = nm ++ (if pr then "'" else "")
+    out (TC c) = [c]
+
+-- d_a (d_a X) fuses to the compact second difference d2_a (X): repeated
+-- derivatives pair up as staggered half-cell differences (forward then
+-- backward), which is the d2_ stencil -- not the double-width central
+-- composition -- so writing d twice generates byte-identical code.
+fuseDD :: String -> String
+fuseDD = untok . go . tokenize
+  where
+    go (TId d1 False : ts)
+      | Just ax <- stripPrefix "d_" d1
+      , (_, TC '(' : ts1) <- span isSpTok ts
+      , (_, TId d2 False : ts2) <- span isSpTok ts1
+      , stripPrefix "d_" d2 == Just ax
+      , Just (inner, rest) <- closeParen (1 :: Int) ts2 []
+      = TId ("d2_" ++ ax) False : TC '(' : go inner ++ (TC ')' : go rest)
+    go (t : ts) = t : go ts
+    go [] = []
+    closeParen _ [] _ = Nothing
+    closeParen n (TC '(' : ts) acc = closeParen (n + 1) ts (TC '(' : acc)
+    closeParen n (TC ')' : ts) acc
+      | n == 1 = Just (reverse acc, ts)
+      | otherwise = closeParen (n - 1) ts (TC ')' : acc)
+    closeParen n (t : ts) acc = closeParen n ts (t : acc)
+
+-- delta (d u) on a scalar field lowers to minus the Laplacian: the
+-- codifferential of the exterior derivative is -lap (flat) or -lb
+-- (with a declared metric), so `u' = u - dt * delta (d u)` is the heat
+-- equation written with the basic operators only.
+lowerDeltaD :: Model -> String -> String
+lowerDeltaD m = untok . go . tokenize
+  where
+    lapNm = if metricOn m then "lb" else "lap"
+    go (TId "delta" False : ts)
+      | (_, TC '(' : ts1) <- span isSpTok ts
+      , (_, TId "d" False : ts2) <- span isSpTok ts1
+      , (_, TId nm pr : ts3) <- span isSpTok ts2
+      , (_, TC ')' : ts4) <- span isSpTok ts3
+      , kindOf m nm == Just Scalar
+      = tokenize ("((0 - 1) * " ++ lapNm ++ " " ++ nm ++ (if pr then "'" else "") ++ ")")
+          ++ go ts4
+    go (t : ts) = t : go ts
+    go [] = []
 
 rewrite :: Model -> [String] -> Maybe String -> String -> IO String
 rewrite m lets mk expr = fmap concat (mapM render (attach elems))
   where
-    elems = lbPass (opPass m lets (tokenize (mathOps m (renameAxes m expr))))
+    elems = lbPass (opPass m lets (tokenize (stepPre m expr)))
     lbPass [] = []
     lbPass (EId "lb" False : rest0) =
       case dropWhile isSp rest0 of
@@ -797,12 +869,45 @@ emit m = do
         e <- rewrite m lets Nothing ex
         return ["fmrInit \"" ++ nm ++ "\" (" ++ e ++ ")"]
 
+-- Unicode input: Greek letters transliterate to their ASCII names, the
+-- partial-derivative sign to d (so `\8706_x` is d_x and `\8706_x (\8706_x u)`
+-- fuses to the compact second difference), the small delta to the
+-- codifferential, and the minus sign to '-'.  The capital delta
+-- (Laplacian) is model-dependent and resolved in mathOps instead.
+transliterate :: String -> String
+transliterate = concatMap tr
+  where
+    tr '\952' = "theta"    -- θ
+    tr '\966' = "phi"      -- φ
+    tr '\961' = "rho"      -- ρ
+    tr '\964' = "tau"      -- τ
+    tr '\954' = "kappa"    -- κ
+    tr '\955' = "lambda"   -- λ
+    tr '\956' = "mu"       -- μ
+    tr '\957' = "nu"       -- ν
+    tr '\949' = "epsilon"  -- ε
+    tr '\963' = "sigma"    -- σ
+    tr '\968' = "psi"      -- ψ
+    tr '\969' = "omega"    -- ω
+    tr '\945' = "alpha"    -- α
+    tr '\946' = "beta"     -- β
+    tr '\947' = "gamma"    -- γ
+    tr '\951' = "eta"      -- η
+    tr '\958' = "xi"       -- ξ
+    tr '\950' = "zeta"     -- ζ
+    tr '\967' = "chi"      -- χ
+    tr '\960' = "pi"       -- π
+    tr '\8706' = "d"       -- ∂
+    tr '\948' = "delta"    -- δ
+    tr '\8722' = "-"       -- − (minus sign)
+    tr c = [c]
+
 main :: IO ()
 main = do
   args <- getArgs
   case args of
     [path] -> do
-      txt <- readFile path
+      txt <- fmap transliterate (readFile path)
       let name = takeWhile (/= '.') (reverse (takeWhile (/= '/') (reverse path)))
       m <- parseFe name txt
       out <- emit m
