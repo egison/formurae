@@ -46,6 +46,14 @@ examples/dirichlet_diffusion/dirichlet_diffusion.c
 examples/dirichlet_diffusion/dirichlet_diffusion.h
 examples/maxwell_dec/maxwell_dec.c
 examples/maxwell_dec/maxwell_dec.h
+examples/metric_sphere/metric_sphere.c
+examples/metric_sphere/metric_sphere.h
+examples/hyperbolic/hyperbolic.c
+examples/hyperbolic/hyperbolic.h
+examples/polar2d/polar2d.c
+examples/polar2d/polar2d.h
+examples/spherical3d/spherical3d.c
+examples/spherical3d/spherical3d.h
 examples/*/viz
 gallery/data/
 dist-newstyle/

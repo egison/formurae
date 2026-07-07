@@ -1,0 +1,5 @@
+length_per_node: [1.0,1.1415926535897931,6.283185307179586]
+grid_per_node: [32,32,64]
+mpi_shape: [1,1,1]
+boundary: [mirror, mirror, periodic]
+reduces: [umax = max u, umin = min u]

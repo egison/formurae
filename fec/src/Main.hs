@@ -626,9 +626,9 @@ emit m = do
           [ "def feX : [MathValue] := [" ++ intercalate ", " (map (renameAxes m) es) ++ "]"
           , "def feGd (a: Integer) : MathValue := sum (map (\\e -> (\8706/\8706 e (nth a [x, y, z])) ^ 2) feX)"
           , "def feGo (a: Integer) (b: Integer) : MathValue := sum (map (\\e -> \8706/\8706 e (nth a [x, y, z]) * \8706/\8706 e (nth b [x, y, z])) feX)"
-          , "def feH1 := expandAll (sqrt (feGd 1))"
-          , "def feH2 := expandAll (sqrt (feGd 2))"
-          , "def feH3 := expandAll (sqrt (feGd 3))"
+          , "def feH1 := unquoteAll (expandAll (sqrt (feGd 1)))"
+          , "def feH2 := unquoteAll (expandAll (sqrt (feGd 2)))"
+          , "def feH3 := unquoteAll (expandAll (sqrt (feGd 3)))"
           ]
       orthoGate = case mEmbed m of
         Nothing -> []

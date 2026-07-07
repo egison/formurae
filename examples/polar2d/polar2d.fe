@@ -1,0 +1,25 @@
+-- Heat equation on a PLANAR ANNULUS in polar coordinates
+-- (r_phys, phi) = (1 + r, phi), r_phys in [1, 2].  The geometry is
+-- flat (curvature 0) -- only the COORDINATES are curved: from the
+-- embedding the CAS derives g = diag(1, (1+r)^2), i.e. the textbook
+-- polar Laplacian (1/r) d_r (r d_r u) + (1/r^2) d_phiphi u, assembled
+-- as an exactly conservative flux form.  The r walls are Neumann
+-- (mirror), phi is periodic.
+
+dimension 3
+axes r, phi, z
+
+param dt = 0.0001
+
+extern exp
+extern cos
+
+embedding [ `(1 + r) * cos phi, `(1 + r) * sin phi, z ]
+
+field u : scalar
+
+init:
+  u := exp (0 - 4 * (r - 1 / 2) ^ 2) * exp (cos phi - 1)
+
+step:
+  u' = u + dt * lb u

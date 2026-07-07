@@ -162,6 +162,33 @@ def sigmaC (c: Integer) (k: Integer) (a: Integer) : [MathValue] :=
         else if kp = 2 then sigma2 a
         else sigma3
 
+-- strip an outer quote (expandAll keeps quotes around applications,
+-- and substitute cannot enter them)
+def unquoteAtom (e: MathValue) : MathValue :=
+  match e as mathValue with
+    | quote $q -> q
+    | _ -> e
+
+-- recursively remove quotes everywhere (expandAll re-quotes
+-- applications, and substitute cannot enter quotes)
+def unqF (f: MathValue) : MathValue :=
+  match f as mathValue with
+    | quote $q -> unquoteAll q
+    | apply1 $g $a1 -> g (unquoteAll a1)
+    | apply2 $g $a1 $a2 -> g (unquoteAll a1) (unquoteAll a2)
+    | _ -> f
+
+def unqT (t: MathValue) : MathValue :=
+  match t as mathValue with
+    | term $c $xs -> foldl (\acc fp -> let (f, n) := fp in acc * unqF f ^ n) c xs
+
+def unquoteAll (e: MathValue) : MathValue :=
+  match e as mathValue with
+    | quote $q -> unquoteAll q
+    | poly $ts / #1 -> sum (map unqT ts)
+    | $nu / $de -> unquoteAll nu / unquoteAll de
+    | _ -> e
+
 def formComps (f: (Integer, Integer, [MathValue])) : [MathValue] :=
   let (c, k, cs) := f in cs
 

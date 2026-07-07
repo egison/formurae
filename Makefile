@@ -20,9 +20,9 @@ CFLAGS  ?= -O2 -std=c11
 
 EGISON_RUN = cd $(EGISON_DIR) && cabal run -v0 egison --
 
-.PHONY: all setup diffusion3d maxwell3d maxwell3d-yee pearson3d burgers3d cahnhilliard3d tdgl3d mhd-ot elastic3d metric-torus kleingordon shallowwater lbm-d3q19 acoustic3d euler-sod ks3d highorder4 dirichlet-diffusion maxwell-dec clean
+.PHONY: all setup diffusion3d maxwell3d maxwell3d-yee pearson3d burgers3d cahnhilliard3d tdgl3d mhd-ot elastic3d metric-torus kleingordon shallowwater lbm-d3q19 acoustic3d euler-sod ks3d highorder4 dirichlet-diffusion maxwell-dec metric-sphere hyperbolic polar2d spherical3d clean
 
-all: diffusion3d maxwell3d maxwell3d-yee pearson3d burgers3d cahnhilliard3d tdgl3d mhd-ot elastic3d metric-torus kleingordon shallowwater lbm-d3q19 acoustic3d euler-sod ks3d highorder4 dirichlet-diffusion maxwell-dec
+all: diffusion3d maxwell3d maxwell3d-yee pearson3d burgers3d cahnhilliard3d tdgl3d mhd-ot elastic3d metric-torus kleingordon shallowwater lbm-d3q19 acoustic3d euler-sod ks3d highorder4 dirichlet-diffusion maxwell-dec metric-sphere hyperbolic polar2d spherical3d
 
 setup:
 	./setup.sh
@@ -175,6 +175,38 @@ maxwell-dec:
 	cd examples/maxwell_dec && $(CC) $(CFLAGS) -I. -I$(MPISTUB) -o check dec_check.c maxwell_dec.c -lm
 	cd examples/maxwell_dec && ./check
 
+metric-sphere:
+	$(FEC_RUN) $(abspath examples/metric_sphere/metric_sphere.fe) > $(abspath examples/metric_sphere/metric_sphere.egi)
+	$(EGISON_RUN) -l $(FMRGEN) -l $(FMRDSL) $(abspath examples/metric_sphere/metric_sphere.egi) \
+	  > $(abspath examples/metric_sphere/metric_sphere.fmr)
+	cd examples/metric_sphere && $(FORMURA) metric_sphere.fmr
+	cd examples/metric_sphere && $(CC) $(CFLAGS) -I. -I$(MPISTUB) -o check sphere_check.c metric_sphere.c -lm
+	cd examples/metric_sphere && ./check
+
+hyperbolic:
+	$(FEC_RUN) $(abspath examples/hyperbolic/hyperbolic.fe) > $(abspath examples/hyperbolic/hyperbolic.egi)
+	$(EGISON_RUN) -l $(FMRGEN) -l $(FMRDSL) $(abspath examples/hyperbolic/hyperbolic.egi) \
+	  > $(abspath examples/hyperbolic/hyperbolic.fmr)
+	cd examples/hyperbolic && $(FORMURA) hyperbolic.fmr
+	cd examples/hyperbolic && $(CC) $(CFLAGS) -I. -I$(MPISTUB) -o check hyp_check.c hyperbolic.c -lm
+	cd examples/hyperbolic && ./check
+
+polar2d:
+	$(FEC_RUN) $(abspath examples/polar2d/polar2d.fe) > $(abspath examples/polar2d/polar2d.egi)
+	$(EGISON_RUN) -l $(FMRGEN) -l $(FMRDSL) $(abspath examples/polar2d/polar2d.egi) \
+	  > $(abspath examples/polar2d/polar2d.fmr)
+	cd examples/polar2d && $(FORMURA) polar2d.fmr
+	cd examples/polar2d && $(CC) $(CFLAGS) -I. -I$(MPISTUB) -o check polar_check.c polar2d.c -lm
+	cd examples/polar2d && ./check
+
+spherical3d:
+	$(FEC_RUN) $(abspath examples/spherical3d/spherical3d.fe) > $(abspath examples/spherical3d/spherical3d.egi)
+	$(EGISON_RUN) -l $(FMRGEN) -l $(FMRDSL) $(abspath examples/spherical3d/spherical3d.egi) \
+	  > $(abspath examples/spherical3d/spherical3d.fmr)
+	cd examples/spherical3d && $(FORMURA) spherical3d.fmr
+	cd examples/spherical3d && $(CC) $(CFLAGS) -I. -I$(MPISTUB) -o check spherical_check.c spherical3d.c -lm
+	cd examples/spherical3d && ./check
+
 clean:
 	rm -f examples/*/check examples/*/*.o examples/*/run
 	rm -f examples/diffusion3d/diffusion3d.c examples/diffusion3d/diffusion3d.h
@@ -197,3 +229,7 @@ clean:
 	rm -f examples/highorder4/highorder4.c examples/highorder4/highorder4.h
 	rm -f examples/dirichlet_diffusion/dirichlet_diffusion.c examples/dirichlet_diffusion/dirichlet_diffusion.h
 	rm -f examples/maxwell_dec/maxwell_dec.c examples/maxwell_dec/maxwell_dec.h
+	rm -f examples/metric_sphere/metric_sphere.c examples/metric_sphere/metric_sphere.h
+	rm -f examples/hyperbolic/hyperbolic.c examples/hyperbolic/hyperbolic.h
+	rm -f examples/polar2d/polar2d.c examples/polar2d/polar2d.h
+	rm -f examples/spherical3d/spherical3d.c examples/spherical3d/spherical3d.h

@@ -147,6 +147,72 @@ def pgm(name):
     px = parts[4]
     return [[px[y * w + x] / mx for x in range(w)] for y in range(h)]
 
+
+# ---------- 3D surface rendering (painter's algorithm, stdlib only) ----------
+
+def _rot(p, az, ax):
+    import math as _m
+    x, y, z = p
+    x1 = x * _m.cos(az) - y * _m.sin(az)
+    y1 = x * _m.sin(az) + y * _m.cos(az)
+    y2 = y1 * _m.cos(ax) - z * _m.sin(ax)
+    z2 = y1 * _m.sin(ax) + z * _m.cos(ax)
+    return (x1, y2, z2)          # screen (x1, -z2), depth y2
+
+
+def surface3d(mat, embed, out, wrapx=True, wrapy=True, az=0.55, ax=1.05,
+              target=520, step=1, anchors=VIRIDIS):
+    """mat[cy][cx] colors the surface embed(cx, cy) -> (X, Y, Z)."""
+    ny, nx = len(mat), len(mat[0])
+    xs = list(range(0, nx, step)) + ([0] if wrapx else [nx - 1])
+    ys = list(range(0, ny, step)) + ([0] if wrapy else [ny - 1])
+    P = [[_rot(embed(cx, cy), az, ax) for cx in xs] for cy in ys]
+    lo = min(min(r) for r in mat); hi = max(max(r) for r in mat)
+    if hi - lo < 1e-300: hi = lo + 1.0
+    sx = [p[0] for row in P for p in row]; sz = [p[2] for row in P for p in row]
+    x0, x1 = min(sx), max(sx); z0, z1 = min(sz), max(sz)
+    scale = (target - 20) / max(x1 - x0, z1 - z0)
+    W = int((x1 - x0) * scale) + 20; Hh = int((z1 - z0) * scale) + 20
+    def scr(p):
+        return ((p[0] - x0) * scale + 10, (z1 - p[2]) * scale + 10)
+    L = (0.35, -0.5, 0.77)
+    quads = []
+    for iy in range(len(ys) - 1):
+        for ix in range(len(xs) - 1):
+            q = [P[iy][ix], P[iy][ix + 1], P[iy + 1][ix + 1], P[iy + 1][ix]]
+            v = mat[ys[iy]][xs[ix]]
+            u1 = tuple(q[1][k] - q[0][k] for k in range(3))
+            u2 = tuple(q[3][k] - q[0][k] for k in range(3))
+            nrm = (u1[1] * u2[2] - u1[2] * u2[1],
+                   u1[2] * u2[0] - u1[0] * u2[2],
+                   u1[0] * u2[1] - u1[1] * u2[0])
+            ln = (nrm[0] ** 2 + nrm[1] ** 2 + nrm[2] ** 2) ** 0.5 or 1.0
+            nrm = tuple(c / ln for c in nrm)
+            if nrm[1] > 0:                      # face the viewer (depth = +y)
+                nrm = tuple(-c for c in nrm)
+            sh = 0.52 + 0.48 * max(0.0, -(nrm[0] * L[0] + nrm[1] * L[1] + nrm[2] * L[2]))
+            depth = sum(p[1] for p in q) / 4.0
+            col = cmap((v - lo) / (hi - lo), anchors)
+            col = tuple(min(255, int(c * sh)) for c in col)
+            quads.append((depth, [scr(p) for p in q], col))
+    quads.sort(key=lambda t: -t[0])             # far first (viewer at -y)
+    img = [[(247, 248, 250)] * W for _ in range(Hh)]
+    for _, pts, col in quads:
+        for tri in ([pts[0], pts[1], pts[2]], [pts[0], pts[2], pts[3]]):
+            (xa, ya), (xb, yb), (xc, yc) = tri
+            minx = max(0, int(min(xa, xb, xc))); maxx = min(W - 1, int(max(xa, xb, xc)) + 1)
+            miny = max(0, int(min(ya, yb, yc))); maxy = min(Hh - 1, int(max(ya, yb, yc)) + 1)
+            d = (yb - yc) * (xa - xc) + (xc - xb) * (ya - yc)
+            if abs(d) < 1e-12: continue
+            for py in range(miny, maxy + 1):
+                for px in range(minx, maxx + 1):
+                    w1 = ((yb - yc) * (px - xc) + (xc - xb) * (py - yc)) / d
+                    w2 = ((yc - ya) * (px - xc) + (xa - xc) * (py - yc)) / d
+                    w3 = 1.0 - w1 - w2
+                    if w1 >= -1e-9 and w2 >= -1e-9 and w3 >= -1e-9:
+                        img[py][px] = col
+    write_png(out, img)
+
 C1, C2, C3, C4 = '#1f77b4', '#d62728', '#2ca02c', '#9467bd'
 
 def line_panel(out, files, labels, colors, title, ylabel, col=1, dashes=None, extra=None):
@@ -281,6 +347,50 @@ def main():
              [{'x': ks_, 'y': e2, 'color': '#999999', 'label': '2nd order (dC2)'},
               {'x': ks_, 'y': e4, 'color': C1, 'label': '4th order (CAS-derived)'}],
              title='Laplacian symbol error |lam(k)+k^2|', xlabel='k', ylabel='log10 error')
+
+    # 18 curved geometries rendered on their actual surfaces
+    import math as _m
+    tor = mat('metric_t3000.mat')
+    tny, tnx = len(tor), len(tor[0])
+    def torus_embed(cx, cy):
+        th = 2 * _m.pi * cx / tnx; ph = 2 * _m.pi * cy / tny
+        return ((2 + _m.cos(th)) * _m.cos(ph), (2 + _m.cos(th)) * _m.sin(ph), _m.sin(th))
+    surface3d(tor, torus_embed, os.path.join(IMG, 'torus3d.png'), True, True, step=1)
+
+    sph = mat('sphere_t2000.mat')
+    sny, snx = len(sph), len(sph[0])
+    def sphere_embed(cx, cy):
+        th = 1.0 + 1.1415926535897931 * cx / snx
+        ph = 2 * _m.pi * cy / sny
+        return (_m.sin(th) * _m.cos(ph), _m.sin(th) * _m.sin(ph), _m.cos(th))
+    surface3d(sph, sphere_embed, os.path.join(IMG, 'sphere3d.png'), False, True,
+              az=0.5, ax=1.15, step=1)
+
+    # polar annulus rendered as an actual flat ring
+    pol = mat('polar_t2000.mat')
+    pny, pnx = len(pol), len(pol[0])
+    def polar_embed(cx, cy):
+        r = 1.0 + cx / (pnx - 1.0); ph = 2 * _m.pi * cy / pny
+        return (r * _m.cos(ph), r * _m.sin(ph), 0.0)
+    surface3d(pol, polar_embed, os.path.join(IMG, 'polar3d.png'), False, True,
+              az=0.0, ax=1.25, step=1)
+    heatmap(pol, os.path.join(IMG, 'polar_flat.png'))
+
+    # spherical shell: outer surface (theta, phi at r = 2) + (r, theta) chart
+    shl = mat('shell_x_t1000.mat')     # rows theta, cols phi
+    xny, xnx = len(shl), len(shl[0])   # 32 x 64
+    shlT = [[shl[j][k] for j in range(xny)] for k in range(xnx)]  # rows phi, cols theta
+    def shell_embed(cx, cy):
+        th = 1.0 + 1.1415926535897931 * cx / (xny - 1.0)
+        ph = 2 * _m.pi * cy / xnx
+        return (2 * _m.sin(th) * _m.cos(ph), 2 * _m.sin(th) * _m.sin(ph), 2 * _m.cos(th))
+    surface3d(shlT, shell_embed, os.path.join(IMG, 'shell3d.png'), False, True,
+              az=0.5, ax=1.15, step=1)
+    heatmap(mat('shell_t1000.mat'), os.path.join(IMG, 'shell_rt.png'))
+
+    heatmap(mat('hyp_t0.mat'), os.path.join(IMG, 'hyp_t0.png'))
+    heatmap(mat('hyp_t5000.mat'), os.path.join(IMG, 'hyp.png'))
+    heatmap(mat('sphere_t2000.mat'), os.path.join(IMG, 'sphere_flat.png'))
 
     print('rendered into', IMG)
 

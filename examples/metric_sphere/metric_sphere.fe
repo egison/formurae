@@ -1,0 +1,27 @@
+-- Heat equation on a BAND OF THE UNIT SPHERE (positive curvature),
+-- colatitude theta_phys = 1 + theta in [1, 1 + L] (poles avoided).
+-- The embedding below is the only geometric input: the compiler
+-- derives g = diag(1, sin^2(1+theta)) via the CAS (sin^2+cos^2
+-- collapses, sqrt of the square closes), checks orthogonality, and
+-- assembles the conservative Laplace-Beltrami flux form.  The theta
+-- walls are Neumann (yaml boundary: mirror), so the metric-weighted
+-- heat sum(sin(1+theta) u) is exactly conserved.
+
+dimension 3
+axes theta, phi, z
+
+param dt = 0.0001
+
+extern exp
+extern cos
+extern sin
+
+embedding [ sin (1 + theta) * cos phi, sin (1 + theta) * sin phi, cos (1 + theta), z ]
+
+field u : scalar
+
+init:
+  u := exp (0 - 4 * (theta - 1 / 2) ^ 2) * exp (cos phi - 1)
+
+step:
+  u' = u + dt * lb u

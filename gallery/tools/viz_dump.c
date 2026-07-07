@@ -85,6 +85,27 @@ static void dumpLine(Formura_Navi n, int t) {
   fclose(f);
 }
 
+#ifdef SLICEX
+static double m2[MAXN][MAXN];
+
+/* matrix over (axis2 rows, axis3 cols) at the outermost interior x */
+static void dumpSliceX(Formura_Navi n, int t) {
+  char fn[512];
+  snprintf(fn, sizeof fn, "%s/%s_x_t%d.mat", OUTDIR, NAME, t);
+  FILE *f = fopen(fn, "w");
+  int i = n.upper_x - 1;
+  for (int j = n.lower_y; j < n.upper_y; j++)
+    for (int k = n.lower_z; k < n.upper_z; k++)
+      m2[ly(n, j)][lz(n, k)] = F1;
+  for (int cy = 0; cy < n.total_grid_y; cy++) {
+    for (int cz = 0; cz < n.total_grid_z; cz++)
+      fprintf(f, "%.10g ", m2[cy][cz]);
+    fputc('\n', f);
+  }
+  fclose(f);
+}
+#endif
+
 #ifdef SLICE
 static double m1[MAXN][MAXN];
 
@@ -129,7 +150,11 @@ int main(int argc, char **argv) {
     while (n.time_step < dumps[d]) Formura_Forward(&n);
 #ifdef SLICE
     dumpSlice(n, dumps[d]);
-#else
+#endif
+#ifdef SLICEX
+    dumpSliceX(n, dumps[d]);
+#endif
+#if !defined(SLICE) && !defined(SLICEX)
     dumpLine(n, dumps[d]);
 #endif
   }

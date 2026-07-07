@@ -48,6 +48,10 @@ run ks ks3d ks3d -DSTRIP -DSTRIDE=4000 -DSTEPS=600000 -DF1="$U.u[i][j][k]"
 run dirichlet dirichlet_diffusion dirichlet_diffusion -DSTRIP -DSTRIDE=2500 -DSTEPS=10000 \
   -DF1="$U.u[i][j][k]"
 run mhd mhd_ot mhd_ot -DSLICE -DDUMPS='{0,1250}' -DF1="$U.rho[i][j][k]"
+run sphere metric_sphere metric_sphere -DSLICE -DDUMPS='{0,2000}' -DF1="$U.u[i][j][k]"
+run hyp hyperbolic hyperbolic -DSLICE -DDUMPS='{0,5000}' -DF1="$U.u[i][j][k]"
+run polar polar2d polar2d -DSLICE -DDUMPS='{0,2000}' -DF1="$U.u[i][j][k]"
+run shell spherical3d spherical3d -DSLICE -DSLICEX -DDUMPS='{0,1000}' -DF1="$U.u[i][j][k]"
 
 # pearson: reuse the PGM the check driver wrote during `make all`
 cp "$ROOT/examples/pearson3d/pearson_V.pgm" "$DATA/pearson_V.pgm" 2>/dev/null || \

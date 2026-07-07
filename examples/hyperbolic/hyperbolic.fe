@@ -1,0 +1,26 @@
+-- Heat equation on the POINCARE HALF-PLANE (constant NEGATIVE
+-- curvature -1): ds^2 = (dx^2 + dy^2) / y_phys^2 with
+-- y_phys = 1 + y in [1, 2].  A genuinely non-Euclidean geometry that
+-- admits no embedding into R^3, so the metric is given directly by
+-- its scale factors; the compiler derives sqrt(g) = 1/(1+y)^2 and the
+-- hodge factors (both 1 -- the hyperbolic Laplacian is
+-- (1+y)^2 (u_xx + u_yy)) and assembles the conservative flux form.
+-- The y walls are Neumann (mirror), x is periodic.
+
+dimension 3
+axes x, y, z
+
+param dt = 0.00002
+
+extern exp
+extern cos
+
+metric scale [ 1 / (1 + y), 1 / (1 + y), 1 ]
+
+field u : scalar
+
+init:
+  u := exp (cos x - 1) * exp (0 - 4 * (y - 1 / 2) ^ 2)
+
+step:
+  u' = u + dt * lb u
