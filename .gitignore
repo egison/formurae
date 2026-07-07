@@ -44,3 +44,5 @@ examples/highorder4/highorder4.c
 examples/highorder4/highorder4.h
 examples/dirichlet_diffusion/dirichlet_diffusion.c
 examples/dirichlet_diffusion/dirichlet_diffusion.h
+examples/*/viz
+gallery/data/

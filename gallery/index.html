@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>formura-egison ギャラリー — 検証済み応用18例</title>
+<style>
+  :root { --ink:#1c1e21; --sub:#5a6270; --line:#e3e6ea; --accent:#0b5fa5; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:"Hiragino Sans","Noto Sans JP",Helvetica,Arial,sans-serif;
+         color:var(--ink); background:#f6f7f9; }
+  header { background:#fff; border-bottom:1px solid var(--line); padding:28px 32px; }
+  header h1 { margin:0 0 6px; font-size:22px; }
+  header p { margin:4px 0; color:var(--sub); font-size:13.5px; max-width:980px; }
+  header code { background:#eef1f4; padding:1px 5px; border-radius:4px; font-size:12.5px; }
+  main { max-width:1280px; margin:0 auto; padding:20px 24px 60px; }
+  h2 { font-size:16px; margin:34px 4px 12px; color:var(--accent);
+       border-left:4px solid var(--accent); padding-left:10px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(400px,1fr)); gap:18px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:10px;
+          padding:16px 18px 14px; display:flex; flex-direction:column; }
+  .card h3 { margin:0 0 2px; font-size:15px; }
+  .eq { color:var(--sub); font-size:12.5px; margin:2px 0 8px; font-family:"STIX Two Math",Georgia,serif; }
+  .imgs { display:flex; gap:8px; align-items:center; justify-content:center;
+          background:#fafbfc; border:1px solid var(--line); border-radius:6px; padding:8px; }
+  .imgs img { max-width:100%; height:auto; border-radius:3px; }
+  .imgs.two img { max-width:49%; }
+  .cap { font-size:11.5px; color:var(--sub); margin:6px 2px 8px; text-align:center; }
+  .facts { margin:auto 0 0; padding:8px 0 0; border-top:1px dashed var(--line);
+           font-size:12.5px; color:var(--ink); }
+  .facts b { color:var(--accent); }
+  .tag { display:inline-block; font-size:11px; color:#fff; background:var(--accent);
+         border-radius:10px; padding:1px 9px; margin-left:8px; vertical-align:2px; }
+  footer { text-align:center; color:var(--sub); font-size:12px; padding:24px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>formura-egison ギャラリー <span class="tag">検証済み応用 18 例</span></h1>
+  <p>Egison のテンソル添字記法・計算機代数(CAS)で書いた連続系の物理を、
+     <code>substitute</code> による座標シフトで離散化し、Formura(分散並列ステンシル DSL)の
+     コードとして出力して実行した結果です。各例は解析解・独立参照実装・保存則・厳密離散固有値の
+     いずれかで定量検証されており、<code>make all</code> で全例が再現できます
+     (画像は <code>gallery/gen.sh</code> → <code>gallery/tools/render.py</code> で再生成、外部ライブラリ不要)。</p>
+</header>
+<main>
+
+<h2>基礎と横断機能</h2>
+<div class="grid">
+
+<div class="card">
+  <h3>拡散方程式</h3>
+  <div class="eq">∂t u = κ∇²u — 物理は <code>u + dt*kappa*lap u</code> の1行</div>
+  <div class="imgs two"><img src="img/diffusion_t0.png" alt="t=0"><img src="img/diffusion_t100.png" alt="t=T"></div>
+  <div class="cap">z 中央断面: t=0 のガウス塊(左)が等方に拡散(右、100 step)</div>
+  <div class="facts">100³格子・temporal blocking 5 で 0.19 秒。質量保存 <b>6.4e-13</b>(機械精度)。</div>
+</div>
+
+<div class="card">
+  <h3>4次精度スキーム自動導出(taylorStencil)</h3>
+  <div class="eq">係数 (−1/12, 4/3, −5/2, 4/3, −1/12) はソースに無く、Taylor 条件の連立を CAS が厳密有理数で解く</div>
+  <div class="imgs"><img src="img/hi4.svg" alt="symbol error"></div>
+  <div class="cap">ラプラシアンの離散シンボル誤差 |λ(k)+k²|: 導出4次(青)は2次(灰)より約2桁下</div>
+  <div class="facts">単一モード振幅比 = 厳密離散シンボル (1+λ₄dt)ⁿ に <b>4.4e-16</b> で一致、
+    残差は4次理論値 k⁶h⁴/90 の <b>98.6%</b>。</div>
+</div>
+
+<div class="card">
+  <h3>Dirichlet 壁の拡散(fork の境界条件)</h3>
+  <div class="eq">yaml に boundary: [fixed 0.0, periodic, periodic] — 物理は周期版と同じ1行</div>
+  <div class="imgs"><img src="img/dirichlet.svg" alt="eigen decay"></div>
+  <div class="cap">冷壁間の基本固有モードが形を保ったまま減衰(t=0 → 0.2)</div>
+  <div class="facts">ゴースト壁つき離散固有値の厳密減衰 (1+λdt)ⁿ を <b>6.8e-14</b> で再現、
+    モード純度 <b>1.2e-15</b>。</div>
+</div>
+
+</div>
+
+<h2>波動(スタガード格子 = yeeRef 機構)</h2>
+<div class="grid">
+
+<div class="card">
+  <h3>Maxwell(collocated)</h3>
+  <div class="eq">∂t E = c²∇×B、∂t B = −∇×E — ε 縮約 <code>curl</code> の2行から6式を自動展開</div>
+  <div class="imgs"><img src="img/maxwell.svg" alt="pulse"></div>
+  <div class="cap">Ey パルスの伝播(修正版コンパイラで +9.9 セル/理想 +10)</div>
+  <div class="facts">エネルギードリフト <b>4.8e-5</b>。2ランク実 MPI でランク境界を完全通過。</div>
+</div>
+
+<div class="card">
+  <h3>Yee-FDTD(スタガード格子)</h3>
+  <div class="eq">E=辺・B=面の配置オフセット σ∈{0,½}³ を宣言 → 教科書どおりの FDTD を生成</div>
+  <div class="imgs"><img src="img/yee.svg" alt="pulse"></div>
+  <div class="cap">dt=0.5dx で +49.9 セル伝播(理想 +50)</div>
+  <div class="facts">div B <b>≡ 0(機械精度)</b>・エネルギー 0.10%・TB あり/なしビット一致。</div>
+</div>
+
+<div class="card">
+  <h3>線形音響(p–v)</h3>
+  <div class="eq">∂t p = −K∇·v、∂t v = −∇p/ρ — Virieux のスカラー縮約</div>
+  <div class="imgs"><img src="img/acoustic.svg" alt="pulse"></div>
+  <div class="cap">インピーダンス整合パルス(p=Zv)が反射なく右進</div>
+  <div class="facts">実測音速 <b>0.9957</b>(厳密 1)・エネルギー 1.6e-4・横速度 =0 厳密。</div>
+</div>
+
+<div class="card">
+  <h3>弾性波(Virieux スタガード格子)</h3>
+  <div class="eq">ρ∂t v = ∇·σ、∂t σ = λ(∇·v)I + μ(∇v+∇vᵀ) — 速度3+応力6場</div>
+  <div class="imgs"><img src="img/elastic.svg" alt="P and S"></div>
+  <div class="cap">同時発射した P パルス(vx)と S パルス(vy)が速度差で分離</div>
+  <div class="facts">1回の実行で <b>vp=1.990/2・vs=0.995/1</b> を実測、エネルギー 3.4e-4。</div>
+</div>
+
+<div class="card">
+  <h3>非線形 Klein–Gordon(φ⁴ キンク)</h3>
+  <div class="eq">∂tt φ = ∇²φ + φ − φ³ — leapfrog(kick–drift)2場</div>
+  <div class="imgs"><img src="img/kg.svg" alt="kinks"></div>
+  <div class="cap">v=±0.2 にブーストした kink–antikink 対が接近(t=0→20→40)</div>
+  <div class="facts">実測速度 <b>±0.1993</b>・E=2γE_kink に偏差 <b>0.11%</b>・
+    シンプレクティックでドリフト 3.3e-7。</div>
+</div>
+
+</div>
+
+<h2>流体・保存則系</h2>
+<div class="grid">
+
+<div class="card">
+  <h3>Burgers 方程式</h3>
+  <div class="eq">∂t u + u∂x u = ν∇²u — 非線形項生成の機械検証</div>
+  <div class="imgs"><img src="img/burgers.svg" alt="burgers"></div>
+  <div class="cap">t=0.5 の数値解と Cole–Hopf 厳密解(赤破線)が重なる</div>
+  <div class="facts">厳密解と max 誤差 <b>3.5e-5</b>(離散化誤差オーダー)。</div>
+</div>
+
+<div class="card">
+  <h3>浅水方程式</h3>
+  <div class="eq">∂t h + ∇·(hu) = 0 ほか保存形 — 全項が流束形式</div>
+  <div class="imgs"><img src="img/sw.svg" alt="shallow water"></div>
+  <div class="cap">静水面の 1% バンプが左右の重力波に分裂(t=20)</div>
+  <div class="facts">実測波速 <b>0.9989</b>(厳密 √(gh₀)=1)・質量 3.7e-14・max|my|=0 ビット厳密。</div>
+</div>
+
+<div class="card">
+  <h3>圧縮性 Euler: Sod 衝撃管</h3>
+  <div class="eq">保存形3変数+Lax–Friedrichs 粘性(周期格子用の二重ダイアフラム)</div>
+  <div class="imgs"><img src="img/sod.svg" alt="sod"></div>
+  <div class="cap">衝撃波・接触不連続・膨張扇の3波構造 vs 厳密 Riemann 解(破線)</div>
+  <div class="facts">L1(ρ) = <b>0.0255</b>・質量/運動量/エネルギー保存 <b>~1e-14</b>・正値性維持。</div>
+</div>
+
+<div class="card">
+  <h3>理想 MHD: Orszag–Tang 渦</h3>
+  <div class="eq">保存形8変数+Rusanov 流束を中間流束場19本として生成</div>
+  <div class="imgs"><img src="img/mhd.png" alt="OT vortex"></div>
+  <div class="cap">t=0.5 の密度場 — 特徴的な OT 渦構造</div>
+  <div class="facts">8保存量ドリフト <b>~1e-12</b>・<b>divB=1.2e-14</b>・正値性維持。
+    物理記述 = 流束19行+更新8行(手書き HLLD 283 行に対し)。</div>
+</div>
+
+<div class="card">
+  <h3>格子ボルツマン D3Q19</h3>
+  <div class="eq">f_a(x+c_a, t+1) = f_a + (feq_a − f_a)/τ — 57式を速度集合への map で生成</div>
+  <div class="imgs"><img src="img/lbm.svg" alt="shear wave"></div>
+  <div class="cap">剪断波の粘性減衰(1000 step で振幅 38.1%)</div>
+  <div class="facts">実測 <b>ν=0.10010</b>(BGK 厳密 (τ−½)/3=0.1)・質量 4.8e-14。
+    19出力が全て異なるオフセット = 混在オフセット修正の回帰ショーケース。</div>
+</div>
+
+<div class="card">
+  <h3>Kuramoto–Sivashinsky(時空カオス)</h3>
+  <div class="eq">∂t u = −(u²/2)ₓ − uₓₓ − uₓₓₓₓ — 4階は中間場 w=∂²u の2段構成</div>
+  <div class="imgs"><img src="img/ks.png" alt="KS space-time"></div>
+  <div class="cap">時空図(横=x、縦=時間 t:0→90): セル構造が分裂・合体するカオス</div>
+  <div class="facts">Lyapunov 内(t=5)で参照実装と <b>3.6e-14</b>・Σu ドリフト 5.4e-12(60万 step)。</div>
+</div>
+
+</div>
+
+<h2>パターン形成・材料</h2>
+<div class="grid">
+
+<div class="card">
+  <h3>Pearson 反応拡散(Formura 論文の看板再現)</h3>
+  <div class="eq">FHPC'16 と同一の方程式・パラメタ(菌根菌 mycorrhiza モデル)</div>
+  <div class="imgs"><img src="img/pearson.png" alt="pearson spots"></div>
+  <div class="cap">V 場の断面(20,000 step): 種スポットがリング状に自己複製 — 論文 Fig.7 と同じ Gray–Scott 型ダイナミクス</div>
+  <div class="facts">64³格子(dt=200s)。40,000 step まで回すとスポットが全域に増殖。物理の記述は2行。</div>
+</div>
+
+<div class="card">
+  <h3>Cahn–Hilliard(スピノーダル分解)</h3>
+  <div class="eq">μ = c³−c−κ∇²c、∂t c = M∇²μ — 4階微分を中間場 μ の2段で</div>
+  <div class="imgs"><img src="img/ch.png" alt="spinodal"></div>
+  <div class="cap">低波数の正弦ゆらぎから相分離したラメラ(縞)状二相構造(25,000 step、c∈[−0.95,0.96])</div>
+  <div class="facts">質量(reduces 経由)<b>12桁保存</b>・自由エネルギー単調減少。</div>
+</div>
+
+<div class="card">
+  <h3>TDGL 超伝導(量子化渦)</h3>
+  <div class="eq">∂t ψ = ψ − |ψ|²ψ + ∇²ψ(実2場)</div>
+  <div class="imgs"><img src="img/tdgl.png" alt="vortices"></div>
+  <div class="cap">|ψ|² 場: 暗い点が量子化渦芯(min |ψ|²=0.004)</div>
+  <div class="facts">バルク |ψ|²=0.978 に飽和・渦芯 48 セル自発形成。3.6 秒。</div>
+</div>
+
+</div>
+
+<h2>幾何(CAS ならではの看板)</h2>
+<div class="grid">
+
+<div class="card">
+  <h3>計量つき拡散(トーラス上の Laplace–Beltrami)</h3>
+  <div class="eq">∂t u = (1/√g)∂ᵢ(√g gⁱʲ∂ⱼu) — √g, gⁱʲ は計量から CAS が記号導出し init まで生成</div>
+  <div class="imgs two"><img src="img/metric_t0.png" alt="t=0"><img src="img/metric_t3000.png" alt="t=T"></div>
+  <div class="cap">u(θ,φ): 初期塊(左)が計量の非一様性を感じつつ拡散(右)。
+    横=θ(外周角)で √g=2+cosθ が左右非対称を生む</div>
+  <div class="facts">独立 C 参照と <b>3.3e-16(全桁一致)</b>・計量重みつき熱量 Σ√g·u 保存 <b>2.5e-15</b>・
+    最大値原理成立。生成 init 例: <code>ca[i,j,k] = cos((i*dx)+dx/(2))+2</code></div>
+</div>
+
+</div>
+
+<footer>
+  formura-egison — Egison (テンソル添字記法+CAS) × Formura (分散ステンシル、temporal blocking)。
+  すべての数値は <code>make all</code> の検証ドライバが exit code で保証。
+</footer>
+</main>
+</body>
+</html>
