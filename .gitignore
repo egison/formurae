@@ -48,3 +48,4 @@ examples/maxwell_dec/maxwell_dec.c
 examples/maxwell_dec/maxwell_dec.h
 examples/*/viz
 gallery/data/
+dist-newstyle/

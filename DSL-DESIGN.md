@@ -118,9 +118,11 @@ step:
 1. ✅ v0: fmrdsl + 添字つき関数族 + 成分名変換(maxwell3d で実証、バイト一致)
 2. ✅ v0.5: elastic(対称テンソルビュー+添字導出スタガー)・maxwell_dec・
    metric_torus・kleingordon・diffusion3d を v0 様式へ移行(3例バイト一致)。
-3. ✅ v1: **.fe 表層構文+コンパイラ tools/fec.py 実装済(2026-07-10)**。
-   パーサは Haskell でなく**依存ゼロの Python** に決定(意味論は Egison 側に
-   一本化した薄い変換層なので十分)。移行済 = maxwell3d・maxwell_dec・
+3. ✅ v1: **.fe 表層構文+コンパイラ実装済(2026-07-10)**。まず Python
+   (fec.py)でプロトタイプし、同日 **Haskell 版に置換**(レビュー指摘)。
+   現在は cabal パッケージ `fec`(ルート fec.cabal、ソース fec/src/Main.hs、
+   base のみ)で、`cabal build` / `cabal run -v0 fec --` で使う。
+   置換時に全5例で両実装の .egi 出力バイト一致を確認してから fec.py を撤去。移行済 = maxwell3d・maxwell_dec・
    diffusion3d・kleingordon・ks3d の5例、**うち4例は .fe → .egi → .fmr が
    バイト一致**(ks は整形差のみ)、全例 make green。.egi は生成中間物になった
    (ヘッダに GENERATED 印、ギャラリーは .fe → .egi → .fmr の3段表示)。

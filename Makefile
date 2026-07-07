@@ -13,7 +13,7 @@ FORMURA    ?= $(abspath bin/formura)
 MPISTUB    := $(abspath mpistub)
 FMRGEN     := $(abspath lib/fmrgen.egi)
 FMRDSL     := $(abspath lib/fmrdsl.egi)
-FEC        := $(abspath tools/fec.py)
+FEC_RUN    = cabal run -v0 fec --
 
 CC      ?= cc
 CFLAGS  ?= -O2 -std=c11
@@ -28,7 +28,7 @@ setup:
 	./setup.sh
 
 diffusion3d:
-	python3 $(FEC) $(abspath examples/diffusion3d/diffusion3d.fe) > $(abspath examples/diffusion3d/diffusion3d.egi)
+	$(FEC_RUN) $(abspath examples/diffusion3d/diffusion3d.fe) > $(abspath examples/diffusion3d/diffusion3d.egi)
 	$(EGISON_RUN) -l $(FMRGEN) -l $(FMRDSL) $(abspath examples/diffusion3d/diffusion3d.egi) \
 	  > $(abspath examples/diffusion3d/diffusion3d.fmr)
 	cd examples/diffusion3d && $(FORMURA) diffusion3d.fmr
@@ -36,7 +36,7 @@ diffusion3d:
 	cd examples/diffusion3d && ./check
 
 maxwell3d:
-	python3 $(FEC) $(abspath examples/maxwell3d/maxwell3d.fe) > $(abspath examples/maxwell3d/maxwell3d.egi)
+	$(FEC_RUN) $(abspath examples/maxwell3d/maxwell3d.fe) > $(abspath examples/maxwell3d/maxwell3d.egi)
 	$(EGISON_RUN) -l $(FMRGEN) -l $(FMRDSL) $(abspath examples/maxwell3d/maxwell3d.egi) \
 	  > $(abspath examples/maxwell3d/maxwell3d.fmr)
 	cd examples/maxwell3d && $(FORMURA) maxwell3d.fmr
@@ -100,7 +100,7 @@ metric-torus:
 	cd examples/metric_torus && ./check
 
 kleingordon:
-	python3 $(FEC) $(abspath examples/kleingordon/kleingordon.fe) > $(abspath examples/kleingordon/kleingordon.egi)
+	$(FEC_RUN) $(abspath examples/kleingordon/kleingordon.fe) > $(abspath examples/kleingordon/kleingordon.egi)
 	$(EGISON_RUN) -l $(FMRGEN) -l $(FMRDSL) $(abspath examples/kleingordon/kleingordon.egi) \
 	  > $(abspath examples/kleingordon/kleingordon.fmr)
 	cd examples/kleingordon && $(FORMURA) kleingordon.fmr
@@ -136,7 +136,7 @@ euler-sod:
 	cd examples/euler_sod && ./check
 
 ks3d:
-	python3 $(FEC) $(abspath examples/ks3d/ks3d.fe) > $(abspath examples/ks3d/ks3d.egi)
+	$(FEC_RUN) $(abspath examples/ks3d/ks3d.fe) > $(abspath examples/ks3d/ks3d.egi)
 	$(EGISON_RUN) -l $(FMRGEN) -l $(FMRDSL) $(abspath examples/ks3d/ks3d.egi) \
 	  > $(abspath examples/ks3d/ks3d.fmr)
 	cd examples/ks3d && $(FORMURA) ks3d.fmr
@@ -158,7 +158,7 @@ dirichlet-diffusion:
 	cd examples/dirichlet_diffusion && ./check
 
 maxwell-dec:
-	python3 $(FEC) $(abspath examples/maxwell_dec/maxwell_dec.fe) > $(abspath examples/maxwell_dec/maxwell_dec.egi)
+	$(FEC_RUN) $(abspath examples/maxwell_dec/maxwell_dec.fe) > $(abspath examples/maxwell_dec/maxwell_dec.egi)
 	$(EGISON_RUN) -l $(FMRGEN) -l $(FMRDSL) $(abspath examples/maxwell_dec/maxwell_dec.egi) \
 	  > $(abspath examples/maxwell_dec/maxwell_dec.fmr)
 	cd examples/maxwell_dec && $(FORMURA) maxwell_dec.fmr

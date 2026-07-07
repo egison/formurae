@@ -1,0 +1,18 @@
+cabal-version:      2.4
+name:               fec
+version:            0.1.0.0
+synopsis:           The .fe compiler: tensor/differential-form stencil DSL to embedded Egison
+description:
+    Translates the .fe surface DSL (field declarations plus index-notation
+    and differential-form equations) into the embedded DSL form: an Egison
+    program over lib/fmrgen.egi and lib/fmrdsl.egi.  All semantics (tensor
+    index expansion, DEC, the CAS, the .fmr printer) live on the Egison
+    side; fec is a thin, line-oriented translator.
+build-type:         Simple
+
+executable fec
+    main-is:          Main.hs
+    hs-source-dirs:   fec/src
+    build-depends:    base >=4.17 && <5
+    default-language: Haskell2010
+    ghc-options:      -Wall
