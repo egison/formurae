@@ -1,13 +1,17 @@
 --
 -- elastic3d.egi : linear elastic waves, velocity-stress formulation on
--- the Virieux staggered grid (the elastic sibling of Yee's FDTD)
+-- the Virieux staggered grid (the elastic sibling of Yee's FDTD),
+-- written in TENSOR INDEX NOTATION:
 --   rho dv_i/dt = d_j sigma_ij
 --   d sigma_ij/dt = la delta_ij (div v) + mu (d_i v_j + d_j v_i)
--- Velocities live on edges, diagonal stresses on nodes, shear stresses
--- on faces; every derivative is a nearest half-cell difference through
--- the same yeeRef machinery as the Yee example.  With la=2, mu=1,
--- rho0=1 the P and S wave speeds are 2 and 1, measured directly by the
--- check driver from co-propagating P and S pulses.
+-- The velocity vector and the (symmetric) stress matrix are single
+-- tensor values; both updates are generateTensor over abstract indices,
+-- and Egison unfolds them into the 9 scalar equations.  The staggered
+-- placements are DERIVED from the index structure: v_i on edge i, and
+-- sigma_ij at sV i (+) sV j (half-offset addition mod 1), which puts
+-- diagonal stresses on nodes and shear stresses on faces -- exactly the
+-- Virieux layout.  With la=2, mu=1, rho0=1 the P and S wave speeds are
+-- 2 and 1, measured directly by the check driver.
 --
 -- Run: egison -l fmrgen.egi elastic3d.egi > elastic3d.fmr
 --
@@ -27,15 +31,36 @@ def vx' := function (x, y, z)
 def vy' := function (x, y, z)
 def vz' := function (x, y, z)
 
-def sVx := [1 / 2, 0, 0]
-def sVy := [0, 1 / 2, 0]
-def sVz := [0, 0, 1 / 2]
-def s0  := [0, 0, 0]
-def sXY := [1 / 2, 1 / 2, 0]
-def sXZ := [1 / 2, 0, 1 / 2]
-def sYZ := [0, 1 / 2, 1 / 2]
+-- the fields as tensors
+def vel : Vector MathValue := [| vx, vy, vz |]
+def velN : Vector MathValue := [| vx', vy', vz' |]
+def sigma : Matrix MathValue :=
+  [| [| sxx, sxy, sxz |], [| sxy, syy, syz |], [| sxz, syz, szz |] |]
 
-def divv' := dYee 1 s0 (vx', sVx) + dYee 2 s0 (vy', sVy) + dYee 3 s0 (vz', sVz)
+-- staggers derived from the index structure
+def sV (a: Integer) : [MathValue] := unit3 a (1 / 2)
+def addS (p: [MathValue]) (q: [MathValue]) : [MathValue] :=
+  map (\(u1, u2) -> if u1 + u2 = 1 then 0 else u1 + u2) (zip p q)
+def sSig (a: Integer) (b: Integer) : [MathValue] := addS (sV a) (sV b)
+def s0 : [MathValue] := [0, 0, 0]
+
+def sigF (a: Integer) (b: Integer) : (MathValue, [MathValue]) := (sigma_a_b, sSig a b)
+def velNF (b: Integer) : (MathValue, [MathValue]) := (velN_b, sV b)
+
+def divv' := sum (map (\b -> dYee b s0 (velNF b)) [1, 2, 3])
+
+-- rho dv_i/dt = d_j sigma_ij
+def vNext : Vector MathValue :=
+  generateTensor
+    (\[a] -> vel_a + (dt / rho0) * sum (map (\b -> dYee b (sV a) (sigF a b)) [1, 2, 3]))
+    [3]
+
+-- d sigma_ij/dt = la delta_ij (div v') + mu (d_i v'_j + d_j v'_i)
+def sigNext : Matrix MathValue :=
+  generateTensor
+    (\[a, b] -> sigma_a_b + dt * ((if a = b then la * divv' else 0)
+                  + mu * (dYee a (sSig a b) (velNF b) + dYee b (sSig a b) (velNF a))))
+    [3, 3]
 
 def prog : [String] :=
   [ "dimension :: 3"
@@ -64,15 +89,15 @@ def prog : [String] :=
   , "end function"
   , ""
   , "begin function (vx',vy',vz',sxx',syy',szz',sxy',sxz',syz') = step(vx,vy,vz,sxx,syy,szz,sxy,sxz,syz)"
-  , fmrEq "vx'" (vx + (dt / rho0) * (dYee 1 sVx (sxx, s0) + dYee 2 sVx (sxy, sXY) + dYee 3 sVx (sxz, sXZ)))
-  , fmrEq "vy'" (vy + (dt / rho0) * (dYee 1 sVy (sxy, sXY) + dYee 2 sVy (syy, s0) + dYee 3 sVy (syz, sYZ)))
-  , fmrEq "vz'" (vz + (dt / rho0) * (dYee 1 sVz (sxz, sXZ) + dYee 2 sVz (syz, sYZ) + dYee 3 sVz (szz, s0)))
-  , fmrEq "sxx'" (sxx + dt * (la * divv' + 2 * mu * dYee 1 s0 (vx', sVx)))
-  , fmrEq "syy'" (syy + dt * (la * divv' + 2 * mu * dYee 2 s0 (vy', sVy)))
-  , fmrEq "szz'" (szz + dt * (la * divv' + 2 * mu * dYee 3 s0 (vz', sVz)))
-  , fmrEq "sxy'" (sxy + dt * mu * (dYee 1 sXY (vy', sVy) + dYee 2 sXY (vx', sVx)))
-  , fmrEq "sxz'" (sxz + dt * mu * (dYee 1 sXZ (vz', sVz) + dYee 3 sXZ (vx', sVx)))
-  , fmrEq "syz'" (syz + dt * mu * (dYee 2 sYZ (vz', sVz) + dYee 3 sYZ (vy', sVy)))
+  , fmrEq "vx'" vNext_1
+  , fmrEq "vy'" vNext_2
+  , fmrEq "vz'" vNext_3
+  , fmrEq "sxx'" sigNext_1_1
+  , fmrEq "syy'" sigNext_2_2
+  , fmrEq "szz'" sigNext_3_3
+  , fmrEq "sxy'" sigNext_1_2
+  , fmrEq "sxz'" sigNext_1_3
+  , fmrEq "syz'" sigNext_2_3
   , "end function"
   ]
 

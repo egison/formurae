@@ -4,10 +4,14 @@
 -- Egison's CAS from the metric and baked into the generated init.
 --
 --   metric (R=2, r=1):  ds^2 = d(th)^2 + (2 + cos th)^2 d(ph)^2
---   sqrt(g)   = 2 + cos th
+-- given as its Lame scale factors hs = [h_th, h_ph, 1]: that list is
+-- the ONLY geometric input.  Everything downstream --
+--   sqrt(g)     = h_th h_ph            = 2 + cos th
+--   A = sqrt(g) g^{th th} = sqrt(g)/h_th^2 = 2 + cos th
+--   B = sqrt(g) g^{ph ph} = sqrt(g)/h_ph^2 = 1/(2 + cos th)
+-- is computed by the CAS (the printed .fmr init shows the results).
+--
 --   du/dt = (1/sqrt(g)) [ d_th( A d_th u ) + d_ph( B d_ph u ) ]
---     A = sqrt(g) g^{th th} = 2 + cos th      (at half points)
---     B = sqrt(g) g^{ph ph} = 1/(2 + cos th)
 --
 -- The coefficients are frozen into coefficient FIELDS (ca, cb, sg) at
 -- init, so the step needs no transcendental functions; conservation of
@@ -18,10 +22,14 @@
 
 declare symbol dt
 
--- the metric, symbolically (theta = x, phi = y)
-def sqg := 2 + cos x
-def acoef := sqg          -- sqrt(g) g^{theta theta}
-def bcoef := 1 / sqg      -- sqrt(g) g^{phi phi}
+-- the metric as Lame scale factors (theta = x, phi = y); this line is
+-- the only geometric input
+def hs : [MathValue] := [1, 2 + cos x, 1]
+
+-- derived by the CAS: sqrt(g) = h1 h2 h3, sqrt(g) g^{ii} = sqrt(g)/hi^2
+def sqg := foldl (\p q -> p * q) 1 hs
+def acoef := sqg / (nth 1 hs ^ 2)     -- sqrt(g) g^{theta theta}
+def bcoef := sqg / (nth 2 hs ^ 2)     -- sqrt(g) g^{phi phi}
 def u0 := exp (cos x + cos y - 2)
 
 -- fields
