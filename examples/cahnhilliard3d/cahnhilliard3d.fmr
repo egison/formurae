@@ -1,7 +1,6 @@
 dimension :: 3
 axes :: x,y,z
 
-# lattice units: dx = 1
 double :: kap = 2.0
 double :: mob = 1.0
 double :: dt = 0.004

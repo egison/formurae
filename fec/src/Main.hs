@@ -71,13 +71,13 @@ fatal msg = hPutStrLn stderr ("fec: error: " ++ msg) >> exitFailure
 
 -- ---------------------------------------------------------------- model
 
-data Kind = Scalar | Vector | Form Int deriving (Eq, Show)
+data Kind = Scalar | Vector Bool | Form Int | SymM deriving (Eq, Show)
 
 data Init = IRaw String String | IVec String [String] | ICas String String
 
 data SK = KLet | KLocal | KEq deriving Eq
 
-data Step = Step { sk :: SK, sNm :: String, sIx :: Bool, sEx :: String }
+data Step = Step { sk :: SK, sNm :: String, sIdx :: [String], sEx :: String }
 
 data Model = Model
   { mName   :: String
@@ -138,20 +138,23 @@ eqForm marker s = do
     ident (c:cs) | isAlpha c = let (a, b) = span isAlphaNum cs in Just (c : a, b)
     ident _ = Nothing
 
--- NAME'(_i)? = EXPR
-primeEqForm :: String -> Maybe (String, Bool, String)
+-- NAME'(_a)(_b)? = EXPR   (a, b single index letters)
+primeEqForm :: String -> Maybe (String, [String], String)
 primeEqForm s = do
   (nm, r1) <- ident s
   r2 <- stripPrefix "'" r1
-  let (ix, r3) = case stripPrefix "_i" r2 of
-                   Just r -> (True, r)
-                   Nothing -> (False, r2)
+  let (ixs, r3) = idxs r2
   r4 <- stripPrefix "=" (dropWhile isSpace r3)
   let ex = strip r4
-  if null ex then Nothing else Just (nm, ix, ex)
+  if null ex then Nothing else Just (nm, ixs, ex)
   where
     ident (c:cs) | isAlpha c = let (a, b) = span isAlphaNum cs in Just (c : a, b)
     ident _ = Nothing
+    idxs ('_':c:rest) | isAlpha c, not (isAlphaNum (headDef ' ' rest)) =
+      let (more, r) = idxs rest in ([c] : more, r)
+    idxs r = ([], r)
+    headDef d [] = d
+    headDef _ (c:_) = c
 
 -- ---------------------------------------------------------------- parser
 
@@ -197,7 +200,9 @@ parseFe name txt = go STop (Model name 3 ["x", "y", "z"] [] [] [] [] [] Nothing 
                    then fatal ("bad field name: " ++ nm ++ " (line " ++ show ln ++ ")")
                    else case k of
                      "scalar" -> add nm Scalar
-                     "vector" -> add nm Vector
+                     "vector" -> add nm (Vector False)
+                     "vector @ staggered" -> add nm (Vector True)
+                     "symmetric @ staggered" -> add nm SymM
                      "1-form" -> add nm (Form 1)
                      "2-form" -> add nm (Form 2)
                      _ -> fatal ("bad field kind: " ++ k ++ " (line " ++ show ln ++ ")")
@@ -237,7 +242,7 @@ parseFe name txt = go STop (Model name 3 ["x", "y", "z"] [] [] [] [] [] Nothing 
           case vecLit rhs of
             Just elems -> do
               let ok = case kindOf m nm of
-                         Just Vector -> True
+                         Just (Vector _) -> True
                          Just (Form _) -> True
                          _ -> False
               if not ok
@@ -273,11 +278,11 @@ parseFe name txt = go STop (Model name 3 ["x", "y", "z"] [] [] [] [] [] Nothing 
 
     stp ln s m
       | Just (nm, ix, ex) <- eqForm "let" s =
-          return m { mSteps = Step KLet nm ix ex : mSteps m }
+          return m { mSteps = Step KLet nm (if ix then ["i"] else []) ex : mSteps m }
       | Just (nm, _, ex) <- eqForm "local" s =
-          return m { mSteps = Step KLocal nm False ex : mSteps m }
-      | Just (nm, ix, ex) <- primeEqForm s =
-          return m { mSteps = Step KEq nm ix ex : mSteps m }
+          return m { mSteps = Step KLocal nm [] ex : mSteps m }
+      | Just (nm, ixs, ex) <- primeEqForm s =
+          return m { mSteps = Step KEq nm ixs ex : mSteps m }
       | otherwise = fatal ("bad step eq: " ++ s ++ " (line " ++ show ln ++ ")")
 
 -- --------------------------------------------------- expression rewriting
@@ -314,6 +319,180 @@ lbTarget m = case concatMap scan (mSteps m) of
     isSp (TC c) = isSpace c
     isSp _ = False
 
+
+-- ------------------------------------ tensor index equations (staggered)
+--
+-- v'_i   = v_i + (dt / rho0) * d_j s_i_j
+-- s'_i_j = s_i_j + dt * (la * delta_ij * d_k v'_k + mu * (d_i v'_j + d_j v'_i))
+--
+-- Free indices come from the left-hand side; a repeated index letter
+-- inside a term is summed over 1..3 (Einstein convention).  delta_ij is
+-- Kronecker's delta.  d_a applied to a staggered field component is the
+-- half-cell difference anchored at the placement of the TARGET
+-- component (Virieux/Yee); symmetric components are canonicalized
+-- (s_2_1 means s_1_2).
+
+data ITok = II String | IC Char deriving Eq
+
+itok :: String -> [ITok]
+itok [] = []
+itok (c:cs)
+  | isAlpha c =
+      let (a, b) = span (\ch -> isAlphaNum ch || ch == '_' || ch == '\'') cs
+      in II (c : a) : itok b
+  | otherwise = IC c : itok cs
+
+splitOn :: Char -> String -> [String]
+splitOn ch = foldr step [[]]
+  where
+    step c acc@(cur:rest) | c == ch = [] : acc
+                          | otherwise = (c : cur) : rest
+    step _ [] = [[]]
+
+plOf :: [Bool] -> String
+plOf hs = "[" ++ intercalate ", " [if h then "1 / 2" else "0" | h <- hs] ++ "]"
+
+placeV :: Int -> String
+placeV a = plOf [a == 1, a == 2, a == 3]
+
+placeS :: Int -> Int -> String
+placeS a b | a == b = plOf [False, False, False]
+           | otherwise = plOf [c == a || c == b | c <- [1, 2, 3]]
+
+indexDefs :: Model -> Step -> IO [String]
+indexDefs m st =
+  case (kindOf m (sNm st), sIdx st) of
+    (Just (Vector True), [fi]) ->
+      mapM (\a -> comp [(fi, a)] (placeV a) (base ++ show a)) [1, 2, 3]
+    (Just SymM, [fi, fj]) ->
+      mapM (\(a, b) -> comp [(fi, a), (fj, b)] (placeS a b) (base ++ show a ++ show b))
+           ([(1,1),(2,2),(3,3),(1,2),(1,3),(2,3)] :: [(Int, Int)])
+    _ -> fatal ("index equation has wrong indices for its field kind: " ++ sNm st)
+  where
+    base = "feq" ++ sNm st
+    comp env anchor defnm = do
+      e <- ixExpand m env anchor (sEx st)
+      return ("def " ++ defnm ++ " := " ++ e)
+
+-- expand one component: parens are independent regions, a repeated
+-- index letter is summed over the smallest term containing it, then
+-- names and derivatives are resolved
+ixExpand :: Model -> [(String, Int)] -> String -> String -> IO String
+ixExpand m env anchor expr = expandRegion env (itok expr)
+  where
+    -- a region is a +/- separated list of terms
+    expandRegion env' ts = goR env' (0 :: Int) [] ts
+    goR env' _ cur [] = expandTerm env' (reverse cur)
+    goR env' d cur (t@(IC c) : rest)
+      | c `elem` "([" = goR env' (d + 1) (t : cur) rest
+      | c `elem` ")]" = goR env' (d - 1) (t : cur) rest
+      | d == 0 && c `elem` "+-" = do
+          e1 <- expandTerm env' (reverse cur)
+          e2 <- goR env' 0 [] rest
+          return (e1 ++ [c] ++ e2)
+    goR env' d cur (t : rest) = goR env' d (t : cur) rest
+
+    -- one term: sum its own (depth-0) dummies, then resolve
+    expandTerm env' ts =
+      case levelDummies env' ts of
+        (k:_) -> do
+          parts <- mapM (\n -> expandTerm ((k, n) : env') ts) [1, 2, 3]
+          return ("(" ++ intercalate " + " parts ++ ")")
+        [] -> resolve env' ts
+
+    levelDummies env' ts = nub (go2 (0 :: Int) ts)
+      where
+        go2 _ [] = []
+        go2 d (IC c : rest)
+          | c `elem` "([" = go2 (d + 1) rest
+          | c `elem` ")]" = go2 (d - 1) rest
+          | otherwise = go2 d rest
+        go2 d (II w : rest)
+          | d == 0 = [l | l <- idxLetters w, lookup l env' == Nothing] ++ go2 d rest
+          | otherwise = go2 d rest
+
+    idxLetters w =
+      let (b, parts) = splitIdent w
+      in if b == "delta"
+           then [ [c] | pq <- parts, c <- pq, isAlpha c ]
+           else [ pt | pt <- parts, length pt == 1, all isAlpha pt ]
+
+    splitIdent w = case splitOn '_' w of
+      (b : parts) -> (b, parts)
+      [] -> (w, [])
+
+    fieldBase w = (takeWhile (/= '\'') w, length (filter (== '\'') w))
+
+    resolveIx env' pt
+      | all isDigit pt = Just (read pt)
+      | otherwise = lookup pt env'
+
+    -- resolve a dummy-free term; parens recurse as fresh regions
+    resolve _ [] = return ""
+    resolve env' (IC '(' : rest) = do
+      let (inner, rest') = matchParen (0 :: Int) [] rest
+      e <- expandRegion env' inner
+      fmap (("(" ++ e ++ ")") ++) (resolve env' rest')
+    resolve env' (IC c : rest) = fmap ([c] ++) (resolve env' rest)
+    resolve env' (II w : rest)
+      | ("delta", [pq]) <- splitIdentW, [pc, qc] <- pq = do
+          pv <- need env' [pc]
+          qv <- need env' [qc]
+          fmap ((if pv == qv then "1" else "0") ++) (resolve env' rest)
+      | ("d", [k]) <- splitIdentW = do
+          n <- need env' k
+          let rest1 = dropWhile isSp rest
+          case rest1 of
+            (II opw : rest2) -> do
+              ref <- fieldRef env' opw
+              fmap (deriv n ref ++) (resolve env' rest2)
+            _ -> fatal ("d_" ++ k ++ " needs a field operand: " ++ expr)
+      | isField = do
+          ref <- fieldRef env' w
+          fmap (fst ref ++) (resolve env' rest)
+      | otherwise = fmap (w ++) (resolve env' rest)
+      where
+        splitIdentW = splitIdent w
+        isField = kindOf m (fst (fieldBase (fst splitIdentW))) /= Nothing
+                    && not (null (snd splitIdentW))
+
+    matchParen d acc (IC ')' : rest)
+      | d == 0 = (reverse acc, rest)
+      | otherwise = matchParen (d - 1) (IC ')' : acc) rest
+    matchParen d acc (t@(IC '(') : rest) = matchParen (d + 1) (t : acc) rest
+    matchParen d acc (t : rest) = matchParen d (t : acc) rest
+    matchParen _ acc [] = (reverse acc, [])
+
+    isSp (IC c) = isSpace c
+    isSp _ = False
+
+    need env' l = case resolveIx env' l of
+      Just n -> return n
+      Nothing -> fatal ("unresolved index '" ++ l ++ "' in: " ++ expr)
+
+    fieldRef env' w = do
+      let (b, parts) = splitIdent w
+          (fname, primes) = fieldBase b
+      ns <- mapM (need env') parts
+      case (kindOf m fname, ns) of
+        (Just (Vector True), [a]) ->
+          return (fname ++ replicate primes '\'' ++ "_" ++ show a, placeV a)
+        (Just SymM, [a, b2]) ->
+          let (lo, hi) = (min a b2, max a b2)
+          in return (fname ++ replicate primes '\'' ++ "_" ++ show lo ++ "_" ++ show hi,
+                     placeS a b2)
+        (Just Scalar, []) ->
+          return (fname ++ replicate primes '\'', plOf [False, False, False])
+        _ -> fatal ("bad field reference in index equation: " ++ w)
+
+    deriv n (comp, place) =
+      "dYee " ++ show n ++ " " ++ anchor ++ " (" ++ comp ++ ", " ++ place ++ ")"
+
+isIndexKind :: Maybe Kind -> Bool
+isIndexKind (Just (Vector True)) = True
+isIndexKind (Just SymM) = True
+isIndexKind _ = False
+
 -- names X whose updated value X' is referenced in some step RHS
 primedRefs :: Model -> [String]
 primedRefs m = sort (nub [nm | st <- mSteps m, TId nm True <- tokenize (sEx st)
@@ -323,7 +502,7 @@ opPass :: Model -> [String] -> [Tok] -> [Elem]
 opPass m lets = go
   where
     forms = [(n, d) | (n, Form d) <- mFlds m]
-    vecs = [n | (n, Vector) <- mFlds m]
+    vecs = [n | (n, Vector False) <- mFlds m]
     go [] = []
     go (TId op False : ts)
       | op `elem` vecOps
@@ -362,10 +541,23 @@ renameAxes m = concatMap out . tokenize
 lbExpansion :: String
 lbExpansion = "((dYee 1 [0, 0, 0] (f1, [1 / 2, 0, 0]) + dYee 2 [0, 0, 0] (f2, [0, 1 / 2, 0]) + dYee 3 [0, 0, 0] (f3, [0, 0, 1 / 2])) / sg)"
 
+-- mathematical derivative operators, resolved by axis name
+mathOps :: Model -> String -> String
+mathOps m = concatMap out . tokenize
+  where
+    axmap = zip (mAxes m) ["1", "2", "3"]
+    out (TId nm pr)
+      | not pr, Just rest <- stripPrefix "d2_" nm, Just n <- lookup rest axmap = "dC2 " ++ n
+      | not pr, Just rest <- stripPrefix "d_" nm, Just n <- lookup rest axmap = "dC " ++ n
+      | not pr, nm == "lap4" =
+          "(\\feU -> dTaylor 2 [-2, -1, 0, 1, 2] 1 feU + dTaylor 2 [-2, -1, 0, 1, 2] 2 feU + dTaylor 2 [-2, -1, 0, 1, 2] 3 feU)"
+      | otherwise = nm ++ (if pr then "'" else "")
+    out (TC c) = [c]
+
 rewrite :: Model -> [String] -> Maybe String -> String -> IO String
 rewrite m lets mk expr = fmap concat (mapM render (attach elems))
   where
-    elems = lbPass (opPass m lets (tokenize (renameAxes m expr)))
+    elems = lbPass (opPass m lets (tokenize (mathOps m (renameAxes m expr))))
     lbPass [] = []
     lbPass (EId "lb" False : rest0) =
       case dropWhile isSp rest0 of
@@ -376,7 +568,7 @@ rewrite m lets mk expr = fmap concat (mapM render (attach elems))
             isSp _ = False
     lbPass (e : rest) = e : lbPass rest
     forms = [n | (n, Form _) <- mFlds m]
-    vecs = [n | (n, Vector) <- mFlds m]
+    vecs = [n | (n, Vector False) <- mFlds m]
     -- pair each element with the next character (to skip function calls)
     attach es = zip es (map nextC (drop 1 (map Just es) ++ [Nothing]))
     nextC (Just (EC c)) = Just c
@@ -500,6 +692,7 @@ emit m = do
             : [ (if i == (0 :: Int) then "  [ " else "  , ") ++ "\"" ++ escH h ++ "\""
               | (i, h) <- zip [0 ..] helps ] ++ ["  ]"]
       kindnum Scalar = "0"
+      kindnum SymM = "2"
       kindnum _ = "1"
       feFlds = "def feFlds : [(String, Integer)] := ["
                ++ intercalate ", " [ "(\"" ++ n ++ "\", " ++ kindnum k ++ ")"
@@ -532,34 +725,40 @@ emit m = do
     isCas (ICas _ _) = True
     isCas _ = False
     fdecl (nm, Scalar) = ["def " ++ nm ++ " := function (x, y, z)"]
-    fdecl (nm, Vector) =
+    fdecl (nm, Vector _) =
       ["def " ++ nm ++ "_i := generateTensor (\\[i] -> function (x, y, z)) [3]"]
+    fdecl (nm, SymM) =
+      ["def " ++ nm ++ "_i_j := generateTensor (\\[i, j] -> function (x, y, z)) [3, 3]"]
     fdecl (nm, Form k) =
       [ "def " ++ nm ++ "_i := generateTensor (\\[i] -> function (x, y, z)) [3]"
       , "def " ++ nm ++ "f : (Integer, Integer, [MathValue]) := (0, " ++ show k
         ++ ", [" ++ nm ++ "_1, " ++ nm ++ "_2, " ++ nm ++ "_3])" ]
     pdecl nm = case kindOf m nm of
       Just Scalar -> ["def " ++ nm ++ "' := function (x, y, z)"]
-      Just Vector ->
+      Just (Vector _) ->
         ["def " ++ nm ++ "'_i := generateTensor (\\[i] -> function (x, y, z)) [3]"]
+      Just SymM ->
+        ["def " ++ nm ++ "'_i_j := generateTensor (\\[i, j] -> function (x, y, z)) [3, 3]"]
       Just (Form k) ->
         [ "def " ++ nm ++ "'_i := generateTensor (\\[i] -> function (x, y, z)) [3]"
         , "def " ++ nm ++ "fN : (Integer, Integer, [MathValue]) := (0, " ++ show k
           ++ ", [" ++ nm ++ "'_1, " ++ nm ++ "'_2, " ++ nm ++ "'_3])" ]
       Nothing -> []
     stepDefs lets st = case sk st of
-      KLet | sIx st -> do
+      KLet | sIdx st == ["i"] -> do
                e <- rewrite m lets Nothing (sEx st)
                return ["def " ++ sNm st ++ "_i := withSymbols [i] " ++ e]
            | otherwise -> do
                e <- rewrite m lets Nothing (sEx st)
                return ["def " ++ sNm st ++ " := " ++ e]
-      KEq | sIx st -> do
-              e <- rewrite m lets Nothing (sEx st)
-              return ["def feq" ++ sNm st ++ "_i := withSymbols [i] " ++ e]
-          | kindOf m (sNm st) == Just Vector -> do
-              e <- rewrite m lets (Just "i") (sEx st)
-              return ["def feq" ++ sNm st ++ "_i := withSymbols [i] " ++ e]
+      KEq
+        | isIndexKind (kindOf m (sNm st)) -> indexDefs m st
+        | sIdx st == ["i"] -> do
+            e <- rewrite m lets Nothing (sEx st)
+            return ["def feq" ++ sNm st ++ "_i := withSymbols [i] " ++ e]
+        | kindOf m (sNm st) == Just (Vector False) && null (sIdx st) -> do
+            e <- rewrite m lets (Just "i") (sEx st)
+            return ["def feq" ++ sNm st ++ "_i := withSymbols [i] " ++ e]
       _ -> return []
     stepItem lets st = case sk st of
       KLet -> return Nothing
@@ -567,7 +766,16 @@ emit m = do
         e <- rewrite m lets Nothing (sEx st)
         return (Just ("[fmrEq \"" ++ sNm st ++ "\" (" ++ e ++ ")]"))
       KEq
-        | sIx st || kindOf m (sNm st) == Just Vector ->
+        | Just (Vector True) <- kindOf m (sNm st) ->
+            let nm = sNm st
+            in return (Just ("vecEqs \"" ++ nm ++ "\" feq" ++ nm ++ "1 feq"
+                             ++ nm ++ "2 feq" ++ nm ++ "3"))
+        | Just SymM <- kindOf m (sNm st) ->
+            let nm = sNm st
+            in return (Just ("symEqs \"" ++ nm ++ "\" "
+                             ++ unwords ["feq" ++ nm ++ show a ++ show b
+                                        | (a, b) <- [(1,1),(2,2),(3,3),(1,2),(1,3),(2,3)] :: [(Int,Int)]]))
+        | not (null (sIdx st)) || kindOf m (sNm st) == Just (Vector False) ->
             let nm = sNm st
             in return (Just ("vecEqs \"" ++ nm ++ "\" feq" ++ nm ++ "_1 feq"
                              ++ nm ++ "_2 feq" ++ nm ++ "_3"))

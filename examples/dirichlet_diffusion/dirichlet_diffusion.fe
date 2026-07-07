@@ -1,0 +1,20 @@
+-- Diffusion between two cold walls: the yaml declares
+--   boundary: [fixed 0.0, periodic, periodic]
+-- (the fork's boundary support), so the physics stays the periodic
+-- one-liner.  The initial condition is the fundamental discrete
+-- Dirichlet eigenmode, whose exact decay (1 + lam dt)^n the check
+-- driver asserts to machine precision.
+
+param kappa = 1.0
+param dt = 0.00002
+
+extern sin
+raw # fundamental Dirichlet mode: nodes at the ghost walls i = -1, i = 64
+
+field u : scalar
+
+init:
+  u = sin(3.141592653589793*(i + 1.0)/65.0)
+
+step:
+  u' = u + dt * kappa * lap u

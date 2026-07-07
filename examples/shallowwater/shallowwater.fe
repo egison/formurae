@@ -1,0 +1,28 @@
+-- Shallow water equations in conservation form (h, hu, hv), central
+-- differences on the momentum fluxes (locals) plus a small Laplacian
+-- viscosity; every piece is in flux form, so mass and momentum
+-- telescope exactly.  A 1% bump splits into gravity waves at
+-- c = sqrt(g h0) = 1, measured by the check driver.
+
+param g = 1.0
+param lam = 0.05
+param dt = 0.05
+
+extern exp
+
+field h : scalar
+field mx : scalar
+field my : scalar
+
+init:
+  h = 1.0 + 0.01*exp(-((i*dx - 32.0)/2.0)**2)
+  mx = 0.0
+  my = 0.0
+
+step:
+  local fmxx = mx * mx / h + g * h * h / 2
+  local fmxy = mx * my / h
+  local fmyy = my * my / h + g * h * h / 2
+  h' = h - dt * (d_x mx + d_y my) + dt * lam * (d2_x h + d2_y h)
+  mx' = mx - dt * (d_x fmxx + d_y fmxy) + dt * lam * (d2_x mx + d2_y mx)
+  my' = my - dt * (d_x fmxy + d_y fmyy) + dt * lam * (d2_x my + d2_y my)

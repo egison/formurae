@@ -1,0 +1,24 @@
+-- The flagship simulation of the Formura paper (Muranushi et al.,
+-- FHPC 2016, Listing 1): below-ground dynamics of mycorrhiza modelled
+-- by Pearson's equations, with the paper's parameters.
+
+param Fu = 1.0/86400.0
+param Fv = 6.0/86400.0
+param Fe = 1.0/900.0
+param Du = 2.3e-10
+param Dv = 6.1e-11
+param dt = 200.0
+
+extern fabs
+raw isCenter = fun(i,j,k,w) (fabs(total_grid_x/2-i) < w) && (fabs(total_grid_y/2-j) < w) && (fabs(total_grid_z/2-k) < w)
+
+field U : scalar
+field V : scalar
+
+init:
+  U = if isCenter(i,j,k,4) then 0.5 else 1.0
+  V = if isCenter(i,j,k,4) then 0.25 else 0.0
+
+step:
+  U' = U + dt * (Fu * (1 - U) - Fe * U * V^2 + Du * lap U)
+  V' = V + dt * (Fe * U * V^2 - Fv * V + Dv * lap V)

@@ -1,7 +1,6 @@
 dimension :: 3
 axes :: x,y,z
 
-# parameters of Muranushi et al., FHPC 2016 (mycorrhiza)
 double :: Fu = 1.0/86400.0
 double :: Fv = 6.0/86400.0
 double :: Fe = 1.0/900.0

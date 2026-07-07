@@ -51,28 +51,32 @@ maxwell3d-yee:
 	cd examples/maxwell3d_yee && ./check
 
 pearson3d:
-	$(EGISON_RUN) -l $(FMRGEN) $(abspath examples/pearson3d/pearson3d.egi) \
+	$(FEC_RUN) $(abspath examples/pearson3d/pearson3d.fe) > $(abspath examples/pearson3d/pearson3d.egi)
+	$(EGISON_RUN) -l $(FMRGEN) -l $(FMRDSL) $(abspath examples/pearson3d/pearson3d.egi) \
 	  > $(abspath examples/pearson3d/pearson3d.fmr)
 	cd examples/pearson3d && $(FORMURA) pearson3d.fmr
 	cd examples/pearson3d && $(CC) $(CFLAGS) -I$(MPISTUB) -o check pearson_check.c pearson3d.c -lm
 	cd examples/pearson3d && ./check 20000
 
 burgers3d:
-	$(EGISON_RUN) -l $(FMRGEN) $(abspath examples/burgers3d/burgers3d.egi) \
+	$(FEC_RUN) $(abspath examples/burgers3d/burgers3d.fe) > $(abspath examples/burgers3d/burgers3d.egi)
+	$(EGISON_RUN) -l $(FMRGEN) -l $(FMRDSL) $(abspath examples/burgers3d/burgers3d.egi) \
 	  > $(abspath examples/burgers3d/burgers3d.fmr)
 	cd examples/burgers3d && $(FORMURA) burgers3d.fmr
 	cd examples/burgers3d && $(CC) $(CFLAGS) -I$(MPISTUB) -o check burgers_check.c burgers3d.c -lm
 	cd examples/burgers3d && ./check
 
 cahnhilliard3d:
-	$(EGISON_RUN) -l $(FMRGEN) $(abspath examples/cahnhilliard3d/cahnhilliard3d.egi) \
+	$(FEC_RUN) $(abspath examples/cahnhilliard3d/cahnhilliard3d.fe) > $(abspath examples/cahnhilliard3d/cahnhilliard3d.egi)
+	$(EGISON_RUN) -l $(FMRGEN) -l $(FMRDSL) $(abspath examples/cahnhilliard3d/cahnhilliard3d.egi) \
 	  > $(abspath examples/cahnhilliard3d/cahnhilliard3d.fmr)
 	cd examples/cahnhilliard3d && $(FORMURA) cahnhilliard3d.fmr
 	cd examples/cahnhilliard3d && $(CC) $(CFLAGS) -I$(MPISTUB) -o check ch_check.c cahnhilliard3d.c -lm
 	cd examples/cahnhilliard3d && ./check
 
 tdgl3d:
-	$(EGISON_RUN) -l $(FMRGEN) $(abspath examples/tdgl3d/tdgl3d.egi) \
+	$(FEC_RUN) $(abspath examples/tdgl3d/tdgl3d.fe) > $(abspath examples/tdgl3d/tdgl3d.egi)
+	$(EGISON_RUN) -l $(FMRGEN) -l $(FMRDSL) $(abspath examples/tdgl3d/tdgl3d.egi) \
 	  > $(abspath examples/tdgl3d/tdgl3d.fmr)
 	cd examples/tdgl3d && $(FORMURA) tdgl3d.fmr
 	cd examples/tdgl3d && $(CC) $(CFLAGS) -I$(MPISTUB) -o check tdgl_check.c tdgl3d.c -lm
@@ -86,6 +90,7 @@ mhd-ot:
 	cd examples/mhd_ot && ./check
 
 elastic3d:
+	$(FEC_RUN) $(abspath examples/elastic3d/elastic3d.fe) > $(abspath examples/elastic3d/elastic3d.egi)
 	$(EGISON_RUN) -l $(FMRGEN) -l $(FMRDSL) $(abspath examples/elastic3d/elastic3d.egi) \
 	  > $(abspath examples/elastic3d/elastic3d.fmr)
 	cd examples/elastic3d && $(FORMURA) elastic3d.fmr
@@ -109,7 +114,8 @@ kleingordon:
 	cd examples/kleingordon && ./check
 
 shallowwater:
-	$(EGISON_RUN) -l $(FMRGEN) $(abspath examples/shallowwater/shallowwater.egi) \
+	$(FEC_RUN) $(abspath examples/shallowwater/shallowwater.fe) > $(abspath examples/shallowwater/shallowwater.egi)
+	$(EGISON_RUN) -l $(FMRGEN) -l $(FMRDSL) $(abspath examples/shallowwater/shallowwater.egi) \
 	  > $(abspath examples/shallowwater/shallowwater.fmr)
 	cd examples/shallowwater && $(FORMURA) shallowwater.fmr
 	cd examples/shallowwater && $(CC) $(CFLAGS) -I. -I$(MPISTUB) -o check sw_check.c shallowwater.c -lm
@@ -130,7 +136,8 @@ acoustic3d:
 	cd examples/acoustic3d && ./check
 
 euler-sod:
-	$(EGISON_RUN) -l $(FMRGEN) $(abspath examples/euler_sod/euler_sod.egi) \
+	$(FEC_RUN) $(abspath examples/euler_sod/euler_sod.fe) > $(abspath examples/euler_sod/euler_sod.egi)
+	$(EGISON_RUN) -l $(FMRGEN) -l $(FMRDSL) $(abspath examples/euler_sod/euler_sod.egi) \
 	  > $(abspath examples/euler_sod/euler_sod.fmr)
 	cd examples/euler_sod && $(FORMURA) euler_sod.fmr
 	cd examples/euler_sod && $(CC) $(CFLAGS) -I. -I$(MPISTUB) -o check sod_check.c euler_sod.c -lm
@@ -145,14 +152,16 @@ ks3d:
 	cd examples/ks3d && ./check
 
 highorder4:
-	$(EGISON_RUN) -l $(FMRGEN) $(abspath examples/highorder4/highorder4.egi) \
+	$(FEC_RUN) $(abspath examples/highorder4/highorder4.fe) > $(abspath examples/highorder4/highorder4.egi)
+	$(EGISON_RUN) -l $(FMRGEN) -l $(FMRDSL) $(abspath examples/highorder4/highorder4.egi) \
 	  > $(abspath examples/highorder4/highorder4.fmr)
 	cd examples/highorder4 && $(FORMURA) highorder4.fmr
 	cd examples/highorder4 && $(CC) $(CFLAGS) -I. -I$(MPISTUB) -o check hi4_check.c highorder4.c -lm
 	cd examples/highorder4 && ./check
 
 dirichlet-diffusion:
-	$(EGISON_RUN) -l $(FMRGEN) $(abspath examples/dirichlet_diffusion/dirichlet_diffusion.egi) \
+	$(FEC_RUN) $(abspath examples/dirichlet_diffusion/dirichlet_diffusion.fe) > $(abspath examples/dirichlet_diffusion/dirichlet_diffusion.egi)
+	$(EGISON_RUN) -l $(FMRGEN) -l $(FMRDSL) $(abspath examples/dirichlet_diffusion/dirichlet_diffusion.egi) \
 	  > $(abspath examples/dirichlet_diffusion/dirichlet_diffusion.fmr)
 	cd examples/dirichlet_diffusion && $(FORMURA) dirichlet_diffusion.fmr
 	cd examples/dirichlet_diffusion && $(CC) $(CFLAGS) -I. -I$(MPISTUB) -o check dirichlet_check.c dirichlet_diffusion.c -lm

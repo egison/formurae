@@ -1,14 +1,13 @@
 dimension :: 3
 axes :: x,y,z
 
-# CAS-derived 4th-order coefficients c(-2..2): [-1 / 12, 4 / 3, -5 / 2, 4 / 3, -1 / 12]
 double :: kappa = 1.0
 double :: dt = 0.0005
 
 extern function :: sin
 
 begin function u = init()
-  double [] :: u = 0
+  double [] :: u
   u[i,j,k] = sin(4.0*i*dx)
 end function
 

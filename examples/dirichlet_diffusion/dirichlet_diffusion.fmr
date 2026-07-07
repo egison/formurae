@@ -5,10 +5,10 @@ double :: kappa = 1.0
 double :: dt = 0.00002
 
 extern function :: sin
-
 # fundamental Dirichlet mode: nodes at the ghost walls i = -1, i = 64
+
 begin function u = init()
-  double [] :: u = 0
+  double [] :: u
   u[i,j,k] = sin(3.141592653589793*(i + 1.0)/65.0)
 end function
 

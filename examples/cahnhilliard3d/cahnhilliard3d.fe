@@ -1,0 +1,20 @@
+-- Cahn-Hilliard spinodal decomposition:
+--   mu = c^3 - c - kap lap c ;  dc/dt = M lap mu
+-- The fourth-order operator is two chained radius-1 stages via the
+-- intermediate field mu (a `local`).  Mass (sum c) is conserved
+-- exactly; the yaml monitors it through reduces.
+
+param kap = 2.0
+param mob = 1.0
+param dt = 0.004
+
+extern sin
+
+field c : scalar
+
+init:
+  c = 0.05*(sin(0.29*i)*sin(0.31*j)*sin(0.37*k) + sin(0.23*i + 0.41*j) + sin(0.19*k + 0.13*i))
+
+step:
+  local mu = c^3 - c - kap * lap c
+  c' = c + dt * mob * lap mu

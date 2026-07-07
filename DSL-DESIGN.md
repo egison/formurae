@@ -151,7 +151,18 @@ step:
    extern sqrt 経由で init が数値評価するので動く。球座標 hs=[1,r,r sinθ] は
    r=0・θ=0,π の座標特異点があるため、次例は円筒環状領域
    (embedding [r cos phi, r sin phi, zz]、r 壁は fork の boundary)推奨。
-   残り = staggered 宣言(`field v : vector @ edge`)で elastic/acoustic/yee、
-   indexed family(`field f : family 19`)で LBM の 38 宣言を1行に。
+   残り = indexed family(`field f : family 19`)で LBM、ε_ijk とスカラー対象の
+   添字和で yee/acoustic、ユーザ定義ヘルパ(def)で MHD。
+6. ✅ v1.7(2026-07-10): **数式演算子と Einstein 添字記法** — レビュー指摘
+   「dC2 のような関数でなく数式どおりに」を受け、.fe の微分は
+   `d_x`/`d2_x`(軸名で書く;dC/dC2/dTaylor は .fe から撤去、lap4 追加)。
+   `field v : vector @ staggered`・`field s : symmetric @ staggered` を宣言すると
+   **テンソル添字方程式**が書ける:
+   `v'_i = v_i + (dt/rho0) * d_j s_i_j` /
+   `s'_i_j = s_i_j + dt * (la * delta_ij * d_k v'_k + mu * (d_i v'_j + d_j v'_i))`。
+   繰り返し添字は「それを含む最小の項」で総和(Einstein;括弧は独立領域)、
+   delta_ij は Kronecker、d_a は対象成分の配置にアンカーされた半セル差分
+   (dYee)に落ち、対称成分は正準化(s_2_1 = s_1_2)。elastic3d.fe の生成
+   .fmr は v0 テンソル版と**バイト一致**。
 5. v2: 2D/1D、変数別境界条件、多段時間積分スキーム、Christoffel 一般計量
    (Egison 側の sqrt(完全平方多項式) 簡約が前提; チップ発行済)。
