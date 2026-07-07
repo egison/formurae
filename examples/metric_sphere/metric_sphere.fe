@@ -8,7 +8,7 @@
 -- heat sum(sin(1+theta) u) is exactly conserved.
 
 dimension 3
-axes theta, phi, z
+axes θ, φ, z
 
 param dt = 0.0001
 
@@ -16,12 +16,12 @@ extern exp
 extern cos
 extern sin
 
-embedding [ sin (1 + theta) * cos phi, sin (1 + theta) * sin phi, cos (1 + theta), z ]
+embedding [ sin (1 + θ) * cos φ, sin (1 + θ) * sin φ, cos (1 + θ), z ]
 
 field u : scalar
 
 init:
-  u := exp (0 - 4 * (theta - 1 / 2) ^ 2) * exp (cos phi - 1)
+  u := exp (0 - 4 * (θ - 1 / 2) ^ 2) * exp (cos φ - 1)
 
 step:
-  u' = u + dt * lb u
+  u' = u + dt * Δ u

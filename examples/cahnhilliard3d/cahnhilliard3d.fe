@@ -16,5 +16,5 @@ init:
   c = 0.05*(sin(0.29*i)*sin(0.31*j)*sin(0.37*k) + sin(0.23*i + 0.41*j) + sin(0.19*k + 0.13*i))
 
 step:
-  local mu = c^3 - c - kap * lap c
-  c' = c + dt * mob * lap mu
+  local μ = c^3 - c - kap * Δ c
+  c' = c + dt * mob * Δ μ

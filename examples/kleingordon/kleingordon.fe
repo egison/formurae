@@ -10,13 +10,13 @@ extern cosh
 raw
 raw # gamma/sqrt(2) = 0.7216878...; gamma*v/sqrt(2) = 0.1443375...
 
-field phi : scalar
+field φ : scalar
 field w : scalar
 
 init:
-  phi = tanh(0.7216878364870323*(i*dx - 16.0)) - tanh(0.7216878364870323*(i*dx - 48.0)) - 1.0
+  φ = tanh(0.7216878364870323*(i*dx - 16.0)) - tanh(0.7216878364870323*(i*dx - 48.0)) - 1.0
   w = 0.0 - 0.14433756729740645*(1.0/cosh(0.7216878364870323*(i*dx - 16.0)))**2 - 0.14433756729740645*(1.0/cosh(0.7216878364870323*(i*dx - 48.0)))**2
 
 step:
-  w' = w + dt * (d2_x phi + phi - phi * phi * phi)
-  phi' = phi + dt * w'
+  w' = w + dt * (∂_x (∂_x φ) + φ - φ * φ * φ)
+  φ' = φ + dt * w'

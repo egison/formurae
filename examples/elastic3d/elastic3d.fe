@@ -13,8 +13,8 @@
 -- P and S speeds are 2 and 1, measured by the check driver.
 
 param la = 2.0
-param mu = 1.0
-param rho0 = 1.0
+param μ = 1.0
+param ρ0 = 1.0
 param dt = 0.0005
 
 raw # la=2, mu=1, rho0=1  ->  vp = 2, vs = 1
@@ -36,5 +36,5 @@ init:
   syz = 0.0
 
 step:
-  v'_i = v_i + (dt / rho0) * d_j s_i_j
-  s'_i_j = s_i_j + dt * (la * delta_ij * d_k v'_k + mu * (d_i v'_j + d_j v'_i))
+  v'_i = v_i + (dt / ρ0) * ∂_j s_i_j
+  s'_i_j = s_i_j + dt * (la * delta_ij * ∂_k v'_k + μ * (∂_i v'_j + ∂_j v'_i))

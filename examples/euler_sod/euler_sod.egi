@@ -24,6 +24,6 @@ def feInits :=
   , "  mx[i,j,k] = 0.0"
   , "  en[i,j,k] = (0.1 + 0.9*sod(i*dx))/0.4"
   ]
-def feSteps := [fmrEq "pr" ((2 / 5) * (en - mx * mx / (2 * rho)))] ++ [fmrEq "fm" (mx * mx / rho + pr)] ++ [fmrEq "fe" ((en + pr) * mx / rho)] ++ scalarEq "rho" (rho - dt * dC 1 mx + dt * lam * dC2 1 rho) ++ scalarEq "mx" (mx - dt * dC 1 fm + dt * lam * dC2 1 mx) ++ scalarEq "en" (en - dt * dC 1 fe + dt * lam * dC2 1 en)
+def feSteps := [fmrEq "pr" ((2 / 5) * (en - mx * mx / (2 * rho)))] ++ [fmrEq "fm" (mx * mx / rho + pr)] ++ [fmrEq "fe" ((en + pr) * mx / rho)] ++ scalarEq "rho" (rho - dt * dC 1 mx + dt * lam * dC2 1( rho)) ++ scalarEq "mx" (mx - dt * dC 1 fm + dt * lam * dC2 1( mx)) ++ scalarEq "en" (en - dt * dC 1 fe + dt * lam * dC2 1( en))
 
 def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feFlds feInits feSteps)

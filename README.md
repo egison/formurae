@@ -109,7 +109,7 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
 | `fec/` + `fec.cabal` | **Formurae コンパイラ**: 表層言語 Formurae(.fe;`field E : vector`・`E' = E + dt * curl B`・`B' = B - dt * d E'`)を埋め込み形 .egi に変換。Haskell(base のみ)、リポジトリ直下で `cabal build` / `cabal run -v0 fec -- model.fe`。意味論は Egison 側に一本化した薄い変換層 |
 | `lib/fmrdsl.egi` | **DSL v0**: 宣言的モデル記述層(`emitModel` が preamble・宣言・init/step 雛形・出力タプルを場リストから自動生成) |
 | `lib/fmrgen.egi` | 生成ライブラリ: `shift`/`dC`/`dC2`/`lap`/`dGrad`/`curl`/`divg` + **`taylorStencil`/`dTaylor`(Taylor 条件を厳密有理ガウス消去で解いて任意次数の差分係数を導出)** + .fmr プリンタ |
-| `examples/diffusion3d/` | 3D 拡散方程式(物理は `u + dt*kappa*lap u` の1行) |
+| `examples/diffusion3d/` | 3D 拡散方程式(物理は `u' = u + dt * κ * Δ u` の1行) |
 | `examples/maxwell3d/` | Maxwell 方程式(**E・B がベクトル場**の添字方程式2本+宣言的 emitModel — DSL v0 様式。ε 縮約 curl、collocated 格子) |
 | `examples/maxwell3d_yee/` | **Yee-FDTD**(E=辺・B=面のスタガード格子+leapfrog。場ごとの配置オフセット宣言から教科書どおりの FDTD を生成) |
 | `examples/maxwell_dec/` | **Maxwell(微分形式/DEC)**(E=1-form・B=2-form の**次数宣言だけ**で Yee 配置を導出。d∘d=0 を CAS が生成時に検査し、.fmr は手書きスタガー版 `maxwell3d_yee` とバイト一致) |
@@ -118,8 +118,8 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
 | `examples/cahnhilliard3d/` | **Cahn–Hilliard**(4階微分を中間場 μ の2段構成で。質量は `reduces` 経由で監視) |
 | `examples/tdgl3d/` | **TDGL 超伝導**(\|ψ\|⁴ 理論。量子化渦の自発形成) |
 | `examples/mhd_ot/` | **理想 MHD: Orszag–Tang 渦**(保存形+Rusanov 流束を中間流束場19本で生成。8保存量を `reduces` で監視) |
-| `examples/elastic3d/` | **弾性波(Virieux)**(.fe の **Einstein 添字記法2行**: `v'_i = v_i + (dt/rho0) * d_j s_i_j` と `s'_i_j = … delta_ij … d_i v'_j …`。繰り返し添字は自動総和、`@ staggered` 宣言で d_a が対象配置アンカーの半セル差分に = Virieux 格子を導出。P/S 両波速を1回で実測) |
-| `examples/metric_torus/` | **計量つき拡散(トーラス上の Laplace–Beltrami)**(.fe の `embedding [...]`(座標系の埋め込み)だけから CAS が計量 g_ab=∂X·∂X を導出・**直交性を記号検査**・h_a=√g_aa → hodge 因子の係数場・半セル評価・保存流束まで自動。物理は `u' = u + dt * lb u` の1行。`metric scale` 直接指定も可) |
+| `examples/elastic3d/` | **弾性波(Virieux)**(.fe の **Einstein 添字記法2行**: `v'_i = v_i + (dt/ρ0) * ∂_j s_i_j` と `s'_i_j = … delta_ij … ∂_i v'_j …`。繰り返し添字は自動総和、`@ staggered` 宣言で ∂_a が対象配置アンカーの半セル差分に = Virieux 格子を導出。P/S 両波速を1回で実測) |
+| `examples/metric_torus/` | **計量つき拡散(トーラス上の Laplace–Beltrami)**(.fe の `embedding [...]`(座標系の埋め込み)だけから CAS が計量 g_ab=∂X·∂X を導出・**直交性を記号検査**・h_a=√g_aa → hodge 因子の係数場・半セル評価・保存流束まで自動。物理は `u' = u + dt * Δ u` の1行(`Δ` は計量下で自動的に Laplace–Beltrami; `u - dt * δ (d u)` とも書ける)。`metric scale` 直接指定も可) |
 | `examples/kleingordon/` | **非線形 Klein–Gordon(φ⁴ キンク)**(leapfrog 2場。ブーストした kink–antikink 対で速度と相対論的エネルギーを実測) |
 | `examples/shallowwater/` | **浅水方程式**(保存形+人工粘性。重力波速 √(gh) を実測、質量は流束形式で厳密保存) |
 | `examples/lbm_d3q19/` | **格子ボルツマン D3Q19**(19方向の衝突・ストリーミング・平衡分布 init を全部 Egison の map で生成。BGK 粘性を解析値と照合) |

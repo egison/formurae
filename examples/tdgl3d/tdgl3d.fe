@@ -15,5 +15,5 @@ init:
   b = 0.1*(sin(0.29*i + 1.0)*sin(0.33*j) + sin(0.21*i + 0.19*j + 2.0))
 
 step:
-  a' = a + dt * (a - (a^2 + b^2) * a + lap a)
-  b' = b + dt * (b - (a^2 + b^2) * b + lap b)
+  a' = a + dt * (a - (a^2 + b^2) * a + Δ a)
+  b' = b + dt * (b - (a^2 + b^2) * b + Δ b)

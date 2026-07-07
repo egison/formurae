@@ -3,7 +3,7 @@
 -- check driver compares against -- the regression benchmark for
 -- NONLINEAR term generation (products of grid references).
 
-param nu = 0.05
+param ν = 0.05
 param dt = 0.0001
 param k0 = 6.283185307179586
 
@@ -16,4 +16,4 @@ init:
   u = 2.0*0.05*k0*sin(k0*i*dx)/(2.0 + cos(k0*i*dx))
 
 step:
-  u' = u + dt * (nu * lap u - u * d_x u)
+  u' = u + dt * (ν * Δ u - u * ∂_x u)

@@ -20,5 +20,5 @@ init:
   V = if isCenter(i,j,k,4) then 0.25 else 0.0
 
 step:
-  U' = U + dt * (Fu * (1 - U) - Fe * U * V^2 + Du * lap U)
-  V' = V + dt * (Fe * U * V^2 - Fv * V + Dv * lap V)
+  U' = U + dt * (Fu * (1 - U) - Fe * U * V^2 + Du * Δ U)
+  V' = V + dt * (Fe * U * V^2 - Fv * V + Dv * Δ V)

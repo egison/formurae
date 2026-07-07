@@ -1,6 +1,6 @@
 -- The 3D diffusion equation: du/dt = kappa * laplacian(u)
 
-param kappa = 1.0
+param κ = 1.0
 param dt = 0.1*dx*dx
 
 extern exp
@@ -12,4 +12,4 @@ init:
   u = gauss(i*dx,j*dy,k*dz)
 
 step:
-  u' = u + dt * kappa * lap u
+  u' = u + dt * κ * Δ u

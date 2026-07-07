@@ -7,19 +7,19 @@
 -- (mirror), phi is periodic.
 
 dimension 3
-axes r, phi, z
+axes r, φ, z
 
 param dt = 0.0001
 
 extern exp
 extern cos
 
-embedding [ `(1 + r) * cos phi, `(1 + r) * sin phi, z ]
+embedding [ `(1 + r) * cos φ, `(1 + r) * sin φ, z ]
 
 field u : scalar
 
 init:
-  u := exp (0 - 4 * (r - 1 / 2) ^ 2) * exp (cos phi - 1)
+  u := exp (0 - 4 * (r - 1 / 2) ^ 2) * exp (cos φ - 1)
 
 step:
-  u' = u + dt * lb u
+  u' = u + dt * Δ u

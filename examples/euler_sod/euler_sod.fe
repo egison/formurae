@@ -11,19 +11,19 @@ extern tanh
 raw # 0..1 profile: 1 between the diaphragms at x=4 and x=12
 raw sod = fun(x) 0.5*(tanh((x - 4.0)/0.0625) - tanh((x - 12.0)/0.0625))
 
-field rho : scalar
+field ρ : scalar
 field mx : scalar
 field en : scalar
 
 init:
-  rho = 0.125 + 0.875*sod(i*dx)
+  ρ = 0.125 + 0.875*sod(i*dx)
   mx = 0.0
   en = (0.1 + 0.9*sod(i*dx))/0.4
 
 step:
-  local pr = (2 / 5) * (en - mx * mx / (2 * rho))
-  local fm = mx * mx / rho + pr
-  local fe = (en + pr) * mx / rho
-  rho' = rho - dt * d_x mx + dt * lam * d2_x rho
-  mx' = mx - dt * d_x fm + dt * lam * d2_x mx
-  en' = en - dt * d_x fe + dt * lam * d2_x en
+  local pr = (2 / 5) * (en - mx * mx / (2 * ρ))
+  local fm = mx * mx / ρ + pr
+  local fe = (en + pr) * mx / ρ
+  ρ' = ρ - dt * ∂_x mx + dt * lam * ∂_x (∂_x ρ)
+  mx' = mx - dt * ∂_x fm + dt * lam * ∂_x (∂_x mx)
+  en' = en - dt * ∂_x fe + dt * lam * ∂_x (∂_x en)

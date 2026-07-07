@@ -23,6 +23,6 @@ step:
   local fmxx = mx * mx / h + g * h * h / 2
   local fmxy = mx * my / h
   local fmyy = my * my / h + g * h * h / 2
-  h' = h - dt * (d_x mx + d_y my) + dt * lam * (d2_x h + d2_y h)
-  mx' = mx - dt * (d_x fmxx + d_y fmxy) + dt * lam * (d2_x mx + d2_y mx)
-  my' = my - dt * (d_x fmxy + d_y fmyy) + dt * lam * (d2_x my + d2_y my)
+  h' = h - dt * (∂_x mx + ∂_y my) + dt * lam * (∂_x (∂_x h) + ∂_y (∂_y h))
+  mx' = mx - dt * (∂_x fmxx + ∂_y fmxy) + dt * lam * (∂_x (∂_x mx) + ∂_y (∂_y mx))
+  my' = my - dt * (∂_x fmxy + ∂_y fmyy) + dt * lam * (∂_x (∂_x my) + ∂_y (∂_y my))
