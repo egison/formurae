@@ -42,7 +42,7 @@ field E : 1-form
 field B : 2-form
 
 step:
-  E' = E + dt * codF2 B
+  E' = E + dt * delta B    -- δ = ⋆d⋆(余微分)
   B' = B - dt * d E'
 
 assert-dd-zero E'      -- d∘d=0 を CAS が確認しない限り生成しない
@@ -102,7 +102,7 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
 | `examples/tdgl3d/` | **TDGL 超伝導**(\|ψ\|⁴ 理論。量子化渦の自発形成) |
 | `examples/mhd_ot/` | **理想 MHD: Orszag–Tang 渦**(保存形+Rusanov 流束を中間流束場19本で生成。8保存量を `reduces` で監視) |
 | `examples/elastic3d/` | **弾性波(Virieux スタガード格子)**(v_i と σ_ij を `generateTensor` の**添字記法**で記述 — 2つのテンソル式が9本の更新式に展開され、σ の配置(対角=格子点・剪断=面)も添字から導出。P/S 両波速を1回で実測) |
-| `examples/metric_torus/` | **計量つき拡散(トーラス上の Laplace–Beltrami)**(幾何入力は Lamé スケール因子 `hs` の1行だけ — √g・√g g^{ij} は CAS が導出し、init 本体の係数式まで生成する看板デモ) |
+| `examples/metric_torus/` | **計量つき拡散(トーラス上の Laplace–Beltrami)**(.fe の `embedding [...]`(座標系の埋め込み)だけから CAS が計量 g_ab=∂X·∂X を導出・**直交性を記号検査**・h_a=√g_aa → hodge 因子の係数場・半セル評価・保存流束まで自動。物理は `u' = u + dt * lb u` の1行。`metric scale` 直接指定も可) |
 | `examples/kleingordon/` | **非線形 Klein–Gordon(φ⁴ キンク)**(leapfrog 2場。ブーストした kink–antikink 対で速度と相対論的エネルギーを実測) |
 | `examples/shallowwater/` | **浅水方程式**(保存形+人工粘性。重力波速 √(gh) を実測、質量は流束形式で厳密保存) |
 | `examples/lbm_d3q19/` | **格子ボルツマン D3Q19**(19方向の衝突・ストリーミング・平衡分布 init を全部 Egison の map で生成。BGK 粘性を解析値と照合) |
@@ -133,10 +133,15 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
 - **スタガード格子**: 場を「(抽象関数, 配置オフセット σ∈{0,½}³)」の組で表し、参照時に
   「変位 + 対象の σ − 参照場の σ」で配列オフセットを解決する(`yeeRef`/`dYee`/`curlYee`)。
   Yee 配置なら curl の全項が整数オフセット(袖幅1)に落ちる。
-- **離散微分形式(DEC)**: k-形式は成分リストで表し、**格子配置は形式の次数だけから決まる**
-  (0-形式=格子点、1-形式=辺、2-形式=面、3-形式=セル中心)。`dF0`/`dF1`/`dF2` が離散外微分
-  (grad/curl/div)、`codF2` が ⋆d⋆。**d∘d=0 は CAS が文字どおり 0 に簡約**することで成立が
-  確認でき、これが生成された Yee スキームの div B 厳密保存の構造的理由になる。
+- **離散微分形式(DEC)**: 形式は「(複体, 次数, 成分)」の3つ組で、**格子配置は複体と次数だけ
+  から決まる**(primal: 0-形式=格子点、1-形式=辺、2-形式=面、3-形式=セル中心;dual は
+  (½,½,½) ずれた補複体)。演算は Egison 本体の連続版サンプル
+  (`sample/math/geometry/yang-mills-…`: d・hodge・δ)と**同じ構造・同じ名前**:
+  `dForm`(離散外微分 = grad/curl/div)、`hodge`(単位立方格子では成分不変の複体スワップ)、
+  そして余微分 `codiff`(別名 `δ`)は教科書どおりの合成
+  **δ = (−1)^{n(k+1)+1} ⋆d⋆** で定義(2-形式では符号 +1 = Ampère の curl)。
+  **d∘d=0 は CAS が文字どおり 0 に簡約**することで成立が確認でき、これが生成された
+  Yee スキームの div B 厳密保存の構造的理由になる。
 - **テンソル**: `Vector MathValue` 等の型注釈でテンソルごと受け取り(λ⊗ のスカラー/テンソルパラメタ)、
   `ε`・`generateTensor`・添字縮約は Egison 標準ライブラリをそのまま使う。
 

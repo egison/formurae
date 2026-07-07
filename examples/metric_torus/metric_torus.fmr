@@ -5,20 +5,24 @@ double :: dt = 0.0005
 
 extern function :: exp
 extern function :: cos
+extern function :: sqrt
 
-begin function (u,ca,cb,sg) = init()
-  double [] :: u, ca, cb, sg
+begin function (u,ca,cb,cc,sg) = init()
+  double [] :: u, ca, cb, cc, sg
   u[i,j,k] = exp(cos((j*dy)) + cos((i*dx)) + (-2))
   ca[i,j,k] = cos((i*dx) + dx/(2)) + 2
   cb[i,j,k] = (1)/(cos((i*dx)) + 2)
+  cc[i,j,k] = cos((i*dx)) + 2
   sg[i,j,k] = cos((i*dx)) + 2
 end function
 
-begin function (u',ca',cb',sg') = step(u,ca,cb,sg)
+begin function (u',ca',cb',cc',sg') = step(u,ca,cb,cc,sg)
   f1 = (-1)*ca[i,j,k]*u[i,j,k]/(dx) + ca[i,j,k]*u[i+1,j,k]/(dx)
   f2 = (-1)*cb[i,j,k]*u[i,j,k]/(dy) + cb[i,j,k]*u[i,j+1,k]/(dy)
-  u' = u[i,j,k] + dt*f2[i,j,k]/(dy*sg[i,j,k]) + (-1)*dt*f2[i,j-1,k]/(dy*sg[i,j,k]) + dt*f1[i,j,k]/(dx*sg[i,j,k]) + (-1)*dt*f1[i-1,j,k]/(dx*sg[i,j,k])
+  f3 = (-1)*cc[i,j,k]*u[i,j,k]/(dz) + cc[i,j,k]*u[i,j,k+1]/(dz)
+  u' = u[i,j,k] + dt*f3[i,j,k]/(dz*sg[i,j,k]) + (-1)*dt*f3[i,j,k-1]/(dz*sg[i,j,k]) + dt*f2[i,j,k]/(dy*sg[i,j,k]) + (-1)*dt*f2[i,j-1,k]/(dy*sg[i,j,k]) + dt*f1[i,j,k]/(dx*sg[i,j,k]) + (-1)*dt*f1[i-1,j,k]/(dx*sg[i,j,k])
   ca' = ca[i,j,k]
   cb' = cb[i,j,k]
+  cc' = cc[i,j,k]
   sg' = sg[i,j,k]
 end function

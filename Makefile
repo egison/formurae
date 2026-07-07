@@ -93,6 +93,7 @@ elastic3d:
 	cd examples/elastic3d && ./check
 
 metric-torus:
+	$(FEC_RUN) $(abspath examples/metric_torus/metric_torus.fe) > $(abspath examples/metric_torus/metric_torus.egi)
 	$(EGISON_RUN) -l $(FMRGEN) -l $(FMRDSL) $(abspath examples/metric_torus/metric_torus.egi) \
 	  > $(abspath examples/metric_torus/metric_torus.fmr)
 	cd examples/metric_torus && $(FORMURA) metric_torus.fmr

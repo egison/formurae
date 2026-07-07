@@ -1,6 +1,6 @@
 -- Maxwell's equations as discrete differential forms (DEC)
---   Faraday :  dB/dt = -dE'         (d : 1-form -> 2-form)
---   Ampere  :  dE/dt = codF2 B      (*d* : 2-form -> 1-form)
+--   Faraday :  dB/dt = -d E'          (d : 1-form -> 2-form)
+--   Ampere  :  dE/dt = delta B        (codifferential: delta = *d* on 2-forms)
 -- No grid placements appear anywhere: the form degrees determine the
 -- Yee lattice, and generation is gated on the CAS reducing d(dE') to 0.
 
@@ -17,7 +17,7 @@ init:
   B = [| 0, 0, gauss1((i+0.5)*dx) |]
 
 step:
-  E' = E + dt * codF2 B
+  E' = E + dt * delta B
   B' = B - dt * d E'
 
 assert-dd-zero E'

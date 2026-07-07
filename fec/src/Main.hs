@@ -12,7 +12,24 @@
 -- .fe grammar (v1):
 --   -- comment                      (kept out of the output)
 --   dimension 3                     (default 3; v1 supports 3 only)
---   axes x, y, z                    (default x,y,z; CAS inits assume x,y,z)
+--   axes x, y, z                    (default x,y,z; the names are mapped to
+--                                    the internal coordinates x,y,z, so
+--                                    axes r, theta, phi works in CAS exprs)
+--   metric scale [h1, h2, h3]       Lame scale factors of an orthogonal
+--                                   metric, written in the axis names.
+--   embedding [X1, X2, ..., Xm]     coordinate map into R^m: the metric
+--                                   g_ab = dX/dx_a . dX/dx_b is DERIVED
+--                                   by the CAS (orthogonality is checked
+--                                   symbolically and gates generation);
+--                                   scale factors h_a = sqrt(g_aa).
+--                                   Backquotes keep factors compact
+--                                   (`(2 + cos theta)), and expandAll
+--                                   removes them before the half-cell
+--                                   substitution.
+--                                   Enables lb (Laplace-Beltrami): the
+--                                   hodge factors sqrt(g)/h_a^2 become
+--                                   coefficient FIELDS evaluated by the
+--                                   CAS at the half-cell placements.
 --   param NAME = RAW                Formura parameter (double :: NAME = RAW)
 --   extern NAME                     extern function :: NAME
 --   raw LINE                        verbatim Formura helper line
@@ -28,6 +45,8 @@
 --     let N = EXPR                  named scalar expression (inlined)
 --     local N = EXPR                intermediate grid field (emitted line)
 --     N' = EXPR                     scalar / vector / k-form update
+--                                   (form operators: d, delta (or codiff);
+--                                    with metric scale: lb NAME)
 --     N'_i = EXPR                   vector update (explicit index equation)
 --   assert-dd-zero NAME'            gate generation on d(d NAME') == 0
 --
@@ -42,14 +61,10 @@ import System.Environment (getArgs)
 import System.Exit (exitFailure)
 import System.IO (hPutStrLn, stderr)
 
-vecOps, vecRet :: [String]
-vecOps = ["d", "codF2", "dF0", "dF1", "dF2", "curl", "divg", "dGrad"]
+vecOps, vecRet, deltaOps :: [String]
+vecOps = ["d", "delta", "codiff", "\948", "curl", "divg", "dGrad"]
 vecRet = ["curl"]
-
-formD :: Int -> String
-formD 0 = "dF0"
-formD 1 = "dF1"
-formD _ = "dF2"
+deltaOps = ["delta", "codiff", "\948"]
 
 fatal :: String -> IO a
 fatal msg = hPutStrLn stderr ("fec: error: " ++ msg) >> exitFailure
@@ -74,6 +89,8 @@ data Model = Model
   , mInits  :: [Init]
   , mSteps  :: [Step]
   , mDd     :: Maybe String
+  , mMetric :: Maybe [String]
+  , mEmbed  :: Maybe [String]
   }
 
 kindOf :: Model -> String -> Maybe Kind
@@ -141,7 +158,7 @@ primeEqForm s = do
 data Section = STop | SInit | SStep
 
 parseFe :: String -> String -> IO Model
-parseFe name txt = go STop (Model name 3 ["x", "y", "z"] [] [] [] [] [] Nothing)
+parseFe name txt = go STop (Model name 3 ["x", "y", "z"] [] [] [] [] [] Nothing Nothing Nothing)
                       (zip [1 :: Int ..] (lines txt))
   where
     go _ m [] = return m { mParams = reverse (mParams m), mHelp = reverse (mHelp m)
@@ -186,6 +203,19 @@ parseFe name txt = go STop (Model name 3 ["x", "y", "z"] [] [] [] [] [] Nothing)
                      _ -> fatal ("bad field kind: " ++ k ++ " (line " ++ show ln ++ ")")
             _ -> fatal ("bad field decl: " ++ s ++ " (line " ++ show ln ++ ")")
       | Just r <- stripPrefix "assert-dd-zero " s = return m { mDd = Just (strip r) }
+      | Just r <- stripPrefix "embedding " s =
+          case strip r of
+            ('[':r1) | last r1 == ']' ->
+              return m { mEmbed = Just (splitTop ',' (init r1)) }
+            _ -> fatal ("bad embedding (line " ++ show ln ++ ")")
+      | Just r <- stripPrefix "metric scale " s =
+          case strip r of
+            ('[':r1) | last r1 == ']' ->
+              let es = splitTop ',' (init r1)
+              in if length es == 3
+                   then return m { mMetric = Just es }
+                   else fatal ("metric scale needs 3 factors (line " ++ show ln ++ ")")
+            _ -> fatal ("bad metric scale (line " ++ show ln ++ ")")
       | Just r <- stripPrefix "dimension " s = dim r
       | Just r <- stripPrefix "dim " s = dim r
       | Just r <- stripPrefix "axes " s =
@@ -268,6 +298,22 @@ tokenize (c:cs)
 data Elem = EId String Bool | EC Char | ERaw String
           | EMarkV String | EMarkL String
 
+-- the field to which lb is applied, if any
+lbTarget :: Model -> Maybe String
+lbTarget m = case concatMap scan (mSteps m) of
+               (nm:_) -> Just nm
+               [] -> Nothing
+  where
+    scan st = go (tokenize (sEx st))
+    go (TId "lb" False : ts) =
+      case dropWhile isSp ts of
+        (TId nm False : rest) | kindOf m nm == Just Scalar -> nm : go rest
+        _ -> go ts
+    go (_ : ts) = go ts
+    go [] = []
+    isSp (TC c) = isSpace c
+    isSp _ = False
+
 -- names X whose updated value X' is referenced in some step RHS
 primedRefs :: Model -> [String]
 primedRefs m = sort (nub [nm | st <- mSteps m, TId nm True <- tokenize (sEx st)
@@ -284,12 +330,13 @@ opPass m lets = go
       , (sp@(_:_), ts1) <- span isSpaceTok ts
       , (TId nm pr : ts2) <- ts1 =
           case lookup nm forms of
-            Just d ->
-              let fn = if op == "d" then formD d else op
-                  lst = nm ++ (if pr then "sN" else "s")
-              in EMarkL (fn ++ " " ++ lst) : go ts2
+            Just _ ->
+              let fn = if op `elem` deltaOps then "codiff" else "dForm"
+                  tag = nm ++ (if pr then "fN" else "f")
+              in EMarkL ("formComps (" ++ fn ++ " " ++ tag ++ ")") : go ts2
             Nothing
-              | op == "d" -> EId op False : map toElem sp ++ go ts1
+              | op == "d" || op `elem` deltaOps ->
+                  EId op False : map toElem sp ++ go ts1
               | nm `elem` vecs || nm `elem` lets ->
                   let core = op ++ " " ++ nm ++ (if pr then "'" else "") ++ "_#"
                   in (if op `elem` vecRet then EMarkV core else ERaw core) : go ts2
@@ -300,10 +347,34 @@ opPass m lets = go
     toElem (TId n p) = EId n p
     toElem (TC c) = EC c
 
+-- rename user axis names to the internal coordinates x,y,z
+renameAxes :: Model -> String -> String
+renameAxes m = concatMap out . tokenize
+  where
+    out (TId nm pr) = subst nm ++ (if pr then "'" else "")
+    out (TC c) = [c]
+    subst nm = case lookup nm (zip (mAxes m) ["x", "y", "z"]) of
+                 Just v -> v
+                 Nothing -> nm
+
+-- the Laplace-Beltrami stencil: flux divergence over the coefficient
+-- fields generated for the declared metric
+lbExpansion :: String
+lbExpansion = "((dYee 1 [0, 0, 0] (f1, [1 / 2, 0, 0]) + dYee 2 [0, 0, 0] (f2, [0, 1 / 2, 0]) + dYee 3 [0, 0, 0] (f3, [0, 0, 1 / 2])) / sg)"
+
 rewrite :: Model -> [String] -> Maybe String -> String -> IO String
 rewrite m lets mk expr = fmap concat (mapM render (attach elems))
   where
-    elems = opPass m lets (tokenize expr)
+    elems = lbPass (opPass m lets (tokenize (renameAxes m expr)))
+    lbPass [] = []
+    lbPass (EId "lb" False : rest0) =
+      case dropWhile isSp rest0 of
+        (EId nm False : rest) | kindOf m nm == Just Scalar ->
+          ERaw lbExpansion : lbPass rest
+        _ -> EId "lb" False : lbPass rest0
+      where isSp (EC c) = isSpace c
+            isSp _ = False
+    lbPass (e : rest) = e : lbPass rest
     forms = [n | (n, Form _) <- mFlds m]
     vecs = [n | (n, Vector) <- mFlds m]
     -- pair each element with the next character (to skip function calls)
@@ -346,15 +417,62 @@ emit m = do
     then fatal ("axes count (" ++ show (length (mAxes m))
                 ++ ") does not match dimension (" ++ show (mDim m) ++ ")")
     else return ()
-  if mAxes m /= ["x", "y", "z"] && any isCas (mInits m)
-    then hPutStrLn stderr "fec: warning: CAS initializers assume axes x,y,z"
-    else return ()
   let lets = [sNm st | st <- mSteps m, sk st == KLet]
       prims = primedRefs m
+  if mMetric m /= Nothing && mEmbed m /= Nothing
+    then fatal "declare either 'metric scale' or 'embedding', not both"
+    else return ()
+  mtx <- case (lbTarget m, mMetric m, mEmbed m) of
+    (Just _, Nothing, Nothing) ->
+      fatal "lb needs a 'metric scale [...]' or 'embedding [...]' declaration"
+    (Just u, Just hs, _) -> return (Just (u, map (renameAxes m) hs))
+    (Just u, Nothing, Just _) -> return (Just (u, ["feH1", "feH2", "feH3"]))
+    (Nothing, _, _) -> return Nothing
+  let embDefs = case mEmbed m of
+        Nothing -> []
+        Just es ->
+          [ "def feX : [MathValue] := [" ++ intercalate ", " (map (renameAxes m) es) ++ "]"
+          , "def feGd (a: Integer) : MathValue := sum (map (\\e -> (\8706/\8706 e (nth a [x, y, z])) ^ 2) feX)"
+          , "def feGo (a: Integer) (b: Integer) : MathValue := sum (map (\\e -> \8706/\8706 e (nth a [x, y, z]) * \8706/\8706 e (nth b [x, y, z])) feX)"
+          , "def feH1 := expandAll (sqrt (feGd 1))"
+          , "def feH2 := expandAll (sqrt (feGd 2))"
+          , "def feH3 := expandAll (sqrt (feGd 3))"
+          ]
+      orthoGate = case mEmbed m of
+        Nothing -> []
+        Just _ -> [("feGo 1 2 = 0 && feGo 1 3 = 0 && feGo 2 3 = 0",
+                    "# ERROR: the embedding is not orthogonal (g_12, g_13, g_23 must vanish symbolically); general metrics are not supported yet")]
   body <- mapM (stepDefs lets) (mSteps m)
   items <- mapM (stepItem lets) (mSteps m)
   inits <- mapM (initLine lets) (mInits m)
-  let stepItems = [it | Just it <- items]
+  let sqgOf [h1, h2, h3] = "(" ++ h1 ++ ") * (" ++ h2 ++ ") * (" ++ h3 ++ ")"
+      sqgOf _ = ""
+      mtDecls = case mtx of
+        Nothing -> []
+        Just _ -> [ "def " ++ n ++ " := function (x, y, z)"
+                  | n <- ["ca", "cb", "cc", "sg", "f1", "f2", "f3"] ]
+      mtInits = case mtx of
+        Nothing -> []
+        Just (_, hs) ->
+          [ "fmrInit \"" ++ n ++ "\" (substitute [(" ++ ax ++ ", " ++ ax ++ " + h"
+            ++ ax ++ " / 2)] (" ++ sqgOf hs ++ " / ((" ++ h ++ ") ^ 2)))"
+          | (n, ax, h) <- zip3 ["ca", "cb", "cc"] ["x", "y", "z"] hs ]
+          ++ [ "fmrInit \"sg\" (" ++ sqgOf hs ++ ")" ]
+      mtFlds = case mtx of
+        Nothing -> []
+        Just _ -> [("ca", Scalar), ("cb", Scalar), ("cc", Scalar), ("sg", Scalar)]
+      mtFlux = case mtx of
+        Nothing -> []
+        Just (u, _) ->
+          [ "[fmrEq \"f1\" (ca * dYee 1 [1 / 2, 0, 0] (" ++ u ++ ", [0, 0, 0]))]"
+          , "[fmrEq \"f2\" (cb * dYee 2 [0, 1 / 2, 0] (" ++ u ++ ", [0, 0, 0]))]"
+          , "[fmrEq \"f3\" (cc * dYee 3 [0, 0, 1 / 2] (" ++ u ++ ", [0, 0, 0]))]"
+          ]
+      mtPass = case mtx of
+        Nothing -> []
+        Just _ -> [ "scalarEq \"" ++ n ++ "\" (" ++ n ++ ")"
+                  | n <- ["ca", "cb", "cc", "sg"] ]
+      stepItems = mtFlux ++ [it | Just it <- items] ++ mtPass
       header =
         [ "--"
         , "-- GENERATED by fec from " ++ mName m ++ ".fe -- edit the .fe, not this file"
@@ -365,39 +483,47 @@ emit m = do
       fieldDecls = concatMap fdecl (mFlds m)
       primDecls = concatMap pdecl prims
       localDecls = [ "def " ++ sNm st ++ " := function (x, y, z)"
-                   | st <- mSteps m, sk st == KLocal ]
+                   | st <- mSteps m, sk st == KLocal ] ++ embDefs ++ mtDecls
       ddDef = case mDd m of
         Nothing -> []
-        Just g -> ["def feDD := dF2 (dF1 " ++ dropWhileEnd (== '\'') g ++ "sN)"]
+        Just g -> ["def feDD := nth 1 (formComps (dForm (dForm "
+                   ++ dropWhileEnd (== '\'') g ++ "fN)))"]
       feParams = "def feParams := ["
                  ++ intercalate ", " [ "(\"" ++ n ++ "\", \"" ++ v ++ "\")"
                                      | (n, v) <- mParams m ] ++ "]"
+      helps = mHelp m ++ (case mEmbed m of
+                              Just _ -> ["extern function :: sqrt"]
+                              Nothing -> [])
       feHelpers
-        | null (mHelp m) = ["def feHelpers : [String] := []"]
+        | null helps = ["def feHelpers : [String] := []"]
         | otherwise = "def feHelpers :="
             : [ (if i == (0 :: Int) then "  [ " else "  , ") ++ "\"" ++ escH h ++ "\""
-              | (i, h) <- zip [0 ..] (mHelp m) ] ++ ["  ]"]
+              | (i, h) <- zip [0 ..] helps ] ++ ["  ]"]
       kindnum Scalar = "0"
       kindnum _ = "1"
       feFlds = "def feFlds : [(String, Integer)] := ["
                ++ intercalate ", " [ "(\"" ++ n ++ "\", " ++ kindnum k ++ ")"
-                                   | (n, k) <- mFlds m ] ++ "]"
+                                   | (n, k) <- mFlds m ++ mtFlds ] ++ "]"
       feInits = "def feInits :="
         : [ (if i == (0 :: Int) then "  [ " else "  , ") ++ ln
-          | (i, ln) <- zip [0 ..] (concat inits) ] ++ ["  ]"]
+          | (i, ln) <- zip [0 ..] (concat inits ++ mtInits) ] ++ ["  ]"]
       feSteps = "def feSteps := " ++ intercalate " ++ " stepItems
-      emitter = "emitModelOn " ++ show (mDim m) ++ " ["
-                ++ intercalate ", " [ "\"" ++ a ++ "\"" | a <- mAxes m ] ++ "]"
-      mainDef = case mDd m of
-        Just _ ->
-          [ "def main (args: [String]) : IO () :="
-          , "  if feDD = 0"
-          , "    then print (" ++ emitter ++ " feParams feHelpers feFlds feInits feSteps)"
-          , "    else print \"# ERROR: d . d /= 0 on this grid -- refusing to generate\""
-          ]
-        Nothing ->
-          [ "def main (args: [String]) : IO () := print (" ++ emitter
-            ++ " feParams feHelpers feFlds feInits feSteps)" ]
+      -- user axis names live only in the .fe (they are renamed to the
+      -- internal x,y,z); the generated program stays on x,y,z so that
+      -- Formura's derived names (dx, to_pos_x, ...) match the printer,
+      -- the yaml, and the drivers
+      emitter = "emitModelOn " ++ show (mDim m) ++ " [\"x\", \"y\", \"z\"]"
+      gates = orthoGate ++ (case mDd m of
+                Just _ -> [("feDD = 0",
+                            "# ERROR: d . d /= 0 on this grid -- refusing to generate")]
+                Nothing -> [])
+      emitCall = "print (" ++ emitter ++ " feParams feHelpers feFlds feInits feSteps)"
+      nest [] = emitCall
+      nest ((c, msg):gs) =
+        "if " ++ c ++ " then (" ++ nest gs ++ ") else print \"" ++ escH msg ++ "\""
+      mainDef
+        | null gates = [ "def main (args: [String]) : IO () := " ++ emitCall ]
+        | otherwise = [ "def main (args: [String]) : IO () :=", "  " ++ nest gates ]
   return (unlines (header ++ fieldDecls ++ primDecls ++ localDecls ++ [""]
                    ++ concat body ++ ddDef ++ [""]
                    ++ [feParams] ++ feHelpers ++ [feFlds] ++ feInits
@@ -408,18 +534,18 @@ emit m = do
     fdecl (nm, Scalar) = ["def " ++ nm ++ " := function (x, y, z)"]
     fdecl (nm, Vector) =
       ["def " ++ nm ++ "_i := generateTensor (\\[i] -> function (x, y, z)) [3]"]
-    fdecl (nm, Form _) =
+    fdecl (nm, Form k) =
       [ "def " ++ nm ++ "_i := generateTensor (\\[i] -> function (x, y, z)) [3]"
-      , "def " ++ nm ++ "s : [MathValue] := [" ++ nm ++ "_1, " ++ nm ++ "_2, "
-        ++ nm ++ "_3]" ]
+      , "def " ++ nm ++ "f : (Integer, Integer, [MathValue]) := (0, " ++ show k
+        ++ ", [" ++ nm ++ "_1, " ++ nm ++ "_2, " ++ nm ++ "_3])" ]
     pdecl nm = case kindOf m nm of
       Just Scalar -> ["def " ++ nm ++ "' := function (x, y, z)"]
       Just Vector ->
         ["def " ++ nm ++ "'_i := generateTensor (\\[i] -> function (x, y, z)) [3]"]
-      Just (Form _) ->
+      Just (Form k) ->
         [ "def " ++ nm ++ "'_i := generateTensor (\\[i] -> function (x, y, z)) [3]"
-        , "def " ++ nm ++ "sN : [MathValue] := [" ++ nm ++ "'_1, " ++ nm ++ "'_2, "
-          ++ nm ++ "'_3]" ]
+        , "def " ++ nm ++ "fN : (Integer, Integer, [MathValue]) := (0, " ++ show k
+          ++ ", [" ++ nm ++ "'_1, " ++ nm ++ "'_2, " ++ nm ++ "'_3])" ]
       Nothing -> []
     stepDefs lets st = case sk st of
       KLet | sIx st -> do
