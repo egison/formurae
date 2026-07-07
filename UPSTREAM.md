@@ -182,10 +182,10 @@ TB と非互換。つまり**言語としては周期しか書けない**。
 ### これで開くもの
 
 Poisson 系(反復+収束判定)経由の非圧縮流体(V1 で可)、オンライン診断(V1 で可)、
-Euler/MHD の適応 dt(V2 で解禁)。formura-egison 側は `boundary`/`reduces` を
+Euler/MHD の適応 dt(V2 で解禁)。formurae 側は `boundary`/`reduces` を
 fmrgen のテンプレートに透過させるだけで済む。
 
-## formura-egison 側の追随
+## formurae 側の追随
 
 - fmrgen: 境界宣言・reduce をテンプレート/プリンタに透過
 - examples: Euler(Sod)を「固定 λmax 版 → reduce 版」の before/after で並べ、

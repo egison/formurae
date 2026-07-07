@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Formurae 使い方ガイド</title>
+<style>
+  :root { --ink:#1c1e21; --sub:#5a6270; --line:#e3e6ea; --accent:#0b5fa5; --accent2:#7a3fa5; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:"Hiragino Sans","Noto Sans JP",Helvetica,Arial,sans-serif;
+         color:var(--ink); background:#f6f7f9; }
+  header { background:#fff; border-bottom:1px solid var(--line); padding:28px 32px; }
+  header h1 { margin:0 0 6px; font-size:22px; }
+  header p { margin:4px 0; color:var(--sub); font-size:13.5px; max-width:980px; }
+  a { color:var(--accent); }
+  main { max-width:900px; margin:0 auto; padding:10px 24px 80px; font-size:14px; line-height:1.85; }
+  h2 { font-size:17px; margin:44px 0 10px; color:var(--accent);
+       border-left:4px solid var(--accent); padding-left:10px; }
+  h3 { font-size:14.5px; margin:26px 0 6px; }
+  code { background:#eef1f4; padding:1px 5px; border-radius:4px; font-size:12.5px;
+         font-family:"SF Mono",Menlo,Consolas,monospace; }
+  pre { background:#0e1726; color:#dbe7f6; border-radius:8px; padding:12px 15px;
+        overflow-x:auto; font:12.5px/1.6 "SF Mono",Menlo,Consolas,monospace; }
+  pre .c { color:#5f7c9e; }
+  table { border-collapse:collapse; width:100%; font-size:13px; margin:10px 0; }
+  th, td { border:1px solid var(--line); padding:6px 10px; text-align:left; background:#fff; }
+  th { background:#f0f3f7; }
+  .toc { background:#fff; border:1px solid var(--line); border-radius:8px; padding:12px 20px;
+         font-size:13px; margin-top:18px; }
+  .toc a { text-decoration:none; }
+  .note { background:#fdf6e3aa; border:1px solid #e8dcb5; border-radius:6px;
+          padding:8px 12px; font-size:12.5px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Formurae 使い方ガイド</h1>
+  <p>数式のままの表層言語 <b>Formurae</b>(フォーミュレ、拡張子 <code>.fe</code>)で書いた偏微分方程式を、
+     Egison の計算機代数(CAS)でステンシルに展開し、Formura で MPI+temporal blocking つきの
+     C コードに落とすまでの手引きです。言語名は Formura の複数形= <i>formulae</i>(数式)への掛詞で、
+     設計者・村主崇行氏の Formura の名を継いでいます。
+     実例は <a href="dsl/index.html">Formurae ギャラリー(19例)</a>と<a href="index.html">総合ギャラリー(23例)</a>へ。</p>
+</header>
+<main>
+
+<div class="toc">
+<b>目次</b><br>
+1. <a href="#pipeline">パイプラインの全体像</a> /
+2. <a href="#setup">セットアップ</a> /
+3. <a href="#tutorial">チュートリアル: 拡散方程式</a> /
+4. <a href="#fe">Formurae 言語リファレンス</a> /
+5. <a href="#yaml">yaml リファレンス</a> /
+6. <a href="#driver">検証ドライバの書き方</a> /
+7. <a href="#make">Makefile への登録</a> /
+8. <a href="#gallery">ギャラリーの再生成</a> /
+9. <a href="#layers">3層構造と検証の考え方</a>
+</div>
+
+<h2 id="pipeline">1. パイプラインの全体像</h2>
+<pre>
+model.fe    Formurae ソース: field 宣言+数式(添字記法・微分形式・計量)
+   │  fec(Haskell; cabal build / cabal run -v0 fec --)
+model.egi   埋め込み形(生成中間物; lib/fmrgen.egi + lib/fmrdsl.egi 上の Egison)
+   │  Egison の CAS が添字・微分形式・計量を記号的に展開
+model.fmr   Formura ソース(全更新式が具体的なステンシルに)
+   │  Formura(fork; bin/formura)
+model.c/.h  MPI 通信・temporal blocking つき C ライブラリ
+   │  cc + 検証ドライバ(*_check.c)
+./check     物理検証(保存則・厳密解・参照実装比較; 失敗なら exit≠0)
+</pre>
+
+<h2 id="setup">2. セットアップ</h2>
+<pre>
+<span class="c"># 前提: GHC 9.6 系+stack(Formura 用)、cabal、../egison に Egison 開発ツリー</span>
+make setup     <span class="c"># Formura 2.3.2 を clone + GHC 9.6 パッチ + ビルド → bin/formura</span>
+cabal build    <span class="c"># Formurae コンパイラ fec をビルド(依存は base のみ)</span>
+make all       <span class="c"># 全23例を生成→実行→検証(数分)</span>
+</pre>
+<p class="note">Egison はインストール済みバイナリでなく開発ツリー(<code>EGISON_DIR</code>、既定 <code>../egison</code>)を
+使います — 同梱の数学ライブラリが新しい必要があるためです。MPI は不要(1ランク用スタブ同梱)。</p>
+
+<h2 id="tutorial">3. チュートリアル: 拡散方程式を動かす</h2>
+<p><code>examples/diffusion3d/diffusion3d.fe</code> の全文:</p>
+<pre>
+param kappa = 1.0
+param dt = 0.1*dx*dx
+
+extern exp
+raw gauss = fun(x,y,z) exp(-((x-(total_grid_x*dx/2))/(5*dx))**2 - ...)
+
+field u : scalar
+
+init:
+  u = gauss(i*dx,j*dy,k*dz)
+
+step:
+  u' = u + dt * kappa * lap u
+</pre>
+<p>物理は最後の1行だけです。格子・分割は同じディレクトリの yaml(§5)に書きます。実行:</p>
+<pre>
+make diffusion3d
+<span class="c">#   fec が .egi を生成 → Egison が .fmr を生成 → formura が C を生成
+#   → cc でドライバとリンク → ./check が質量保存を検査して [OK]</span>
+</pre>
+<p>式を変えたら(例: <code>u' = u + dt * kappa * lap u - dt * u * d_x u</code> で移流を足す)、
+もう一度 <code>make diffusion3d</code> — 生成された式は <code>examples/diffusion3d/diffusion3d.fmr</code> で確認できます。</p>
+
+<h2 id="fe">4. Formurae 言語リファレンス(.fe)</h2>
+
+<h3>宣言</h3>
+<table>
+<tr><th>構文</th><th>意味</th></tr>
+<tr><td><code>dimension 3</code></td><td>次元(現状 3 のみ・省略可)</td></tr>
+<tr><td><code>axes r, theta, phi</code></td><td>軸名(省略時 x,y,z)。式の中で使え、内部座標 x,y,z に写像される(生成物・yaml・ドライバは x,y,z のまま)</td></tr>
+<tr><td><code>param dt = 0.5*dx</code></td><td>Formura パラメタ(<code>double :: dt = …</code>)。値は Formura 式</td></tr>
+<tr><td><code>extern exp</code></td><td><code>extern function :: exp</code></td></tr>
+<tr><td><code>raw <i>行</i></code></td><td>Formura ソースへそのまま出す行(ヘルパ関数・コメント)</td></tr>
+<tr><td><code>field u : scalar</code></td><td>スカラー場</td></tr>
+<tr><td><code>field E : vector</code></td><td>ベクトル場(成分 Ex,Ey,Ez — ソースには書かない)</td></tr>
+<tr><td><code>field E : 1-form / 2-form</code></td><td>微分形式(配置は次数から: 1-form=辺・2-form=面)</td></tr>
+<tr><td><code>field v : vector @ staggered</code></td><td>スタガードベクトル(v_i は軸 i の半セル位置)</td></tr>
+<tr><td><code>field s : symmetric @ staggered</code></td><td>対称テンソル(s_ij は辺i⊕辺j — Virieux 配置が導出される)</td></tr>
+<tr><td><code>metric scale [1, 2 + cos theta, 1]</code></td><td>直交計量を Lamé スケール因子で直接指定 → <code>lb</code> が使える</td></tr>
+<tr><td><code>embedding [`(1+r) * cos phi, …]</code></td><td>座標系の埋め込みから計量を CAS が<b>自動導出</b>(直交性は記号検査で強制)。バッククォートで因子を原子に保つと √ が閉じる</td></tr>
+<tr><td><code>assert-dd-zero E'</code></td><td>d∘d(E′)=0 を CAS が確認できない限り生成を拒否</td></tr>
+</table>
+
+<h3>init ブロック</h3>
+<table>
+<tr><th>構文</th><th>意味</th></tr>
+<tr><td><code>Ey = gauss1(i*dx)</code></td><td>生の Formura 初期化式(成分名で)</td></tr>
+<tr><td><code>E = [| 0, gauss1(i*dx), 0 |]</code></td><td>ベクトル/形式の成分一括指定(要素は Formura 式)</td></tr>
+<tr><td><code>u := exp (cos theta - 1)</code></td><td><b>CAS 初期化</b>: 記号式を評価して init に焼き込む(座標は軸名で書く)</td></tr>
+</table>
+
+<h3>step ブロック</h3>
+<table>
+<tr><th>構文</th><th>意味</th></tr>
+<tr><td><code>u' = 式</code></td><td>スカラー更新。<code>X'</code> を右辺に書くと「更新後の X」への参照(symplectic な leapfrog が書ける)</td></tr>
+<tr><td><code>E' = E + dt * curl B</code></td><td>ベクトル方程式(成分・添字なし)</td></tr>
+<tr><td><code>B' = B - dt * d E'</code></td><td>形式方程式(d は次数で解決)</td></tr>
+<tr><td><code>v'_i = v_i + (dt/rho0) * d_j s_i_j</code></td><td><b>テンソル添字方程式</b>(staggered 場)。繰り返し添字は「それを含む最小の項」で総和(Einstein)、<code>delta_ij</code> は Kronecker δ、<code>d_a</code> は対象成分の配置にアンカーされた半セル差分</td></tr>
+<tr><td><code>local w = d2_x u</code></td><td>中間<b>格子場</b>(.fmr に1行として出る — 4階微分の2段化などに)</td></tr>
+<tr><td><code>let En_i = …</code></td><td>名前つき式(インライン展開される。格子場にはならない)</td></tr>
+</table>
+
+<h3>微分演算子(数式のまま書く)</h3>
+<table>
+<tr><th>演算子</th><th>意味</th></tr>
+<tr><td><code>d_x e / d_y e / d_z e</code></td><td>1階中心差分(軸名で: <code>d_r</code>, <code>d_theta</code> …)</td></tr>
+<tr><td><code>d2_x e</code> など</td><td>2階コンパクト差分</td></tr>
+<tr><td><code>lap e</code></td><td>Laplacian(3軸和)</td></tr>
+<tr><td><code>lap4 e</code></td><td>4次精度 Laplacian(係数は CAS が Taylor 条件を解いて導出)</td></tr>
+<tr><td><code>curl X / divg X</code></td><td>ベクトル解析(ε 縮約)</td></tr>
+<tr><td><code>d ω</code></td><td>離散外微分(0/1/2-形式で grad/curl/div)</td></tr>
+<tr><td><code>delta ω</code>(= <code>codiff</code>/<code>δ</code>)</td><td>余微分 (−1)^{n(k+1)+1} ⋆d⋆</td></tr>
+<tr><td><code>lb u</code></td><td>Laplace–Beltrami(= −δd; <code>metric scale</code> か <code>embedding</code> が必要。hodge 因子の係数場生成・半セル CAS 評価・保存流束まで自動)</td></tr>
+</table>
+
+<h2 id="yaml">5. yaml リファレンス(格子と実行構成)</h2>
+<pre>
+length_per_node: [6.283185307179586, 1.0, 0.0625]   <span class="c"># 物理サイズ(→ dx,dy,dz)</span>
+grid_per_node:   [128, 64, 4]                        <span class="c"># 格子点数</span>
+mpi_shape:       [1, 1, 1]                           <span class="c"># ランク分割</span>
+grid_per_block:  [8, 8, 8]                           <span class="c"># temporal blocking(任意)</span>
+temporal_blocking_interval: 4
+boundary: [periodic, mirror, fixed 0.0]              <span class="c"># fork 拡張: 軸ごとの境界条件</span>
+reduces:  [tot = sum u, umax = max u]                <span class="c"># fork 拡張: 大域リダクション</span>
+</pre>
+<ul>
+<li><b>boundary</b>(fork 拡張): <code>periodic</code> / <code>mirror</code>(Neumann)/ <code>fixed v</code>(Dirichlet)。
+    非周期軸がある場合は temporal blocking なし・<code>mpi_shape [1,…]</code> が必要。</li>
+<li><b>reduces</b>(fork 拡張): 毎ステップ全域で集計され <code>n.reduce_&lt;名前&gt;</code> で読める
+    (<code>sum</code>/<code>max</code>/<code>min</code>/<code>absmax</code>)。収束判定・保存則監視・最大値原理の検査に。</li>
+<li><b>temporal blocking の制約</b>: <code>grid_per_block ≥ 2×袖幅×interval</code>(違反は fork が検出して拒否)。</li>
+</ul>
+
+<h2 id="driver">6. 検証ドライバの書き方(*_check.c)</h2>
+<pre>
+#include "モデル名.h"
+int main(int argc, char **argv) {
+  Formura_Navi n;
+  Formura_Init(&argc, &argv, &n);            <span class="c">// init() が走る</span>
+  double h = n.space_interval_x;             <span class="c">// dx(_y/_z も)</span>
+  double m0 = n.reduce_tot;                  <span class="c">// yaml の reduces</span>
+  while (n.time_step < 1000) Formura_Forward(&n);
+  for (int i = n.lower_x; i < n.upper_x; i++)  <span class="c">// 内部セルを走査</span>
+    ... formura_data.u[i][j][k] ...
+  Formura_Finalize();
+  return ok ? 0 : 1;                         <span class="c">// 失敗は exit≠0(make が止まる)</span>
+}
+</pre>
+<ul>
+<li><b>周期境界のみのモデル</b>では、配列内でデータが毎ステップ平行移動します。物理座標は
+    <code>to_pos_x(i, n)</code> で取るか、論理セル <code>((round(to_pos_x(i,n)/h)) % N + N) % N</code> に写像してから比較します。</li>
+<li><b>boundary を使う(アンカー経路)モデル</b>では移動がなく、生の添字がそのまま物理位置です。</li>
+<li>検証は「保存則(流束形式なら機械精度)・厳密解や離散固有値・独立参照実装との比較・
+    reduces による最大値原理」を組み合わせるのが本リポジトリの流儀です(実例は各 examples/*/*_check.c)。</li>
+</ul>
+
+<h2 id="make">7. Makefile への登録</h2>
+<p>新しい例 <code>examples/foo/</code>(foo.fe・foo.yaml・foo_check.c)を追加したら、Makefile の2行だけ:</p>
+<pre>
+FE_EXAMPLES  := ... spherical3d foo      <span class="c"># 一覧に追加</span>
+CHECK_foo    := foo_check.c              <span class="c"># ドライバ名(必要なら RUNARGS_foo も)</span>
+</pre>
+<p><code>make foo</code> で全段が走ります。生成物(.egi/.fmr は追跡、.c/.h は .gitignore)。</p>
+
+<h2 id="gallery">8. ギャラリーの再生成</h2>
+<pre>
+gallery/gen.sh                    <span class="c"># 各例からデータをダンプ(make all 後に)</span>
+python3 gallery/tools/render.py   <span class="c"># PNG/SVG を描画(標準ライブラリのみ; 曲面は 3D 描画)</span>
+python3 gallery/tools/embed_src.py<span class="c"># カードに .fe / .egi / .fmr 全文を再埋め込み</span>
+</pre>
+
+<h2 id="layers">9. 3層構造と検証の考え方</h2>
+<ul>
+<li><b>.fe</b> が唯一の編集対象。<b>.egi は生成中間物</b>(ヘッダに GENERATED 印。意味論は
+    <code>lib/fmrgen.egi</code>(差分コンビネータ・DEC・taylorStencil・プリンタ)と
+    <code>lib/fmrdsl.egi</code>(モデル組み立て)にあり、デバッグ時に読むと役立つ)。
+    一部の例(Yee・LBM・MHD・音響)はまだ埋め込み形で直接書かれている。</li>
+<li>リファクタや DSL 拡張の際の意味保存は「<b>生成 .fmr のバイト一致</b>」で検証するのが本リポジトリの
+    流儀 — 記法を変えても同じ機械コードに落ちることが証明になる(例: 弾性波は成分手書き → generateTensor →
+    Einstein 添字 .fe と3世代進化して .fmr は不変)。</li>
+<li>数式的な恒等式は<b>生成時に CAS が検査</b>する(DEC の d∘d=0、埋め込みの直交性)。</li>
+</ul>
+
+<p style="margin-top:40px"><a href="index.html">→ 総合ギャラリー(23例)</a> /
+   <a href="dsl/index.html">→ DSL ギャラリー(19例)</a></p>
+</main>
+</body>
+</html>

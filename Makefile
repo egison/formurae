@@ -1,7 +1,7 @@
 # Egison -> Formura -> C -> run, end to end.
 #
 #   make setup        : fetch + patch + build Formura (vendor/, bin/formura)
-#   cabal build       : build the .fe compiler (fec)
+#   cabal build       : build the Formurae compiler (fec)
 #   make <example>    : .fe -> fec -> Egison -> Formura -> cc -> check
 #   make all          : every example (each check exits nonzero on failure)
 #
@@ -22,7 +22,7 @@ EGISON_RUN = cd $(EGISON_DIR) && cabal run -v0 egison --
 
 # ---------------------------------------------------------------- examples
 #
-# FE_EXAMPLES: written in the .fe surface DSL (dir = base name; the
+# FE_EXAMPLES: written in Formurae (.fe) (dir = base name; the
 # recipe compiles .fe -> .egi -> .fmr -> C and runs the check driver).
 # EGI_EXAMPLES: still written directly in the embedded Egison form
 # (staggered families / indexed families / custom helpers pending

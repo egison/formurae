@@ -1,4 +1,4 @@
-# formura-egison 応用カタログ
+# Formurae 応用カタログ
 
 Egison のテンソル添字記法で連続系の PDE を 2〜3 行書き、Formura で分散並列+
 temporal blocking つきの C に落とす——このパイプラインで狙える応用を、
