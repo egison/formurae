@@ -61,6 +61,12 @@
 -- a scalar lowers to -(Laplacian), so the heat equation reads
 -- u' = u - dt * delta (d u) with basic operators only; all of these
 -- generate byte-identical code to their named-operator forms.
+-- Nabla combinations work too: nabla-cross is curl, nabla-dot is divg,
+-- and nabla^2 (or with the superscript two) is the Laplacian.
+-- In index equations superscripts (~i) and subscripts (_i) are
+-- interchangeable (Euclidean grids; variance is documentation), and
+-- Kronecker's delta may be written delta_ij, delta~i_j, or with the
+-- small delta sign.
 --
 -- A vector update may be written without indices (E' = E + dt * curl B);
 -- bare vector names combine elementwise and curl applies to the whole
@@ -288,7 +294,10 @@ parseFe name txt = go STop (Model name 3 ["x", "y", "z"] [] [] [] [] [] Nothing 
           r3 <- stripPrefix "]|" r2
           return (splitTop ',' (reverse r3))
 
-    stp ln s m
+    -- superscripts (~i) and subscripts (_i) are interchangeable in step
+    -- equations (Euclidean grids; the variance is documentation), so
+    -- v'~i = ... + \8706_j s~i~j normalizes to the underscore form here
+    stp ln s0 m
       | Just (nm, ix, ex) <- eqForm "let" s =
           return m { mSteps = Step KLet nm (if ix then ["i"] else []) ex : mSteps m }
       | Just (nm, _, ex) <- eqForm "local" s =
@@ -296,6 +305,8 @@ parseFe name txt = go STop (Model name 3 ["x", "y", "z"] [] [] [] [] [] Nothing 
       | Just (nm, ixs, ex) <- primeEqForm s =
           return m { mSteps = Step KEq nm ixs ex : mSteps m }
       | otherwise = fatal ("bad step eq: " ++ s ++ " (line " ++ show ln ++ ")")
+      where
+        s = map (\c -> if c == '~' then '_' else c) s0
 
 -- --------------------------------------------------- expression rewriting
 
@@ -448,9 +459,15 @@ ixExpand m env anchor expr = expandRegion env (itok expr)
       fmap (("(" ++ e ++ ")") ++) (resolve env' rest')
     resolve env' (IC c : rest) = fmap ([c] ++) (resolve env' rest)
     resolve env' (II w : rest)
-      | ("delta", [pq]) <- splitIdentW, [pc, qc] <- pq = do
-          pv <- need env' [pc]
-          qv <- need env' [qc]
+      -- Kronecker delta: delta_ij, or the per-index form delta_i_j
+      -- (which is what delta~i_j / \948~i~j normalize to)
+      | ("delta", ps) <- splitIdentW
+      , Just (pc, qc) <- case ps of
+          [[p, q]]              -> Just ([p], [q])
+          [p@[_], q@[_]]        -> Just (p, q)
+          _                     -> Nothing = do
+          pv <- need env' pc
+          qv <- need env' qc
           fmap ((if pv == qv then "1" else "0") ++) (resolve env' rest)
       | ("d", [k]) <- splitIdentW = do
           n <- need env' k
@@ -902,12 +919,31 @@ transliterate = concatMap tr
     tr '\8722' = "-"       -- − (minus sign)
     tr c = [c]
 
+-- nabla combinations, resolved before parsing: ∇^2 (or ∇²) is the
+-- Laplacian (the capital delta, so lap or lb by geometry), ∇× is curl,
+-- ∇· (or ∇.) is divergence.  A space after ∇ is allowed.  A bare ∇
+-- passes through (and fails downstream) -- gradients of scalars are
+-- written d u (forms) instead.
+nablaPass :: String -> String
+nablaPass = go
+  where
+    go [] = []
+    go ('\8711':cs) =
+      case dropWhile (== ' ') cs of
+        ('^':'2':r)  -> '\916' : go r
+        ('\178':r)   -> '\916' : go r
+        ('\215':r)   -> " curl " ++ go r
+        ('\183':r)   -> " divg " ++ go r
+        ('.':r)      -> " divg " ++ go r
+        _            -> '\8711' : go cs
+    go (c:cs) = c : go cs
+
 main :: IO ()
 main = do
   args <- getArgs
   case args of
     [path] -> do
-      txt <- fmap transliterate (readFile path)
+      txt <- fmap (nablaPass . transliterate) (readFile path)
       let name = takeWhile (/= '.') (reverse (takeWhile (/= '/') (reverse path)))
       m <- parseFe name txt
       out <- emit m

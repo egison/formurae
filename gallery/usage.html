@@ -149,15 +149,18 @@ make diffusion3d
 <tr><th>演算子</th><th>意味</th></tr>
 <tr><td><code>d_x e / d_y e / d_z e</code></td><td>1階中心差分(軸名で: <code>d_r</code>, <code>d_theta</code> …。<code>∂_x</code> とも書ける)</td></tr>
 <tr><td><code>d2_x e</code> など</td><td>2階コンパクト差分。<b><code>∂_x (∂_x u)</code> と d を2回書いても同じ</b>(半セル前進・後退の対として融合され、生成コードはバイト一致)</td></tr>
-<tr><td><code>lap e</code> / <code>Δ e</code></td><td>Laplacian(3軸和)。<b><code>Δ</code> はモデルの幾何のラプラシアン</b>: 計量宣言下では自動的に Laplace–Beltrami(lb)になる</td></tr>
+<tr><td><code>lap e</code> / <code>Δ e</code> / <code>∇^2 e</code></td><td>Laplacian(3軸和)。<b><code>Δ</code>(= <code>∇^2</code>, <code>∇²</code>)はモデルの幾何のラプラシアン</b>: 計量宣言下では自動的に Laplace–Beltrami(lb)になる</td></tr>
 <tr><td><code>lap4 e</code></td><td>4次精度 Laplacian(係数は CAS が Taylor 条件を解いて導出)</td></tr>
-<tr><td><code>curl X / divg X</code></td><td>ベクトル解析(ε 縮約)</td></tr>
+<tr><td><code>curl X / divg X</code></td><td>ベクトル解析(ε 縮約)。<b><code>∇ × X</code> / <code>∇ · X</code> とも書ける</b></td></tr>
 <tr><td><code>d ω</code></td><td>離散外微分(0/1/2-形式で grad/curl/div)</td></tr>
 <tr><td><code>delta ω</code>(= <code>codiff</code>/<code>δ</code>)</td><td>余微分 (−1)^{n(k+1)+1} ⋆d⋆</td></tr>
 <tr><td><code>lb u</code></td><td>Laplace–Beltrami(= −δd; <code>metric scale</code> か <code>embedding</code> が必要。hodge 因子の係数場生成・半セル CAS 評価・保存流束まで自動)。<b><code>u - dt * δ (d u)</code> と基本演算子で書いても同じ</b>(δ∘d はスカラー場で −Δ に降下)</td></tr>
 </table>
 
-<p><b>Unicode</b>: ギリシャ文字(θ, φ, ρ, τ, κ, μ, …)は識別子として使え、
+<p><b>添字</b>: 添字方程式では上付き <code>~i</code> と下付き <code>_i</code> を併用できます(ユークリッド格子なので変位は記法上の区別。繰返し文字は上下によらず総和)。Kronecker delta は <code>δ~i~j</code> / <code>delta~i_j</code> / <code>delta_ij</code> のいずれでも。例(弾性波):
+<code>v'~i = v~i + (dt / ρ0) * ∂_j s~i~j</code></p>
+
+<p><b>Unicode</b>: ギリシャ文字(θ, φ, ρ, τ, κ, μ, λ, …)は識別子として使え、
 fec が Formura 向けに ASCII 名(theta, phi, …)へ字訳します。
 <code>∂</code>=d、<code>δ</code>=delta(余微分)、<code>−</code>=-。
 <code>Δ</code> のみモデル依存(平坦なら lap、計量下なら lb)。

@@ -4,7 +4,7 @@
 -- (tanh-smoothed diaphragms at x=4 and x=12) and the check driver
 -- compares density with the exact solution before the fans interact.
 
-param lam = 0.028
+param λ = 0.028
 param dt = 0.01
 
 extern tanh
@@ -24,6 +24,6 @@ step:
   local pr = (2 / 5) * (en - mx * mx / (2 * ρ))
   local fm = mx * mx / ρ + pr
   local fe = (en + pr) * mx / ρ
-  ρ' = ρ - dt * ∂_x mx + dt * lam * ∂_x (∂_x ρ)
-  mx' = mx - dt * ∂_x fm + dt * lam * ∂_x (∂_x mx)
-  en' = en - dt * ∂_x fe + dt * lam * ∂_x (∂_x en)
+  ρ' = ρ - dt * ∂_x mx + dt * λ * ∂_x (∂_x ρ)
+  mx' = mx - dt * ∂_x fm + dt * λ * ∂_x (∂_x mx)
+  en' = en - dt * ∂_x fe + dt * λ * ∂_x (∂_x en)

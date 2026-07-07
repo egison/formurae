@@ -1,23 +1,24 @@
 -- Linear elastic waves, velocity-stress formulation (Virieux), written
 -- exactly as the mathematics:
 --
---   rho dv_i/dt      = d_j sigma_ij
---   d sigma_ij / dt  = la delta_ij (div v') + mu (d_i v'_j + d_j v'_i)
+--   rho dv^i/dt      = d_j sigma^ij
+--   d sigma^ij / dt  = lambda delta^ij (div v') + mu (d^i v'^j + d^j v'^i)
 --
--- Repeated index letters are summed (Einstein convention); delta_ij is
--- Kronecker's delta; v' refers to the updated velocity (symplectic).
+-- Repeated index letters are summed (Einstein convention; superscripts
+-- and subscripts are interchangeable on the Euclidean grid); delta is
+-- Kronecker's; v' refers to the updated velocity (symplectic).
 -- The fields are declared staggered, so every d_a becomes a half-cell
 -- difference anchored at the placement of the target component --
 -- which puts v_i on edge i and s_ij at edge i (+) edge j: the Virieux
--- lattice, derived rather than declared.  With la=2, mu=1, rho0=1 the
+-- lattice, derived rather than declared.  With lambda=2, mu=1, rho0=1 the
 -- P and S speeds are 2 and 1, measured by the check driver.
 
-param la = 2.0
+param λ = 2.0
 param μ = 1.0
 param ρ0 = 1.0
 param dt = 0.0005
 
-raw # la=2, mu=1, rho0=1  ->  vp = 2, vs = 1
+raw # lambda=2, mu=1, rho0=1  ->  vp = 2, vs = 1
 extern exp
 raw gp = fun(x) exp(-((x - 0.3)/0.02)*((x - 0.3)/0.02))
 
@@ -36,5 +37,5 @@ init:
   syz = 0.0
 
 step:
-  v'_i = v_i + (dt / ρ0) * ∂_j s_i_j
-  s'_i_j = s_i_j + dt * (la * delta_ij * ∂_k v'_k + μ * (∂_i v'_j + ∂_j v'_i))
+  v'~i = v~i + (dt / ρ0) * ∂_j s~i~j
+  s'~i~j = s~i~j + dt * (λ * δ~i~j * ∂_k v'~k + μ * (∂_i v'~j + ∂_j v'~i))

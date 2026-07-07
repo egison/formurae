@@ -8,8 +8,8 @@ def E_i := generateTensor (\[i] -> function (x, y, z)) [3]
 def B_i := generateTensor (\[i] -> function (x, y, z)) [3]
 def E'_i := generateTensor (\[i] -> function (x, y, z)) [3]
 
-def feqE_i := withSymbols [i] E_i + dt * (curl B_#)_i
-def feqB_i := withSymbols [i] B_i - dt * (curl E'_#)_i
+def feqE_i := withSymbols [i] E_i + dt *  (curl B_#)_i
+def feqB_i := withSymbols [i] B_i - dt *  (curl E'_#)_i
 
 def feParams := [("dt", "0.1*dx")]
 def feHelpers :=
