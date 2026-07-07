@@ -1,0 +1,5 @@
+length_per_node: [1.0]
+grid_per_node: [64]
+mpi_shape: [1]
+boundary: [fixed 0.0]
+reduces: [res = absmax d, tot = sum q]

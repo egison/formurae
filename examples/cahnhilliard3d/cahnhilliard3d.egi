@@ -1,0 +1,44 @@
+--
+-- cahnhilliard3d.egi : Cahn-Hilliard spinodal decomposition
+--   mu = c^3 - c - kap lap c
+--   dc/dt = M lap mu
+-- The fourth-order operator is expressed as two chained radius-1 stages
+-- via the intermediate field mu (a local binding in the generated step).
+-- Mass (sum c) is conserved exactly by the discrete form; the yaml
+-- declares `reduces: [tot = sum c]` so the driver monitors it through
+-- the generated global reduction.
+--
+-- Run: egison -l fmrgen.egi cahnhilliard3d.egi > cahnhilliard3d.fmr
+--
+
+declare symbol dt, kap, mob
+
+def c := function (x, y, z)
+def mu := function (x, y, z)
+
+def muDef := c^3 - c - kap * lap c
+def dcdt := mob * lap mu
+
+def prog : [String] :=
+  [ "dimension :: 3"
+  , "axes :: x,y,z"
+  , ""
+  , "# lattice units: dx = 1"
+  , "double :: kap = 2.0"
+  , "double :: mob = 1.0"
+  , "double :: dt = 0.004"
+  , ""
+  , "extern function :: sin"
+  , ""
+  , "begin function c = init()"
+  , "  double [] :: c"
+  , "  c[i,j,k] = 0.05*(sin(0.29*i)*sin(0.31*j)*sin(0.37*k) + sin(0.23*i + 0.41*j) + sin(0.19*k + 0.13*i))"
+  , "end function"
+  , ""
+  , "begin function c' = step(c)"
+  , fmrEq "mu" muDef
+  , fmrEq "c'" (c + dt * dcdt)
+  , "end function"
+  ]
+
+def main (args: [String]) : IO () := print (S.intercalate "\n" prog)

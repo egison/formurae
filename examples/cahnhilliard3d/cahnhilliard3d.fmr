@@ -1,0 +1,19 @@
+dimension :: 3
+axes :: x,y,z
+
+# lattice units: dx = 1
+double :: kap = 2.0
+double :: mob = 1.0
+double :: dt = 0.004
+
+extern function :: sin
+
+begin function c = init()
+  double [] :: c
+  c[i,j,k] = 0.05*(sin(0.29*i)*sin(0.31*j)*sin(0.37*k) + sin(0.23*i + 0.41*j) + sin(0.19*k + 0.13*i))
+end function
+
+begin function c' = step(c)
+  mu = c[i,j,k]**3 + (-1)*c[i,j,k] + 2*c[i,j,k]*kap/(dz**2) + 2*c[i,j,k]*kap/(dy**2) + 2*c[i,j,k]*kap/(dx**2) + (-1)*c[i,j,k-1]*kap/(dz**2) + (-1)*c[i,j,k+1]*kap/(dz**2) + (-1)*c[i,j-1,k]*kap/(dy**2) + (-1)*c[i,j+1,k]*kap/(dy**2) + (-1)*c[i-1,j,k]*kap/(dx**2) + (-1)*c[i+1,j,k]*kap/(dx**2)
+  c' = (-2)*dt*mob*mu[i,j,k]/(dz**2) + dt*mob*mu[i,j,k-1]/(dz**2) + dt*mob*mu[i,j,k+1]/(dz**2) + (-2)*dt*mob*mu[i,j,k]/(dy**2) + dt*mob*mu[i,j-1,k]/(dy**2) + dt*mob*mu[i,j+1,k]/(dy**2) + (-2)*dt*mob*mu[i,j,k]/(dx**2) + dt*mob*mu[i-1,j,k]/(dx**2) + dt*mob*mu[i+1,j,k]/(dx**2) + c[i,j,k]
+end function

@@ -1,0 +1,4 @@
+length_per_node: [1.0,1.0,0.03125]
+grid_per_node: [128,128,4]
+mpi_shape: [1,1,1]
+reduces: [srho = sum rho, sen = sum en, smx = sum mx, smy = sum my]

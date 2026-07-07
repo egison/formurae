@@ -18,9 +18,9 @@ CFLAGS  ?= -O2 -std=c11
 
 EGISON_RUN = cd $(EGISON_DIR) && cabal run -v0 egison --
 
-.PHONY: all setup diffusion3d maxwell3d maxwell3d-yee pearson3d clean
+.PHONY: all setup diffusion3d maxwell3d maxwell3d-yee pearson3d burgers3d cahnhilliard3d tdgl3d mhd-ot clean
 
-all: diffusion3d maxwell3d maxwell3d-yee pearson3d
+all: diffusion3d maxwell3d maxwell3d-yee pearson3d burgers3d cahnhilliard3d tdgl3d mhd-ot
 
 setup:
 	./setup.sh
@@ -53,6 +53,34 @@ pearson3d:
 	cd examples/pearson3d && $(CC) $(CFLAGS) -I$(MPISTUB) -o check pearson_check.c pearson3d.c -lm
 	cd examples/pearson3d && ./check 20000
 
+burgers3d:
+	$(EGISON_RUN) -l $(FMRGEN) $(abspath examples/burgers3d/burgers3d.egi) \
+	  > $(abspath examples/burgers3d/burgers3d.fmr)
+	cd examples/burgers3d && $(FORMURA) burgers3d.fmr
+	cd examples/burgers3d && $(CC) $(CFLAGS) -I$(MPISTUB) -o check burgers_check.c burgers3d.c -lm
+	cd examples/burgers3d && ./check
+
+cahnhilliard3d:
+	$(EGISON_RUN) -l $(FMRGEN) $(abspath examples/cahnhilliard3d/cahnhilliard3d.egi) \
+	  > $(abspath examples/cahnhilliard3d/cahnhilliard3d.fmr)
+	cd examples/cahnhilliard3d && $(FORMURA) cahnhilliard3d.fmr
+	cd examples/cahnhilliard3d && $(CC) $(CFLAGS) -I$(MPISTUB) -o check ch_check.c cahnhilliard3d.c -lm
+	cd examples/cahnhilliard3d && ./check
+
+tdgl3d:
+	$(EGISON_RUN) -l $(FMRGEN) $(abspath examples/tdgl3d/tdgl3d.egi) \
+	  > $(abspath examples/tdgl3d/tdgl3d.fmr)
+	cd examples/tdgl3d && $(FORMURA) tdgl3d.fmr
+	cd examples/tdgl3d && $(CC) $(CFLAGS) -I$(MPISTUB) -o check tdgl_check.c tdgl3d.c -lm
+	cd examples/tdgl3d && ./check
+
+mhd-ot:
+	$(EGISON_RUN) -l $(FMRGEN) $(abspath examples/mhd_ot/mhd_ot.egi) \
+	  > $(abspath examples/mhd_ot/mhd_ot.fmr)
+	cd examples/mhd_ot && $(FORMURA) mhd_ot.fmr
+	cd examples/mhd_ot && $(CC) $(CFLAGS) -I$(MPISTUB) -o check mhd_check.c mhd_ot.c -lm
+	cd examples/mhd_ot && ./check
+
 clean:
 	rm -f examples/*/check examples/*/*.o examples/*/run
 	rm -f examples/diffusion3d/diffusion3d.c examples/diffusion3d/diffusion3d.h
@@ -60,3 +88,7 @@ clean:
 	rm -f examples/maxwell3d_yee/maxwell3d_yee.c examples/maxwell3d_yee/maxwell3d_yee.h
 	rm -f examples/pearson3d/pearson3d.c examples/pearson3d/pearson3d.h
 	rm -f examples/pearson3d/pearson_V.pgm
+	rm -f examples/mhd_ot/mhd_ot.c examples/mhd_ot/mhd_ot.h
+	rm -f examples/tdgl3d/tdgl3d.c examples/tdgl3d/tdgl3d.h
+	rm -f examples/cahnhilliard3d/cahnhilliard3d.c examples/cahnhilliard3d/cahnhilliard3d.h
+	rm -f examples/burgers3d/burgers3d.c examples/burgers3d/burgers3d.h

@@ -1,0 +1,6 @@
+length_per_node: [1.0]
+grid_per_node: [64]
+grid_per_block: [8]
+temporal_blocking_interval: 4
+mpi_shape: [1]
+reduces: [tot = sum q]

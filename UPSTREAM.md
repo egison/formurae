@@ -14,7 +14,7 @@ PR/push できる。本ファイルは「issue を立てて待つ」のではな
 | 2 | 混在ステンシル半径の誤コンパイル修正(旧称: TB 袖幅≥2 バグ) | 小(真因判明後) | **fork にコミット済**(fix-mixed-radius-drift de9b623)・下記に解決記録 |
 | 3 | per-variable cursor の API 整合 | — | **不要になった**: PR2 の症状だった。修正後は全変数一様ドリフトで to_pos_* が正しい |
 | 4 | 境界条件(mirror / fixed) | 中 | **fork にコミット済**(boundary-conditions 58e9a12)・下記に実装記録 |
-| 5 | 大域リダクション(まず NoBlocking 限定 → TB 対応) | 中〜大 | 設計済(下記) |
+| 5 | 大域リダクション | 中 | **fork にコミット済**(global-reductions 851a37e)・下記に実装記録 |
 
 前提知識: コンパイルパイプラインは
 `.fmr + .yaml → Parser/Desugar → OMProgram(データフローグラフ、非局所命令は
@@ -160,10 +160,30 @@ TB と非互換。つまり**言語としては周期しか書けない**。
 - テスト: 移流方程式で CFL 適応 dt(初期速度を段階的に上げても安定)、
   Jacobi 反復 Poisson の残差収束。
 
+### 実装記録(2026-07-08、global-reductions 851a37e)
+
+設計を V1 スコープに絞って実装した。**yaml 宣言 + Navi 格納**方式:
+
+- yaml: `reduces: [res = absmax d, tot = sum q]`(op = sum | max | min | absmax)
+- Formura_Init 後と毎 Formura_Forward 後(**NoBlocking / TB 両モード**)に全域を
+  集計し、MPI_Allreduce(MPI_IN_PLACE)して `n->reduce_<name>` に格納
+- ドライバから `while (n.reduce_res > tol) Formura_Forward(&n);` と書ける
+- TB でも意味論は一様: 「Forward 完了時点の状態のリダクション」(interval 境界での
+  更新という当初案そのもの)
+- 受け入れテスト(upstream/reduce-test/): ①**[fixed 0.0] 境界 × Jacobi Poisson を
+  生成された residual で収束駆動** → 19,321 掃引で res<1e-13、厳密離散解
+  (h2f/2)(i+1)(N−i) と 8.5e-11 一致(PR④ との合わせ技で「Poisson が解ける」を実証)
+  ②TB4 での sum 保存 4.6e-16 ③回帰ゼロ(15 変種+4例)
+
+残(V2): カーネル内からの参照(真の CFL 適応 dt)。カーネル IR に実行時スカラー
+命令(LoadScalar)を足し、`double :: dt = ...` を navi 由来の実行時値にできるように
+する必要がある。
+
 ### これで開くもの
 
-Euler/MHD の実用運転(適応 dt)、Poisson 系(反復+収束判定)経由の非圧縮流体、
-オンライン診断。formura-egison 側は `reduce` を fmrgen に透過させるだけで済む。
+Poisson 系(反復+収束判定)経由の非圧縮流体(V1 で可)、オンライン診断(V1 で可)、
+Euler/MHD の適応 dt(V2 で解禁)。formura-egison 側は `boundary`/`reduces` を
+fmrgen のテンプレートに透過させるだけで済む。
 
 ## formura-egison 側の追随
 

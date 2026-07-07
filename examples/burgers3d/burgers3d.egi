@@ -1,0 +1,40 @@
+--
+-- burgers3d.egi : viscous Burgers equation with an exact solution
+--   du/dt = nu lap u - u du/dx
+-- The Cole-Hopf transform gives a periodic exact solution
+--   u(x,t) = 2 nu k B e^{-nu k^2 t} sin(kx) / (A + B e^{-nu k^2 t} cos(kx))
+-- which the check driver compares against, making this the regression
+-- benchmark for NONLINEAR term generation (products of grid references).
+--
+-- Run: egison -l fmrgen.egi burgers3d.egi > burgers3d.fmr
+--
+
+declare symbol dt, nu
+
+def u := function (x, y, z)
+
+-- the physics: advection by itself along x, plus viscosity
+def dUdt := nu * lap u - u * dC 1 u
+
+def prog : [String] :=
+  [ "dimension :: 3"
+  , "axes :: x,y,z"
+  , ""
+  , "double :: nu = 0.05"
+  , "double :: dt = 0.0001"
+  , "double :: k0 = 6.283185307179586"
+  , ""
+  , "extern function :: sin"
+  , "extern function :: cos"
+  , ""
+  , "begin function u = init()"
+  , "  double [] :: u"
+  , "  u[i,j,k] = 2.0*0.05*k0*sin(k0*i*dx)/(2.0 + cos(k0*i*dx))"
+  , "end function"
+  , ""
+  , "begin function u' = step(u)"
+  , fmrEq "u'" (u + dt * dUdt)
+  , "end function"
+  ]
+
+def main (args: [String]) : IO () := print (S.intercalate "\n" prog)

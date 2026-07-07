@@ -16,3 +16,11 @@ examples/pearson3d/pearson3d.c
 examples/pearson3d/pearson3d.h
 examples/pearson3d/pearson_V.pgm
 *.pgm
+examples/burgers3d/burgers3d.c
+examples/burgers3d/burgers3d.h
+examples/cahnhilliard3d/cahnhilliard3d.c
+examples/cahnhilliard3d/cahnhilliard3d.h
+examples/tdgl3d/tdgl3d.c
+examples/tdgl3d/tdgl3d.h
+examples/mhd_ot/mhd_ot.c
+examples/mhd_ot/mhd_ot.h

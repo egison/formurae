@@ -1,0 +1,4 @@
+#!/bin/bash
+prog=${1:?Need an executable file path}
+opt=${2}
+mpirun ${opt} -n 1 ${prog}

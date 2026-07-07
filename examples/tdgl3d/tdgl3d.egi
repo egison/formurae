@@ -1,0 +1,44 @@
+--
+-- tdgl3d.egi : time-dependent Ginzburg-Landau (relaxational, real order
+-- parameter pair psi = a + ib)
+--   da/dt = a - |psi|^2 a + lap a
+--   db/dt = b - |psi|^2 b + lap b
+-- From small random-ish noise the bulk saturates to |psi| ~ 1 while
+-- quantized vortices (|psi| ~ 0 cores with 2 pi winding) form and
+-- annihilate -- all terms are polynomial, so this runs on the printer
+-- as-is.
+--
+-- Run: egison -l fmrgen.egi tdgl3d.egi > tdgl3d.fmr
+--
+
+declare symbol dt
+
+def a := function (x, y, z)
+def b := function (x, y, z)
+
+def psi2 := a^2 + b^2
+def dadt := a - psi2 * a + lap a
+def dbdt := b - psi2 * b + lap b
+
+def prog : [String] :=
+  [ "dimension :: 3"
+  , "axes :: x,y,z"
+  , ""
+  , "# lattice units: dx = 1"
+  , "double :: dt = 0.05"
+  , ""
+  , "extern function :: sin"
+  , ""
+  , "begin function (a,b) = init()"
+  , "  double [] :: a, b"
+  , "  a[i,j,k] = 0.1*(sin(0.31*i)*sin(0.27*j) + sin(0.17*i + 0.23*j))"
+  , "  b[i,j,k] = 0.1*(sin(0.29*i + 1.0)*sin(0.33*j) + sin(0.21*i + 0.19*j + 2.0))"
+  , "end function"
+  , ""
+  , "begin function (a',b') = step(a,b)"
+  , fmrEq "a'" (a + dt * dadt)
+  , fmrEq "b'" (b + dt * dbdt)
+  , "end function"
+  ]
+
+def main (args: [String]) : IO () := print (S.intercalate "\n" prog)

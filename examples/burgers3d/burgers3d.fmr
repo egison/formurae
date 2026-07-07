@@ -1,0 +1,18 @@
+dimension :: 3
+axes :: x,y,z
+
+double :: nu = 0.05
+double :: dt = 0.0001
+double :: k0 = 6.283185307179586
+
+extern function :: sin
+extern function :: cos
+
+begin function u = init()
+  double [] :: u
+  u[i,j,k] = 2.0*0.05*k0*sin(k0*i*dx)/(2.0 + cos(k0*i*dx))
+end function
+
+begin function u' = step(u)
+  u' = dt*u[i-1,j,k]*u[i,j,k]/(2*dx) + (-1)*dt*u[i+1,j,k]*u[i,j,k]/(2*dx) + u[i,j,k] + (-2)*dt*nu*u[i,j,k]/(dz**2) + dt*nu*u[i,j,k-1]/(dz**2) + dt*nu*u[i,j,k+1]/(dz**2) + (-2)*dt*nu*u[i,j,k]/(dy**2) + dt*nu*u[i,j-1,k]/(dy**2) + dt*nu*u[i,j+1,k]/(dy**2) + (-2)*dt*nu*u[i,j,k]/(dx**2) + dt*nu*u[i-1,j,k]/(dx**2) + dt*nu*u[i+1,j,k]/(dx**2)
+end function

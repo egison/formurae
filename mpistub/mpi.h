@@ -72,6 +72,21 @@ static int MPI_Irecv(void *buf, int count, MPI_Datatype dt, int src, int tag,
   return 0;
 }
 
+
+typedef int MPI_Op;
+#define MPI_MAX 1
+#define MPI_MIN 2
+#define MPI_SUM 3
+#define MPI_DOUBLE 11
+#define MPI_IN_PLACE ((void *)1)
+
+static int MPI_Allreduce(const void *sendbuf, void *recvbuf, int count,
+                         MPI_Datatype dt, MPI_Op op, MPI_Comm comm) {
+  (void)dt; (void)op; (void)comm;
+  if (sendbuf != MPI_IN_PLACE) memcpy(recvbuf, sendbuf, (size_t)count * sizeof(double));
+  return 0;
+}
+
 static int MPI_Wait(MPI_Request *req, MPI_Status *st) {
   (void)req; (void)st;
   return 0;

@@ -1,0 +1,21 @@
+dimension :: 1
+axes :: x
+
+# Jacobi iteration for the discrete Poisson problem
+#   q[i+1] + q[i-1] - 2 q[i] = -h2f,   q = 0 on both boundaries (ghosts)
+# d tracks the last update increment; the yaml declares
+#   reduces: [res = absmax d]
+# so the driver can iterate Formura_Forward until n.reduce_res < tol.
+double :: h2f = 0.001
+
+begin function (q,d) = init()
+  double [] :: q, d
+  q[i] = 0
+  d[i] = 1.0
+end function
+
+begin function (q',d') = step(q,d)
+  u = (q[i+1] + q[i-1] + h2f)/2
+  q' = u
+  d' = u - q
+end function

@@ -1,0 +1,121 @@
+--
+-- mhd_ot.egi : ideal MHD, Orszag-Tang vortex (the flagship problem of
+-- the Formura paper's Fig. 3), in conservative form with a Rusanov
+-- (local Lax-Friedrichs) flux and fixed wave-speed bound lam.
+--
+--   dU/dt + div F(U) = 0,  U = (rho, m, B, en)
+--   F_d(U): mass m_d; momentum m_d m_i/rho - B_d B_i + pT delta_di;
+--           induction (m_d B_i - m_i B_d)/rho; energy (en+pT)v_d - B_d (v.B)
+--
+-- Fluxes are emitted as intermediate fields (19 local bindings), so each
+-- generated expression stays a small rational function with a single
+-- rho denominator -- and the update stage only takes their central
+-- differences plus the Rusanov dissipation.  Sum-conservation of all
+-- conserved variables is then exact by telescoping, monitored through
+-- the generated global reductions.
+--
+-- Run: egison -l fmrgen.egi mhd_ot.egi > mhd_ot.fmr
+--
+
+declare symbol dt, lam, gam
+
+def rho := function (x, y, z)
+def mx := function (x, y, z)
+def my := function (x, y, z)
+def mz := function (x, y, z)
+def bx := function (x, y, z)
+def by := function (x, y, z)
+def bz := function (x, y, z)
+def en := function (x, y, z)
+
+-- intermediate flux fields (defined as local bindings in the step)
+def pt := function (x, y, z)
+def fmx1 := function (x, y, z)
+def fmx2 := function (x, y, z)
+def fmx3 := function (x, y, z)
+def fmy1 := function (x, y, z)
+def fmy2 := function (x, y, z)
+def fmy3 := function (x, y, z)
+def fmz1 := function (x, y, z)
+def fmz2 := function (x, y, z)
+def fmz3 := function (x, y, z)
+def fen1 := function (x, y, z)
+def fen2 := function (x, y, z)
+def fen3 := function (x, y, z)
+def fbx2 := function (x, y, z)
+def fbx3 := function (x, y, z)
+def fby1 := function (x, y, z)
+def fby3 := function (x, y, z)
+def fbz1 := function (x, y, z)
+def fbz2 := function (x, y, z)
+
+def mm := mx^2 + my^2 + mz^2
+def bb := bx^2 + by^2 + bz^2
+def mB := mx * bx + my * by + mz * bz
+
+-- total pressure pT = (gam-1)(en - m^2/2rho - B^2/2) + B^2/2
+def ptDef := (gam - 1) * (en - mm / (2 * rho) - bb / 2) + bb / 2
+
+-- central difference of a flux field, Rusanov dissipation on the state
+def d1 (d: Integer) (f: MathValue) : MathValue :=
+  (shift d 1 f - shift d (-1) f) / (2 * hsteps_d)
+def visc (u: MathValue) : MathValue :=
+  sum (map (\d -> (shift d 1 u - 2*u + shift d (-1) u) / (2 * hsteps_d)) [1, 2, 3])
+def upd (u: MathValue) (dfs: [(Integer, MathValue)]) : MathValue :=
+  u - dt * sum (map (\(d, f) -> d1 d f) dfs) + dt * lam * visc u
+
+def prog : [String] :=
+  [ "dimension :: 3"
+  , "axes :: x,y,z"
+  , ""
+  , "# Orszag-Tang: gam = 5/3, rho0 = 25/36pi, p0 = 5/12pi, b0 = 1/sqrt(4pi)"
+  , "double :: gam = 1.6666666666666667"
+  , "double :: lam = 3.0"
+  , "double :: dt = 0.0004"
+  , ""
+  , "extern function :: sin"
+  , ""
+  , "begin function (rho,mx,my,mz,bx,by,bz,en) = init()"
+  , "  double [] :: rho, mx, my, mz, bx, by, bz, en"
+  , "  rho[i,j,k] = 0.22104853212940622"
+  , "  mx[i,j,k] = 0.0 - 0.22104853212940622*sin(6.283185307179586*j*dy)"
+  , "  my[i,j,k] = 0.22104853212940622*sin(6.283185307179586*i*dx)"
+  , "  mz[i,j,k] = 0.0"
+  , "  bx[i,j,k] = 0.0 - 0.28209479177387814*sin(6.283185307179586*j*dy)"
+  , "  by[i,j,k] = 0.28209479177387814*sin(12.566370614359172*i*dx)"
+  , "  bz[i,j,k] = 0.0"
+  , "  en[i,j,k] = 0.19894367886486917 + 0.11052426606470311*(sin(6.283185307179586*j*dy)*sin(6.283185307179586*j*dy) + sin(6.283185307179586*i*dx)*sin(6.283185307179586*i*dx)) + 0.039788735772973836*(sin(6.283185307179586*j*dy)*sin(6.283185307179586*j*dy) + sin(12.566370614359172*i*dx)*sin(12.566370614359172*i*dx))"
+  , "end function"
+  , ""
+  , "begin function (rho',mx',my',mz',bx',by',bz',en') = step(rho,mx,my,mz,bx,by,bz,en)"
+  , fmrEq "pt" ptDef
+  , fmrEq "fmx1" (mx * mx / rho - bx * bx + pt)
+  , fmrEq "fmx2" (my * mx / rho - by * bx)
+  , fmrEq "fmx3" (mz * mx / rho - bz * bx)
+  , fmrEq "fmy1" (mx * my / rho - bx * by)
+  , fmrEq "fmy2" (my * my / rho - by * by + pt)
+  , fmrEq "fmy3" (mz * my / rho - bz * by)
+  , fmrEq "fmz1" (mx * mz / rho - bx * bz)
+  , fmrEq "fmz2" (my * mz / rho - by * bz)
+  , fmrEq "fmz3" (mz * mz / rho - bz * bz + pt)
+  , fmrEq "fen1" ((en + pt) * mx / rho - bx * mB / rho)
+  , fmrEq "fen2" ((en + pt) * my / rho - by * mB / rho)
+  , fmrEq "fen3" ((en + pt) * mz / rho - bz * mB / rho)
+  , fmrEq "fbx2" ((my * bx - mx * by) / rho)
+  , fmrEq "fbx3" ((mz * bx - mx * bz) / rho)
+  , fmrEq "fby1" ((mx * by - my * bx) / rho)
+  , fmrEq "fby3" ((mz * by - my * bz) / rho)
+  , fmrEq "fbz1" ((mx * bz - mz * bx) / rho)
+  , fmrEq "fbz2" ((my * bz - mz * by) / rho)
+  , fmrEq "rho'" (upd rho [(1, mx), (2, my), (3, mz)])
+  , fmrEq "mx'" (upd mx [(1, fmx1), (2, fmx2), (3, fmx3)])
+  , fmrEq "my'" (upd my [(1, fmy1), (2, fmy2), (3, fmy3)])
+  , fmrEq "mz'" (upd mz [(1, fmz1), (2, fmz2), (3, fmz3)])
+  , fmrEq "bx'" (upd bx [(2, fbx2), (3, fbx3)])
+  , fmrEq "by'" (upd by [(1, fby1), (3, fby3)])
+  , fmrEq "bz'" (upd bz [(1, fbz1), (2, fbz2)])
+  , fmrEq "en'" (upd en [(1, fen1), (2, fen2), (3, fen3)])
+  , "end function"
+  ]
+
+def main (args: [String]) : IO () := print (S.intercalate "\n" prog)
