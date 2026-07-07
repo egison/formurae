@@ -26,6 +26,10 @@ axes x, y, z
 field E : vector
 field B : vector
 
+init:
+  E = [| 0, gauss1(i*dx), 0 |]
+  B = [| 0, 0, gauss1(i*dx) |]
+
 step:
   E' = E + dt * curl B
   B' = B - dt * curl E'    -- E' は更新済み配列への参照(symplectic・袖幅1)

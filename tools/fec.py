@@ -21,7 +21,8 @@
 #   field NAME : vector             3 components (NAMEx,NAMEy,NAMEz)
 #   field NAME : 1-form | 2-form    3 components placed by form degree (DEC)
 #   init:
-#     COMP = RAW                    raw Formura initializer
+#     COMP = RAW                    raw Formura initializer (component)
+#     NAME = [| e1, e2, e3 |]       vector/form initializer (component-wise raw)
 #     NAME := EXPR                  CAS initializer (printed via fmrInit)
 #   step:
 #     let N_i = EXPR                named tensor expression (inlined)
@@ -75,6 +76,23 @@ class Model(object):
         return None
 
 
+def split_top(s, sep=','):
+    """split on sep at paren/bracket depth 0"""
+    parts, depth, cur = [], 0, []
+    for ch in s:
+        if ch in '([':
+            depth += 1
+        elif ch in ')]':
+            depth -= 1
+        if ch == sep and depth == 0:
+            parts.append(''.join(cur).strip())
+            cur = []
+        else:
+            cur.append(ch)
+    parts.append(''.join(cur).strip())
+    return parts
+
+
 def parse(path):
     m = Model()
     m.name = os.path.splitext(os.path.basename(path))[0]
@@ -121,7 +139,18 @@ def parse(path):
                 m.inits.append(('cas', mm.group(1), mm.group(2).strip()))
                 continue
             mm = re.match(r"([A-Za-z]\w*)\s*=\s*(.+)$", s) or die('bad init: %s' % s, ln)
-            m.inits.append(('raw', mm.group(1), mm.group(2).strip()))
+            nm, rhs = mm.group(1), mm.group(2).strip()
+            vm = re.match(r"\[\|(.*)\|\]$", rhs)
+            if vm:
+                kf = m.kind(nm)
+                if not (kf == 'vector' or (kf or '').endswith('-form')):
+                    die('[| ... |] initializer needs a vector/form field: %s' % nm, ln)
+                elems = split_top(vm.group(1))
+                if len(elems) != 3:
+                    die('[| ... |] initializer needs 3 components: %s' % s, ln)
+                m.inits.append(('vecraw', nm, elems))
+                continue
+            m.inits.append(('raw', nm, rhs))
         elif section == 'step':
             mm = re.match(r"let\s+([A-Za-z][A-Za-z0-9]*)(_i)?\s*=\s*(.+)$", s)
             if mm:
@@ -266,13 +295,18 @@ def emit(m):
     kindnum = {'scalar': 0, 'vector': 1, '1-form': 1, '2-form': 1}
     w('def feFlds : [(String, Integer)] := [%s]'
       % ', '.join('("%s", %d)' % (n, kindnum[k]) for n, k in m.fields))
-    w('def feInits :=')
-    for i, it in enumerate(m.inits):
-        pre = '  [ ' if i == 0 else '  , '
+    initlines = []
+    for it in m.inits:
         if it[0] == 'raw':
-            w(pre + '"  %s[i,j,k] = %s"' % (it[1], it[2].replace('"', '\\"')))
+            initlines.append('"  %s[i,j,k] = %s"' % (it[1], it[2].replace('"', '\\"')))
+        elif it[0] == 'vecraw':
+            for suf, el in zip(['x', 'y', 'z'], it[2]):
+                initlines.append('"  %s%s[i,j,k] = %s"' % (it[1], suf, el.replace('"', '\\"')))
         else:
-            w(pre + 'fmrInit "%s" (%s)' % (it[1], rewrite(m, it[2], lets)))
+            initlines.append('fmrInit "%s" (%s)' % (it[1], rewrite(m, it[2], lets)))
+    w('def feInits :=')
+    for i, ln2 in enumerate(initlines):
+        w(('  [ ' if i == 0 else '  , ') + ln2)
     w('  ]')
     w('def feSteps := %s' % ' ++ '.join(step_items))
     w('')

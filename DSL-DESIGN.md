@@ -126,6 +126,7 @@ step:
    (ヘッダに GENERATED 印、ギャラリーは .fe → .egi → .fmr の3段表示)。
    文法は fec.py 冒頭のコメント参照(dimension/axes/field/param/extern/raw/
    init:/step:/let/local/assert-dd-zero、`:=` = CAS init、`=` = raw init)。
+   **init もベクトルで書ける**: `E = [| 0, gauss1(i*dx), 0 |]`(成分展開は fec)。
    **ベクトル方程式は添字なしで書ける**: `E' = E + dt * curl B` /
    `B' = B - dt * curl E'`(X' は更新済み配列への参照 = symplectic かつ袖幅1;
    fec が成分化して withSymbols [i] 形に変換)。dimension/axes は宣言可能

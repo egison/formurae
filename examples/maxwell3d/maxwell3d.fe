@@ -16,12 +16,8 @@ field E : vector
 field B : vector
 
 init:
-  Ex = 0
-  Ey = gauss1(i*dx)
-  Ez = 0
-  Bx = 0
-  By = 0
-  Bz = gauss1(i*dx)
+  E = [| 0, gauss1(i*dx), 0 |]
+  B = [| 0, 0, gauss1(i*dx) |]
 
 step:
   E' = E + dt * curl B
