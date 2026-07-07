@@ -1,0 +1,5 @@
+length_per_node: [0.064,0.064,0.064]
+grid_per_node: [64,64,64]
+grid_per_block: [8,8,8]
+temporal_blocking_interval: 4
+mpi_shape: [1,1,1]

@@ -12,3 +12,7 @@ examples/maxwell3d_yee/maxwell3d_yee.c
 examples/maxwell3d_yee/maxwell3d_yee.h
 figures/build/
 figures/out/
+examples/pearson3d/pearson3d.c
+examples/pearson3d/pearson3d.h
+examples/pearson3d/pearson_V.pgm
+*.pgm

@@ -1,0 +1,24 @@
+dimension :: 3
+axes :: x,y,z
+
+# parameters of Muranushi et al., FHPC 2016 (mycorrhiza)
+double :: Fu = 1.0/86400.0
+double :: Fv = 6.0/86400.0
+double :: Fe = 1.0/900.0
+double :: Du = 2.3e-10
+double :: Dv = 6.1e-11
+double :: dt = 200.0
+
+extern function :: fabs
+isCenter = fun(i,j,k,w) (fabs(total_grid_x/2-i) < w) && (fabs(total_grid_y/2-j) < w) && (fabs(total_grid_z/2-k) < w)
+
+begin function (U,V) = init()
+  double [] :: U, V
+  U[i,j,k] = if isCenter(i,j,k,4) then 0.5 else 1.0
+  V[i,j,k] = if isCenter(i,j,k,4) then 0.25 else 0.0
+end function
+
+begin function (U',V') = step(U,V)
+  U' = (-1)*Fe*U[i,j,k]*V[i,j,k]**2*dt + (-1)*Fu*U[i,j,k]*dt + Fu*dt + U[i,j,k] + (-2)*Du*U[i,j,k]*dt/(dz**2) + (-2)*Du*U[i,j,k]*dt/(dy**2) + (-2)*Du*U[i,j,k]*dt/(dx**2) + Du*U[i,j,k-1]*dt/(dz**2) + Du*U[i,j,k+1]*dt/(dz**2) + Du*U[i,j-1,k]*dt/(dy**2) + Du*U[i,j+1,k]*dt/(dy**2) + Du*U[i-1,j,k]*dt/(dx**2) + Du*U[i+1,j,k]*dt/(dx**2)
+  V' = Fe*U[i,j,k]*V[i,j,k]**2*dt + (-1)*Fv*V[i,j,k]*dt + V[i,j,k] + (-2)*Dv*V[i,j,k]*dt/(dz**2) + (-2)*Dv*V[i,j,k]*dt/(dy**2) + (-2)*Dv*V[i,j,k]*dt/(dx**2) + Dv*V[i,j,k-1]*dt/(dz**2) + Dv*V[i,j,k+1]*dt/(dz**2) + Dv*V[i,j-1,k]*dt/(dy**2) + Dv*V[i,j+1,k]*dt/(dy**2) + Dv*V[i-1,j,k]*dt/(dx**2) + Dv*V[i+1,j,k]*dt/(dx**2)
+end function

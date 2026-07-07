@@ -18,9 +18,9 @@ CFLAGS  ?= -O2 -std=c11
 
 EGISON_RUN = cd $(EGISON_DIR) && cabal run -v0 egison --
 
-.PHONY: all setup diffusion3d maxwell3d maxwell3d-yee clean
+.PHONY: all setup diffusion3d maxwell3d maxwell3d-yee pearson3d clean
 
-all: diffusion3d maxwell3d maxwell3d-yee
+all: diffusion3d maxwell3d maxwell3d-yee pearson3d
 
 setup:
 	./setup.sh
@@ -46,8 +46,17 @@ maxwell3d-yee:
 	cd examples/maxwell3d_yee && $(CC) $(CFLAGS) -I$(MPISTUB) -o check maxwell_yee_check.c maxwell3d_yee.c -lm
 	cd examples/maxwell3d_yee && ./check
 
+pearson3d:
+	$(EGISON_RUN) -l $(FMRGEN) $(abspath examples/pearson3d/pearson3d.egi) \
+	  > $(abspath examples/pearson3d/pearson3d.fmr)
+	cd examples/pearson3d && $(FORMURA) pearson3d.fmr
+	cd examples/pearson3d && $(CC) $(CFLAGS) -I$(MPISTUB) -o check pearson_check.c pearson3d.c -lm
+	cd examples/pearson3d && ./check 20000
+
 clean:
 	rm -f examples/*/check examples/*/*.o examples/*/run
 	rm -f examples/diffusion3d/diffusion3d.c examples/diffusion3d/diffusion3d.h
 	rm -f examples/maxwell3d/maxwell3d.c examples/maxwell3d/maxwell3d.h
 	rm -f examples/maxwell3d_yee/maxwell3d_yee.c examples/maxwell3d_yee/maxwell3d_yee.h
+	rm -f examples/pearson3d/pearson3d.c examples/pearson3d/pearson3d.h
+	rm -f examples/pearson3d/pearson_V.pgm
