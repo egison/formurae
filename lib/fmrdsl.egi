@@ -1,0 +1,75 @@
+--
+-- fmrdsl.egi : a declarative model layer on top of fmrgen (DSL v0)
+--
+-- Fields are declared as indexed function families in the Egison style
+--   def E_i := generateTensor (\[i] -> function (x, y, z)) [3]
+-- and the whole Formura program (preamble, parameter declarations,
+-- init(), step() with the output tuple) is assembled by emitModel from
+-- a declarative description, so a model file contains no Formura
+-- boilerplate strings beyond its init expressions.
+--
+-- Field kinds: 0 = scalar, 1 = vector / 1-form / 2-form (3 components
+-- named x,y,z), 2 = symmetric matrix (6 components xx,yy,zz,xy,xz,yz).
+--
+
+def compSuffixes (k: Integer) : [String] :=
+  if k = 0 then [""]
+    else if k = 1 then ["x", "y", "z"]
+    else ["xx", "yy", "zz", "xy", "xz", "yz"]
+
+def compNames (f: (String, Integer)) : [String] :=
+  let (nm, k) := f
+   in map (\s -> S.append nm s) (compSuffixes k)
+
+def allComps (flds: [(String, Integer)]) : [String] :=
+  foldl (\acc f -> acc ++ compNames f) [] flds
+
+-- step lines for a vector field: nm{x,y,z}' = the three components
+def vecEqs (nm: String) (c1: MathValue) (c2: MathValue) (c3: MathValue) : [String] :=
+  [ fmrEq (S.concat [nm, "x'"]) c1
+  , fmrEq (S.concat [nm, "y'"]) c2
+  , fmrEq (S.concat [nm, "z'"]) c3
+  ]
+
+def scalarEq (nm: String) (c: MathValue) : [String] := [fmrEq (S.append nm "'") c]
+
+-- step lines for a symmetric matrix field (upper-triangle components)
+def symEqs (nm: String) (cxx: MathValue) (cyy: MathValue) (czz: MathValue)
+           (cxy: MathValue) (cxz: MathValue) (cyz: MathValue) : [String] :=
+  [ fmrEq (S.concat [nm, "xx'"]) cxx
+  , fmrEq (S.concat [nm, "yy'"]) cyy
+  , fmrEq (S.concat [nm, "zz'"]) czz
+  , fmrEq (S.concat [nm, "xy'"]) cxy
+  , fmrEq (S.concat [nm, "xz'"]) cxz
+  , fmrEq (S.concat [nm, "yz'"]) cyz
+  ]
+
+-- a single output needs no tuple parentheses in Formura
+def tupleOf (xs: [String]) : String :=
+  if length xs = 1
+    then head xs
+    else S.concat ["(", S.intercalate "," xs, ")"]
+
+def emitModel (params: [(String, String)]) (helpers: [String])
+              (flds: [(String, Integer)]) (initLines: [String])
+              (stepLines: [String]) : String :=
+  let comps := allComps flds
+   in let compsP := map (\c -> S.append c "'") comps
+   in S.intercalate "\n"
+        ([ "dimension :: 3"
+         , "axes :: x,y,z"
+         , ""
+         ]
+         ++ map (\(n, v) -> S.concat ["double :: ", n, " = ", v]) params
+         ++ [""] ++ helpers ++ [""]
+         ++ [ S.concat ["begin function ", tupleOf comps, " = init()"]
+            , S.concat ["  double [] :: ", S.intercalate ", " comps]
+            ]
+         ++ initLines
+         ++ [ "end function"
+            , ""
+            , S.concat ["begin function ", tupleOf compsP,
+                        " = step", "(", S.intercalate "," comps, ")"]
+            ]
+         ++ stepLines
+         ++ [ "end function" ])

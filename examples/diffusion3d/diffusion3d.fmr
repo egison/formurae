@@ -8,7 +8,7 @@ extern function :: exp
 gauss = fun(x,y,z) exp(-((x-(total_grid_x*dx/2))/(5*dx))**2 - ((y-(total_grid_y*dy/2))/(5*dy))**2 - ((z-(total_grid_z*dz/2))/(5*dz))**2)
 
 begin function u = init()
-  double [] :: u = 0
+  double [] :: u
   u[i,j,k] = gauss(i*dx,j*dy,k*dz)
 end function
 

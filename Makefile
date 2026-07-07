@@ -12,28 +12,32 @@ EGISON_DIR ?= $(abspath ../egison)
 FORMURA    ?= $(abspath bin/formura)
 MPISTUB    := $(abspath mpistub)
 FMRGEN     := $(abspath lib/fmrgen.egi)
+FMRDSL     := $(abspath lib/fmrdsl.egi)
+FEC        := $(abspath tools/fec.py)
 
 CC      ?= cc
 CFLAGS  ?= -O2 -std=c11
 
 EGISON_RUN = cd $(EGISON_DIR) && cabal run -v0 egison --
 
-.PHONY: all setup diffusion3d maxwell3d maxwell3d-yee pearson3d burgers3d cahnhilliard3d tdgl3d mhd-ot elastic3d metric-torus kleingordon shallowwater lbm-d3q19 acoustic3d euler-sod ks3d highorder4 dirichlet-diffusion clean
+.PHONY: all setup diffusion3d maxwell3d maxwell3d-yee pearson3d burgers3d cahnhilliard3d tdgl3d mhd-ot elastic3d metric-torus kleingordon shallowwater lbm-d3q19 acoustic3d euler-sod ks3d highorder4 dirichlet-diffusion maxwell-dec clean
 
-all: diffusion3d maxwell3d maxwell3d-yee pearson3d burgers3d cahnhilliard3d tdgl3d mhd-ot elastic3d metric-torus kleingordon shallowwater lbm-d3q19 acoustic3d euler-sod ks3d highorder4 dirichlet-diffusion
+all: diffusion3d maxwell3d maxwell3d-yee pearson3d burgers3d cahnhilliard3d tdgl3d mhd-ot elastic3d metric-torus kleingordon shallowwater lbm-d3q19 acoustic3d euler-sod ks3d highorder4 dirichlet-diffusion maxwell-dec
 
 setup:
 	./setup.sh
 
 diffusion3d:
-	$(EGISON_RUN) -l $(FMRGEN) $(abspath examples/diffusion3d/diffusion3d.egi) \
+	python3 $(FEC) $(abspath examples/diffusion3d/diffusion3d.fe) > $(abspath examples/diffusion3d/diffusion3d.egi)
+	$(EGISON_RUN) -l $(FMRGEN) -l $(FMRDSL) $(abspath examples/diffusion3d/diffusion3d.egi) \
 	  > $(abspath examples/diffusion3d/diffusion3d.fmr)
 	cd examples/diffusion3d && $(FORMURA) diffusion3d.fmr
 	cd examples/diffusion3d && $(CC) $(CFLAGS) -I$(MPISTUB) -o check main_check.c diffusion3d.c -lm
 	cd examples/diffusion3d && ./check
 
 maxwell3d:
-	$(EGISON_RUN) -l $(FMRGEN) $(abspath examples/maxwell3d/maxwell3d.egi) \
+	python3 $(FEC) $(abspath examples/maxwell3d/maxwell3d.fe) > $(abspath examples/maxwell3d/maxwell3d.egi)
+	$(EGISON_RUN) -l $(FMRGEN) -l $(FMRDSL) $(abspath examples/maxwell3d/maxwell3d.egi) \
 	  > $(abspath examples/maxwell3d/maxwell3d.fmr)
 	cd examples/maxwell3d && $(FORMURA) maxwell3d.fmr
 	cd examples/maxwell3d && $(CC) $(CFLAGS) -I$(MPISTUB) -o check maxwell_check.c maxwell3d.c -lm
@@ -82,21 +86,22 @@ mhd-ot:
 	cd examples/mhd_ot && ./check
 
 elastic3d:
-	$(EGISON_RUN) -l $(FMRGEN) $(abspath examples/elastic3d/elastic3d.egi) \
+	$(EGISON_RUN) -l $(FMRGEN) -l $(FMRDSL) $(abspath examples/elastic3d/elastic3d.egi) \
 	  > $(abspath examples/elastic3d/elastic3d.fmr)
 	cd examples/elastic3d && $(FORMURA) elastic3d.fmr
 	cd examples/elastic3d && $(CC) $(CFLAGS) -I$(MPISTUB) -o check elastic_check.c elastic3d.c -lm
 	cd examples/elastic3d && ./check
 
 metric-torus:
-	$(EGISON_RUN) -l $(FMRGEN) $(abspath examples/metric_torus/metric_torus.egi) \
+	$(EGISON_RUN) -l $(FMRGEN) -l $(FMRDSL) $(abspath examples/metric_torus/metric_torus.egi) \
 	  > $(abspath examples/metric_torus/metric_torus.fmr)
 	cd examples/metric_torus && $(FORMURA) metric_torus.fmr
 	cd examples/metric_torus && $(CC) $(CFLAGS) -I. -I$(MPISTUB) -o check metric_check.c metric_torus.c -lm
 	cd examples/metric_torus && ./check
 
 kleingordon:
-	$(EGISON_RUN) -l $(FMRGEN) $(abspath examples/kleingordon/kleingordon.egi) \
+	python3 $(FEC) $(abspath examples/kleingordon/kleingordon.fe) > $(abspath examples/kleingordon/kleingordon.egi)
+	$(EGISON_RUN) -l $(FMRGEN) -l $(FMRDSL) $(abspath examples/kleingordon/kleingordon.egi) \
 	  > $(abspath examples/kleingordon/kleingordon.fmr)
 	cd examples/kleingordon && $(FORMURA) kleingordon.fmr
 	cd examples/kleingordon && $(CC) $(CFLAGS) -I. -I$(MPISTUB) -o check kg_check.c kleingordon.c -lm
@@ -131,7 +136,8 @@ euler-sod:
 	cd examples/euler_sod && ./check
 
 ks3d:
-	$(EGISON_RUN) -l $(FMRGEN) $(abspath examples/ks3d/ks3d.egi) \
+	python3 $(FEC) $(abspath examples/ks3d/ks3d.fe) > $(abspath examples/ks3d/ks3d.egi)
+	$(EGISON_RUN) -l $(FMRGEN) -l $(FMRDSL) $(abspath examples/ks3d/ks3d.egi) \
 	  > $(abspath examples/ks3d/ks3d.fmr)
 	cd examples/ks3d && $(FORMURA) ks3d.fmr
 	cd examples/ks3d && $(CC) $(CFLAGS) -I. -I$(MPISTUB) -o check ks_check.c ks3d.c -lm
@@ -150,6 +156,14 @@ dirichlet-diffusion:
 	cd examples/dirichlet_diffusion && $(FORMURA) dirichlet_diffusion.fmr
 	cd examples/dirichlet_diffusion && $(CC) $(CFLAGS) -I. -I$(MPISTUB) -o check dirichlet_check.c dirichlet_diffusion.c -lm
 	cd examples/dirichlet_diffusion && ./check
+
+maxwell-dec:
+	python3 $(FEC) $(abspath examples/maxwell_dec/maxwell_dec.fe) > $(abspath examples/maxwell_dec/maxwell_dec.egi)
+	$(EGISON_RUN) -l $(FMRGEN) -l $(FMRDSL) $(abspath examples/maxwell_dec/maxwell_dec.egi) \
+	  > $(abspath examples/maxwell_dec/maxwell_dec.fmr)
+	cd examples/maxwell_dec && $(FORMURA) maxwell_dec.fmr
+	cd examples/maxwell_dec && $(CC) $(CFLAGS) -I. -I$(MPISTUB) -o check dec_check.c maxwell_dec.c -lm
+	cd examples/maxwell_dec && ./check
 
 clean:
 	rm -f examples/*/check examples/*/*.o examples/*/run
@@ -172,3 +186,4 @@ clean:
 	rm -f examples/ks3d/ks3d.c examples/ks3d/ks3d.h
 	rm -f examples/highorder4/highorder4.c examples/highorder4/highorder4.h
 	rm -f examples/dirichlet_diffusion/dirichlet_diffusion.c examples/dirichlet_diffusion/dirichlet_diffusion.h
+	rm -f examples/maxwell_dec/maxwell_dec.c examples/maxwell_dec/maxwell_dec.h

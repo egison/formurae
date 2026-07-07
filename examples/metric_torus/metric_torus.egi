@@ -2,6 +2,7 @@
 -- metric_torus.egi : heat equation on a curved surface (a torus),
 -- with the Laplace-Beltrami coefficients DERIVED SYMBOLICALLY by
 -- Egison's CAS from the metric and baked into the generated init.
+-- DSL v0 style: the Formura scaffolding comes from emitModel.
 --
 --   metric (R=2, r=1):  ds^2 = d(th)^2 + (2 + cos th)^2 d(ph)^2
 -- given as its Lame scale factors hs = [h_th, h_ph, 1]: that list is
@@ -17,7 +18,7 @@
 -- init, so the step needs no transcendental functions; conservation of
 -- the metric-weighted heat sum(sg*u) is exact by the flux form.
 --
--- Run: egison -l fmrgen.egi metric_torus.egi > metric_torus.fmr
+-- Run: egison -l fmrgen.egi -l fmrdsl.egi metric_torus.egi > metric_torus.fmr
 --
 
 declare symbol dt
@@ -44,31 +45,24 @@ def s0  := [0, 0, 0]
 def sH1 := [1 / 2, 0, 0]
 def sH2 := [0, 1 / 2, 0]
 
-def prog : [String] :=
-  [ "dimension :: 3"
-  , "axes :: x,y,z"
-  , ""
-  , "double :: dt = 0.0005"
-  , ""
-  , "extern function :: exp"
-  , "extern function :: cos"
-  , ""
-  , "begin function (u,ca,cb,sg) = init()"
-  , "  double [] :: u, ca, cb, sg"
-  , fmrInit "u" u0
+def params := [("dt", "0.0005")]
+
+def helpers := ["extern function :: exp", "extern function :: cos"]
+
+def flds : [(String, Integer)] := [("u", 0), ("ca", 0), ("cb", 0), ("sg", 0)]
+
+def inits :=
+  [ fmrInit "u" u0
   , fmrInit "ca" (substitute [(x, x + hx / 2)] acoef)
   , fmrInit "cb" bcoef
   , fmrInit "sg" sqg
-  , "end function"
-  , ""
-  , "begin function (u',ca',cb',sg') = step(u,ca,cb,sg)"
-  , fmrEq "f1" (ca * dYee 1 sH1 (u, s0))
-  , fmrEq "f2" (cb * dYee 2 sH2 (u, s0))
-  , fmrEq "u'" (u + dt * (dYee 1 s0 (f1, sH1) + dYee 2 s0 (f2, sH2)) / sg)
-  , "  ca' = ca[i,j,k]"
-  , "  cb' = cb[i,j,k]"
-  , "  sg' = sg[i,j,k]"
-  , "end function"
   ]
 
-def main (args: [String]) : IO () := print (S.intercalate "\n" prog)
+def steps :=
+  [ fmrEq "f1" (ca * dYee 1 sH1 (u, s0))
+  , fmrEq "f2" (cb * dYee 2 sH2 (u, s0))
+  , fmrEq "u'" (u + dt * (dYee 1 s0 (f1, sH1) + dYee 2 s0 (f2, sH2)) / sg)
+  ]
+  ++ scalarEq "ca" ca ++ scalarEq "cb" cb ++ scalarEq "sg" sg
+
+def main (args: [String]) : IO () := print (emitModel params helpers flds inits steps)

@@ -1,41 +1,26 @@
 --
 -- elastic3d.egi : linear elastic waves, velocity-stress formulation on
--- the Virieux staggered grid (the elastic sibling of Yee's FDTD),
--- written in TENSOR INDEX NOTATION:
+-- the Virieux staggered grid, in the DSL v0 style: the velocity vector
+-- and the symmetric stress matrix are single indexed function families,
 --   rho dv_i/dt = d_j sigma_ij
---   d sigma_ij/dt = la delta_ij (div v) + mu (d_i v_j + d_j v_i)
--- The velocity vector and the (symmetric) stress matrix are single
--- tensor values; both updates are generateTensor over abstract indices,
--- and Egison unfolds them into the 9 scalar equations.  The staggered
--- placements are DERIVED from the index structure: v_i on edge i, and
--- sigma_ij at sV i (+) sV j (half-offset addition mod 1), which puts
--- diagonal stresses on nodes and shear stresses on faces -- exactly the
--- Virieux layout.  With la=2, mu=1, rho0=1 the P and S wave speeds are
--- 2 and 1, measured directly by the check driver.
+--   d sigma_ij/dt = la delta_ij (div v') + mu (d_i v'_j + d_j v'_i)
+-- are two generateTensor equations, and the staggered placements are
+-- DERIVED from the index structure (sigma_ij at sV i (+) sV j, the
+-- half-offset addition mod 1 = the Virieux layout).  With la=2, mu=1,
+-- rho0=1 the P and S speeds are 2 and 1, measured by the check driver.
 --
--- Run: egison -l fmrgen.egi elastic3d.egi > elastic3d.fmr
+-- Run: egison -l fmrgen.egi -l fmrdsl.egi elastic3d.egi > elastic3d.fmr
 --
 
 declare symbol dt, la, mu, rho0
 
-def vx := function (x, y, z)
-def vy := function (x, y, z)
-def vz := function (x, y, z)
-def sxx := function (x, y, z)
-def syy := function (x, y, z)
-def szz := function (x, y, z)
-def sxy := function (x, y, z)
-def sxz := function (x, y, z)
-def syz := function (x, y, z)
-def vx' := function (x, y, z)
-def vy' := function (x, y, z)
-def vz' := function (x, y, z)
+def v_i := generateTensor (\[i] -> function (x, y, z)) [3]
+def v'_i := generateTensor (\[i] -> function (x, y, z)) [3]
+def s_i_j := generateTensor (\[i, j] -> function (x, y, z)) [3, 3]
 
--- the fields as tensors
-def vel : Vector MathValue := [| vx, vy, vz |]
-def velN : Vector MathValue := [| vx', vy', vz' |]
-def sigma : Matrix MathValue :=
-  [| [| sxx, sxy, sxz |], [| sxy, syy, syz |], [| sxz, syz, szz |] |]
+-- symmetric view: sig_2_1 is literally the s_1_2 symbol
+def sig_i_j : Matrix MathValue :=
+  generateTensor (\[a, b] -> if a <= b then s_a_b else s_b_a) [3, 3]
 
 -- staggers derived from the index structure
 def sV (a: Integer) : [MathValue] := unit3 a (1 / 2)
@@ -44,40 +29,36 @@ def addS (p: [MathValue]) (q: [MathValue]) : [MathValue] :=
 def sSig (a: Integer) (b: Integer) : [MathValue] := addS (sV a) (sV b)
 def s0 : [MathValue] := [0, 0, 0]
 
-def sigF (a: Integer) (b: Integer) : (MathValue, [MathValue]) := (sigma_a_b, sSig a b)
-def velNF (b: Integer) : (MathValue, [MathValue]) := (velN_b, sV b)
+def sigF (a: Integer) (b: Integer) : (MathValue, [MathValue]) := (sig_a_b, sSig a b)
+def velNF (b: Integer) : (MathValue, [MathValue]) := (v'_b, sV b)
 
 def divv' := sum (map (\b -> dYee b s0 (velNF b)) [1, 2, 3])
 
 -- rho dv_i/dt = d_j sigma_ij
 def vNext : Vector MathValue :=
   generateTensor
-    (\[a] -> vel_a + (dt / rho0) * sum (map (\b -> dYee b (sV a) (sigF a b)) [1, 2, 3]))
+    (\[a] -> v_a + (dt / rho0) * sum (map (\b -> dYee b (sV a) (sigF a b)) [1, 2, 3]))
     [3]
 
 -- d sigma_ij/dt = la delta_ij (div v') + mu (d_i v'_j + d_j v'_i)
 def sigNext : Matrix MathValue :=
   generateTensor
-    (\[a, b] -> sigma_a_b + dt * ((if a = b then la * divv' else 0)
+    (\[a, b] -> sig_a_b + dt * ((if a = b then la * divv' else 0)
                   + mu * (dYee a (sSig a b) (velNF b) + dYee b (sSig a b) (velNF a))))
     [3, 3]
 
-def prog : [String] :=
-  [ "dimension :: 3"
-  , "axes :: x,y,z"
-  , ""
-  , "# la=2, mu=1, rho0=1  ->  vp = 2, vs = 1"
-  , "double :: la = 2.0"
-  , "double :: mu = 1.0"
-  , "double :: rho0 = 1.0"
-  , "double :: dt = 0.0005"
-  , ""
+def params := [("la", "2.0"), ("mu", "1.0"), ("rho0", "1.0"), ("dt", "0.0005")]
+
+def helpers :=
+  [ "# la=2, mu=1, rho0=1  ->  vp = 2, vs = 1"
   , "extern function :: exp"
   , "gp = fun(x) exp(-((x - 0.3)/0.02)*((x - 0.3)/0.02))"
-  , ""
-  , "begin function (vx,vy,vz,sxx,syy,szz,sxy,sxz,syz) = init()"
-  , "  double [] :: vx, vy, vz, sxx, syy, szz, sxy, sxz, syz"
-  , "  vx[i,j,k] = gp((i + 0.5)*dx)"
+  ]
+
+def flds : [(String, Integer)] := [("v", 1), ("s", 2)]
+
+def inits :=
+  [ "  vx[i,j,k] = gp((i + 0.5)*dx)"
   , "  vy[i,j,k] = gp(i*dx)"
   , "  vz[i,j,k] = 0.0"
   , "  sxx[i,j,k] = 0.0 - 2.0*gp(i*dx)"
@@ -86,19 +67,9 @@ def prog : [String] :=
   , "  sxy[i,j,k] = 0.0 - 1.0*gp((i + 0.5)*dx)"
   , "  sxz[i,j,k] = 0.0"
   , "  syz[i,j,k] = 0.0"
-  , "end function"
-  , ""
-  , "begin function (vx',vy',vz',sxx',syy',szz',sxy',sxz',syz') = step(vx,vy,vz,sxx,syy,szz,sxy,sxz,syz)"
-  , fmrEq "vx'" vNext_1
-  , fmrEq "vy'" vNext_2
-  , fmrEq "vz'" vNext_3
-  , fmrEq "sxx'" sigNext_1_1
-  , fmrEq "syy'" sigNext_2_2
-  , fmrEq "szz'" sigNext_3_3
-  , fmrEq "sxy'" sigNext_1_2
-  , fmrEq "sxz'" sigNext_1_3
-  , fmrEq "syz'" sigNext_2_3
-  , "end function"
   ]
 
-def main (args: [String]) : IO () := print (S.intercalate "\n" prog)
+def steps := vecEqs "v" vNext_1 vNext_2 vNext_3
+          ++ symEqs "s" sigNext_1_1 sigNext_2_2 sigNext_3_3 sigNext_1_2 sigNext_1_3 sigNext_2_3
+
+def main (args: [String]) : IO () := print (emitModel params helpers flds inits steps)

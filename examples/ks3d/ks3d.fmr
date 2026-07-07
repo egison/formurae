@@ -1,14 +1,13 @@
 dimension :: 3
 axes :: x,y,z
 
-# L = 22 (chaotic attractor); explicit dt below the u_xxxx limit 2/kmax^4
 double :: dt = 0.00015
 
 extern function :: cos
 # wavenumbers: 2*pi/22 and its double
 
 begin function u = init()
-  double [] :: u = 0
+  double [] :: u
   u[i,j,k] = cos(0.28559933214452665*i*dx) + 0.1*cos(0.5711986642890533*i*dx)
 end function
 

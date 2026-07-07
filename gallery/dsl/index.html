@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>formura-egison DSL ギャラリー — .fe で書かれた7例</title>
+<style>
+  :root { --ink:#1c1e21; --sub:#5a6270; --line:#e3e6ea; --accent:#7a3fa5; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:"Hiragino Sans","Noto Sans JP",Helvetica,Arial,sans-serif;
+         color:var(--ink); background:#f6f7f9; }
+  header { background:#fff; border-bottom:1px solid var(--line); padding:28px 32px; }
+  header h1 { margin:0 0 6px; font-size:22px; }
+  header p { margin:4px 0; color:var(--sub); font-size:13.5px; max-width:980px; }
+  header code { background:#f2edf7; padding:1px 5px; border-radius:4px; font-size:12.5px; }
+  header a { color:var(--accent); }
+  main { max-width:1280px; margin:0 auto; padding:20px 24px 60px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(430px,1fr)); gap:18px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:10px;
+          padding:16px 18px 14px; display:flex; flex-direction:column; }
+  .card h3 { margin:0 0 4px; font-size:15px; }
+  .math { font-family:"STIX Two Math","Cambria Math",Georgia,serif; text-align:center;
+          font-size:15.5px; margin:6px 0 10px; color:#101d2c; line-height:1.7; }
+  .math .note { font-size:11.5px; color:var(--sub); font-family:"Hiragino Sans",sans-serif; }
+  .dslbox { border:1px solid #d9c8ea; background:#faf6fe; border-radius:7px;
+            padding:7px 12px; margin:0 0 8px; font-size:12px; color:#4c2a66; }
+  .dslbox code { font:11.5px "SF Mono",Menlo,Consolas,monospace; background:#f0e6f9;
+                 padding:0 4px; border-radius:3px; }
+  .codebox { border:1px solid #223351; border-radius:7px; margin:0 0 8px;
+             background:#0e1726; overflow:hidden; }
+  .codebox summary { font-size:11px; padding:4px 11px; color:#8fb4dd;
+             background:#182742; letter-spacing:.02em; cursor:pointer; list-style-position:inside; }
+  .codebox pre { margin:0; padding:8px 12px 10px; overflow-x:auto; color:#dbe7f6;
+                 font:11.5px/1.55 "SF Mono",Menlo,Consolas,monospace; }
+  details.codebox pre { max-height:360px; overflow-y:auto; }
+  .codebox pre .c { color:#5f7c9e; }
+  .imgs { display:flex; gap:8px; align-items:center; justify-content:center;
+          background:#fafbfc; border:1px solid var(--line); border-radius:6px; padding:8px; }
+  .imgs img { max-width:100%; height:auto; border-radius:3px; }
+  .imgs.two img { max-width:49%; }
+  .cap { font-size:11.5px; color:var(--sub); margin:6px 2px 8px; text-align:center; }
+  .facts { margin:auto 0 0; padding:8px 0 0; border-top:1px dashed var(--line);
+           font-size:12.5px; color:var(--ink); }
+  .facts b { color:var(--accent); }
+  .tag { display:inline-block; font-size:11px; color:#fff; background:var(--accent);
+         border-radius:10px; padding:1px 9px; margin-left:8px; vertical-align:2px; }
+  footer { text-align:center; color:var(--sub); font-size:12px; padding:24px; }
+  footer a { color:var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>formura-egison <b>DSL</b> ギャラリー <span class="tag">.fe / DSL で書かれた 7 例</span></h1>
+  <p>DSL で書かれたシミュレーションだけを集めたページです。<b>v1 = 拡張子 <code>.fe</code> の表層 DSL</b>:
+     <code>field E : vector</code>・<code>field B : 2-form</code> と宣言し、物理を添字方程式
+     (<code>E'_i = E_i + dt * (curl B)_i</code>)や微分形式(<code>B' = B - dt * d E'</code>)で書くと、
+     コンパイラ <code>tools/fec.py</code> が埋め込み形(.egi)へ変換し、Egison の CAS が展開して .fmr を生成、
+     Formura が MPI+temporal blocking つき C に落とします。カードのコードは
+     <b>.fe(既定で展開表示)→ 中間 .egi → 生成 .fmr</b> の3段。意味保存は .fmr 比較で検証済み
+     (5例中4例バイト一致・KS は整形差のみ)、全例 <code>make &lt;name&gt;</code> green。
+     弾性波・計量トーラスは v0(埋め込み形)のまま — staggered/計量の表層構文は次段です。
+     設計は <a href="../../DSL-DESIGN.md">DSL-DESIGN.md</a>、全19例は <a href="../index.html">総合ギャラリー</a>へ。</p>
+</header>
+<main>
+
+<div class="grid">
+
+<div class="card">
+  <h3>Maxwell — E・B はベクトル場</h3>
+  <div class="math">∂<sub>t</sub>E = ∇×B,&nbsp;&nbsp;∂<sub>t</sub>B = −∇×E&nbsp;&nbsp;(c=1)</div>
+  <div class="dslbox"><b>.fe(24行)</b>: <code>field E : vector</code> +
+    <code>E'_i = E_i + dt * (curl B)_i</code> — 成分 Ex,Ey,… はどこにも書かない。
+    <code>let En_i</code> で更新式のインライン共有(symplectic Euler)。</div>
+  <details class="codebox" data-fe="maxwell3d/maxwell3d.fe" open><summary>DSL ソース全文(maxwell3d.fe・25 行)</summary>
+<pre><span class="c">-- Maxwell's equations in vacuum (c = 1), collocated grid</span>
+<span class="c">--   dE/dt =  curl B</span>
+<span class="c">--   dB/dt = -curl E'     (symplectic Euler: the B update uses E')</span>
+<span class="c">-- E and B are vector fields; components are never written.</span>
+
+param dt = 0.1*dx
+
+extern exp
+raw gauss1 = fun(x) exp(-((x-(total_grid_x*dx/2))/(8*dx))**2)
+
+field E : vector
+field B : vector
+
+init:
+  Ex = 0
+  Ey = gauss1(i*dx)
+  Ez = 0
+  Bx = 0
+  By = 0
+  Bz = gauss1(i*dx)
+
+step:
+  let En_i = E_i + dt * (curl B)_i     -- inlined update (collocated scheme)
+  E'_i = En_i
+  B'_i = B_i - dt * (curl En)_i</pre></details>
+  <details class="codebox" data-egi="maxwell3d/maxwell3d.egi"><summary>生成された Egison(中間形・fec.py 出力)(maxwell3d.egi・30 行)</summary>
+<pre><span class="c">--</span>
+<span class="c">-- GENERATED by tools/fec.py from maxwell3d.fe -- edit the .fe, not this file</span>
+<span class="c">--</span>
+
+declare symbol dt
+
+def E_i := generateTensor (\[i] -&gt; function (x, y, z)) [3]
+def B_i := generateTensor (\[i] -&gt; function (x, y, z)) [3]
+
+def En_i := withSymbols [i] E_i + dt * (curl B_#)_i
+def feqE_i := withSymbols [i] En_i
+def feqB_i := withSymbols [i] B_i - dt * (curl En_#)_i
+
+def feParams := [("dt", "0.1*dx")]
+def feHelpers :=
+  [ "extern function :: exp"
+  , "gauss1 = fun(x) exp(-((x-(total_grid_x*dx/2))/(8*dx))**2)"
+  ]
+def feFlds : [(String, Integer)] := [("E", 1), ("B", 1)]
+def feInits :=
+  [ "  Ex[i,j,k] = 0"
+  , "  Ey[i,j,k] = gauss1(i*dx)"
+  , "  Ez[i,j,k] = 0"
+  , "  Bx[i,j,k] = 0"
+  , "  By[i,j,k] = 0"
+  , "  Bz[i,j,k] = gauss1(i*dx)"
+  ]
+def feSteps := vecEqs "E" feqE_1 feqE_2 feqE_3 ++ vecEqs "B" feqB_1 feqB_2 feqB_3
+
+def main (args: [String]) : IO () := print (emitModel feParams feHelpers feFlds feInits feSteps)</pre></details>
+  <details class="codebox" data-fmr="maxwell3d/maxwell3d.fmr"><summary>生成された Formura 全文(maxwell3d.fmr・26 行)</summary>
+<pre>dimension :: 3
+axes :: x,y,z
+
+double :: dt = 0.1*dx
+
+extern function :: exp
+gauss1 = fun(x) exp(-((x-(total_grid_x*dx/2))/(8*dx))**2)
+
+begin function (Ex,Ey,Ez,Bx,By,Bz) = init()
+  double [] :: Ex, Ey, Ez, Bx, By, Bz
+  Ex[i,j,k] = 0
+  Ey[i,j,k] = gauss1(i*dx)
+  Ez[i,j,k] = 0
+  Bx[i,j,k] = 0
+  By[i,j,k] = 0
+  Bz[i,j,k] = gauss1(i*dx)
+end function
+
+begin function (Ex',Ey',Ez',Bx',By',Bz') = step(Ex,Ey,Ez,Bx,By,Bz)
+  Ex' = Ex[i,j,k] + (-1)*Bz[i,j-1,k]*dt/(2*dy) + Bz[i,j+1,k]*dt/(2*dy) + By[i,j,k-1]*dt/(2*dz) + (-1)*By[i,j,k+1]*dt/(2*dz)
+  Ey' = Ey[i,j,k] + Bz[i-1,j,k]*dt/(2*dx) + (-1)*Bz[i+1,j,k]*dt/(2*dx) + (-1)*Bx[i,j,k-1]*dt/(2*dz) + Bx[i,j,k+1]*dt/(2*dz)
+  Ez' = Ez[i,j,k] + (-1)*By[i-1,j,k]*dt/(2*dx) + By[i+1,j,k]*dt/(2*dx) + Bx[i,j-1,k]*dt/(2*dy) + (-1)*Bx[i,j+1,k]*dt/(2*dy)
+  Bx' = Ez[i,j-1,k]*dt/(2*dy) + (-1)*Ez[i,j+1,k]*dt/(2*dy) + (-1)*Ey[i,j,k-1]*dt/(2*dz) + Ey[i,j,k+1]*dt/(2*dz) + (-1)*Bz[i-1,j,k-1]*dt**2/(4*dx*dz) + Bz[i-1,j,k+1]*dt**2/(4*dx*dz) + Bz[i+1,j,k-1]*dt**2/(4*dx*dz) + (-1)*Bz[i+1,j,k+1]*dt**2/(4*dx*dz) + (-1)*By[i-1,j-1,k]*dt**2/(4*dx*dy) + By[i-1,j+1,k]*dt**2/(4*dx*dy) + By[i+1,j-1,k]*dt**2/(4*dx*dy) + (-1)*By[i+1,j+1,k]*dt**2/(4*dx*dy) + (-1)*Bx[i,j,k]*dt**2/(2*dz**2) + (-1)*Bx[i,j,k]*dt**2/(2*dy**2) + Bx[i,j,k] + Bx[i,j,k-2]*dt**2/(4*dz**2) + Bx[i,j,k+2]*dt**2/(4*dz**2) + Bx[i,j-2,k]*dt**2/(4*dy**2) + Bx[i,j+2,k]*dt**2/(4*dy**2)
+  By' = (-1)*Ez[i-1,j,k]*dt/(2*dx) + Ez[i+1,j,k]*dt/(2*dx) + Ex[i,j,k-1]*dt/(2*dz) + (-1)*Ex[i,j,k+1]*dt/(2*dz) + (-1)*Bz[i,j-1,k-1]*dt**2/(4*dy*dz) + Bz[i,j-1,k+1]*dt**2/(4*dy*dz) + Bz[i,j+1,k-1]*dt**2/(4*dy*dz) + (-1)*Bz[i,j+1,k+1]*dt**2/(4*dy*dz) + (-1)*By[i,j,k]*dt**2/(2*dz**2) + (-1)*By[i,j,k]*dt**2/(2*dx**2) + By[i,j,k] + By[i,j,k-2]*dt**2/(4*dz**2) + By[i,j,k+2]*dt**2/(4*dz**2) + By[i-2,j,k]*dt**2/(4*dx**2) + By[i+2,j,k]*dt**2/(4*dx**2) + (-1)*Bx[i-1,j-1,k]*dt**2/(4*dx*dy) + Bx[i-1,j+1,k]*dt**2/(4*dx*dy) + Bx[i+1,j-1,k]*dt**2/(4*dx*dy) + (-1)*Bx[i+1,j+1,k]*dt**2/(4*dx*dy)
+  Bz' = Ey[i-1,j,k]*dt/(2*dx) + (-1)*Ey[i+1,j,k]*dt/(2*dx) + (-1)*Ex[i,j-1,k]*dt/(2*dy) + Ex[i,j+1,k]*dt/(2*dy) + (-1)*Bz[i,j,k]*dt**2/(2*dy**2) + (-1)*Bz[i,j,k]*dt**2/(2*dx**2) + Bz[i,j,k] + Bz[i,j-2,k]*dt**2/(4*dy**2) + Bz[i,j+2,k]*dt**2/(4*dy**2) + Bz[i-2,j,k]*dt**2/(4*dx**2) + Bz[i+2,j,k]*dt**2/(4*dx**2) + (-1)*By[i,j-1,k-1]*dt**2/(4*dy*dz) + By[i,j-1,k+1]*dt**2/(4*dy*dz) + By[i,j+1,k-1]*dt**2/(4*dy*dz) + (-1)*By[i,j+1,k+1]*dt**2/(4*dy*dz) + (-1)*Bx[i-1,j,k-1]*dt**2/(4*dx*dz) + Bx[i-1,j,k+1]*dt**2/(4*dx*dz) + Bx[i+1,j,k-1]*dt**2/(4*dx*dz) + (-1)*Bx[i+1,j,k+1]*dt**2/(4*dx*dz)
+end function</pre></details>
+  <div class="imgs"><img src="../img/maxwell.svg" alt="pulse"></div>
+  <div class="cap">Ey パルスの伝播(+9.9 セル/理想 +10)</div>
+  <div class="facts">旧・成分手書き版と生成 .fmr が<b>バイト一致</b>。エネルギードリフト <b>4.8e-5</b>。</div>
+</div>
+
+<div class="card">
+  <h3>Maxwell — 微分形式(DEC)</h3>
+  <div class="math">∂<sub>t</sub>B = −dE,&nbsp;&nbsp;∂<sub>t</sub>E = ⋆d⋆B&nbsp;&nbsp;
+    (E ∈ Ω¹: 辺、B ∈ Ω²: 面)</div>
+  <div class="dslbox"><b>.fe(27行)</b>: <code>field B : 2-form</code> と宣言すれば
+    <code>E' = E + dt * codF2 B</code>・<code>B' = B - dt * d E'</code> の2行が物理の全て。
+    配置情報ゼロ(次数が Yee 格子を決める)。<code>assert-dd-zero E'</code> で
+    <b>d∘d=0 の CAS 検査</b>を通らない限り生成しない。</div>
+  <details class="codebox" data-fe="maxwell_dec/maxwell_dec.fe" open><summary>DSL ソース全文(maxwell_dec.fe・27 行)</summary>
+<pre><span class="c">-- Maxwell's equations as discrete differential forms (DEC)</span>
+<span class="c">--   Faraday :  dB/dt = -dE'         (d : 1-form -&gt; 2-form)</span>
+<span class="c">--   Ampere  :  dE/dt = codF2 B      (*d* : 2-form -&gt; 1-form)</span>
+<span class="c">-- No grid placements appear anywhere: the form degrees determine the</span>
+<span class="c">-- Yee lattice, and generation is gated on the CAS reducing d(dE') to 0.</span>
+
+param dt = 0.5*dx
+
+extern exp
+raw gauss1 = fun(x) exp(-((x-(total_grid_x*dx/2))/(8*dx))**2)
+
+field E : 1-form
+field B : 2-form
+
+init:
+  Ex = 0
+  Ey = gauss1(i*dx)
+  Ez = 0
+  Bx = 0
+  By = 0
+  Bz = gauss1((i+0.5)*dx)
+
+step:
+  E' = E + dt * codF2 B
+  B' = B - dt * d E'
+
+assert-dd-zero E'</pre></details>
+  <details class="codebox" data-egi="maxwell_dec/maxwell_dec.egi"><summary>生成された Egison(中間形・fec.py 出力)(maxwell_dec.egi・35 行)</summary>
+<pre><span class="c">--</span>
+<span class="c">-- GENERATED by tools/fec.py from maxwell_dec.fe -- edit the .fe, not this file</span>
+<span class="c">--</span>
+
+declare symbol dt
+
+def E_i := generateTensor (\[i] -&gt; function (x, y, z)) [3]
+def Es : [MathValue] := [E_1, E_2, E_3]
+def B_i := generateTensor (\[i] -&gt; function (x, y, z)) [3]
+def Bs : [MathValue] := [B_1, B_2, B_3]
+def E'_i := generateTensor (\[i] -&gt; function (x, y, z)) [3]
+def EsN : [MathValue] := [E'_1, E'_2, E'_3]
+
+def feDD := dF2 (dF1 EsN)
+
+def feParams := [("dt", "0.5*dx")]
+def feHelpers :=
+  [ "extern function :: exp"
+  , "gauss1 = fun(x) exp(-((x-(total_grid_x*dx/2))/(8*dx))**2)"
+  ]
+def feFlds : [(String, Integer)] := [("E", 1), ("B", 1)]
+def feInits :=
+  [ "  Ex[i,j,k] = 0"
+  , "  Ey[i,j,k] = gauss1(i*dx)"
+  , "  Ez[i,j,k] = 0"
+  , "  Bx[i,j,k] = 0"
+  , "  By[i,j,k] = 0"
+  , "  Bz[i,j,k] = gauss1((i+0.5)*dx)"
+  ]
+def feSteps := vecEqs "E" (E_1 + dt * nth 1 (codF2 Bs)) (E_2 + dt * nth 2 (codF2 Bs)) (E_3 + dt * nth 3 (codF2 Bs)) ++ vecEqs "B" (B_1 - dt * nth 1 (dF1 EsN)) (B_2 - dt * nth 2 (dF1 EsN)) (B_3 - dt * nth 3 (dF1 EsN))
+
+def main (args: [String]) : IO () :=
+  if feDD = 0
+    then print (emitModel feParams feHelpers feFlds feInits feSteps)
+    else print "# ERROR: d . d /= 0 on this grid -- refusing to generate"</pre></details>
+  <details class="codebox" data-fmr="maxwell_dec/maxwell_dec.fmr"><summary>生成された Formura 全文(maxwell_dec.fmr・26 行)</summary>
+<pre>dimension :: 3
+axes :: x,y,z
+
+double :: dt = 0.5*dx
+
+extern function :: exp
+gauss1 = fun(x) exp(-((x-(total_grid_x*dx/2))/(8*dx))**2)
+
+begin function (Ex,Ey,Ez,Bx,By,Bz) = init()
+  double [] :: Ex, Ey, Ez, Bx, By, Bz
+  Ex[i,j,k] = 0
+  Ey[i,j,k] = gauss1(i*dx)
+  Ez[i,j,k] = 0
+  Bx[i,j,k] = 0
+  By[i,j,k] = 0
+  Bz[i,j,k] = gauss1((i+0.5)*dx)
+end function
+
+begin function (Ex',Ey',Ez',Bx',By',Bz') = step(Ex,Ey,Ez,Bx,By,Bz)
+  Ex' = Ex[i,j,k] + Bz[i,j,k]*dt/(dy) + (-1)*Bz[i,j-1,k]*dt/(dy) + (-1)*By[i,j,k]*dt/(dz) + By[i,j,k-1]*dt/(dz)
+  Ey' = Ey[i,j,k] + (-1)*Bz[i,j,k]*dt/(dx) + Bz[i-1,j,k]*dt/(dx) + Bx[i,j,k]*dt/(dz) + (-1)*Bx[i,j,k-1]*dt/(dz)
+  Ez' = Ez[i,j,k] + By[i,j,k]*dt/(dx) + (-1)*By[i-1,j,k]*dt/(dx) + (-1)*Bx[i,j,k]*dt/(dy) + Bx[i,j-1,k]*dt/(dy)
+  Bx' = Ez'[i,j,k]*dt/(dy) + (-1)*Ez'[i,j+1,k]*dt/(dy) + (-1)*Ey'[i,j,k]*dt/(dz) + Ey'[i,j,k+1]*dt/(dz) + Bx[i,j,k]
+  By' = (-1)*Ez'[i,j,k]*dt/(dx) + Ez'[i+1,j,k]*dt/(dx) + Ex'[i,j,k]*dt/(dz) + (-1)*Ex'[i,j,k+1]*dt/(dz) + By[i,j,k]
+  Bz' = Ey'[i,j,k]*dt/(dx) + (-1)*Ey'[i+1,j,k]*dt/(dx) + (-1)*Ex'[i,j,k]*dt/(dy) + Ex'[i,j+1,k]*dt/(dy) + Bz[i,j,k]
+end function</pre></details>
+  <div class="imgs"><img src="../img/yee.svg" alt="pulse"></div>
+  <div class="cap">dt=0.5dx で +49.9 セル伝播(Yee 版と同一バイナリ)</div>
+  <div class="facts">手書きスタガーの Yee 版と<b>バイト一致</b>・div B <b>≡ 0(機械精度)</b>
+    — d(B′) = dB − dt·d(dE′) の構造的帰結。</div>
+</div>
+
+<div class="card">
+  <h3>弾性波 — 添字記法とテンソル場</h3>
+  <div class="math">ρ∂<sub>t</sub>v<sub>i</sub> = ∂<sub>j</sub>σ<sub>ij</sub>,&nbsp;&nbsp;
+    ∂<sub>t</sub>σ<sub>ij</sub> = λδ<sub>ij</sub>∇·v′ + μ(∂<sub>i</sub>v′<sub>j</sub>+∂<sub>j</sub>v′<sub>i</sub>)</div>
+  <div class="dslbox">v は添字族、σ は <b>対称ビュー</b>(<code>sig_2_1</code> は文字どおり <code>s_1_2</code> と同一シンボル)。
+    更新は <code>generateTensor</code> 2本 → 9式に展開。
+    <b>スタガード配置も添字から導出</b>(σ<sub>ij</sub> は sV i ⊕ sV j = Virieux 配置)。</div>
+  <details class="codebox" data-egi="elastic3d/elastic3d.egi"><summary>Egison ソース全文(elastic3d.egi・75 行)</summary>
+<pre><span class="c">--</span>
+<span class="c">-- elastic3d.egi : linear elastic waves, velocity-stress formulation on</span>
+<span class="c">-- the Virieux staggered grid, in the DSL v0 style: the velocity vector</span>
+<span class="c">-- and the symmetric stress matrix are single indexed function families,</span>
+<span class="c">--   rho dv_i/dt = d_j sigma_ij</span>
+<span class="c">--   d sigma_ij/dt = la delta_ij (div v') + mu (d_i v'_j + d_j v'_i)</span>
+<span class="c">-- are two generateTensor equations, and the staggered placements are</span>
+<span class="c">-- DERIVED from the index structure (sigma_ij at sV i (+) sV j, the</span>
+<span class="c">-- half-offset addition mod 1 = the Virieux layout).  With la=2, mu=1,</span>
+<span class="c">-- rho0=1 the P and S speeds are 2 and 1, measured by the check driver.</span>
+<span class="c">--</span>
+<span class="c">-- Run: egison -l fmrgen.egi -l fmrdsl.egi elastic3d.egi &gt; elastic3d.fmr</span>
+<span class="c">--</span>
+
+declare symbol dt, la, mu, rho0
+
+def v_i := generateTensor (\[i] -&gt; function (x, y, z)) [3]
+def v'_i := generateTensor (\[i] -&gt; function (x, y, z)) [3]
+def s_i_j := generateTensor (\[i, j] -&gt; function (x, y, z)) [3, 3]
+
+<span class="c">-- symmetric view: sig_2_1 is literally the s_1_2 symbol</span>
+def sig_i_j : Matrix MathValue :=
+  generateTensor (\[a, b] -&gt; if a &lt;= b then s_a_b else s_b_a) [3, 3]
+
+<span class="c">-- staggers derived from the index structure</span>
+def sV (a: Integer) : [MathValue] := unit3 a (1 / 2)
+def addS (p: [MathValue]) (q: [MathValue]) : [MathValue] :=
+  map (\(u1, u2) -&gt; if u1 + u2 = 1 then 0 else u1 + u2) (zip p q)
+def sSig (a: Integer) (b: Integer) : [MathValue] := addS (sV a) (sV b)
+def s0 : [MathValue] := [0, 0, 0]
+
+def sigF (a: Integer) (b: Integer) : (MathValue, [MathValue]) := (sig_a_b, sSig a b)
+def velNF (b: Integer) : (MathValue, [MathValue]) := (v'_b, sV b)
+
+def divv' := sum (map (\b -&gt; dYee b s0 (velNF b)) [1, 2, 3])
+
+<span class="c">-- rho dv_i/dt = d_j sigma_ij</span>
+def vNext : Vector MathValue :=
+  generateTensor
+    (\[a] -&gt; v_a + (dt / rho0) * sum (map (\b -&gt; dYee b (sV a) (sigF a b)) [1, 2, 3]))
+    [3]
+
+<span class="c">-- d sigma_ij/dt = la delta_ij (div v') + mu (d_i v'_j + d_j v'_i)</span>
+def sigNext : Matrix MathValue :=
+  generateTensor
+    (\[a, b] -&gt; sig_a_b + dt * ((if a = b then la * divv' else 0)
+                  + mu * (dYee a (sSig a b) (velNF b) + dYee b (sSig a b) (velNF a))))
+    [3, 3]
+
+def params := [("la", "2.0"), ("mu", "1.0"), ("rho0", "1.0"), ("dt", "0.0005")]
+
+def helpers :=
+  [ "# la=2, mu=1, rho0=1  -&gt;  vp = 2, vs = 1"
+  , "extern function :: exp"
+  , "gp = fun(x) exp(-((x - 0.3)/0.02)*((x - 0.3)/0.02))"
+  ]
+
+def flds : [(String, Integer)] := [("v", 1), ("s", 2)]
+
+def inits :=
+  [ "  vx[i,j,k] = gp((i + 0.5)*dx)"
+  , "  vy[i,j,k] = gp(i*dx)"
+  , "  vz[i,j,k] = 0.0"
+  , "  sxx[i,j,k] = 0.0 - 2.0*gp(i*dx)"
+  , "  syy[i,j,k] = 0.0"
+  , "  szz[i,j,k] = 0.0"
+  , "  sxy[i,j,k] = 0.0 - 1.0*gp((i + 0.5)*dx)"
+  , "  sxz[i,j,k] = 0.0"
+  , "  syz[i,j,k] = 0.0"
+  ]
+
+def steps := vecEqs "v" vNext_1 vNext_2 vNext_3
+          ++ symEqs "s" sigNext_1_1 sigNext_2_2 sigNext_3_3 sigNext_1_2 sigNext_1_3 sigNext_2_3
+
+def main (args: [String]) : IO () := print (emitModel params helpers flds inits steps)</pre></details>
+  <details class="codebox" data-fmr="elastic3d/elastic3d.fmr"><summary>生成された Formura 全文(elastic3d.fmr・36 行)</summary>
+<pre>dimension :: 3
+axes :: x,y,z
+
+double :: la = 2.0
+double :: mu = 1.0
+double :: rho0 = 1.0
+double :: dt = 0.0005
+
+<span class="c"># la=2, mu=1, rho0=1  -&gt;  vp = 2, vs = 1</span>
+extern function :: exp
+gp = fun(x) exp(-((x - 0.3)/0.02)*((x - 0.3)/0.02))
+
+begin function (vx,vy,vz,sxx,syy,szz,sxy,sxz,syz) = init()
+  double [] :: vx, vy, vz, sxx, syy, szz, sxy, sxz, syz
+  vx[i,j,k] = gp((i + 0.5)*dx)
+  vy[i,j,k] = gp(i*dx)
+  vz[i,j,k] = 0.0
+  sxx[i,j,k] = 0.0 - 2.0*gp(i*dx)
+  syy[i,j,k] = 0.0
+  szz[i,j,k] = 0.0
+  sxy[i,j,k] = 0.0 - 1.0*gp((i + 0.5)*dx)
+  sxz[i,j,k] = 0.0
+  syz[i,j,k] = 0.0
+end function
+
+begin function (vx',vy',vz',sxx',syy',szz',sxy',sxz',syz') = step(vx,vy,vz,sxx,syy,szz,sxy,sxz,syz)
+  vx' = vx[i,j,k] + dt*sxz[i,j,k]/(dz*rho0) + (-1)*dt*sxz[i,j,k-1]/(dz*rho0) + dt*sxy[i,j,k]/(dy*rho0) + (-1)*dt*sxy[i,j-1,k]/(dy*rho0) + (-1)*dt*sxx[i,j,k]/(dx*rho0) + dt*sxx[i+1,j,k]/(dx*rho0)
+  vy' = vy[i,j,k] + dt*syz[i,j,k]/(dz*rho0) + (-1)*dt*syz[i,j,k-1]/(dz*rho0) + (-1)*dt*syy[i,j,k]/(dy*rho0) + dt*syy[i,j+1,k]/(dy*rho0) + dt*sxy[i,j,k]/(dx*rho0) + (-1)*dt*sxy[i-1,j,k]/(dx*rho0)
+  vz' = vz[i,j,k] + (-1)*dt*szz[i,j,k]/(dz*rho0) + dt*szz[i,j,k+1]/(dz*rho0) + dt*syz[i,j,k]/(dy*rho0) + (-1)*dt*syz[i,j-1,k]/(dy*rho0) + dt*sxz[i,j,k]/(dx*rho0) + (-1)*dt*sxz[i-1,j,k]/(dx*rho0)
+  sxx' = dt*la*vz'[i,j,k]/(dz) + (-1)*dt*la*vz'[i,j,k-1]/(dz) + dt*la*vy'[i,j,k]/(dy) + (-1)*dt*la*vy'[i,j-1,k]/(dy) + 2*dt*mu*vx'[i,j,k]/(dx) + (-2)*dt*mu*vx'[i-1,j,k]/(dx) + dt*la*vx'[i,j,k]/(dx) + (-1)*dt*la*vx'[i-1,j,k]/(dx) + sxx[i,j,k]
+  syy' = dt*la*vz'[i,j,k]/(dz) + (-1)*dt*la*vz'[i,j,k-1]/(dz) + 2*dt*mu*vy'[i,j,k]/(dy) + (-2)*dt*mu*vy'[i,j-1,k]/(dy) + dt*la*vy'[i,j,k]/(dy) + (-1)*dt*la*vy'[i,j-1,k]/(dy) + dt*la*vx'[i,j,k]/(dx) + (-1)*dt*la*vx'[i-1,j,k]/(dx) + syy[i,j,k]
+  szz' = 2*dt*mu*vz'[i,j,k]/(dz) + (-2)*dt*mu*vz'[i,j,k-1]/(dz) + dt*la*vz'[i,j,k]/(dz) + (-1)*dt*la*vz'[i,j,k-1]/(dz) + dt*la*vy'[i,j,k]/(dy) + (-1)*dt*la*vy'[i,j-1,k]/(dy) + dt*la*vx'[i,j,k]/(dx) + (-1)*dt*la*vx'[i-1,j,k]/(dx) + szz[i,j,k]
+  sxy' = (-1)*dt*mu*vx'[i,j,k]/(dy) + dt*mu*vx'[i,j+1,k]/(dy) + (-1)*dt*mu*vy'[i,j,k]/(dx) + dt*mu*vy'[i+1,j,k]/(dx) + sxy[i,j,k]
+  sxz' = (-1)*dt*mu*vx'[i,j,k]/(dz) + dt*mu*vx'[i,j,k+1]/(dz) + (-1)*dt*mu*vz'[i,j,k]/(dx) + dt*mu*vz'[i+1,j,k]/(dx) + sxz[i,j,k]
+  syz' = (-1)*dt*mu*vy'[i,j,k]/(dz) + dt*mu*vy'[i,j,k+1]/(dz) + (-1)*dt*mu*vz'[i,j,k]/(dy) + dt*mu*vz'[i,j+1,k]/(dy) + syz[i,j,k]
+end function</pre></details>
+  <div class="imgs"><img src="../img/elastic.svg" alt="P and S"></div>
+  <div class="cap">同時発射した P パルス(vx)と S パルス(vy)が速度差で分離</div>
+  <div class="facts">実測 <b>vp=1.990/2・vs=0.995/1</b>・エネルギー 3.4e-4。
+    数式部は移行前と同一(差はコメント位置のみ)。</div>
+</div>
+
+<div class="card">
+  <h3>計量つき拡散 — 幾何入力は1行</h3>
+  <div class="math">∂<sub>t</sub>u = (1/√g)&thinsp;∂<sub>i</sub>(√g&thinsp;g<sup>ij</sup>&thinsp;∂<sub>j</sub>u)<br>
+    <span class="note">トーラス R=2, r=1; hs = [1, 2+cos θ, 1](Lamé スケール因子)だけが幾何入力</span></div>
+  <div class="dslbox">√g = h₁h₂h₃、√g g^{ii} = √g/hᵢ² を <b>CAS が導出</b>し、
+    init の係数式(<code>ca[i,j,k] = cos((i*dx)+dx/(2))+2</code> 等)まで自動生成。</div>
+  <details class="codebox" data-egi="metric_torus/metric_torus.egi"><summary>Egison ソース全文(metric_torus.egi・68 行)</summary>
+<pre><span class="c">--</span>
+<span class="c">-- metric_torus.egi : heat equation on a curved surface (a torus),</span>
+<span class="c">-- with the Laplace-Beltrami coefficients DERIVED SYMBOLICALLY by</span>
+<span class="c">-- Egison's CAS from the metric and baked into the generated init.</span>
+<span class="c">-- DSL v0 style: the Formura scaffolding comes from emitModel.</span>
+<span class="c">--</span>
+<span class="c">--   metric (R=2, r=1):  ds^2 = d(th)^2 + (2 + cos th)^2 d(ph)^2</span>
+<span class="c">-- given as its Lame scale factors hs = [h_th, h_ph, 1]: that list is</span>
+<span class="c">-- the ONLY geometric input.  Everything downstream --</span>
+<span class="c">--   sqrt(g)     = h_th h_ph            = 2 + cos th</span>
+<span class="c">--   A = sqrt(g) g^{th th} = sqrt(g)/h_th^2 = 2 + cos th</span>
+<span class="c">--   B = sqrt(g) g^{ph ph} = sqrt(g)/h_ph^2 = 1/(2 + cos th)</span>
+<span class="c">-- is computed by the CAS (the printed .fmr init shows the results).</span>
+<span class="c">--</span>
+<span class="c">--   du/dt = (1/sqrt(g)) [ d_th( A d_th u ) + d_ph( B d_ph u ) ]</span>
+<span class="c">--</span>
+<span class="c">-- The coefficients are frozen into coefficient FIELDS (ca, cb, sg) at</span>
+<span class="c">-- init, so the step needs no transcendental functions; conservation of</span>
+<span class="c">-- the metric-weighted heat sum(sg*u) is exact by the flux form.</span>
+<span class="c">--</span>
+<span class="c">-- Run: egison -l fmrgen.egi -l fmrdsl.egi metric_torus.egi &gt; metric_torus.fmr</span>
+<span class="c">--</span>
+
+declare symbol dt
+
+<span class="c">-- the metric as Lame scale factors (theta = x, phi = y); this line is</span>
+<span class="c">-- the only geometric input</span>
+def hs : [MathValue] := [1, 2 + cos x, 1]
+
+<span class="c">-- derived by the CAS: sqrt(g) = h1 h2 h3, sqrt(g) g^{ii} = sqrt(g)/hi^2</span>
+def sqg := foldl (\p q -&gt; p * q) 1 hs
+def acoef := sqg / (nth 1 hs ^ 2)     -- sqrt(g) g^{theta theta}
+def bcoef := sqg / (nth 2 hs ^ 2)     -- sqrt(g) g^{phi phi}
+def u0 := exp (cos x + cos y - 2)
+
+<span class="c">-- fields</span>
+def u := function (x, y, z)
+def ca := function (x, y, z)
+def cb := function (x, y, z)
+def sg := function (x, y, z)
+def f1 := function (x, y, z)
+def f2 := function (x, y, z)
+
+def s0  := [0, 0, 0]
+def sH1 := [1 / 2, 0, 0]
+def sH2 := [0, 1 / 2, 0]
+
+def params := [("dt", "0.0005")]
+
+def helpers := ["extern function :: exp", "extern function :: cos"]
+
+def flds : [(String, Integer)] := [("u", 0), ("ca", 0), ("cb", 0), ("sg", 0)]
+
+def inits :=
+  [ fmrInit "u" u0
+  , fmrInit "ca" (substitute [(x, x + hx / 2)] acoef)
+  , fmrInit "cb" bcoef
+  , fmrInit "sg" sqg
+  ]
+
+def steps :=
+  [ fmrEq "f1" (ca * dYee 1 sH1 (u, s0))
+  , fmrEq "f2" (cb * dYee 2 sH2 (u, s0))
+  , fmrEq "u'" (u + dt * (dYee 1 s0 (f1, sH1) + dYee 2 s0 (f2, sH2)) / sg)
+  ]
+  ++ scalarEq "ca" ca ++ scalarEq "cb" cb ++ scalarEq "sg" sg
+
+def main (args: [String]) : IO () := print (emitModel params helpers flds inits steps)</pre></details>
+  <details class="codebox" data-fmr="metric_torus/metric_torus.fmr"><summary>生成された Formura 全文(metric_torus.fmr・24 行)</summary>
+<pre>dimension :: 3
+axes :: x,y,z
+
+double :: dt = 0.0005
+
+extern function :: exp
+extern function :: cos
+
+begin function (u,ca,cb,sg) = init()
+  double [] :: u, ca, cb, sg
+  u[i,j,k] = exp(cos((j*dy)) + cos((i*dx)) + (-2))
+  ca[i,j,k] = cos((i*dx) + dx/(2)) + 2
+  cb[i,j,k] = (1)/(cos((i*dx)) + 2)
+  sg[i,j,k] = cos((i*dx)) + 2
+end function
+
+begin function (u',ca',cb',sg') = step(u,ca,cb,sg)
+  f1 = (-1)*ca[i,j,k]*u[i,j,k]/(dx) + ca[i,j,k]*u[i+1,j,k]/(dx)
+  f2 = (-1)*cb[i,j,k]*u[i,j,k]/(dy) + cb[i,j,k]*u[i,j+1,k]/(dy)
+  u' = u[i,j,k] + dt*f2[i,j,k]/(dy*sg[i,j,k]) + (-1)*dt*f2[i,j-1,k]/(dy*sg[i,j,k]) + dt*f1[i,j,k]/(dx*sg[i,j,k]) + (-1)*dt*f1[i-1,j,k]/(dx*sg[i,j,k])
+  ca' = ca[i,j,k]
+  cb' = cb[i,j,k]
+  sg' = sg[i,j,k]
+end function</pre></details>
+  <div class="imgs two"><img src="../img/metric_t0.png" alt="t=0"><img src="../img/metric_t3000.png" alt="t=T"></div>
+  <div class="cap">u(θ,φ): 原点の塊(四隅=周期像)が計量を感じつつ拡散(t=0 → 3000)</div>
+  <div class="facts">独立 C 参照と <b>3.3e-16</b>・Σ√g·u 保存 <b>2.5e-15</b>・移行前と<b>バイト一致</b>。</div>
+</div>
+
+<div class="card">
+  <h3>非線形 Klein–Gordon(φ⁴ キンク)</h3>
+  <div class="math">∂<sub>tt</sub>φ = ∂<sub>xx</sub>φ + φ − φ³</div>
+  <div class="dslbox"><b>.fe(23行)</b>: スカラー2場の leapfrog(kick–drift)。
+    <code>phi' = phi + dt * w'</code> の <code>w'</code> は「更新後の w」への参照
+    (Formura の primed 配列)= シンプレクティック。</div>
+  <details class="codebox" data-fe="kleingordon/kleingordon.fe" open><summary>DSL ソース全文(kleingordon.fe・22 行)</summary>
+<pre><span class="c">-- Nonlinear Klein-Gordon (phi^4): phi_tt = phi_xx + phi - phi^3</span>
+<span class="c">-- Leapfrog (kick-drift); the drift references the updated w', which</span>
+<span class="c">-- makes the pair symplectic.  Initial data: a kink-antikink pair</span>
+<span class="c">-- boosted to v = +-0.2 (Lorentz-contracted tanh profiles).</span>
+
+param dt = 0.05
+
+extern tanh
+extern cosh
+raw
+raw # gamma/sqrt(2) = 0.7216878...; gamma*v/sqrt(2) = 0.1443375...
+
+field phi : scalar
+field w : scalar
+
+init:
+  phi = tanh(0.7216878364870323*(i*dx - 16.0)) - tanh(0.7216878364870323*(i*dx - 48.0)) - 1.0
+  w = 0.0 - 0.14433756729740645*(1.0/cosh(0.7216878364870323*(i*dx - 16.0)))**2 - 0.14433756729740645*(1.0/cosh(0.7216878364870323*(i*dx - 48.0)))**2
+
+step:
+  w' = w + dt * (dC2 1 phi + phi - phi * phi * phi)
+  phi' = phi + dt * w'</pre></details>
+  <details class="codebox" data-egi="kleingordon/kleingordon.egi"><summary>生成された Egison(中間形・fec.py 出力)(kleingordon.egi・26 行)</summary>
+<pre><span class="c">--</span>
+<span class="c">-- GENERATED by tools/fec.py from kleingordon.fe -- edit the .fe, not this file</span>
+<span class="c">--</span>
+
+declare symbol dt
+
+def phi := function (x, y, z)
+def w := function (x, y, z)
+def w' := function (x, y, z)
+
+
+def feParams := [("dt", "0.05")]
+def feHelpers :=
+  [ "extern function :: tanh"
+  , "extern function :: cosh"
+  , ""
+  , "# gamma/sqrt(2) = 0.7216878...; gamma*v/sqrt(2) = 0.1443375..."
+  ]
+def feFlds : [(String, Integer)] := [("phi", 0), ("w", 0)]
+def feInits :=
+  [ "  phi[i,j,k] = tanh(0.7216878364870323*(i*dx - 16.0)) - tanh(0.7216878364870323*(i*dx - 48.0)) - 1.0"
+  , "  w[i,j,k] = 0.0 - 0.14433756729740645*(1.0/cosh(0.7216878364870323*(i*dx - 16.0)))**2 - 0.14433756729740645*(1.0/cosh(0.7216878364870323*(i*dx - 48.0)))**2"
+  ]
+def feSteps := scalarEq "w" (w + dt * (dC2 1 phi + phi - phi * phi * phi)) ++ scalarEq "phi" (phi + dt * w')
+
+def main (args: [String]) : IO () := print (emitModel feParams feHelpers feFlds feInits feSteps)</pre></details>
+  <details class="codebox" data-fmr="kleingordon/kleingordon.fmr"><summary>生成された Formura 全文(kleingordon.fmr・20 行)</summary>
+<pre>dimension :: 3
+axes :: x,y,z
+
+double :: dt = 0.05
+
+extern function :: tanh
+extern function :: cosh
+
+<span class="c"># gamma/sqrt(2) = 0.7216878...; gamma*v/sqrt(2) = 0.1443375...</span>
+
+begin function (phi,w) = init()
+  double [] :: phi, w
+  phi[i,j,k] = tanh(0.7216878364870323*(i*dx - 16.0)) - tanh(0.7216878364870323*(i*dx - 48.0)) - 1.0
+  w[i,j,k] = 0.0 - 0.14433756729740645*(1.0/cosh(0.7216878364870323*(i*dx - 16.0)))**2 - 0.14433756729740645*(1.0/cosh(0.7216878364870323*(i*dx - 48.0)))**2
+end function
+
+begin function (phi',w') = step(phi,w)
+  w' = (-1)*dt*phi[i,j,k]**3 + dt*phi[i,j,k] + w[i,j,k] + (-2)*dt*phi[i,j,k]/(dx**2) + dt*phi[i-1,j,k]/(dx**2) + dt*phi[i+1,j,k]/(dx**2)
+  phi' = dt*w'[i,j,k] + phi[i,j,k]
+end function</pre></details>
+  <div class="imgs"><img src="../img/kg.svg" alt="kinks"></div>
+  <div class="cap">v=±0.2 にブーストした kink–antikink 対が接近(t=0→20→40)</div>
+  <div class="facts">実測速度 <b>±0.1993</b>・E=2γE_kink 偏差 <b>0.11%</b>・ドリフト 3.3e-7。</div>
+</div>
+
+<div class="card">
+  <h3>拡散方程式 — 最小の DSL モデル</h3>
+  <div class="math">∂<sub>t</sub>u = κ∇²u</div>
+  <div class="dslbox"><b>.fe(16行)</b>: 場1行・物理1行
+    (<code>u' = u + dt * kappa * lap u</code>)+パラメタ2行+初期条件1行。</div>
+  <details class="codebox" data-fe="diffusion3d/diffusion3d.fe" open><summary>DSL ソース全文(diffusion3d.fe・15 行)</summary>
+<pre><span class="c">-- The 3D diffusion equation: du/dt = kappa * laplacian(u)</span>
+
+param kappa = 1.0
+param dt = 0.1*dx*dx
+
+extern exp
+raw gauss = fun(x,y,z) exp(-((x-(total_grid_x*dx/2))/(5*dx))**2 - ((y-(total_grid_y*dy/2))/(5*dy))**2 - ((z-(total_grid_z*dz/2))/(5*dz))**2)
+
+field u : scalar
+
+init:
+  u = gauss(i*dx,j*dy,k*dz)
+
+step:
+  u' = u + dt * kappa * lap u</pre></details>
+  <details class="codebox" data-egi="diffusion3d/diffusion3d.egi"><summary>生成された Egison(中間形・fec.py 出力)(diffusion3d.egi・21 行)</summary>
+<pre><span class="c">--</span>
+<span class="c">-- GENERATED by tools/fec.py from diffusion3d.fe -- edit the .fe, not this file</span>
+<span class="c">--</span>
+
+declare symbol kappa, dt
+
+def u := function (x, y, z)
+
+
+def feParams := [("kappa", "1.0"), ("dt", "0.1*dx*dx")]
+def feHelpers :=
+  [ "extern function :: exp"
+  , "gauss = fun(x,y,z) exp(-((x-(total_grid_x*dx/2))/(5*dx))**2 - ((y-(total_grid_y*dy/2))/(5*dy))**2 - ((z-(total_grid_z*dz/2))/(5*dz))**2)"
+  ]
+def feFlds : [(String, Integer)] := [("u", 0)]
+def feInits :=
+  [ "  u[i,j,k] = gauss(i*dx,j*dy,k*dz)"
+  ]
+def feSteps := scalarEq "u" (u + dt * kappa * lap u)
+
+def main (args: [String]) : IO () := print (emitModel feParams feHelpers feFlds feInits feSteps)</pre></details>
+  <details class="codebox" data-fmr="diffusion3d/diffusion3d.fmr"><summary>生成された Formura 全文(diffusion3d.fmr・17 行)</summary>
+<pre>dimension :: 3
+axes :: x,y,z
+
+double :: kappa = 1.0
+double :: dt = 0.1*dx*dx
+
+extern function :: exp
+gauss = fun(x,y,z) exp(-((x-(total_grid_x*dx/2))/(5*dx))**2 - ((y-(total_grid_y*dy/2))/(5*dy))**2 - ((z-(total_grid_z*dz/2))/(5*dz))**2)
+
+begin function u = init()
+  double [] :: u
+  u[i,j,k] = gauss(i*dx,j*dy,k*dz)
+end function
+
+begin function u' = step(u)
+  u' = u[i,j,k] + (-2)*dt*kappa*u[i,j,k]/(dz**2) + dt*kappa*u[i,j,k-1]/(dz**2) + dt*kappa*u[i,j,k+1]/(dz**2) + (-2)*dt*kappa*u[i,j,k]/(dy**2) + dt*kappa*u[i,j-1,k]/(dy**2) + dt*kappa*u[i,j+1,k]/(dy**2) + (-2)*dt*kappa*u[i,j,k]/(dx**2) + dt*kappa*u[i-1,j,k]/(dx**2) + dt*kappa*u[i+1,j,k]/(dx**2)
+end function</pre></details>
+  <div class="imgs two"><img src="../img/diffusion_t0.png" alt="t=0"><img src="../img/diffusion_t100.png" alt="t=T"></div>
+  <div class="cap">z 中央断面: ガウス塊が等方に拡散(100 step)</div>
+  <div class="facts">質量保存 <b>6.4e-13</b>。100³×100step、temporal blocking 5 で 0.19 秒。</div>
+</div>
+
+<div class="card">
+  <h3>Kuramoto–Sivashinsky(時空カオス)</h3>
+  <div class="math">∂<sub>t</sub>u = −(u²/2)<sub>x</sub> − u<sub>xx</sub> − u<sub>xxxx</sub></div>
+  <div class="dslbox"><b>.fe(18行)</b>: 4階微分は <code>local w = dC2 1 u</code>
+    (中間格子場として emit)を2段重ね — 袖幅1×2 で temporal blocking 安全。</div>
+  <details class="codebox" data-fe="ks3d/ks3d.fe" open><summary>DSL ソース全文(ks3d.fe・18 行)</summary>
+<pre><span class="c">-- Kuramoto-Sivashinsky: u_t = -(u^2/2)_x - u_xx - u_xxxx</span>
+<span class="c">-- The fourth derivative goes through the intermediate field w = u_xx</span>
+<span class="c">-- (a `local`, emitted as a grid field line), so every term telescopes</span>
+<span class="c">-- and sum u is conserved exactly.  L = 22: spatio-temporal chaos.</span>
+
+param dt = 0.00015
+
+extern cos
+raw # wavenumbers: 2*pi/22 and its double
+
+field u : scalar
+
+init:
+  u = cos(0.28559933214452665*i*dx) + 0.1*cos(0.5711986642890533*i*dx)
+
+step:
+  local w = dC2 1 u
+  u' = u - dt * (dC 1 (u * u / 2) + w + dC2 1 w)</pre></details>
+  <details class="codebox" data-egi="ks3d/ks3d.egi"><summary>生成された Egison(中間形・fec.py 出力)(ks3d.egi・22 行)</summary>
+<pre><span class="c">--</span>
+<span class="c">-- GENERATED by tools/fec.py from ks3d.fe -- edit the .fe, not this file</span>
+<span class="c">--</span>
+
+declare symbol dt
+
+def u := function (x, y, z)
+def w := function (x, y, z)
+
+
+def feParams := [("dt", "0.00015")]
+def feHelpers :=
+  [ "extern function :: cos"
+  , "# wavenumbers: 2*pi/22 and its double"
+  ]
+def feFlds : [(String, Integer)] := [("u", 0)]
+def feInits :=
+  [ "  u[i,j,k] = cos(0.28559933214452665*i*dx) + 0.1*cos(0.5711986642890533*i*dx)"
+  ]
+def feSteps := [fmrEq "w" (dC2 1 u)] ++ scalarEq "u" (u - dt * (dC 1 (u * u / 2) + w + dC2 1 w))
+
+def main (args: [String]) : IO () := print (emitModel feParams feHelpers feFlds feInits feSteps)</pre></details>
+  <details class="codebox" data-fmr="ks3d/ks3d.fmr"><summary>生成された Formura 全文(ks3d.fmr・17 行)</summary>
+<pre>dimension :: 3
+axes :: x,y,z
+
+double :: dt = 0.00015
+
+extern function :: cos
+<span class="c"># wavenumbers: 2*pi/22 and its double</span>
+
+begin function u = init()
+  double [] :: u
+  u[i,j,k] = cos(0.28559933214452665*i*dx) + 0.1*cos(0.5711986642890533*i*dx)
+end function
+
+begin function u' = step(u)
+  w = (-2)*u[i,j,k]/(dx**2) + u[i-1,j,k]/(dx**2) + u[i+1,j,k]/(dx**2)
+  u' = (-1)*dt*w[i,j,k] + dt*u[i-1,j,k]**2/(4*dx) + (-1)*dt*u[i+1,j,k]**2/(4*dx) + u[i,j,k] + 2*dt*w[i,j,k]/(dx**2) + (-1)*dt*w[i-1,j,k]/(dx**2) + (-1)*dt*w[i+1,j,k]/(dx**2)
+end function</pre></details>
+  <div class="imgs"><img src="../img/ks.png" alt="KS space-time"></div>
+  <div class="cap">時空図(横=x、縦=t: 0→90): セルが分裂・合体するカオス</div>
+  <div class="facts">Lyapunov 内(t=5)で参照実装と <b>3.6e-14</b>・Σu ドリフト 5.4e-12(60万 step)。</div>
+</div>
+
+</div>
+
+<footer>
+  DSL v0 = <code>lib/fmrdsl.egi</code>(宣言的モデル層)+ 添字つき関数族 + fmrgen プリンタ。
+  次: 残り13例の移行と表層構文(<a href="../../DSL-DESIGN.md">DSL-DESIGN.md</a> の v1)。
+  <a href="../index.html">← 総合ギャラリー(全19例)</a>
+</footer>
+</main>
+</body>
+</html>

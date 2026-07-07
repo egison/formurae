@@ -116,6 +116,44 @@ def curlYee (i1: Integer) (sT: [MathValue]) (flds: [(MathValue, [MathValue])]) :
            [(1, 1), (1, 2), (1, 3), (2, 1), (2, 2), (2, 3), (3, 1), (3, 2), (3, 3)])
 
 --
+-- Discrete differential forms (DEC) on the staggered grid
+--
+-- A k-form is its component list; the grid placement of each component
+-- is determined by the form DEGREE alone:
+--   0-form: nodes         sigma0   = (0,0,0)
+--   1-form: edge a        sigma1 a = unit3 a (1/2)
+--   2-form: face a        sigma2 a = (1/2,1/2,1/2) - sigma1 a
+--   3-form: cell centers  sigma3   = (1/2,1/2,1/2)
+-- dF0/dF1/dF2 are the discrete exterior derivative (gradient, curl,
+-- divergence); codF2 is *d* on the unit cubic lattice, the curl that
+-- takes face components back to edges.  d . d = 0 holds exactly -- the
+-- CAS reduces dF2 (dF1 om) to the literal 0 -- which is the structural
+-- reason a generated Yee scheme conserves div B to machine precision.
+--
+
+def sigma0 : [MathValue] := [0, 0, 0]
+def sigma1 (a: Integer) : [MathValue] := unit3 a (1 / 2)
+def sigma2 (a: Integer) : [MathValue] :=
+  map (\(p, q) -> p - q) (zip [1 / 2, 1 / 2, 1 / 2] (sigma1 a))
+def sigma3 : [MathValue] := [1 / 2, 1 / 2, 1 / 2]
+
+-- gradient: 0-form -> 1-form
+def dF0 (f: MathValue) : [MathValue] :=
+  map (\a -> dYee a (sigma1 a) (f, sigma0)) [1, 2, 3]
+
+-- curl: 1-form -> 2-form
+def dF1 (om: [MathValue]) : [MathValue] :=
+  map (\a -> curlYee a (sigma2 a) (zip om (map sigma1 [1, 2, 3]))) [1, 2, 3]
+
+-- divergence: 2-form -> 3-form
+def dF2 (om: [MathValue]) : MathValue :=
+  sum (map (\a -> dYee a sigma3 (nth a om, sigma2 a)) [1, 2, 3])
+
+-- star-d-star: 2-form -> 1-form (the other curl of the Yee pair)
+def codF2 (om: [MathValue]) : [MathValue] :=
+  map (\a -> curlYee a (sigma1 a) (zip om (map sigma2 [1, 2, 3]))) [1, 2, 3]
+
+--
 -- Printer : MathValue -> Formura expression string
 --
 
@@ -137,9 +175,31 @@ def offsetSuffix (o: MathValue) : String :=
 def gridIndex (a: Integer) (arg: MathValue) : String :=
   S.append (axisName a) (offsetSuffix ((arg - coords_a) / hsteps_a))
 
+-- indexed function families (def E_i := generateTensor (\[i] -> function ...))
+-- have component symbols E_1, E_2, ...; map the numeric indices to the
+-- axis-letter component names used in the generated Formura source
+-- (E_1 -> Ex, sigma_1_2 -> sigmaxy).  Names without such indices pass
+-- through unchanged.
+def axisLetter (s: String) : String :=
+  match s as string with
+    | #"1" -> "x"
+    | #"2" -> "y"
+    | #"3" -> "z"
+    | _ -> ""
+
+def fmrFieldName (nm: String) : String :=
+  let ps := S.split "_" nm
+   in if length ps >= 2 && all (\p -> not (axisLetter p = "")) (tail ps)
+        then let letters := S.concat (map axisLetter (tail ps))
+              in match S.split "'" (head ps) as list string with
+                   -- primed family (v'_1): the prime goes after the axis letters
+                   | [$b, #""] -> S.concat [b, letters, "'"]
+                   | _ -> S.concat [head ps, letters]
+        else nm
+
 def gridRef (g: MathValue) (args: [MathValue]) : String :=
   S.concat
-    [show g, "[",
+    [fmrFieldName (show g), "[",
      S.intercalate "," (map (\(a, arg) -> gridIndex a arg) (zip [1, 2, 3] args)),
      "]"]
 

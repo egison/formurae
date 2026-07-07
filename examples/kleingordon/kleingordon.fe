@@ -1,0 +1,22 @@
+-- Nonlinear Klein-Gordon (phi^4): phi_tt = phi_xx + phi - phi^3
+-- Leapfrog (kick-drift); the drift references the updated w', which
+-- makes the pair symplectic.  Initial data: a kink-antikink pair
+-- boosted to v = +-0.2 (Lorentz-contracted tanh profiles).
+
+param dt = 0.05
+
+extern tanh
+extern cosh
+raw
+raw # gamma/sqrt(2) = 0.7216878...; gamma*v/sqrt(2) = 0.1443375...
+
+field phi : scalar
+field w : scalar
+
+init:
+  phi = tanh(0.7216878364870323*(i*dx - 16.0)) - tanh(0.7216878364870323*(i*dx - 48.0)) - 1.0
+  w = 0.0 - 0.14433756729740645*(1.0/cosh(0.7216878364870323*(i*dx - 16.0)))**2 - 0.14433756729740645*(1.0/cosh(0.7216878364870323*(i*dx - 48.0)))**2
+
+step:
+  w' = w + dt * (dC2 1 phi + phi - phi * phi * phi)
+  phi' = phi + dt * w'

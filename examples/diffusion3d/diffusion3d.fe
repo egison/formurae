@@ -1,0 +1,15 @@
+-- The 3D diffusion equation: du/dt = kappa * laplacian(u)
+
+param kappa = 1.0
+param dt = 0.1*dx*dx
+
+extern exp
+raw gauss = fun(x,y,z) exp(-((x-(total_grid_x*dx/2))/(5*dx))**2 - ((y-(total_grid_y*dy/2))/(5*dy))**2 - ((z-(total_grid_z*dz/2))/(5*dz))**2)
+
+field u : scalar
+
+init:
+  u = gauss(i*dx,j*dy,k*dz)
+
+step:
+  u' = u + dt * kappa * lap u
