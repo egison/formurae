@@ -12,6 +12,8 @@
 #
 # .fe grammar (v1):
 #   -- comment                      (kept out of the output)
+#   dimension 3                     (default 3; v1 supports 3 only)
+#   axes x, y, z                    (default x,y,z; CAS inits assume x,y,z)
 #   param NAME = RAW                Formura parameter (double :: NAME = RAW)
 #   extern NAME                     extern function :: NAME
 #   raw LINE                        verbatim Formura helper line
@@ -25,8 +27,12 @@
 #     let N_i = EXPR                named tensor expression (inlined)
 #     let N = EXPR                  named scalar expression (inlined)
 #     local N = EXPR                intermediate grid field (emitted line)
-#     N' = EXPR                     scalar / k-form update
-#     N'_i = EXPR                   vector update (index equation)
+#     N' = EXPR                     scalar / vector / k-form update
+#     N'_i = EXPR                   vector update (explicit index equation)
+#   A vector update may be written without indices (E' = E + dt * curl B);
+#   bare vector names combine elementwise and curl applies to the whole
+#   field.  X' in a RHS refers to the updated field (Formura's primed
+#   array), so B' = B - dt * curl E' is the symplectic pair.
 #   assert-dd-zero NAME'            gate generation on d(d NAME') == 0
 #
 # Inside EXPR, Egison syntax passes through unchanged; the translator
@@ -39,6 +45,7 @@
 import io, os, re, sys
 
 VEC_OPS = ['curl', 'divg', 'dGrad']          # take a whole tensor: arg gets _#
+VEC_RET = {'curl'}                           # ... and return one (component-indexable)
 FORM_D = {0: 'dF0', 1: 'dF1', 2: 'dF2'}      # exterior derivative by degree
 
 
@@ -58,6 +65,8 @@ class Model(object):
         self.steps = []           # ('let', name, indexed?, expr) | ('local', ...)
                                   # | ('eq', name, indexed?, expr)
         self.ddgate = None        # primed form name for the d.d==0 gate
+        self.dim = 3
+        self.axes = ['x', 'y', 'z']
 
     def kind(self, nm):
         for n, k in self.fields:
@@ -98,9 +107,12 @@ def parse(path):
                 m.fields.append((mm.group(1), mm.group(2)))
             elif re.match(r'assert-dd-zero\s+', s):
                 m.ddgate = s.split(None, 1)[1].strip()
-            elif s.startswith('dim '):
-                if s.split()[1] != '3':
-                    die('v1 supports dim 3 only', ln)
+            elif re.match(r'(dimension|dim)\s+\d+$', s):
+                m.dim = int(s.split()[1])
+                if m.dim != 3:
+                    die('v1 supports dimension 3 only (got %d)' % m.dim, ln)
+            elif re.match(r'axes\s+', s):
+                m.axes = [a.strip() for a in s.split(None, 1)[1].split(',')]
             else:
                 die('unrecognized: %s' % s, ln)
         elif section == 'init':
@@ -155,21 +167,28 @@ def rewrite(m, expr, lets, K=None):
         if op == 'd':
             return mm.group(0)
         if nm in vecs or nm in lets:
-            return '%s %s%s_#' % (op, nm, "'" if pr else '')
+            core = '%s %s%s_#' % (op, nm, "'" if pr else '')
+            return '@V{%s}@' % core if op in VEC_RET else core
         return mm.group(0)
     e = re.sub(r"\b(d|codF2|dF0|dF1|dF2|curl|divg|dGrad)\s+([A-Za-z]\w*)(')?", op_repl, e)
 
-    # bare form names -> K-th component; op results -> nth K (...)
+    # bare form/vector names -> K-th component; op results indexed/nth'd
     if K is not None:
         def comp_repl(mm):
             nm, pr = mm.group(1), mm.group(2) == "'"
-            if nm in forms:
-                return "%s%s_%d" % (nm, "'" if pr else '', K)
+            if nm in forms or nm in vecs or nm in lets:
+                return "%s%s_%s" % (nm, "'" if pr else '', K)
             return mm.group(0)
         e = re.sub(r"(?<![\w@{])([A-Za-z]\w*)(')?(?![\w'(])", comp_repl, e)
-        e = re.sub(r'@L\{([^}]*)\}@', r'nth %d (\1)' % K, e)
+        if K == 'i':
+            if '@L{' in e:
+                die('forms cannot appear in an unindexed vector equation: %s' % expr)
+            e = re.sub(r'@V\{([^}]*)\}@', r'(\1)_i', e)
+        else:
+            e = re.sub(r'@L\{([^}]*)\}@', r'nth %d (\1)' % K, e)
+            e = re.sub(r'@V\{([^}]*)\}@', r'(\1)_%d' % K, e)
     else:
-        e = re.sub(r'@L\{([^}]*)\}@', r'(\1)', e)
+        e = re.sub(r'@[LV]\{([^}]*)\}@', r'(\1)', e)
     return e
 
 
@@ -219,8 +238,11 @@ def emit(m):
                 w('def %s := %s' % (nm, rewrite(m, expr, lets)))
         elif kindw == 'local':
             step_items.append('[fmrEq "%s" (%s)]' % (nm, rewrite(m, expr, lets)))
-        elif indexed:                                   # vector equation
+        elif indexed:                                   # vector equation (explicit _i)
             w('def feq%s_i := withSymbols [i] %s' % (nm, rewrite(m, expr, lets)))
+            step_items.append('vecEqs "%s" feq%s_1 feq%s_2 feq%s_3' % (nm, nm, nm, nm))
+        elif kfld == 'vector':                          # whole-vector equation
+            w('def feq%s_i := withSymbols [i] %s' % (nm, rewrite(m, expr, lets, 'i')))
             step_items.append('vecEqs "%s" feq%s_1 feq%s_2 feq%s_3' % (nm, nm, nm, nm))
         elif kfld and kfld.endswith('-form'):           # form equation
             cs = ' '.join('(%s)' % rewrite(m, expr, lets, K) for K in (1, 2, 3))
@@ -254,13 +276,18 @@ def emit(m):
     w('  ]')
     w('def feSteps := %s' % ' ++ '.join(step_items))
     w('')
+    if len(m.axes) != m.dim:
+        die('axes count (%d) does not match dimension (%d)' % (len(m.axes), m.dim))
+    if m.axes != ['x', 'y', 'z'] and any(it[0] == 'cas' for it in m.inits):
+        sys.stderr.write('fec: warning: CAS initializers assume axes x,y,z\n')
+    emitter = 'emitModelOn %d [%s]' % (m.dim, ', '.join('"%s"' % a for a in m.axes))
     if m.ddgate:
         w('def main (args: [String]) : IO () :=')
         w('  if feDD = 0')
-        w('    then print (emitModel feParams feHelpers feFlds feInits feSteps)')
+        w('    then print (%s feParams feHelpers feFlds feInits feSteps)' % emitter)
         w('    else print "# ERROR: d . d /= 0 on this grid -- refusing to generate"')
     else:
-        w('def main (args: [String]) : IO () := print (emitModel feParams feHelpers feFlds feInits feSteps)')
+        w('def main (args: [String]) : IO () := print (%s feParams feHelpers feFlds feInits feSteps)' % emitter)
     return '\n'.join(out) + '\n'
 
 

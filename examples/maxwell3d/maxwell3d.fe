@@ -1,7 +1,11 @@
 -- Maxwell's equations in vacuum (c = 1), collocated grid
 --   dE/dt =  curl B
---   dB/dt = -curl E'     (symplectic Euler: the B update uses E')
--- E and B are vector fields; components are never written.
+--   dB/dt = -curl E'     (the B update uses the updated E': symplectic)
+-- E and B are vector fields and the equations are whole-vector
+-- equations: no components, no indices.
+
+dimension 3
+axes x, y, z
 
 param dt = 0.1*dx
 
@@ -20,6 +24,5 @@ init:
   Bz = gauss1(i*dx)
 
 step:
-  let En_i = E_i + dt * (curl B)_i     -- inlined update (collocated scheme)
-  E'_i = En_i
-  B'_i = B_i - dt * (curl En)_i
+  E' = E + dt * curl B
+  B' = B - dt * curl E'

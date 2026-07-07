@@ -124,8 +124,12 @@ step:
    diffusion3d・kleingordon・ks3d の5例、**うち4例は .fe → .egi → .fmr が
    バイト一致**(ks は整形差のみ)、全例 make green。.egi は生成中間物になった
    (ヘッダに GENERATED 印、ギャラリーは .fe → .egi → .fmr の3段表示)。
-   文法は fec.py 冒頭のコメント参照(field/param/extern/raw/init:/step:/
-   let/local/assert-dd-zero、`:=` = CAS init、`=` = raw init)。
+   文法は fec.py 冒頭のコメント参照(dimension/axes/field/param/extern/raw/
+   init:/step:/let/local/assert-dd-zero、`:=` = CAS init、`=` = raw init)。
+   **ベクトル方程式は添字なしで書ける**: `E' = E + dt * curl B` /
+   `B' = B - dt * curl E'`(X' は更新済み配列への参照 = symplectic かつ袖幅1;
+   fec が成分化して withSymbols [i] 形に変換)。dimension/axes は宣言可能
+   (既定 3 / x,y,z; v1 は 3 次元のみ、CAS init は x,y,z 前提)。
 4. v1.5: staggered 宣言(`field v : vector @ edge` 等)と計量宣言
    (`metric scale [...]`)の表層化 → elastic/metric/acoustic/yee も .fe に。
    indexed family(`field f : family 19`)で LBM の 38 宣言を1行に。

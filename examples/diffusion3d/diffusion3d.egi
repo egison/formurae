@@ -18,4 +18,4 @@ def feInits :=
   ]
 def feSteps := scalarEq "u" (u + dt * kappa * lap u)
 
-def main (args: [String]) : IO () := print (emitModel feParams feHelpers feFlds feInits feSteps)
+def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feFlds feInits feSteps)

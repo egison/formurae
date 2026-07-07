@@ -23,4 +23,4 @@ def feInits :=
   ]
 def feSteps := scalarEq "w" (w + dt * (dC2 1 phi + phi - phi * phi * phi)) ++ scalarEq "phi" (phi + dt * w')
 
-def main (args: [String]) : IO () := print (emitModel feParams feHelpers feFlds feInits feSteps)
+def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feFlds feInits feSteps)

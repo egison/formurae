@@ -31,5 +31,5 @@ def feSteps := vecEqs "E" (E_1 + dt * nth 1 (codF2 Bs)) (E_2 + dt * nth 2 (codF2
 
 def main (args: [String]) : IO () :=
   if feDD = 0
-    then print (emitModel feParams feHelpers feFlds feInits feSteps)
+    then print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feFlds feInits feSteps)
     else print "# ERROR: d . d /= 0 on this grid -- refusing to generate"

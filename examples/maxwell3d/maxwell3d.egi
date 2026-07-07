@@ -6,10 +6,10 @@ declare symbol dt
 
 def E_i := generateTensor (\[i] -> function (x, y, z)) [3]
 def B_i := generateTensor (\[i] -> function (x, y, z)) [3]
+def E'_i := generateTensor (\[i] -> function (x, y, z)) [3]
 
-def En_i := withSymbols [i] E_i + dt * (curl B_#)_i
-def feqE_i := withSymbols [i] En_i
-def feqB_i := withSymbols [i] B_i - dt * (curl En_#)_i
+def feqE_i := withSymbols [i] E_i + dt * (curl B_#)_i
+def feqB_i := withSymbols [i] B_i - dt * (curl E'_#)_i
 
 def feParams := [("dt", "0.1*dx")]
 def feHelpers :=
@@ -27,4 +27,4 @@ def feInits :=
   ]
 def feSteps := vecEqs "E" feqE_1 feqE_2 feqE_3 ++ vecEqs "B" feqB_1 feqB_2 feqB_3
 
-def main (args: [String]) : IO () := print (emitModel feParams feHelpers feFlds feInits feSteps)
+def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feFlds feInits feSteps)

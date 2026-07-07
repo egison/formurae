@@ -19,4 +19,4 @@ def feInits :=
   ]
 def feSteps := [fmrEq "w" (dC2 1 u)] ++ scalarEq "u" (u - dt * (dC 1 (u * u / 2) + w + dC2 1 w))
 
-def main (args: [String]) : IO () := print (emitModel feParams feHelpers feFlds feInits feSteps)
+def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feFlds feInits feSteps)

@@ -50,14 +50,15 @@ def tupleOf (xs: [String]) : String :=
     then head xs
     else S.concat ["(", S.intercalate "," xs, ")"]
 
-def emitModel (params: [(String, String)]) (helpers: [String])
-              (flds: [(String, Integer)]) (initLines: [String])
-              (stepLines: [String]) : String :=
+def emitModelOn (dim: Integer) (axes: [String])
+                (params: [(String, String)]) (helpers: [String])
+                (flds: [(String, Integer)]) (initLines: [String])
+                (stepLines: [String]) : String :=
   let comps := allComps flds
    in let compsP := map (\c -> S.append c "'") comps
    in S.intercalate "\n"
-        ([ "dimension :: 3"
-         , "axes :: x,y,z"
+        ([ S.append "dimension :: " (show dim)
+         , S.append "axes :: " (S.intercalate "," axes)
          , ""
          ]
          ++ map (\(n, v) -> S.concat ["double :: ", n, " = ", v]) params
@@ -73,3 +74,5 @@ def emitModel (params: [(String, String)]) (helpers: [String])
             ]
          ++ stepLines
          ++ [ "end function" ])
+
+def emitModel := emitModelOn 3 ["x", "y", "z"]
