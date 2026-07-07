@@ -1,0 +1,15 @@
+dimension :: 1
+axes :: x
+
+# Minimal reproducer for the temporal-blocking halo defect with
+# stencil radius 2: a linear, stable, deterministic update.
+double :: c = 0.05
+
+begin function q = init()
+  double [] :: q
+  q[i] = 0.001*i*(total_grid_x - i)
+end function
+
+begin function q' = step(q)
+  q' = q + c*(q[i+2] - 2*q[i] + q[i-2])
+end function

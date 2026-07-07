@@ -1,0 +1,14 @@
+dimension :: 3
+axes :: x,y,z
+
+# 3D, single variable, radius-2 including diagonal terms.
+double :: c = 0.01
+
+begin function q = init()
+  double [] :: q
+  q[i,j,k] = 0.001*(i*(total_grid_x - i) + 2*j*(total_grid_y - j) + 3*k*(total_grid_z - k))
+end function
+
+begin function q' = step(q)
+  q' = q + c*(q[i+2,j,k] + q[i-2,j,k] + q[i,j+2,k] + q[i,j-2,k] + q[i,j,k+2] + q[i,j,k-2] - 6*q[i,j,k]) + c*(q[i+1,j+1,k] + q[i-1,j-1,k] + q[i,j+1,k+1] + q[i,j-1,k-1] - 4*q[i,j,k])
+end function

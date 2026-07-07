@@ -1,0 +1,12 @@
+dimension :: 3
+axes :: x,y,z
+double :: c = 0.05
+begin function (q,r) = init()
+  double [] :: q, r
+  q[i,j,k] = 0.001*(i*(total_grid_x - i) + 2*j*(total_grid_y - j) + 3*k*(total_grid_z - k))
+  r[i,j,k] = 0.002*(i*(total_grid_x - i) + j*(total_grid_y - j) + k*(total_grid_z - k))
+end function
+begin function (q',r') = step(q,r)
+  q' = q + c*(r[i+1,j,k] - r[i-1,j,k])
+  r' = r[i,j,k]
+end function

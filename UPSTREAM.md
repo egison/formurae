@@ -19,17 +19,45 @@ PR/push できる。本ファイルは「issue を立てて待つ」のではな
 Shift のみ)→ MMProgram(manifest ノード+cursor)→ C 生成(halo 交換・
 ブロックループ・カーネル)`。1.x の設計論文は FHPC'16 §2.3。
 
-## PR 2: TB 袖幅≥2 バグ
+## PR 2: TB バグ — 調査結果(2026-07-07、upstream/tb-repro/)
 
-- 再現: 袖幅 2 のステンシル(collocated Maxwell の dt² 項、または人工的な
-  `a[i+2]` 参照)+ `temporal_blocking_interval ≥ 2` で、非ブロック実行と比較。
-  dt を中立安定限界近くに置くと指数発散として顕在化する(examples/maxwell3d、
-  README 既知問題③)。安定領域では 1e-9 級の差として潜伏するため、
-  **ビット比較**を判定に使う(TB on/off で一致すべき)。
-- 当たり: 袖の消費計算(Annotation/Boundary.hs の Boundary 合成)か、
-  TB の wall/floor バッファ充填(Generator/Templates.hs)での
-  「ステップあたり袖消費 = 1」を仮定した箇所。radius-1 の同梱例では露見しない。
-- テスト: radius-1/2 × TB on/off の 4 通りをビット比較する回帰テストを test/ に追加。
+`upstream/tb-repro/repro.sh` が TB4 vs 非ブロックの**値多重集合のビット比較**
+(配列内平行移動に不変)で全変種を判定する。8 ステップで判定でき、
+dt を安定域に置いたままでも検出できる(発散を待つ必要がない)。
+
+**最小再現(reproG/H/J)**: 2 変数・各 1 行で発火する。
+
+```
+q' = q + c*(r[i,j+1,k] - r[i,j-1,k])   # 半径 1(方向は x でも y でも発火)
+r' = r[i,j,k]                           # 半径 0(パススルー)
+```
+
+**判定マトリクス(実測)**:
+
+| ケース | 構成 | 結果 |
+|---|---|---|
+| repro1/2/2d/dg/3d | 単一変数、半径 1〜2、対角込み、1D/2D/3D | 一致 |
+| reproI | 2 変数とも半径 1 | 一致 |
+| reproE | 2 変数(半径 1 + 半径 2 自己) | 一致 |
+| **reproG/H/J** | **半径 1 + 半径 0(パススルー/0.999 倍)** | **不一致** |
+| mxB/mxB1/mxB2 | Maxwell の E 側 1 本+恒等 5 本 | 不一致 |
+| mxA/mxC/mxD | E 恒等+B 半径 2 側(E は時間定数) | 一致 |
+| maxwell3d | フル(半径 1 の E + 半径 2 の B) | 不一致(8 step で 98% の値) |
+
+**特性**: 更新式の半径が変数間で不均一(特に半径 0 のパススルー変数と
+半径 ≥1 の変数の混在)のとき TB が壊れる。reproH(r′=0.999r)では
+**位置に依存しない値集合そのものが崩れる** = 一部セルでステップ適用回数を
+誤っている(時間位相の誤り)示唆。mxA 系が通るのは、半径 0 側(E)が
+時間定数のため位相誤りが値に現れないからと整合。
+
+**次の作業**: reproG の生成 C(小さい)を読んで wall/floor 充填の
+変数別カーソル/位相の扱いを特定し修正。修正後は上記マトリクス全通過+
+maxwell3d ビット一致が受け入れ条件。回帰テストとして repro.sh を
+test/ に移植する。
+
+- 当たりの見当: 変数ごとの sleeve 消費(Annotation/Boundary.hs の合成)と
+  TB の wall/floor 充填(Generator/Templates.hs)における、変数別
+  MMLocation カーソル/時間位相の不整合。半径が揃った同梱例では露見しない。
 
 ## PR 3: per-variable cursor API
 

@@ -1,0 +1,26 @@
+dimension :: 3
+axes :: x,y,z
+
+double :: dt = 0.1*dx
+
+extern function :: exp
+gauss1 = fun(x) exp(-((x-(total_grid_x*dx/2))/(8*dx))**2)
+
+begin function (Ex,Ey,Ez,Bx,By,Bz) = init()
+  double [] :: Ex, Ey, Ez, Bx, By, Bz
+  Ex[i,j,k] = 0
+  Ey[i,j,k] = gauss1(i*dx)
+  Ez[i,j,k] = 0
+  Bx[i,j,k] = 0
+  By[i,j,k] = 0
+  Bz[i,j,k] = gauss1(i*dx)
+end function
+
+begin function (Ex',Ey',Ez',Bx',By',Bz') = step(Ex,Ey,Ez,Bx,By,Bz)
+  Ex' = Ex[i,j,k]
+  Ey' = Ey[i,j,k]
+  Ez' = Ez[i,j,k]
+  Bx' = Bx[i,j,k]
+  By' = By[i,j,k]
+  Bz' = Ey[i-1,j,k]*dt/(2*dx) + (-1)*Ey[i+1,j,k]*dt/(2*dx) + (-1)*Ex[i,j-1,k]*dt/(2*dy) + Ex[i,j+1,k]*dt/(2*dy) + (-1)*Bz[i,j,k]*dt**2/(2*dy**2) + (-1)*Bz[i,j,k]*dt**2/(2*dx**2) + Bz[i,j,k] + Bz[i,j-2,k]*dt**2/(4*dy**2) + Bz[i,j+2,k]*dt**2/(4*dy**2) + Bz[i-2,j,k]*dt**2/(4*dx**2) + Bz[i+2,j,k]*dt**2/(4*dx**2) + (-1)*By[i,j-1,k-1]*dt**2/(4*dy*dz) + By[i,j-1,k+1]*dt**2/(4*dy*dz) + By[i,j+1,k-1]*dt**2/(4*dy*dz) + (-1)*By[i,j+1,k+1]*dt**2/(4*dy*dz) + (-1)*Bx[i-1,j,k-1]*dt**2/(4*dx*dz) + Bx[i-1,j,k+1]*dt**2/(4*dx*dz) + Bx[i+1,j,k-1]*dt**2/(4*dx*dz) + (-1)*Bx[i+1,j,k+1]*dt**2/(4*dx*dz)
+end function

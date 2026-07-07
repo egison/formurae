@@ -1,0 +1,15 @@
+dimension :: 1
+axes :: x
+
+# Radius-1 control: identical structure, offsets +/-1.
+# Temporal blocking is expected to be bit-identical here.
+double :: c = 0.05
+
+begin function q = init()
+  double [] :: q
+  q[i] = 0.001*i*(total_grid_x - i)
+end function
+
+begin function q' = step(q)
+  q' = q + c*(q[i+1] - 2*q[i] + q[i-1])
+end function
