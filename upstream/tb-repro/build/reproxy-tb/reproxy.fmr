@@ -1,0 +1,16 @@
+dimension :: 1
+axes :: x
+
+# 1D, TWO variables with different stencil radii (cross-coupled).
+double :: c = 0.05
+
+begin function (q,r) = init()
+  double [] :: q, r
+  q[i] = 0.001*i*(total_grid_x - i)
+  r[i] = 0.002*i*(total_grid_x - i)
+end function
+
+begin function (q',r') = step(q,r)
+  q' = q + c*(r[i+1] - 2*r[i] + r[i-1])
+  r' = r + c*(q[i+2] - 2*q[i] + q[i-2])
+end function

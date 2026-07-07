@@ -1,0 +1,13 @@
+dimension :: 1
+axes :: x
+
+double :: c = 0.2
+
+begin function q = init()
+  double [] :: q
+  q[i] = 0.001*(i+1)*(i+3)
+end function
+
+begin function q' = step(q)
+  q' = q + c*(q[i+1] - 2*q[i] + q[i-1])
+end function

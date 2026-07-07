@@ -1,0 +1,4 @@
+length_per_node: [1.0,0.5,0.5]
+grid_per_node: [32,16,16]
+mpi_shape: [1,1,1]
+boundary: [mirror, periodic, fixed 0.0]

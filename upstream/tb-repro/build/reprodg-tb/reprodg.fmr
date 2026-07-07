@@ -1,0 +1,14 @@
+dimension :: 2
+axes :: x,y
+
+# 2D, single variable, radius-1 with DIAGONAL terms (exercises corner halos).
+double :: c = 0.02
+
+begin function q = init()
+  double [] :: q
+  q[i,j] = 0.001*(i*(total_grid_x - i) + 2*j*(total_grid_y - j))
+end function
+
+begin function q' = step(q)
+  q' = q + c*(q[i+1,j+1] + q[i-1,j-1] + q[i+1,j-1] + q[i-1,j+1] - 4*q[i,j])
+end function

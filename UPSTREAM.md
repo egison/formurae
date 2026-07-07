@@ -6,12 +6,14 @@ PR/push できる。本ファイルは「issue を立てて待つ」のではな
 
 ## PR 分割案(依存順)
 
+方針(2026-07-08): **PR の提出は全タスク完了後に一括**。それまで fork のブランチに積む。
+
 | PR | 内容 | 規模感 | 状態 |
 |---|---|---|---|
-| 1 | GHC 9.6 移植(formura-patch/formura-ghc96.patch そのまま) | 小(6 ファイル) | パッチ済・出すだけ |
-| 2 | temporal blocking の袖幅≥2 halo バグ修正 | 中 | 最小再現から着手 |
-| 3 | per-variable cursor の API 整合(offset の変数別公開) | 小〜中 | 設計済(下記) |
-| 4 | 境界条件(mirror / fixed) | 中 | 設計済(下記) |
+| 1 | GHC 9.6 移植 | 小(6 ファイル) | **fork にコミット済**(ghc96-port fbf1e24) |
+| 2 | 混在ステンシル半径の誤コンパイル修正(旧称: TB 袖幅≥2 バグ) | 小(真因判明後) | **fork にコミット済**(fix-mixed-radius-drift de9b623)・下記に解決記録 |
+| 3 | per-variable cursor の API 整合 | — | **不要になった**: PR2 の症状だった。修正後は全変数一様ドリフトで to_pos_* が正しい |
+| 4 | 境界条件(mirror / fixed) | 中 | **fork にコミット済**(boundary-conditions 58e9a12)・下記に実装記録 |
 | 5 | 大域リダクション(まず NoBlocking 限定 → TB 対応) | 中〜大 | 設計済(下記) |
 
 前提知識: コンパイルパイプラインは
@@ -55,7 +57,17 @@ r' = r[i,j,k]                           # 半径 0(パススルー)
 maxwell3d ビット一致が受け入れ条件。回帰テストとして repro.sh を
 test/ に移植する。
 
-- 当たりの見当: 変数ごとの sleeve 消費(Annotation/Boundary.hs の合成)と
+**解決(2026-07-08)**: 真因は TB ではなく **mkKernel の per-node range**(Generator/Templates.hs)。
+出力ノードは結果を生ループ添字に書く一方、入力はノード自身の range オフセットで再センタリング
+されるため、「変数の毎ステップ配列内シフト量 = そのノードの range オフセット」になる。
+halo コピーと offset_* 更新は全変数一律 sleeve シフトを仮定しているので、半径が混在すると
+NoBlocking でも 2 ステップ目から相互参照がずれる(reproG の閉形式解でステップ 2 に増分
+1 個分の誤差を確認)。TB は増幅要因にすぎない。修正 = 出力(void)ノードの range を
+(−sleeve,+sleeve) に統一(fix-mixed-radius-drift de9b623)。検証 = reproG 閉形式一致
+2.7e-15(NB/TB)・15 変種 TB≡NB ビット一致・collocated Maxwell が 1D リファレンス一致
+(パルス 0.994@113、エネルギー 0.33%→4.8e-5)・単一変数プログラムはビット不変。
+
+- 当たりの見当(当初のメモ、参考): 変数ごとの sleeve 消費(Annotation/Boundary.hs の合成)と
   TB の wall/floor 充填(Generator/Templates.hs)における、変数別
   MMLocation カーソル/時間位相の不整合。半径が揃った同梱例では露見しない。
 
@@ -95,6 +107,26 @@ TB と非互換。つまり**言語としては周期しか書けない**。
   カーネル・TB 構造は無変更(TB の wall/floor 充填も同じフックを通る)。
 - 注意: TB との整合は PR 2 の修正が前提(halo 充填の正しさに乗るため)。
 - テスト: 1D 熱伝導 mirror で総熱量保存、fixed で定常線形分布(解析解)。
+
+### 実装記録(2026-07-08、boundary-conditions 58e9a12)
+
+設計を一部変更して実装した。当初案の「端 rank の halo 充填差し替え」ではなく、
+**アンカー方式の専用 NoBlocking パス**とした。理由: 既存の周期パスは
+「片側 2s halo+毎ステップ +s ドリフト」方式で、物理境界の継ぎ目が配列内を
+移動するため、巻いた配列では同一セルが実データとゴーストを兼ねてしまい
+非周期境界を表現できない(デルタ試験と生成 C 精読で確認)。
+
+- yaml: `boundary: [mirror, periodic, fixed 0.0]`(軸ごと。既定は periodic)
+- 非周期軸があると: 対称 halo(interior を全軸 +s に配置)・ゴーストは軸順に
+  ローカル充填(periodic=wrap コピー/mirror=面対称/fixed=定数)・コーナーは
+  後段の軸パスが正しく上書き・カーネル無変更・offset 恒等(ドリフトなし)
+- 制約(検証で明示拒否): NoBlocking かつ mpi_shape [1,...] のみ(段階導入)
+- 受け入れテスト(upstream/bc-test/run_bc.sh): 1D 熱伝導 200 step で
+  mirror/fixed/periodic ともゴースト意味論リファレンスと 4.4e-16 一致、
+  mirror の総熱量保存 3e-16、**3D 混在境界 [mirror, periodic, fixed 0.0] が
+  コーナー込みで 4.4e-16 一致**。既存パスは回帰ゼロ(15 変種+4例 green)
+
+残: TB 対応(interval 境界での再充填)、多ランク対応(端 rank 判定+両方向交換)。
 
 ### これで開くもの
 

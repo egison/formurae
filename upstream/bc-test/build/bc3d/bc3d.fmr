@@ -1,0 +1,13 @@
+dimension :: 3
+axes :: x,y,z
+
+double :: c = 0.05
+
+begin function q = init()
+  double [] :: q
+  q[i,j,k] = 0.001*((i+1)*(32-i) + 2*j*(16-j) + (k+2)*(k+5))
+end function
+
+begin function q' = step(q)
+  q' = q + c*(q[i+1,j,k] + q[i-1,j,k] + q[i,j+1,k] + q[i,j-1,k] + q[i,j,k+1] + q[i,j,k-1] - 6*q[i,j,k])
+end function
