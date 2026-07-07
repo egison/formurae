@@ -18,9 +18,9 @@ CFLAGS  ?= -O2 -std=c11
 
 EGISON_RUN = cd $(EGISON_DIR) && cabal run -v0 egison --
 
-.PHONY: all setup diffusion3d maxwell3d maxwell3d-yee pearson3d burgers3d cahnhilliard3d tdgl3d mhd-ot clean
+.PHONY: all setup diffusion3d maxwell3d maxwell3d-yee pearson3d burgers3d cahnhilliard3d tdgl3d mhd-ot elastic3d clean
 
-all: diffusion3d maxwell3d maxwell3d-yee pearson3d burgers3d cahnhilliard3d tdgl3d mhd-ot
+all: diffusion3d maxwell3d maxwell3d-yee pearson3d burgers3d cahnhilliard3d tdgl3d mhd-ot elastic3d
 
 setup:
 	./setup.sh
@@ -81,6 +81,13 @@ mhd-ot:
 	cd examples/mhd_ot && $(CC) $(CFLAGS) -I$(MPISTUB) -o check mhd_check.c mhd_ot.c -lm
 	cd examples/mhd_ot && ./check
 
+elastic3d:
+	$(EGISON_RUN) -l $(FMRGEN) $(abspath examples/elastic3d/elastic3d.egi) \
+	  > $(abspath examples/elastic3d/elastic3d.fmr)
+	cd examples/elastic3d && $(FORMURA) elastic3d.fmr
+	cd examples/elastic3d && $(CC) $(CFLAGS) -I$(MPISTUB) -o check elastic_check.c elastic3d.c -lm
+	cd examples/elastic3d && ./check
+
 clean:
 	rm -f examples/*/check examples/*/*.o examples/*/run
 	rm -f examples/diffusion3d/diffusion3d.c examples/diffusion3d/diffusion3d.h
@@ -92,3 +99,4 @@ clean:
 	rm -f examples/tdgl3d/tdgl3d.c examples/tdgl3d/tdgl3d.h
 	rm -f examples/cahnhilliard3d/cahnhilliard3d.c examples/cahnhilliard3d/cahnhilliard3d.h
 	rm -f examples/burgers3d/burgers3d.c examples/burgers3d/burgers3d.h
+	rm -f examples/elastic3d/elastic3d.c examples/elastic3d/elastic3d.h

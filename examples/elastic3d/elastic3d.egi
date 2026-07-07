@@ -1,0 +1,79 @@
+--
+-- elastic3d.egi : linear elastic waves, velocity-stress formulation on
+-- the Virieux staggered grid (the elastic sibling of Yee's FDTD)
+--   rho dv_i/dt = d_j sigma_ij
+--   d sigma_ij/dt = la delta_ij (div v) + mu (d_i v_j + d_j v_i)
+-- Velocities live on edges, diagonal stresses on nodes, shear stresses
+-- on faces; every derivative is a nearest half-cell difference through
+-- the same yeeRef machinery as the Yee example.  With la=2, mu=1,
+-- rho0=1 the P and S wave speeds are 2 and 1, measured directly by the
+-- check driver from co-propagating P and S pulses.
+--
+-- Run: egison -l fmrgen.egi elastic3d.egi > elastic3d.fmr
+--
+
+declare symbol dt, la, mu, rho0
+
+def vx := function (x, y, z)
+def vy := function (x, y, z)
+def vz := function (x, y, z)
+def sxx := function (x, y, z)
+def syy := function (x, y, z)
+def szz := function (x, y, z)
+def sxy := function (x, y, z)
+def sxz := function (x, y, z)
+def syz := function (x, y, z)
+def vx' := function (x, y, z)
+def vy' := function (x, y, z)
+def vz' := function (x, y, z)
+
+def sVx := [1 / 2, 0, 0]
+def sVy := [0, 1 / 2, 0]
+def sVz := [0, 0, 1 / 2]
+def s0  := [0, 0, 0]
+def sXY := [1 / 2, 1 / 2, 0]
+def sXZ := [1 / 2, 0, 1 / 2]
+def sYZ := [0, 1 / 2, 1 / 2]
+
+def divv' := dYee 1 s0 (vx', sVx) + dYee 2 s0 (vy', sVy) + dYee 3 s0 (vz', sVz)
+
+def prog : [String] :=
+  [ "dimension :: 3"
+  , "axes :: x,y,z"
+  , ""
+  , "# la=2, mu=1, rho0=1  ->  vp = 2, vs = 1"
+  , "double :: la = 2.0"
+  , "double :: mu = 1.0"
+  , "double :: rho0 = 1.0"
+  , "double :: dt = 0.0005"
+  , ""
+  , "extern function :: exp"
+  , "gp = fun(x) exp(-((x - 0.3)/0.02)*((x - 0.3)/0.02))"
+  , ""
+  , "begin function (vx,vy,vz,sxx,syy,szz,sxy,sxz,syz) = init()"
+  , "  double [] :: vx, vy, vz, sxx, syy, szz, sxy, sxz, syz"
+  , "  vx[i,j,k] = gp((i + 0.5)*dx)"
+  , "  vy[i,j,k] = gp(i*dx)"
+  , "  vz[i,j,k] = 0.0"
+  , "  sxx[i,j,k] = 0.0 - 2.0*gp(i*dx)"
+  , "  syy[i,j,k] = 0.0"
+  , "  szz[i,j,k] = 0.0"
+  , "  sxy[i,j,k] = 0.0 - 1.0*gp((i + 0.5)*dx)"
+  , "  sxz[i,j,k] = 0.0"
+  , "  syz[i,j,k] = 0.0"
+  , "end function"
+  , ""
+  , "begin function (vx',vy',vz',sxx',syy',szz',sxy',sxz',syz') = step(vx,vy,vz,sxx,syy,szz,sxy,sxz,syz)"
+  , fmrEq "vx'" (vx + (dt / rho0) * (dYee 1 sVx (sxx, s0) + dYee 2 sVx (sxy, sXY) + dYee 3 sVx (sxz, sXZ)))
+  , fmrEq "vy'" (vy + (dt / rho0) * (dYee 1 sVy (sxy, sXY) + dYee 2 sVy (syy, s0) + dYee 3 sVy (syz, sYZ)))
+  , fmrEq "vz'" (vz + (dt / rho0) * (dYee 1 sVz (sxz, sXZ) + dYee 2 sVz (syz, sYZ) + dYee 3 sVz (szz, s0)))
+  , fmrEq "sxx'" (sxx + dt * (la * divv' + 2 * mu * dYee 1 s0 (vx', sVx)))
+  , fmrEq "syy'" (syy + dt * (la * divv' + 2 * mu * dYee 2 s0 (vy', sVy)))
+  , fmrEq "szz'" (szz + dt * (la * divv' + 2 * mu * dYee 3 s0 (vz', sVz)))
+  , fmrEq "sxy'" (sxy + dt * mu * (dYee 1 sXY (vy', sVy) + dYee 2 sXY (vx', sVx)))
+  , fmrEq "sxz'" (sxz + dt * mu * (dYee 1 sXZ (vz', sVz) + dYee 3 sXZ (vx', sVx)))
+  , fmrEq "syz'" (syz + dt * mu * (dYee 2 sYZ (vz', sVz) + dYee 3 sYZ (vy', sVy)))
+  , "end function"
+  ]
+
+def main (args: [String]) : IO () := print (S.intercalate "\n" prog)

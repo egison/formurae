@@ -1,0 +1,36 @@
+dimension :: 3
+axes :: x,y,z
+
+# la=2, mu=1, rho0=1  ->  vp = 2, vs = 1
+double :: la = 2.0
+double :: mu = 1.0
+double :: rho0 = 1.0
+double :: dt = 0.0005
+
+extern function :: exp
+gp = fun(x) exp(-((x - 0.3)/0.02)*((x - 0.3)/0.02))
+
+begin function (vx,vy,vz,sxx,syy,szz,sxy,sxz,syz) = init()
+  double [] :: vx, vy, vz, sxx, syy, szz, sxy, sxz, syz
+  vx[i,j,k] = gp((i + 0.5)*dx)
+  vy[i,j,k] = gp(i*dx)
+  vz[i,j,k] = 0.0
+  sxx[i,j,k] = 0.0 - 2.0*gp(i*dx)
+  syy[i,j,k] = 0.0
+  szz[i,j,k] = 0.0
+  sxy[i,j,k] = 0.0 - 1.0*gp((i + 0.5)*dx)
+  sxz[i,j,k] = 0.0
+  syz[i,j,k] = 0.0
+end function
+
+begin function (vx',vy',vz',sxx',syy',szz',sxy',sxz',syz') = step(vx,vy,vz,sxx,syy,szz,sxy,sxz,syz)
+  vx' = vx[i,j,k] + dt*sxz[i,j,k]/(dz*rho0) + (-1)*dt*sxz[i,j,k-1]/(dz*rho0) + dt*sxy[i,j,k]/(dy*rho0) + (-1)*dt*sxy[i,j-1,k]/(dy*rho0) + (-1)*dt*sxx[i,j,k]/(dx*rho0) + dt*sxx[i+1,j,k]/(dx*rho0)
+  vy' = vy[i,j,k] + dt*syz[i,j,k]/(dz*rho0) + (-1)*dt*syz[i,j,k-1]/(dz*rho0) + (-1)*dt*syy[i,j,k]/(dy*rho0) + dt*syy[i,j+1,k]/(dy*rho0) + dt*sxy[i,j,k]/(dx*rho0) + (-1)*dt*sxy[i-1,j,k]/(dx*rho0)
+  vz' = vz[i,j,k] + (-1)*dt*szz[i,j,k]/(dz*rho0) + dt*szz[i,j,k+1]/(dz*rho0) + dt*syz[i,j,k]/(dy*rho0) + (-1)*dt*syz[i,j-1,k]/(dy*rho0) + dt*sxz[i,j,k]/(dx*rho0) + (-1)*dt*sxz[i-1,j,k]/(dx*rho0)
+  sxx' = dt*la*vz'[i,j,k]/(dz) + (-1)*dt*la*vz'[i,j,k-1]/(dz) + dt*la*vy'[i,j,k]/(dy) + (-1)*dt*la*vy'[i,j-1,k]/(dy) + 2*dt*mu*vx'[i,j,k]/(dx) + (-2)*dt*mu*vx'[i-1,j,k]/(dx) + dt*la*vx'[i,j,k]/(dx) + (-1)*dt*la*vx'[i-1,j,k]/(dx) + sxx[i,j,k]
+  syy' = dt*la*vz'[i,j,k]/(dz) + (-1)*dt*la*vz'[i,j,k-1]/(dz) + 2*dt*mu*vy'[i,j,k]/(dy) + (-2)*dt*mu*vy'[i,j-1,k]/(dy) + dt*la*vy'[i,j,k]/(dy) + (-1)*dt*la*vy'[i,j-1,k]/(dy) + dt*la*vx'[i,j,k]/(dx) + (-1)*dt*la*vx'[i-1,j,k]/(dx) + syy[i,j,k]
+  szz' = 2*dt*mu*vz'[i,j,k]/(dz) + (-2)*dt*mu*vz'[i,j,k-1]/(dz) + dt*la*vz'[i,j,k]/(dz) + (-1)*dt*la*vz'[i,j,k-1]/(dz) + dt*la*vy'[i,j,k]/(dy) + (-1)*dt*la*vy'[i,j-1,k]/(dy) + dt*la*vx'[i,j,k]/(dx) + (-1)*dt*la*vx'[i-1,j,k]/(dx) + szz[i,j,k]
+  sxy' = (-1)*dt*mu*vx'[i,j,k]/(dy) + dt*mu*vx'[i,j+1,k]/(dy) + (-1)*dt*mu*vy'[i,j,k]/(dx) + dt*mu*vy'[i+1,j,k]/(dx) + sxy[i,j,k]
+  sxz' = (-1)*dt*mu*vx'[i,j,k]/(dz) + dt*mu*vx'[i,j,k+1]/(dz) + (-1)*dt*mu*vz'[i,j,k]/(dx) + dt*mu*vz'[i+1,j,k]/(dx) + sxz[i,j,k]
+  syz' = (-1)*dt*mu*vy'[i,j,k]/(dz) + dt*mu*vy'[i,j,k+1]/(dz) + (-1)*dt*mu*vz'[i,j,k]/(dy) + dt*mu*vz'[i,j+1,k]/(dy) + syz[i,j,k]
+end function

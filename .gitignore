@@ -24,3 +24,5 @@ examples/tdgl3d/tdgl3d.c
 examples/tdgl3d/tdgl3d.h
 examples/mhd_ot/mhd_ot.c
 examples/mhd_ot/mhd_ot.h
+examples/elastic3d/elastic3d.c
+examples/elastic3d/elastic3d.h
