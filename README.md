@@ -289,3 +289,8 @@ HWLOC_SYNTHETIC="core:8 pu:1" mpirun --map-by slot --oversubscribe -n 2 ./check
 - λ⊗ 型システムによる生成前の添字整合性検査(「連続の数式からの検証つきコード生成」)
 - HPC 環境での複数ノード計測
 - 上流への PR(GHC 9.6 移植・誤コンパイル修正)は全タスク完了後に一括提出予定
+
+## ライセンス
+
+MIT ライセンス([LICENSE](LICENSE))。土台とする Egison も Formura も MIT。
+`vendor/` 以下の Formura(© 2015 Takayuki Muranushi)は各自のライセンスに従う。

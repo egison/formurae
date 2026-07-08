@@ -1,6 +1,11 @@
 cabal-version:      2.4
 name:               fec
 version:            0.1.0.0
+license:            MIT
+license-file:       LICENSE
+author:             Satoshi Egi
+maintainer:         satoshi.egi@rakuten.com
+copyright:          2026 Satoshi Egi
 synopsis:           The Formurae (.fe) compiler: mathematical stencil language to embedded Egison
 description:
     Translates Formurae, the .fe surface language (field declarations plus
