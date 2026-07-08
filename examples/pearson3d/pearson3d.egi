@@ -18,6 +18,6 @@ def feInits :=
   [ "  U[i,j,k] = if isCenter(i,j,k,4) then 0.5 else 1.0"
   , "  V[i,j,k] = if isCenter(i,j,k,4) then 0.25 else 0.0"
   ]
-def feSteps := scalarEq "U" (U + dt * (Fu * (1 - U) - Fe * U * V^2 + Du * lap U)) ++ scalarEq "V" (V + dt * (Fe * U * V^2 - Fv * V + Dv * lap V))
+def feSteps := scalarEq "U" (U + dt * (Fu * (1 - U) - Fe * U * V^2 + Du * (0 - ((0 - 1) * lap U)))) ++ scalarEq "V" (V + dt * (Fe * U * V^2 - Fv * V + Dv * (0 - ((0 - 1) * lap V))))
 
 def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feFlds feInits feSteps)

@@ -15,6 +15,6 @@ def feFlds : [(String, Integer)] := [("u", 0)]
 def feInits :=
   [ "  u[i,j,k] = sin(4.0*i*dx)"
   ]
-def feSteps := scalarEq "u" (u + dt * kappa * (\feU -> dTaylor 2 [-2, -1, 0, 1, 2] 1 feU + dTaylor 2 [-2, -1, 0, 1, 2] 2 feU + dTaylor 2 [-2, -1, 0, 1, 2] 3 feU) u)
+def feSteps := scalarEq "u" (u + dt * kappa * Δ4 u)
 
 def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feFlds feInits feSteps)

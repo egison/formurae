@@ -16,6 +16,6 @@ def feFlds : [(String, Integer)] := [("c", 0)]
 def feInits :=
   [ "  c[i,j,k] = 0.05*(sin(0.29*i)*sin(0.31*j)*sin(0.37*k) + sin(0.23*i + 0.41*j) + sin(0.19*k + 0.13*i))"
   ]
-def feSteps := [fmrEq "mu" (c^3 - c - kap * lap c)] ++ scalarEq "c" (c + dt * mob * lap mu)
+def feSteps := [fmrEq "mu" (c^3 - c - kap * (0 - ((0 - 1) * lap c)))] ++ scalarEq "c" (c + dt * mob * (0 - ((0 - 1) * lap ( mu))))
 
 def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feFlds feInits feSteps)

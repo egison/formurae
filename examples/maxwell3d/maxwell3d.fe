@@ -20,5 +20,5 @@ init:
   B = [| 0, 0, gauss1(i*dx) |]
 
 step:
-  E' = E + dt * ∇ × B
-  B' = B - dt * ∇ × E'
+  E' = E + dt * curl B
+  B' = B - dt * curl E'

@@ -16,6 +16,6 @@ def feFlds : [(String, Integer)] := [("u", 0)]
 def feInits :=
   [ "  u[i,j,k] = gauss(i*dx,j*dy,k*dz)"
   ]
-def feSteps := scalarEq "u" (u + dt * kappa * lap u)
+def feSteps := scalarEq "u" (u + dt * kappa * (0 - ((0 - 1) * lap u)))
 
 def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feFlds feInits feSteps)

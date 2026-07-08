@@ -33,6 +33,12 @@
 --                                   hodge factors sqrt(g)/h_a^2 become
 --                                   coefficient FIELDS evaluated by the
 --                                   CAS at the half-cell placements.
+--   def NAME ARG = EXPR             user-defined operator, expanded at use
+--                                    sites (file scope; a body may use only
+--                                    operators defined before it).  The
+--                                    Laplacian is predefined exactly this
+--                                    way -- def \916 u = 0 - delta (d u) --
+--                                    and may be redefined.
 --   param NAME = RAW                Formura parameter (double :: NAME = RAW)
 --   extern NAME                     extern function :: NAME
 --   raw LINE                        verbatim Formura helper line
@@ -59,9 +65,11 @@
 -- Unicode: Greek letters transliterate to their ASCII names (theta,
 -- phi, ...); the derivative sign is d (so d_x may be written with the
 -- partial sign), the small delta is the codifferential, the minus sign
--- is '-'.  The capital delta is the Laplacian of the model's geometry
--- (lap, or lb under a declared metric).  Writing d twice fuses to the
--- compact second difference (d_a (d_a u) = d2_a u), and delta (d u) on
+-- is '-'.  The capital delta is a prelude def (0 - delta (d u)), so it
+-- is the Laplacian of the model's geometry (lap, or lb under a declared
+-- metric); the derived 4th-order Laplacian is spelled with the capital
+-- delta followed by 4 (lap4 is an accepted alias).  Writing d twice fuses to the
+-- compact second difference (there is no d2 operator), and delta (d u) on
 -- a scalar lowers to -(Laplacian), so the heat equation reads
 -- u' = u - dt * delta (d u) with basic operators only; all of these
 -- generate byte-identical code to their named-operator forms.
@@ -69,8 +77,8 @@
 -- and nabla^2 (or with the superscript two) is the Laplacian.
 -- In index equations superscripts (~i) and subscripts (_i) are
 -- interchangeable (Euclidean grids; variance is documentation), and
--- Kronecker's delta may be written delta_ij, delta~i_j, or with the
--- small delta sign.
+-- Kronecker's delta carries one index per mark (delta~i_j, or with
+-- the small delta sign; the fused delta_ij is rejected).
 --
 -- A vector update may be written without indices (E' = E + dt * curl B);
 -- bare vector names combine elementwise and curl applies to the whole
@@ -115,6 +123,7 @@ data Model = Model
   , mDd     :: Maybe String
   , mMetric :: Maybe [String]
   , mEmbed  :: Maybe [String]
+  , mDefs   :: [(String, (String, String))]  -- name -> (param, body); latest first
   }
 
 kindOf :: Model -> String -> Maybe Kind
@@ -162,6 +171,18 @@ eqForm marker s = do
     ident (c:cs) | isAlpha c = let (a, b) = span isAlphaNum cs in Just (c : a, b)
     ident _ = Nothing
 
+-- def NAME PARAM = BODY   (user-defined operator; names may be Unicode)
+defForm :: String -> Maybe (String, String, String)
+defForm r = do
+  (nm, r1) <- identU (strip r)
+  (p, r2) <- identU (dropWhile isSpace r1)
+  r3 <- stripPrefix "=" (dropWhile isSpace r2)
+  let body = strip r3
+  if null body then Nothing else Just (nm, p, body)
+  where
+    identU (c:cs) | isAlpha c = let (a, b) = span isW cs in Just (c : a, b)
+    identU _ = Nothing
+
 -- NAME'(_a)(_b)? = EXPR   (a, b single index letters)
 primeEqForm :: String -> Maybe (String, [String], String)
 primeEqForm s = do
@@ -184,8 +205,13 @@ primeEqForm s = do
 
 data Section = STop | SInit | SStep
 
+-- the prelude: operators predefined as ordinary user definitions
+-- (post-transliteration spelling).  A def in the file may redefine them.
+prelude :: [(String, (String, String))]
+prelude = [("\916", ("u", "0 - delta (d u)"))]   -- Δ = -δd, the Laplacian
+
 parseFe :: String -> String -> IO Model
-parseFe name txt = go STop (Model name 0 [] [] [] [] [] [] Nothing Nothing Nothing)
+parseFe name txt = go STop (Model name 0 [] [] [] [] [] [] Nothing Nothing Nothing prelude)
                       (zip [1 :: Int ..] (lines txt))
   where
     -- dimension and axes are required: they fix the coordinate frame
@@ -197,10 +223,18 @@ parseFe name txt = go STop (Model name 0 [] [] [] [] [] [] Nothing Nothing Nothi
       | length (mAxes m) /= mDim m =
           fatal ("axes declares " ++ show (length (mAxes m))
                  ++ " names for dimension " ++ show (mDim m))
-      | otherwise =
+      | otherwise = do
+          -- resolve user-defined operators (definition order; a body may
+          -- use only operators defined before it) and expand all uses
+          defs <- resolveDefs (reverse (mDefs m))
+          steps' <- mapM (\st -> do ex <- applyDefs defs (sEx st)
+                                    return st { sEx = ex })
+                         (reverse (mSteps m))
+          inits' <- mapM (expandInit defs) (reverse (mInits m))
           return m { mParams = reverse (mParams m), mHelp = reverse (mHelp m)
-                   , mFlds = reverse (mFlds m), mInits = reverse (mInits m)
-                   , mSteps = reverse (mSteps m) }
+                   , mFlds = reverse (mFlds m), mInits = inits'
+                   , mSteps = steps', mDefs = defs }
+
     go sec m ((ln, raw):rest) = do
       let code = rstrip (stripComment raw)
           s = strip code
@@ -222,6 +256,50 @@ parseFe name txt = go STop (Model name 0 [] [] [] [] [] [] Nothing Nothing Nothi
 
     bal t = sum [1 :: Int | c <- t, c `elem` "(["] - sum [1 | c <- t, c `elem` ")]"]
 
+    resolveDefs ds = goD [] ds
+      where
+        -- earlier defs are expanded into the body, so a resolved body
+        -- may contain no def name at all: any survivor is a self or
+        -- forward reference
+        allNames = map fst ds
+        goD acc [] = return acc
+        goD acc ((nm, (p, body)) : more) = do
+          body' <- applyDefs acc body
+          case [w | TId w _ <- tokenize body', w `elem` allNames] of
+            (w:_) -> fatal ("def " ++ nm ++ " uses " ++ w
+                            ++ " which is not defined before it")
+            [] -> goD ((nm, (p, body')) : acc) more
+
+    -- expand operator applications: NAME ARG with ARG an identifier or
+    -- a parenthesized expression.  Bodies are def-free after
+    -- resolveDefs, so one pass suffices; arguments are expanded first.
+    applyDefs defs s = fmap untok (goE (tokenize s))
+      where
+        goE [] = return []
+        goE (TId nm False : ts)
+          | Just (p, body) <- lookup nm defs = do
+              let (_, rest) = span isSpTok ts
+              (arg, rest') <- case rest of
+                (TC '(' : r) -> case closeParenT 1 r [] of
+                  Just (inner, r') -> return (untok inner, r')
+                  Nothing -> fatal ("unbalanced argument to " ++ nm)
+                (TId a pr : r) -> return (a ++ (if pr then "'" else ""), r)
+                _ -> fatal ("operator " ++ nm ++ " needs an argument")
+              arg' <- fmap untok (goE (tokenize arg))
+              let argS = if all (\c -> isW c || c == '\'') arg'
+                           then arg' else "(" ++ arg' ++ ")"
+                  bodyT = concatMap (substP p argS) (tokenize body)
+              fmap ((TC '(' : bodyT ++ [TC ')']) ++) (goE rest')
+        goE (t : ts) = fmap (t :) (goE ts)
+        substP p argS (TId w pr)
+          | w == p = tokenize (argS ++ (if pr then "'" else ""))
+        substP _ _ t = [t]
+
+    expandInit defs it = case it of
+      ICas nm ex -> do ex' <- applyDefs defs ex
+                       return (ICas nm ex')
+      _ -> return it
+
     grab _ [] = ("", [])
     grab d ((_, raw):rest) =
       let t = strip (rstrip (stripComment raw))
@@ -232,6 +310,11 @@ parseFe name txt = go STop (Model name 0 [] [] [] [] [] [] Nothing Nothing Nothi
                 in (t ++ " " ++ more, rest')
 
     top ln s m
+      | Just r <- stripPrefix "def " s =
+          case defForm r of
+            Just (nm, p, body) -> return m { mDefs = (nm, (p, body)) : mDefs m }
+            Nothing -> fatal ("bad def (line " ++ show ln
+                              ++ "): def NAME ARG = EXPR")
       | Just r <- stripPrefix "param " s =
           case break (== '=') r of
             (nm, '=':v) | not (null (strip nm)) && not (null (strip v)) ->
@@ -347,6 +430,8 @@ parseFe name txt = go STop (Model name 0 [] [] [] [] [] [] Nothing Nothing Nothi
     -- equations (Euclidean grids; the variance is documentation), so
     -- v'~i = ... + \8706_j s~i~j normalizes to the underscore form here
     stp ln s0 m
+      | Just bad <- banned =
+          fatal (bad ++ " (line " ++ show ln ++ ")")
       | Just (nm, ix, ex) <- eqForm "let" s =
           return m { mSteps = Step KLet nm (if ix then ["i"] else []) ex : mSteps m }
       | Just (nm, _, ex) <- eqForm "local" s =
@@ -356,6 +441,17 @@ parseFe name txt = go STop (Model name 0 [] [] [] [] [] [] Nothing Nothing Nothi
       | otherwise = fatal ("bad step eq: " ++ s ++ " (line " ++ show ln ++ ")")
       where
         s = map (\c -> if c == '~' then '_' else c) s0
+        -- not part of the language: d2 is d applied twice, and the
+        -- Kronecker delta carries one index per mark
+        banned = foldr (\t acc -> check t `orElse` acc) Nothing (tokenize s)
+        check (TId nm _)
+          | take 3 nm == "d2_" =
+              Just ("d2 is not an operator; write d_a (d_a u) for the second difference: " ++ nm)
+          | ("delta" : ps) <- splitOn '_' nm, any ((> 1) . length) ps =
+              Just ("Kronecker delta takes one index per mark (delta~i_j): " ++ nm)
+        check _ = Nothing
+        orElse (Just x) _ = Just x
+        orElse Nothing y = y
 
 -- --------------------------------------------------- expression rewriting
 
@@ -485,10 +581,8 @@ ixExpand m env anchor expr = expandRegion env (itok expr)
           | otherwise = go2 d rest
 
     idxLetters w =
-      let (b, parts) = splitIdent w
-      in if b == "delta"
-           then [ [c] | pq <- parts, c <- pq, isAlpha c ]
-           else [ pt | pt <- parts, length pt == 1, all isAlpha pt ]
+      let (_, parts) = splitIdent w
+      in [ pt | pt <- parts, length pt == 1, all isAlpha pt ]
 
     splitIdent w = case splitOn '_' w of
       (b : parts) -> (b, parts)
@@ -508,15 +602,12 @@ ixExpand m env anchor expr = expandRegion env (itok expr)
       fmap (("(" ++ e ++ ")") ++) (resolve env' rest')
     resolve env' (IC c : rest) = fmap ([c] ++) (resolve env' rest)
     resolve env' (II w : rest)
-      -- Kronecker delta: delta_ij, or the per-index form delta_i_j
-      -- (which is what delta~i_j / \948~i~j normalize to)
-      | ("delta", ps) <- splitIdentW
-      , Just (pc, qc) <- case ps of
-          [[p, q]]              -> Just ([p], [q])
-          [p@[_], q@[_]]        -> Just (p, q)
-          _                     -> Nothing = do
-          pv <- need env' pc
-          qv <- need env' qc
+      -- Kronecker delta, one index per mark: delta~i_j / \948~i_j
+      -- (normalized to delta_i_j).  The fused delta_ij is rejected at
+      -- parse time.
+      | ("delta", [p@[_], q@[_]]) <- splitIdentW = do
+          pv <- need env' p
+          qv <- need env' q
           fmap ((if pv == qv then "1" else "0") ++) (resolve env' rest)
       | ("d", [k]) <- splitIdentW = do
           n <- need env' k
@@ -628,9 +719,7 @@ mathOps m = concatMap out . tokenize
     out (TId nm pr)
       | not pr, Just rest <- stripPrefix "d2_" nm, Just n <- lookup rest axmap = "dC2 " ++ n
       | not pr, Just rest <- stripPrefix "d_" nm, Just n <- lookup rest axmap = "dC " ++ n
-      | not pr, nm == "lap4" =
-          "(\\feU -> dTaylor 2 [-2, -1, 0, 1, 2] 1 feU + dTaylor 2 [-2, -1, 0, 1, 2] 2 feU + dTaylor 2 [-2, -1, 0, 1, 2] 3 feU)"
-      | not pr, nm == "\916" = if metricOn m then "lb" else "lap"   -- Δ: the Laplacian of the model's geometry
+      | not pr, nm == "lap4" = ['\916', '4']   -- alias of the main spelling Δ4
       | otherwise = nm ++ (if pr then "'" else "")
     out (TC c) = [c]
 
@@ -652,6 +741,15 @@ untok = concatMap out
     out (TId nm pr) = nm ++ (if pr then "'" else "")
     out (TC c) = [c]
 
+-- collect tokens up to the ')' closing an already-consumed '('
+closeParenT :: Int -> [Tok] -> [Tok] -> Maybe ([Tok], [Tok])
+closeParenT _ [] _ = Nothing
+closeParenT n (TC '(' : ts) acc = closeParenT (n + 1) ts (TC '(' : acc)
+closeParenT n (TC ')' : ts) acc
+  | n == 1 = Just (reverse acc, ts)
+  | otherwise = closeParenT (n - 1) ts (TC ')' : acc)
+closeParenT n (t : ts) acc = closeParenT n ts (t : acc)
+
 -- d_a (d_a X) fuses to the compact second difference d2_a (X): repeated
 -- derivatives pair up as staggered half-cell differences (forward then
 -- backward), which is the d2_ stencil -- not the double-width central
@@ -664,16 +762,10 @@ fuseDD = untok . go . tokenize
       , (_, TC '(' : ts1) <- span isSpTok ts
       , (_, TId d2 False : ts2) <- span isSpTok ts1
       , stripPrefix "d_" d2 == Just ax
-      , Just (inner, rest) <- closeParen (1 :: Int) ts2 []
+      , Just (inner, rest) <- closeParenT 1 ts2 []
       = TId ("d2_" ++ ax) False : TC '(' : go inner ++ (TC ')' : go rest)
     go (t : ts) = t : go ts
     go [] = []
-    closeParen _ [] _ = Nothing
-    closeParen n (TC '(' : ts) acc = closeParen (n + 1) ts (TC '(' : acc)
-    closeParen n (TC ')' : ts) acc
-      | n == 1 = Just (reverse acc, ts)
-      | otherwise = closeParen (n - 1) ts (TC ')' : acc)
-    closeParen n (t : ts) acc = closeParen n ts (t : acc)
 
 -- delta (d u) on a scalar field lowers to minus the Laplacian: the
 -- codifferential of the exterior derivative is -lap (flat) or -lb
@@ -686,13 +778,22 @@ lowerDeltaD m = untok . go . tokenize
     go (TId "delta" False : ts)
       | (_, TC '(' : ts1) <- span isSpTok ts
       , (_, TId "d" False : ts2) <- span isSpTok ts1
-      , (_, TId nm pr : ts3) <- span isSpTok ts2
-      , (_, TC ')' : ts4) <- span isSpTok ts3
-      , kindOf m nm == Just Scalar
-      = tokenize ("((0 - 1) * " ++ lapNm ++ " " ++ nm ++ (if pr then "'" else "") ++ ")")
-          ++ go ts4
+      , Just (inner, rest) <- closeParenT 1 ts2 []
+      = case bareIdent inner of
+          Just (nm, pr) | kindOf m nm == Just Scalar ->
+            tokenize ("((0 - 1) * " ++ lapNm ++ " " ++ nm ++ (if pr then "'" else "") ++ ")")
+              ++ go rest
+          -- compound operand: flat geometry only (the metric flux
+          -- machinery is anchored to a named field)
+          _ | not (metricOn m) ->
+            tokenize ("((0 - 1) * lap (" ++ untok inner ++ "))") ++ go rest
+          _ -> TId "delta" False : go ts
     go (t : ts) = t : go ts
     go [] = []
+    bareIdent ts = case filter (not . isSpTok) ts of
+      [TId nm pr] -> Just (nm, pr)
+      [TC '(', TId nm pr, TC ')'] -> Just (nm, pr)
+      _ -> Nothing
 
 rewrite :: Model -> [String] -> Maybe String -> String -> IO String
 rewrite m lets mk expr = fmap concat (mapM render (attach elems))

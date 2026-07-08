@@ -1,6 +1,6 @@
--- Diffusion with a DERIVED 4th-order Laplacian: the five-point
+-- Diffusion with a DERIVED 4th-order Laplacian Δ4: the five-point
 -- coefficients (-1/12, 4/3, -5/2, 4/3, -1/12) appear nowhere here --
--- dTaylor solves the Taylor conditions by exact rational Gaussian
+-- Δ4 solves the Taylor conditions by exact rational Gaussian
 -- elimination inside the CAS.  The check driver verifies the run
 -- against the exact discrete symbol of the derived stencil.
 
@@ -18,4 +18,4 @@ init:
   u = sin(4.0*i*dx)
 
 step:
-  u' = u + dt * κ * lap4 u
+  u' = u + dt * κ * Δ4 u

@@ -47,7 +47,9 @@ def dGrad (X: Vector MathValue) : Matrix MathValue :=
 def curl (X: Vector MathValue) : Vector MathValue :=
   withSymbols [i, j, k] (ε 3)~i~j~k . (dGrad X)_j_k
 
-def divg (X: Vector MathValue) : MathValue := sum (map (\a -> dC a X_a) [1, 2, 3])
+-- divergence as the trace of the discrete Jacobian, mirroring the
+-- core library's div (lib/math/algebra/vector.egi: trace (!∂/∂ A xs))
+def divg (X: Vector MathValue) : MathValue := trace (dGrad X)
 
 --
 -- Derived high-order stencils
@@ -85,6 +87,11 @@ def taylorStencil (m: Integer) (ks: [MathValue]) : [MathValue] :=
 -- m-th derivative along axis a from the stencil offsets ks
 def dTaylor (m: Integer) (ks: [MathValue]) (a: Integer) (u: MathValue) : MathValue :=
   sum (map (\(c, k) -> c * shift a k u) (zip (taylorStencil m ks) ks)) / (hsteps_a ^ m)
+
+-- derived 4th-order Laplacian (surface spelling: Δ4); the 5-point
+-- coefficients are solved from the Taylor conditions above
+def Δ4 (u: MathValue) : MathValue :=
+  dTaylor 2 [-2, -1, 0, 1, 2] 1 u + dTaylor 2 [-2, -1, 0, 1, 2] 2 u + dTaylor 2 [-2, -1, 0, 1, 2] 3 u
 
 --
 -- Staggered (Yee) grids

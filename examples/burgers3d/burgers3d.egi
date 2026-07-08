@@ -16,6 +16,6 @@ def feFlds : [(String, Integer)] := [("u", 0)]
 def feInits :=
   [ "  u[i,j,k] = 2.0*0.05*k0*sin(k0*i*dx)/(2.0 + cos(k0*i*dx))"
   ]
-def feSteps := scalarEq "u" (u + dt * (nu * lap u - u * dC 1 u))
+def feSteps := scalarEq "u" (u + dt * (nu * (0 - ((0 - 1) * lap u)) - u * dC 1 u))
 
 def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feFlds feInits feSteps)
