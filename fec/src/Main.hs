@@ -932,6 +932,28 @@ rewrite m lets mk expr = fmap concat (mapM render (attach elems))
         Just k -> return ("nth " ++ k ++ " (" ++ t ++ ")")
         Nothing -> return ("(" ++ t ++ ")")
 
+rewriteScalar :: Model -> [String] -> String -> IO String
+rewriteScalar m lets expr =
+  let pre = stepPre m expr
+  in if hasIndexSyntax m pre
+       then ixExpand m [] (plOf [False, False, False]) pre
+       else rewrite m lets Nothing expr
+
+hasIndexSyntax :: Model -> String -> Bool
+hasIndexSyntax m = any indexedTok . tokenize
+  where
+    indexedTok (TId nm _) =
+      case splitOn '_' nm of
+        (_:parts@(_:_)) ->
+          all isIndexPart parts
+          && not (isAxisDerivative nm parts)
+        _ -> False
+    indexedTok _ = False
+    isIndexPart [c] = isAlpha c
+    isIndexPart _ = False
+    isAxisDerivative nm parts =
+      (take 2 nm == "d_" || take 3 nm == "d2_") && all (`elem` mAxes m) parts
+
 -- ---------------------------------------------------------------- emitter
 
 escQ :: String -> String
@@ -1090,7 +1112,7 @@ emit m = do
                e <- rewrite m lets Nothing (sEx st)
                return ["def " ++ sNm st ++ "_i := withSymbols [i] " ++ e]
            | otherwise -> do
-               e <- rewrite m lets Nothing (sEx st)
+               e <- rewriteScalar m lets (sEx st)
                return ["def " ++ sNm st ++ " := " ++ e]
       KEq
         | isIndexKind (kindOf m (sNm st)) -> indexDefs m st
@@ -1104,7 +1126,7 @@ emit m = do
     stepItem lets st = case sk st of
       KLet -> return Nothing
       KLocal -> do
-        e <- rewrite m lets Nothing (sEx st)
+        e <- rewriteScalar m lets (sEx st)
         return (Just ("[fmrEq \"" ++ sNm st ++ "\" (" ++ e ++ ")]"))
       KEq
         | Just (Vector True) <- kindOf m (sNm st) ->
@@ -1125,7 +1147,7 @@ emit m = do
             return (Just ("vecEqs \"" ++ sNm st ++ "\" "
                           ++ unwords ["(" ++ c ++ ")" | c <- cs]))
         | otherwise -> do
-            e <- rewrite m lets Nothing (sEx st)
+            e <- rewriteScalar m lets (sEx st)
             return (Just ("scalarEq \"" ++ sNm st ++ "\" (" ++ e ++ ")"))
     initLine lets it = case it of
       IRaw nm rhs -> return ["\"  " ++ nm ++ "[i,j,k] = " ++ escQ rhs ++ "\""]
