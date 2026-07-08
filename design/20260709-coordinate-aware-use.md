@@ -14,7 +14,8 @@ Date: 2026-07-09
   なしではエラーになる。`Δ` の内部依存としての `δ (d u)` は `Δ` use だけで動く。
 - 2026-07-09: 生成 `.egi` に `feDim`、`feAxes`、`feCoords`、`feHsteps` を
   出す足場を実装済み。`embedding` の計量導出は `nth a [x, y, z]` ではなく
-  `feCoords_a` を参照する。
+  `feCoords_a` を参照し、計量係数場の半セル評価も `feCoords_a`/`feHsteps_a`
+  を参照する。
 
 このメモは、Formurae の数学演算子ライブラリを
 `dimension`、`axes`、`metric scale`、`embedding` で指定された座標文脈に

@@ -35,9 +35,9 @@ def feHelpers :=
 def feFlds : [(String, Integer)] := [("u", 0), ("ca", 0), ("cb", 0), ("cc", 0), ("sg", 0)]
 def feInits :=
   [ fmrInit "u" (exp (0 - 4 * (x - 1 / 2) ^ 2) * exp (0 - 4 * (y - 1 / 2) ^ 2) * exp (cos z - 1))
-  , fmrInit "ca" (substitute [(x, x + hx / 2)] ((feH1) * (feH2) * (feH3) / ((feH1) ^ 2)))
-  , fmrInit "cb" (substitute [(y, y + hy / 2)] ((feH1) * (feH2) * (feH3) / ((feH2) ^ 2)))
-  , fmrInit "cc" (substitute [(z, z + hz / 2)] ((feH1) * (feH2) * (feH3) / ((feH3) ^ 2)))
+  , fmrInit "ca" (substitute [(feCoords_1, feCoords_1 + feHsteps_1 / 2)] ((feH1) * (feH2) * (feH3) / ((feH1) ^ 2)))
+  , fmrInit "cb" (substitute [(feCoords_2, feCoords_2 + feHsteps_2 / 2)] ((feH1) * (feH2) * (feH3) / ((feH2) ^ 2)))
+  , fmrInit "cc" (substitute [(feCoords_3, feCoords_3 + feHsteps_3 / 2)] ((feH1) * (feH2) * (feH3) / ((feH3) ^ 2)))
   , fmrInit "sg" ((feH1) * (feH2) * (feH3))
   ]
 def feSteps := [fmrEq "f1" (ca * dYee 1 [1 / 2, 0, 0] (u, [0, 0, 0]))] ++ [fmrEq "f2" (cb * dYee 2 [0, 1 / 2, 0] (u, [0, 0, 0]))] ++ [fmrEq "f3" (cc * dYee 3 [0, 0, 1 / 2] (u, [0, 0, 0]))] ++ scalarEq "u" (u + dt * (0 - ((0 - 1) * ((dYee 1 [0, 0, 0] (f1, [1 / 2, 0, 0]) + dYee 2 [0, 0, 0] (f2, [0, 1 / 2, 0]) + dYee 3 [0, 0, 0] (f3, [0, 0, 1 / 2])) / sg)))) ++ scalarEq "ca" (ca) ++ scalarEq "cb" (cb) ++ scalarEq "cc" (cc) ++ scalarEq "sg" (sg)

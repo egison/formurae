@@ -1148,9 +1148,10 @@ emit m = do
       mtInits = case mtx of
         Nothing -> []
         Just (_, hs) ->
-          [ "fmrInit \"" ++ n ++ "\" (substitute [(" ++ ax ++ ", " ++ ax ++ " + h"
-            ++ ax ++ " / 2)] (" ++ sqgOf hs ++ " / ((" ++ h ++ ") ^ 2)))"
-          | (n, ax, h) <- zip3 ["ca", "cb", "cc"] internalCoords hs ]
+          [ "fmrInit \"" ++ n ++ "\" (substitute [(feCoords_" ++ show a
+            ++ ", feCoords_" ++ show a ++ " + feHsteps_" ++ show a
+            ++ " / 2)] (" ++ sqgOf hs ++ " / ((" ++ h ++ ") ^ 2)))"
+          | (n, a, h) <- zip3 ["ca", "cb", "cc"] ([1, 2, 3] :: [Int]) hs ]
           ++ [ "fmrInit \"sg\" (" ++ sqgOf hs ++ ")" ]
       mtFlds = case mtx of
         Nothing -> []

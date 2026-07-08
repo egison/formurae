@@ -35,9 +35,10 @@ Formura のラテン語風複数形で *formulae*(数式)への掛詞 — 「数
 `use` または計量宣言を持つモデルの生成 `.egi` に
 `feDim`・`feAxes`・`feCoords`・`feHsteps` を出すようにした。
 `embedding` から計量を導出する `feGd`/`feGo` は `[x, y, z]` の直書きではなく
-`feCoords_a` を参照する。これはまだ `lib/fmrgen.egi` の `coords`/`hsteps`
-本体置換ではないが、座標文脈つきライブラリ生成へ進むための足場になる。
-生成 `.fmr` は全 `.fe` 例でバイト一致。
+`feCoords_a` を参照し、計量係数場の半セル評価も `feCoords_a`/`feHsteps_a`
+を使う。これはまだ `lib/fmrgen.egi` の `coords`/`hsteps` 本体置換ではないが、
+座標文脈つきライブラリ生成へ進むための足場になる。生成 `.fmr` は全 `.fe` 例で
+バイト一致。
 
 **v1.8(2026-07-08): Unicode と基本演算子** — ギリシャ文字識別子(θ, φ, …
 → fec が ASCII へ字訳)・∂=d・δ=codiff・−=-・Δ=幾何のラプラシアン
