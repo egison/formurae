@@ -33,7 +33,7 @@
 --                                   hodge factors sqrt(g)/h_a^2 become
 --                                   coefficient FIELDS evaluated by the
 --                                   CAS at the half-cell placements.
---   def NAME ARG = EXPR             user-defined operator, expanded at use
+--   def NAME ARG(~i|_i)* = EXPR     user-defined operator, expanded at use
 --                                    sites (file scope; a body may use only
 --                                    operators defined before it).  The
 --                                    Laplacian is predefined exactly this
@@ -208,6 +208,9 @@ stripComment ('-':'-':_) = []
 stripComment (c:cs) = c : stripComment cs
 stripComment [] = []
 
+normalizeIndexMarks :: String -> String
+normalizeIndexMarks = map (\c -> if c == '~' then '_' else c)
+
 -- split on a separator at paren/bracket depth 0
 splitTop :: Char -> String -> [String]
 splitTop sep = go 0 []
@@ -236,17 +239,26 @@ eqForm marker s = do
     ident (c:cs) | isAlpha c = let (a, b) = span isAlphaNum cs in Just (c : a, b)
     ident _ = Nothing
 
--- def NAME PARAM = BODY   (user-defined operator; names may be Unicode)
+-- def NAME PARAM(~i|_i)* = BODY
+-- The optional index marks after PARAM describe the returned indexed
+-- quantity.  The current thin implementation keeps PARAM as the substitution
+-- variable and lets the index equation expander interpret BODY's free indices.
 defForm :: String -> Maybe (String, String, String)
 defForm r = do
   (nm, r1) <- identU (strip r)
-  (p, r2) <- identU (dropWhile isSpace r1)
-  r3 <- stripPrefix "=" (dropWhile isSpace r2)
+  (p, r2) <- identParam (dropWhile isSpace r1)
+  r3 <- stripPrefix "=" (dropWhile isSpace (dropIdxSuffix r2))
   let body = strip r3
   if null body then Nothing else Just (nm, p, body)
   where
     identU (c:cs) | isAlpha c = let (a, b) = span isW cs in Just (c : a, b)
     identU _ = Nothing
+    identParam (c:cs) | isAlpha c =
+      let (a, b) = span isAlphaNum cs in Just (c : a, b)
+    identParam _ = Nothing
+    dropIdxSuffix ('~':c:rest) | isAlpha c = dropIdxSuffix rest
+    dropIdxSuffix ('_':c:rest) | isAlpha c = dropIdxSuffix rest
+    dropIdxSuffix s = s
 
 -- NAME'(_a)(_b)? = EXPR   (a, b single index letters)
 primeEqForm :: String -> Maybe (String, [String], String)
@@ -377,9 +389,10 @@ parseFe name txt = go STop (Model name 0 [] [] [] [] [] [] Nothing Nothing Nothi
     top ln s m
       | Just r <- stripPrefix "def " s =
           case defForm r of
-            Just (nm, p, body) -> return m { mDefs = (nm, (p, body)) : mDefs m }
+            Just (nm, p, body) ->
+              return m { mDefs = (nm, (p, normalizeIndexMarks body)) : mDefs m }
             Nothing -> fatal ("bad def (line " ++ show ln
-                              ++ "): def NAME ARG = EXPR")
+                              ++ "): def NAME ARG(~i|_i)* = EXPR")
       | Just r <- stripPrefix "param " s =
           case break (== '=') r of
             (nm, '=':v) | not (null (strip nm)) && not (null (strip v)) ->
@@ -505,7 +518,7 @@ parseFe name txt = go STop (Model name 0 [] [] [] [] [] [] Nothing Nothing Nothi
           return m { mSteps = Step KEq nm ixs ex : mSteps m }
       | otherwise = fatal ("bad step eq: " ++ s ++ " (line " ++ show ln ++ ")")
       where
-        s = map (\c -> if c == '~' then '_' else c) s0
+        s = normalizeIndexMarks s0
         -- not part of the language: d2 is d applied twice, and the
         -- Kronecker delta carries one index per mark
         banned = foldr (\t acc -> check t `orElse` acc) Nothing (tokenize s)
