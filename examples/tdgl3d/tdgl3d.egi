@@ -4,6 +4,11 @@
 
 declare symbol dt
 
+def feDim : Integer := 3
+def feAxes : [String] := ["x", "y", "z"]
+def feCoords : Vector MathValue := [| x, y, z |]
+def feHsteps : Vector MathValue := [| hx, hy, hz |]
+
 def a := function (x, y, z)
 def b := function (x, y, z)
 

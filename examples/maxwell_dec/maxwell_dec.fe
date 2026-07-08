@@ -10,6 +10,7 @@ axes x, y, z
 param dt = 0.5*dx
 
 extern exp
+use exterior-calculus { d, δ }
 raw gauss1 = fun(x) exp(-((x-(total_grid_x*dx/2))/(8*dx))**2)
 
 field E : 1-form

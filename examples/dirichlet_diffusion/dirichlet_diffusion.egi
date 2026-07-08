@@ -4,6 +4,11 @@
 
 declare symbol kappa, dt
 
+def feDim : Integer := 3
+def feAxes : [String] := ["x", "y", "z"]
+def feCoords : Vector MathValue := [| x, y, z |]
+def feHsteps : Vector MathValue := [| hx, hy, hz |]
+
 def u := function (x, y, z)
 
 

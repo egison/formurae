@@ -4,6 +4,11 @@
 
 declare symbol dt
 
+def feDim : Integer := 3
+def feAxes : [String] := ["x", "y", "z"]
+def feCoords : Vector MathValue := [| x, y, z |]
+def feHsteps : Vector MathValue := [| hx, hy, hz |]
+
 def E_i := generateTensor (\[i] -> function (x, y, z)) [3]
 def Ef : (Integer, Integer, [MathValue]) := (0, 1, [E_1, E_2, E_3])
 def B_i := generateTensor (\[i] -> function (x, y, z)) [3]

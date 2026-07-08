@@ -35,8 +35,11 @@
 --                                   CAS at the half-cell placements.
 --   use MODULE { NAME, ... }         coordinate-context mathematical operators
 --                                    made available to this file; v1 starts
---                                    with exterior-calculus { Δ }, which
---                                    injects def Δ u = 0 - delta (d u)
+--                                    with exterior-calculus { Δ } and
+--                                    vector-calculus { curl, divg }.
+--                                    Δ injects def Δ u = 0 - delta (d u);
+--                                    vector operators use lib/fmrgen.egi
+--                                    under the current coordinate context.
 --   def NAME ARG(~i|_i)* = EXPR     user-defined operator, expanded at use
 --                                    sites (file scope; a body may use only
 --                                    operators defined before it).  A use
@@ -332,8 +335,22 @@ usePreludeDefs m =
 missingUse :: Model -> String -> Maybe String
 missingUse m s = foldr (\t acc -> check t `orElse` acc) Nothing (tokenize s)
   where
+    check (TId "d" _) | not (hasUse m "exterior-calculus" "d") =
+      Just "d requires use exterior-calculus { d }"
+    check (TId "delta" _) | not (hasUse m "exterior-calculus" "delta") =
+      Just "δ requires use exterior-calculus { δ }"
+    check (TId "codiff" _) | not (hasUse m "exterior-calculus" "codiff") =
+      Just "codiff requires use exterior-calculus { codiff }"
+    check (TId "dForm" _) | not (hasUse m "exterior-calculus" "dForm") =
+      Just "dForm requires use exterior-calculus { dForm }"
     check (TId "\916" _) | not (hasUse m "exterior-calculus" "\916") =
       Just "Δ requires use exterior-calculus { Δ }"
+    check (TId "curl" _) | not (hasUse m "vector-calculus" "curl") =
+      Just "curl requires use vector-calculus { curl }"
+    check (TId "divg" _) | not (hasUse m "vector-calculus" "divg") =
+      Just "divg requires use vector-calculus { divg }"
+    check (TId "dGrad" _) | not (hasUse m "vector-calculus" "dGrad") =
+      Just "dGrad requires use vector-calculus { dGrad }"
     check _ = Nothing
     orElse (Just x) _ = Just x
     orElse Nothing y = y
@@ -355,6 +372,13 @@ parseFe name txt = go STop (Model name 0 [] [] [] [] [] [] [] Nothing Nothing No
           let uses = normalizeUses (reverse (mUses m))
               mUse = m { mUses = uses }
           validateUses mUse
+          mapM_ (\(_, (_, body)) ->
+                    checkUserSurface mUse "in def" body)
+                (mDefs mUse)
+          mapM_ (\st ->
+                    checkUserSurface mUse ("in step expression: " ++ sEx st) (sEx st))
+                (mSteps mUse)
+          mapM_ (checkInitUse mUse) (mInits mUse)
           -- resolve user-defined operators (definition order; a body may
           -- use only operators defined before it) and expand all uses
           defs <- resolveDefs (usePreludeDefs mUse ++ reverse (mDefs mUse))
@@ -363,10 +387,10 @@ parseFe name txt = go STop (Model name 0 [] [] [] [] [] [] [] Nothing Nothing No
                          (reverse (mSteps mUse))
           inits' <- mapM (expandInit defs) (reverse (mInits mUse))
           mapM_ (\(nm, (_, body)) ->
-                    checkSurface mUse ("in def " ++ nm) body)
+                    checkGeneratedSurface mUse ("in def " ++ nm) body)
                 defs
           mapM_ (\st ->
-                    checkSurface mUse ("in step expression: " ++ sEx st) (sEx st))
+                    checkGeneratedSurface mUse ("in step expression: " ++ sEx st) (sEx st))
                 steps'
           return mUse { mParams = reverse (mParams mUse), mHelp = reverse (mHelp mUse)
                    , mFlds = reverse (mFlds mUse), mInits = inits'
@@ -437,13 +461,22 @@ parseFe name txt = go STop (Model name 0 [] [] [] [] [] [] [] Nothing Nothing No
                        return (ICas nm ex')
       _ -> return it
 
-    checkSurface m' context body =
+    checkUserSurface m' context body =
       case surfaceBanned m' body of
         Just bad -> fatal (bad ++ " " ++ context)
         Nothing ->
           case missingUse m' body of
             Just bad -> fatal (bad ++ " " ++ context)
             Nothing -> return ()
+
+    checkGeneratedSurface m' context body =
+      case surfaceBanned m' body of
+        Just bad -> fatal (bad ++ " " ++ context)
+        Nothing -> return ()
+
+    checkInitUse m' it = case it of
+      ICas nm ex -> checkUserSurface m' ("in init expression: " ++ nm) ex
+      _ -> return ()
 
     grab _ [] = ("", [])
     grab d ((_, raw):rest) =
@@ -1075,12 +1108,26 @@ emit m = do
     (Just u, Just hs, _) -> return (Just (u, map (renameAxes m) hs))
     (Just u, Nothing, Just _) -> return (Just (u, ["feH1", "feH2", "feH3"]))
     (Nothing, _, _) -> return Nothing
-  let embDefs = case mEmbed m of
+  let internalCoords = take (mDim m) ["x", "y", "z"]
+      internalHsteps = take (mDim m) ["hx", "hy", "hz"]
+      coordVec = "[| " ++ intercalate ", " internalCoords ++ " |]"
+      hstepVec = "[| " ++ intercalate ", " internalHsteps ++ " |]"
+      stringList xs = "[" ++ intercalate ", " (map show xs) ++ "]"
+      coordArgs = intercalate ", " internalCoords
+      contextDecls
+        | null (mUses m) && mMetric m == Nothing && mEmbed m == Nothing = []
+        | otherwise =
+            [ "def feDim : Integer := " ++ show (mDim m)
+            , "def feAxes : [String] := " ++ stringList (mAxes m)
+            , "def feCoords : Vector MathValue := " ++ coordVec
+            , "def feHsteps : Vector MathValue := " ++ hstepVec
+            ]
+      embDefs = case mEmbed m of
         Nothing -> []
         Just es ->
           [ "def feX : [MathValue] := [" ++ intercalate ", " (map (renameAxes m) es) ++ "]"
-          , "def feGd (a: Integer) : MathValue := sum (map (\\e -> (\8706/\8706 e (nth a [x, y, z])) ^ 2) feX)"
-          , "def feGo (a: Integer) (b: Integer) : MathValue := sum (map (\\e -> \8706/\8706 e (nth a [x, y, z]) * \8706/\8706 e (nth b [x, y, z])) feX)"
+          , "def feGd (a: Integer) : MathValue := sum (map (\\e -> (\8706/\8706 e feCoords_a) ^ 2) feX)"
+          , "def feGo (a: Integer) (b: Integer) : MathValue := sum (map (\\e -> \8706/\8706 e feCoords_a * \8706/\8706 e feCoords_b) feX)"
           , "def feH1 := unquoteAll (expandAll (sqrt (feGd 1)))"
           , "def feH2 := unquoteAll (expandAll (sqrt (feGd 2)))"
           , "def feH3 := unquoteAll (expandAll (sqrt (feGd 3)))"
@@ -1096,14 +1143,14 @@ emit m = do
       sqgOf _ = ""
       mtDecls = case mtx of
         Nothing -> []
-        Just _ -> [ "def " ++ n ++ " := function (x, y, z)"
+        Just _ -> [ "def " ++ n ++ " := function (" ++ coordArgs ++ ")"
                   | n <- ["ca", "cb", "cc", "sg", "f1", "f2", "f3"] ]
       mtInits = case mtx of
         Nothing -> []
         Just (_, hs) ->
           [ "fmrInit \"" ++ n ++ "\" (substitute [(" ++ ax ++ ", " ++ ax ++ " + h"
             ++ ax ++ " / 2)] (" ++ sqgOf hs ++ " / ((" ++ h ++ ") ^ 2)))"
-          | (n, ax, h) <- zip3 ["ca", "cb", "cc"] ["x", "y", "z"] hs ]
+          | (n, ax, h) <- zip3 ["ca", "cb", "cc"] internalCoords hs ]
           ++ [ "fmrInit \"sg\" (" ++ sqgOf hs ++ ")" ]
       mtFlds = case mtx of
         Nothing -> []
@@ -1130,7 +1177,7 @@ emit m = do
          else [ "declare symbol " ++ intercalate ", " (map fst (mParams m)), "" ])
       fieldDecls = concatMap fdecl (mFlds m)
       primDecls = concatMap pdecl prims
-      localDecls = [ "def " ++ sNm st ++ " := function (x, y, z)"
+      localDecls = [ "def " ++ sNm st ++ " := function (" ++ coordArgs ++ ")"
                    | st <- mSteps m, sk st == KLocal ] ++ embDefs ++ mtDecls
       ddDef = case mDd m of
         Nothing -> []
@@ -1162,7 +1209,7 @@ emit m = do
       -- internal x,y,z); the generated program stays on x,y,z so that
       -- Formura's derived names (dx, to_pos_x, ...) match the printer,
       -- the yaml, and the drivers
-      emitter = "emitModelOn " ++ show (mDim m) ++ " [\"x\", \"y\", \"z\"]"
+      emitter = "emitModelOn " ++ show (mDim m) ++ " " ++ stringList internalCoords
       gates = orthoGate ++ (case mDd m of
                 Just _ -> [("feDD = 0",
                             "# ERROR: d . d /= 0 on this grid -- refusing to generate")]
@@ -1174,28 +1221,30 @@ emit m = do
       mainDef
         | null gates = [ "def main (args: [String]) : IO () := " ++ emitCall ]
         | otherwise = [ "def main (args: [String]) : IO () :=", "  " ++ nest gates ]
-  return (unlines (header ++ fieldDecls ++ primDecls ++ localDecls ++ [""]
+  return (unlines (header ++ contextDecls ++ (if null contextDecls then [] else [""])
+                   ++ fieldDecls ++ primDecls ++ localDecls ++ [""]
                    ++ concat body ++ ddDef ++ [""]
                    ++ [feParams] ++ feHelpers ++ [feFlds] ++ feInits
                    ++ [feSteps] ++ [""] ++ mainDef))
   where
-    fdecl (nm, Scalar) = ["def " ++ nm ++ " := function (x, y, z)"]
+    fieldCoordArgs = intercalate ", " (take (mDim m) ["x", "y", "z"])
+    fdecl (nm, Scalar) = ["def " ++ nm ++ " := function (" ++ fieldCoordArgs ++ ")"]
     fdecl (nm, Vector _) =
-      ["def " ++ nm ++ "_i := generateTensor (\\[i] -> function (x, y, z)) [3]"]
+      ["def " ++ nm ++ "_i := generateTensor (\\[i] -> function (" ++ fieldCoordArgs ++ ")) [3]"]
     fdecl (nm, SymM) =
-      ["def " ++ nm ++ "_i_j := generateTensor (\\[i, j] -> function (x, y, z)) [3, 3]"]
+      ["def " ++ nm ++ "_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) [3, 3]"]
     fdecl (nm, Form k) =
-      [ "def " ++ nm ++ "_i := generateTensor (\\[i] -> function (x, y, z)) [3]"
+      [ "def " ++ nm ++ "_i := generateTensor (\\[i] -> function (" ++ fieldCoordArgs ++ ")) [3]"
       , "def " ++ nm ++ "f : (Integer, Integer, [MathValue]) := (0, " ++ show k
         ++ ", [" ++ nm ++ "_1, " ++ nm ++ "_2, " ++ nm ++ "_3])" ]
     pdecl nm = case kindOf m nm of
-      Just Scalar -> ["def " ++ nm ++ "' := function (x, y, z)"]
+      Just Scalar -> ["def " ++ nm ++ "' := function (" ++ fieldCoordArgs ++ ")"]
       Just (Vector _) ->
-        ["def " ++ nm ++ "'_i := generateTensor (\\[i] -> function (x, y, z)) [3]"]
+        ["def " ++ nm ++ "'_i := generateTensor (\\[i] -> function (" ++ fieldCoordArgs ++ ")) [3]"]
       Just SymM ->
-        ["def " ++ nm ++ "'_i_j := generateTensor (\\[i, j] -> function (x, y, z)) [3, 3]"]
+        ["def " ++ nm ++ "'_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) [3, 3]"]
       Just (Form k) ->
-        [ "def " ++ nm ++ "'_i := generateTensor (\\[i] -> function (x, y, z)) [3]"
+        [ "def " ++ nm ++ "'_i := generateTensor (\\[i] -> function (" ++ fieldCoordArgs ++ ")) [3]"
         , "def " ++ nm ++ "fN : (Integer, Integer, [MathValue]) := (0, " ++ show k
           ++ ", [" ++ nm ++ "'_1, " ++ nm ++ "'_2, " ++ nm ++ "'_3])" ]
       Nothing -> []

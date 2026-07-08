@@ -4,10 +4,15 @@
 
 declare symbol dt
 
+def feDim : Integer := 3
+def feAxes : [String] := ["r", "theta", "phi"]
+def feCoords : Vector MathValue := [| x, y, z |]
+def feHsteps : Vector MathValue := [| hx, hy, hz |]
+
 def u := function (x, y, z)
 def feX : [MathValue] := [`(1 + x) * sin (1 + y) * cos z, `(1 + x) * sin (1 + y) * sin z, `(1 + x) * cos (1 + y)]
-def feGd (a: Integer) : MathValue := sum (map (\e -> (∂/∂ e (nth a [x, y, z])) ^ 2) feX)
-def feGo (a: Integer) (b: Integer) : MathValue := sum (map (\e -> ∂/∂ e (nth a [x, y, z]) * ∂/∂ e (nth b [x, y, z])) feX)
+def feGd (a: Integer) : MathValue := sum (map (\e -> (∂/∂ e feCoords_a) ^ 2) feX)
+def feGo (a: Integer) (b: Integer) : MathValue := sum (map (\e -> ∂/∂ e feCoords_a * ∂/∂ e feCoords_b) feX)
 def feH1 := unquoteAll (expandAll (sqrt (feGd 1)))
 def feH2 := unquoteAll (expandAll (sqrt (feGd 2)))
 def feH3 := unquoteAll (expandAll (sqrt (feGd 3)))

@@ -2,6 +2,20 @@
 
 Date: 2026-07-09
 
+## 実装状況
+
+- 2026-07-09: `use exterior-calculus { Δ }` を実装済み。
+  `Δ` は暗黙 prelude ではなく `use` で有効化される。
+- 2026-07-09: `use vector-calculus { curl, divg }` の第一段階を実装済み。
+  `curl`、`divg`、`dGrad` は `use vector-calculus` なしではエラーになる。
+  定義本体はまだ `lib/fmrgen.egi` の既存定義を使う。
+- 2026-07-09: `use exterior-calculus { d, δ }` の第一段階を実装済み。
+  ユーザが直接書いた `d`、`δ`、`codiff`、`dForm` は `use exterior-calculus`
+  なしではエラーになる。`Δ` の内部依存としての `δ (d u)` は `Δ` use だけで動く。
+- 2026-07-09: 生成 `.egi` に `feDim`、`feAxes`、`feCoords`、`feHsteps` を
+  出す足場を実装済み。`embedding` の計量導出は `nth a [x, y, z]` ではなく
+  `feCoords_a` を参照する。
+
 このメモは、Formurae の数学演算子ライブラリを
 `dimension`、`axes`、`metric scale`、`embedding` で指定された座標文脈に
 合わせて生成するための実装手順をまとめる。
