@@ -66,8 +66,8 @@
 --   assert-dd-zero NAME'            gate generation on d(d NAME') == 0
 --
 -- Unicode: Greek letters transliterate to their ASCII names (theta,
--- phi, ...); the derivative sign is d (so d_x may be written with the
--- partial sign), the small delta is the codifferential, the minus sign
+-- phi, ...); the derivative sign is d (so d_x may be written as
+-- either ∂_x or ∂x), the small delta is the codifferential, the minus sign
 -- is '-'.  The capital delta is a prelude def (0 - delta (d u)), so it
 -- is the Laplacian of the model's geometry (lap, or lb under a declared
 -- metric); the derived 4th-order Laplacian is spelled with the capital
@@ -1102,14 +1102,25 @@ emit m = do
         e <- rewrite m lets Nothing ex
         return ["fmrInit \"" ++ nm ++ "\" (" ++ e ++ ")"]
 
--- Unicode input: Greek letters transliterate to their ASCII names, the
--- partial-derivative sign to d (so `\8706_x` is d_x and `\8706_x (\8706_x u)`
--- fuses to the compact second difference), the small delta to the
--- codifferential, and the minus sign to '-'.  The capital delta
+-- Unicode input: Greek letters transliterate to their ASCII names.  A
+-- partial-derivative sign followed immediately by an identifier is the
+-- coordinate/indexed derivative operator (so `∂x` and `∂_x` both become
+-- d_x, and `∂x (∂x u)` fuses to the compact second difference).  A bare
+-- partial sign still becomes d.  The small delta becomes the
+-- codifferential, and the minus sign becomes '-'.  The capital delta
 -- (Laplacian) is model-dependent and resolved in mathOps instead.
 transliterate :: String -> String
-transliterate = concatMap tr
+transliterate = go
   where
+    go [] = []
+    go ('\8706':'_':cs) = "d_" ++ go cs
+    go ('\8706':cs@(c:_))
+      | isAlpha c =
+          let (nm, rest) = span isW cs
+          in "d_" ++ concatMap tr nm ++ go rest
+    go ('\8706':cs) = "d" ++ go cs
+    go (c:cs) = tr c ++ go cs
+
     tr '\952' = "theta"    -- θ
     tr '\966' = "phi"      -- φ
     tr '\961' = "rho"      -- ρ
@@ -1130,7 +1141,6 @@ transliterate = concatMap tr
     tr '\950' = "zeta"     -- ζ
     tr '\967' = "chi"      -- χ
     tr '\960' = "pi"       -- π
-    tr '\8706' = "d"       -- ∂
     tr '\948' = "delta"    -- δ
     tr '\8722' = "-"       -- − (minus sign)
     tr c = [c]
