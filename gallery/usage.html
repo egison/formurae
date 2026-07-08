@@ -84,10 +84,16 @@ make all       <span class="c"># 全23例を生成→実行→検証(数分)</sp
 <h2 id="tutorial">3. チュートリアル: 拡散方程式を動かす</h2>
 <p><code>examples/diffusion3d/diffusion3d.fe</code> の全文:</p>
 <pre>
-param kappa = 1.0
+-- The 3D diffusion equation: du/dt = kappa * laplacian(u)
+
+dimension 3
+axes x, y, z
+
+param κ = 1.0
 param dt = 0.1*dx*dx
 
 extern exp
+use exterior-calculus { Δ }
 raw gauss = fun(x,y,z) exp(-((x-(total_grid_x*dx/2))/(5*dx))**2 - ...)
 
 field u : scalar
@@ -96,7 +102,7 @@ init:
   u = gauss(i*dx,j*dy,k*dz)
 
 step:
-  u' = u + dt * kappa * lap u
+  u' = u + dt * κ * Δ u
 </pre>
 <p>物理は最後の1行だけです。格子・分割は同じディレクトリの yaml(§5)に書きます。実行:</p>
 <pre>
@@ -104,7 +110,7 @@ make diffusion3d
 <span class="c">#   fec が .egi を生成 → Egison が .fmr を生成 → formura が C を生成
 #   → cc でドライバとリンク → ./check が質量保存を検査して [OK]</span>
 </pre>
-<p>式を変えたら(例: <code>u' = u + dt * kappa * lap u - dt * u * ∂x u</code> で移流を足す)、
+<p>式を変えたら(例: <code>u' = u + dt * κ * Δ u - dt * u * ∂x u</code> で移流を足す)、
 もう一度 <code>make diffusion3d</code> — 生成された式は <code>examples/diffusion3d/diffusion3d.fmr</code> で確認できます。</p>
 
 <h2 id="fe">4. Formurae 言語リファレンス(.fe)</h2>
@@ -113,8 +119,9 @@ make diffusion3d
 <table>
 <tr><th>構文</th><th>意味</th></tr>
 <tr><td><code>dimension 3</code></td><td>次元(<b>必須</b>・現状 3 のみ)</td></tr>
-<tr><td><code>def Δ u = 0 - δ (d u)</code></td><td><b>ユーザ定義演算子</b>(ファイルスコープ・使用箇所で展開。本文は先に定義された演算子のみ参照可、再帰不可)。<code>Δ</code> はこの形で Formurae prelude に定義されている</td></tr>
-<tr><td><code>def curl X~i = epsilon~i~j~k . ∂_j X_k</code></td><td><b>添字付きユーザ定義演算子</b>の書き方例。上付き/下付き添字を含む引数と、ε 記号・縮約 <code>.</code>・添字微分 <code>∂_j</code> を使って定義できる(現状は主に1引数演算子)。この <code>curl</code> 定義はまだ標準 prelude には入っていない</td></tr>
+<tr><td><code>use exterior-calculus { Δ }</code></td><td><b>座標文脈つき数学演算子</b>を有効化する。<code>Δ</code> は <code>def Δ u = 0 - δ (d u)</code> として追加され、平坦格子では <code>lap</code>、計量宣言下では <code>lb</code> へ下りる</td></tr>
+<tr><td><code>def Δ u = 0 - δ (d u)</code></td><td><b>ユーザ定義演算子</b>(ファイルスコープ・使用箇所で展開。本文は先に定義された演算子のみ参照可、再帰不可)。<code>use</code> 由来の定義もユーザ定義で上書き可能</td></tr>
+<tr><td><code>def curl X~i = epsilon~i~j~k . ∂_j X_k</code></td><td><b>添字付きユーザ定義演算子</b>の書き方例。上付き/下付き添字を含む引数と、ε 記号・縮約 <code>.</code>・添字微分 <code>∂_j</code> を使って定義できる(現状は主に1引数演算子)。この <code>curl</code> 定義はまだ <code>use vector-calculus</code> から生成されない</td></tr>
 <tr><td><code>def div X = ∂_i X~i</code> / <code>def grad u_i = ∂_i u</code></td><td>スカラーを返す演算子、添字付き成分を返す演算子の例。既存の <code>curl</code>/<code>divg</code> などは互換性のため <code>fec</code> が認識し、生成先 Egison ライブラリの定義へ接続している</td></tr>
 <tr><td><code>axes r, θ, φ</code></td><td>軸名(<b>必須</b>)。<code>∂θ</code> の解決や添字文字の走る範囲=座標系を確定させる宣言。式の中で使え、内部座標 x,y,z に写像される(生成物・yaml・ドライバは x,y,z のまま)</td></tr>
 <tr><td><code>param dt = 0.5*dx</code></td><td>Formura パラメタ(<code>double :: dt = …</code>)。値は Formura 式</td></tr>
@@ -149,20 +156,20 @@ make diffusion3d
 <tr><td><code>let En_i = …</code></td><td>名前つき式(インライン展開される。格子場にはならない)</td></tr>
 </table>
 
-<h3>演算子の由来: 組み込み / prelude / Egison ライブラリ</h3>
+<h3>演算子の由来: 組み込み / use / Egison ライブラリ</h3>
 <table>
 <tr><th>分類</th><th>演算子</th><th>説明</th></tr>
-<tr><td>Formurae prelude</td><td><code>Δ u</code></td><td><code>def Δ u = 0 - δ (d u)</code> として最初から入る通常の <code>def</code>。ユーザ定義で上書き可能</td></tr>
+<tr><td><code>use exterior-calculus</code></td><td><code>Δ u</code></td><td><code>use exterior-calculus { Δ }</code> で有効化される通常の <code>def</code>。<code>def Δ u = 0 - δ (d u)</code> として追加され、ユーザ定義で上書き可能</td></tr>
 <tr><td><code>fec</code> 組み込み変換</td><td><code>∂x e</code></td><td>軸名を見て <code>dC 1</code> などの中心差分へ下ろす。<code>∂x (∂x e)</code> は <code>dC2</code> へ融合する。<code>∂_x</code> と <code>d_x</code> は座標微分としては許可しない</td></tr>
 <tr><td><code>fec</code> 組み込み変換</td><td><code>∂_i X~i</code>, <code>δ~i_j</code>, <code>epsilon~i~j~k</code>, <code>.</code></td><td>添字方程式を成分ごとの式へ展開する。<code>.</code> は添字縮約、<code>*</code> は点ごとのスカラー積として扱う</td></tr>
 <tr><td><code>fec</code> 組み込み変換</td><td><code>d ω</code>, <code>δ ω</code> / <code>delta ω</code> / <code>codiff ω</code></td><td><code>field E : 1-form</code> などの形式場では、生成 Egison の <code>dForm</code>/<code>codiff</code> 呼び出しへ下ろす</td></tr>
-<tr><td><code>fec</code> 組み込み変換</td><td><code>δ (d u)</code></td><td>スカラー場では <code>-lap u</code>、計量付きモデルでは <code>-lb u</code> に下ろす。prelude の <code>Δ</code> はこの規則を使う</td></tr>
+<tr><td><code>fec</code> 組み込み変換</td><td><code>δ (d u)</code></td><td>スカラー場では <code>-lap u</code>、計量付きモデルでは <code>-lb u</code> に下ろす。<code>use</code> で有効化された <code>Δ</code> はこの規則を使う</td></tr>
 <tr><td>Formura/extern 組み込み</td><td><code>sin</code>, <code>cos</code>, <code>exp</code>, <code>sqrt</code>, <code>fabs</code> など</td><td>スカラー関数。テンソル成分に適用されると成分ごとへ lift され、不足する <code>extern function :: ...</code> は <code>fec</code> が自動で出す</td></tr>
 <tr><td>生成先 Egison ライブラリ</td><td><code>lap</code>, <code>dGrad</code>, <code>curl</code>, <code>divg</code>, <code>Δ4</code>, <code>dForm</code>, <code>codiff</code></td><td><code>.fe</code> の prelude ではなく <code>lib/fmrgen.egi</code> の定義。<code>fec</code> が必要な呼び出しを生成する</td></tr>
 </table>
 
-<h3>prelude / ライブラリ定義</h3>
-<p>現時点の <b>Formurae prelude</b>(<code>fec/src/Main.hs</code>)に入っている数式演算子は <code>Δ</code> だけです。</p>
+<h3>use / ライブラリ定義</h3>
+<p>現時点で <b><code>use exterior-calculus { Δ }</code></b> が追加する定義は次の1つです。</p>
 <pre>
 def Δ u = 0 - δ (d u)
 </pre>
@@ -205,7 +212,7 @@ def δ := codiff
 <tr><td><code>∂x e</code></td><td><code>fec</code> 組み込み</td><td>1階中心差分(軸名で: <code>∂r</code>, <code>∂θ</code>, <code>∂φ</code> …)。座標微分はこの形だけを許可する</td></tr>
 <tr><td><code>∂x (∂x e)</code></td><td><code>fec</code> 組み込み</td><td>2階コンパクト差分(d の2回適用は半セル前進・後退の対として融合される。<code>d2</code> という演算子はない)</td></tr>
 <tr><td><code>∂_i X~i</code></td><td><code>fec</code> 組み込み</td><td>添字微分。<code>axes</code> で宣言した座標方向について展開し、繰り返し添字は Einstein 総和になる</td></tr>
-<tr><td><code>Δ e</code>(= <code>∇²</code>)</td><td>Formurae prelude</td><td><code>def Δ u = 0 - δ (d u)</code>。平坦なら <code>lap</code>、計量宣言下では <code>lb</code> を使う形に <code>fec</code> が下ろす</td></tr>
+<tr><td><code>Δ e</code>(= <code>∇²</code>)</td><td><code>use exterior-calculus { Δ }</code></td><td><code>def Δ u = 0 - δ (d u)</code>。平坦なら <code>lap</code>、計量宣言下では <code>lb</code> を使う形に <code>fec</code> が下ろす。<code>use</code> なしの <code>Δ</code> はエラー</td></tr>
 <tr><td><code>lap e</code></td><td>Egison ライブラリ</td><td>平坦3軸の 2階中心差分和</td></tr>
 <tr><td><code>lb e</code></td><td><code>fec</code> 組み込み生成</td><td>計量宣言下の Laplace–Beltrami。hodge 因子の係数場生成・半セル CAS 評価・保存流束まで自動</td></tr>
 <tr><td><code>Δ4 e</code>(= <code>lap4</code>)</td><td>Egison ライブラリ</td><td>4次精度 Laplacian。係数は CAS が Taylor 条件を解いて導出</td></tr>
@@ -221,14 +228,15 @@ def δ := codiff
 <p><b>Unicode</b>: ギリシャ文字(θ, φ, ρ, τ, κ, μ, λ, …)は識別子として使え、
 fec が Formura 向けに ASCII 名(theta, phi, …)へ字訳します。
 <code>∂</code>=d、<code>δ</code>=delta(余微分)、<code>−</code>=-。
-<code>Δ</code> のみモデル依存(平坦なら lap、計量下なら lb)。
+<code>Δ</code> は <code>use exterior-calculus { Δ }</code> で有効化するモデル依存演算子です(平坦なら lap、計量下なら lb)。
 例: トーラス上の熱方程式は <code>axes θ, φ, z</code> +
 <code>embedding [ `(2 + cos θ) * cos φ, … ]</code> +
-<code>u' = u + dt * Δ u</code> の3行の幾何・物理で書けます
+<code>use exterior-calculus { Δ }</code> +
+<code>u' = u + dt * Δ u</code> の4行で幾何・使う演算子・物理を書けます
 (metric_torus.fe がこの形)。</p>
 
 <p class="note"><b>現在の実装範囲</b>: 添字付きユーザ定義演算子は、薄い変換器として既存の Egison 展開経路へ接続している段階です。
-上付き/下付きの完全な variance-aware 縮約、複数引数の一般テンソル関数、<code>grad</code>/<code>div</code>/<code>curl</code> の完全なプレリュード化は後続作業です。</p>
+上付き/下付きの完全な variance-aware 縮約、複数引数の一般テンソル関数、<code>grad</code>/<code>div</code>/<code>curl</code> の <code>use</code> ライブラリ化は後続作業です。</p>
 
 <h2 id="yaml">5. yaml リファレンス(格子と実行構成)</h2>
 <pre>

@@ -12,6 +12,7 @@ param mob = 1.0
 param dt = 0.004
 
 extern sin
+use exterior-calculus { Δ }
 
 field c : scalar
 

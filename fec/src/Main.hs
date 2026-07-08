@@ -33,12 +33,14 @@
 --                                   hodge factors sqrt(g)/h_a^2 become
 --                                   coefficient FIELDS evaluated by the
 --                                   CAS at the half-cell placements.
+--   use MODULE { NAME, ... }         coordinate-context mathematical operators
+--                                    made available to this file; v1 starts
+--                                    with exterior-calculus { Δ }, which
+--                                    injects def Δ u = 0 - delta (d u)
 --   def NAME ARG(~i|_i)* = EXPR     user-defined operator, expanded at use
 --                                    sites (file scope; a body may use only
---                                    operators defined before it).  The
---                                    Laplacian is predefined exactly this
---                                    way -- def \916 u = 0 - delta (d u) --
---                                    and may be redefined.
+--                                    operators defined before it).  A use
+--                                    definition may be redefined.
 --   param NAME = RAW                Formura parameter (double :: NAME = RAW)
 --   extern NAME                     extern function :: NAME
 --                                   (core scalar intrinsics such as sin,
@@ -69,10 +71,10 @@
 -- phi, ...); coordinate derivatives are written only as ∂x, ∂theta,
 -- ... while ∂_i remains the indexed derivative.  The small delta is the
 -- codifferential, the minus sign
--- is '-'.  The capital delta is a prelude def (0 - delta (d u)), so it
--- is the Laplacian of the model's geometry (lap, or lb under a declared
--- metric); the derived 4th-order Laplacian is spelled with the capital
--- delta followed by 4 (lap4 is an accepted alias).  Writing d twice fuses to the
+-- is '-'.  The capital delta becomes the model's geometric Laplacian
+-- when enabled by `use exterior-calculus { Δ }`; the derived 4th-order
+-- Laplacian is spelled with the capital delta followed by 4 (lap4 is an
+-- accepted alias).  Writing d twice fuses to the
 -- compact second difference (there is no d2 operator), and delta (d u) on
 -- a scalar lowers to -(Laplacian), so the heat equation reads
 -- u' = u - dt * delta (d u) with basic operators only; all of these
@@ -130,6 +132,7 @@ data Model = Model
   { mName   :: String
   , mDim    :: Int
   , mAxes   :: [String]
+  , mUses   :: [(String, [String])]
   , mParams :: [(String, String)]
   , mHelp   :: [String]
   , mFlds   :: [(String, Kind)]
@@ -283,13 +286,60 @@ primeEqForm s = do
 
 data Section = STop | SInit | SStep
 
--- the prelude: operators predefined as ordinary user definitions
--- (post-transliteration spelling).  A def in the file may redefine them.
-prelude :: [(String, (String, String))]
-prelude = [("\916", ("u", "0 - delta (d u)"))]   -- Δ = -δd, the Laplacian
+supportedUses :: [(String, [String])]
+supportedUses =
+  [ ("exterior-calculus", ["d", "delta", "codiff", "dForm", "hodge", "\916"])
+  , ("vector-calculus", ["dGrad", "curl", "divg"])
+  ]
+
+displayUseName :: String -> String
+displayUseName "\916" = "Δ"
+displayUseName "delta" = "δ"
+displayUseName nm = nm
+
+normalizeUses :: [(String, [String])] -> [(String, [String])]
+normalizeUses uses =
+  [ (modName, nub (concat [names | (m, names) <- uses, m == modName]))
+  | modName <- nub (map fst uses)
+  ]
+
+hasUse :: Model -> String -> String -> Bool
+hasUse m modName nm =
+  case lookup modName (mUses m) of
+    Just names -> nm `elem` names
+    Nothing -> False
+
+validateUses :: Model -> IO ()
+validateUses m = mapM_ validateModule (mUses m)
+  where
+    validateModule (modName, names) =
+      case lookup modName supportedUses of
+        Nothing -> fatal ("unknown use module: " ++ modName)
+        Just allowed -> mapM_ (validateName modName allowed) names
+    validateName modName allowed nm
+      | nm `notElem` allowed =
+          fatal ("unknown operator " ++ displayUseName nm ++ " in use " ++ modName)
+      | modName == "vector-calculus", nm == "curl", mDim m /= 3 =
+          fatal "curl requires dimension 3"
+      | otherwise = return ()
+
+usePreludeDefs :: Model -> [(String, (String, String))]
+usePreludeDefs m =
+  [ ("\916", ("u", "0 - delta (d u)"))
+  | hasUse m "exterior-calculus" "\916"
+  ]
+
+missingUse :: Model -> String -> Maybe String
+missingUse m s = foldr (\t acc -> check t `orElse` acc) Nothing (tokenize s)
+  where
+    check (TId "\916" _) | not (hasUse m "exterior-calculus" "\916") =
+      Just "Δ requires use exterior-calculus { Δ }"
+    check _ = Nothing
+    orElse (Just x) _ = Just x
+    orElse Nothing y = y
 
 parseFe :: String -> String -> IO Model
-parseFe name txt = go STop (Model name 0 [] [] [] [] [] [] Nothing Nothing Nothing prelude)
+parseFe name txt = go STop (Model name 0 [] [] [] [] [] [] [] Nothing Nothing Nothing [])
                       (zip [1 :: Int ..] (lines txt))
   where
     -- dimension and axes are required: they fix the coordinate frame
@@ -302,25 +352,24 @@ parseFe name txt = go STop (Model name 0 [] [] [] [] [] [] Nothing Nothing Nothi
           fatal ("axes declares " ++ show (length (mAxes m))
                  ++ " names for dimension " ++ show (mDim m))
       | otherwise = do
+          let uses = normalizeUses (reverse (mUses m))
+              mUse = m { mUses = uses }
+          validateUses mUse
           -- resolve user-defined operators (definition order; a body may
           -- use only operators defined before it) and expand all uses
-          defs <- resolveDefs (reverse (mDefs m))
+          defs <- resolveDefs (usePreludeDefs mUse ++ reverse (mDefs mUse))
           steps' <- mapM (\st -> do ex <- applyDefs defs (sEx st)
                                     return st { sEx = ex })
-                         (reverse (mSteps m))
-          inits' <- mapM (expandInit defs) (reverse (mInits m))
+                         (reverse (mSteps mUse))
+          inits' <- mapM (expandInit defs) (reverse (mInits mUse))
           mapM_ (\(nm, (_, body)) ->
-                    case surfaceBanned m body of
-                      Just bad -> fatal (bad ++ " in def " ++ nm)
-                      Nothing -> return ())
+                    checkSurface mUse ("in def " ++ nm) body)
                 defs
           mapM_ (\st ->
-                    case surfaceBanned m (sEx st) of
-                      Just bad -> fatal (bad ++ " in step expression: " ++ sEx st)
-                      Nothing -> return ())
+                    checkSurface mUse ("in step expression: " ++ sEx st) (sEx st))
                 steps'
-          return m { mParams = reverse (mParams m), mHelp = reverse (mHelp m)
-                   , mFlds = reverse (mFlds m), mInits = inits'
+          return mUse { mParams = reverse (mParams mUse), mHelp = reverse (mHelp mUse)
+                   , mFlds = reverse (mFlds mUse), mInits = inits'
                    , mSteps = steps', mDefs = defs }
 
     go sec m ((ln, raw):rest) = do
@@ -388,6 +437,14 @@ parseFe name txt = go STop (Model name 0 [] [] [] [] [] [] Nothing Nothing Nothi
                        return (ICas nm ex')
       _ -> return it
 
+    checkSurface m' context body =
+      case surfaceBanned m' body of
+        Just bad -> fatal (bad ++ " " ++ context)
+        Nothing ->
+          case missingUse m' body of
+            Just bad -> fatal (bad ++ " " ++ context)
+            Nothing -> return ()
+
     grab _ [] = ("", [])
     grab d ((_, raw):rest) =
       let t = strip (rstrip (stripComment raw))
@@ -411,6 +468,12 @@ parseFe name txt = go STop (Model name 0 [] [] [] [] [] [] Nothing Nothing Nothi
             _ -> fatal ("bad param (line " ++ show ln ++ ")")
       | Just r <- stripPrefix "extern " s =
           return m { mHelp = ("extern function :: " ++ strip r) : mHelp m }
+      | Just r <- stripPrefix "use " s =
+          case useForm r of
+            Just (modName, names) ->
+              return m { mUses = (modName, names) : mUses m }
+            Nothing -> fatal ("bad use (line " ++ show ln
+                              ++ "): use MODULE { name1, name2, ... }")
       | s == "raw" = return m { mHelp = "" : mHelp m }
       | Just r <- stripPrefix "raw " s = return m { mHelp = r : mHelp m }
       | Just r <- stripPrefix "field " s =
@@ -457,6 +520,16 @@ parseFe name txt = go STop (Model name 0 [] [] [] [] [] [] Nothing Nothing Nothi
                     then fatal ("v1 supports dimension 3 only (got " ++ show n ++ ")")
                     else return m { mDim = n }
               | otherwise = fatal ("bad dimension (line " ++ show ln ++ ")")
+        useForm r =
+          let (modName, rest0) = span (not . isSpace) (strip r)
+              rest1 = strip rest0
+          in case rest1 of
+               ('{':body) | not (null body), last body == '}' ->
+                 let names = map strip (splitTop ',' (init body))
+                 in if null modName || null names || any null names
+                      then Nothing
+                      else Just (modName, names)
+               _ -> Nothing
 
     ini ln s m
       | Just (nm, ex) <- casForm s = return m { mInits = ICas nm ex : mInits m }

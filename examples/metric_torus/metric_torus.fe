@@ -19,6 +19,7 @@ param dt = 0.0005
 
 extern exp
 extern cos
+use exterior-calculus { Δ }
 
 embedding [ `(2 + cos θ) * cos φ, `(2 + cos θ) * sin φ, sin θ, z ]
 

@@ -9,6 +9,7 @@ axes x, y, z
 param dt = 0.05
 
 extern sin
+use exterior-calculus { Δ }
 
 field a : scalar
 field b : scalar

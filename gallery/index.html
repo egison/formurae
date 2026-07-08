@@ -67,7 +67,7 @@
 <div class="card">
   <h3>拡散方程式</h3>
   <div class="math">∂<sub>t</sub>u = κ∇²u</div>
-  <details class="codebox" data-fe="diffusion3d/diffusion3d.fe" open><summary>Formurae ソース全文(diffusion3d.fe・18 行)</summary>
+  <details class="codebox" data-fe="diffusion3d/diffusion3d.fe" open><summary>Formurae ソース全文(diffusion3d.fe・19 行)</summary>
 <pre><span class="c">-- The 3D diffusion equation: du/dt = kappa * laplacian(u)</span>
 
 dimension 3
@@ -77,6 +77,7 @@ param κ = 1.0
 param dt = 0.1*dx*dx
 
 extern exp
+use exterior-calculus { Δ }
 raw gauss = fun(x,y,z) exp(-((x-(total_grid_x*dx/2))/(5*dx))**2 - ((y-(total_grid_y*dy/2))/(5*dy))**2 - ((z-(total_grid_z*dz/2))/(5*dz))**2)
 
 field u : scalar
@@ -206,7 +207,7 @@ end function</pre></details>
   <h3>Dirichlet 壁の拡散(fork の境界条件)</h3>
   <div class="math">∂<sub>t</sub>u = κ∇²u,&nbsp;&nbsp;u|<sub>壁</sub> = 0<br>
     <span class="note">λ = −(4κ/h²)&thinsp;sin²(π/2(N+1)) — ゴースト壁つき離散固有値</span></div>
-  <details class="codebox" data-fe="dirichlet_diffusion/dirichlet_diffusion.fe" open><summary>Formurae ソース全文(dirichlet_diffusion.fe・23 行)</summary>
+  <details class="codebox" data-fe="dirichlet_diffusion/dirichlet_diffusion.fe" open><summary>Formurae ソース全文(dirichlet_diffusion.fe・24 行)</summary>
 <pre><span class="c">-- Diffusion between two cold walls: the yaml declares</span>
 <span class="c">--   boundary: [fixed 0.0, periodic, periodic]</span>
 <span class="c">-- (the fork's boundary support), so the physics stays the periodic</span>
@@ -221,6 +222,7 @@ param κ = 1.0
 param dt = 0.00002
 
 extern sin
+use exterior-calculus { Δ }
 raw # fundamental Dirichlet mode: nodes at the ghost walls i = -1, i = 64
 
 field u : scalar
@@ -892,7 +894,7 @@ end function</pre></details>
 <div class="card">
   <h3>Burgers 方程式</h3>
   <div class="math">∂<sub>t</sub>u + u∂<sub>x</sub>u = ν∇²u</div>
-  <details class="codebox" data-fe="burgers3d/burgers3d.fe" open><summary>Formurae ソース全文(burgers3d.fe・22 行)</summary>
+  <details class="codebox" data-fe="burgers3d/burgers3d.fe" open><summary>Formurae ソース全文(burgers3d.fe・23 行)</summary>
 <pre><span class="c">-- Viscous Burgers equation: du/dt = nu lap u - u du/dx</span>
 <span class="c">-- The Cole-Hopf transform gives a periodic exact solution which the</span>
 <span class="c">-- check driver compares against -- the regression benchmark for</span>
@@ -907,6 +909,7 @@ param k0 = 6.283185307179586
 
 extern sin
 extern cos
+use exterior-calculus { Δ }
 
 field u : scalar
 
@@ -1618,7 +1621,7 @@ end function</pre></details>
   <h3>Pearson 反応拡散(Formura 論文の看板再現)</h3>
   <div class="math">∂<sub>t</sub>U = F<sub>u</sub>(1−U) − F<sub>e</sub>UV² + D<sub>u</sub>∇²U<br>
     ∂<sub>t</sub>V = F<sub>e</sub>UV² − F<sub>v</sub>V + D<sub>v</sub>∇²V</div>
-  <details class="codebox" data-fe="pearson3d/pearson3d.fe" open><summary>Formurae ソース全文(pearson3d.fe・27 行)</summary>
+  <details class="codebox" data-fe="pearson3d/pearson3d.fe" open><summary>Formurae ソース全文(pearson3d.fe・28 行)</summary>
 <pre><span class="c">-- The flagship simulation of the Formura paper (Muranushi et al.,</span>
 <span class="c">-- FHPC 2016, Listing 1): below-ground dynamics of mycorrhiza modelled</span>
 <span class="c">-- by Pearson's equations, with the paper's parameters.</span>
@@ -1634,6 +1637,7 @@ param Dv = 6.1e-11
 param dt = 200.0
 
 extern fabs
+use exterior-calculus { Δ }
 raw isCenter = fun(i,j,k,w) (fabs(total_grid_x/2-i) &lt; w) &amp;&amp; (fabs(total_grid_y/2-j) &lt; w) &amp;&amp; (fabs(total_grid_z/2-k) &lt; w)
 
 field U : scalar
@@ -1703,7 +1707,7 @@ end function</pre></details>
 <div class="card">
   <h3>Cahn–Hilliard(スピノーダル分解)</h3>
   <div class="math">μ = c³ − c − κ∇²c,&nbsp;&nbsp;∂<sub>t</sub>c = M∇²μ</div>
-  <details class="codebox" data-fe="cahnhilliard3d/cahnhilliard3d.fe" open><summary>Formurae ソース全文(cahnhilliard3d.fe・23 行)</summary>
+  <details class="codebox" data-fe="cahnhilliard3d/cahnhilliard3d.fe" open><summary>Formurae ソース全文(cahnhilliard3d.fe・24 行)</summary>
 <pre><span class="c">-- Cahn-Hilliard spinodal decomposition:</span>
 <span class="c">--   mu = c^3 - c - kap lap c ;  dc/dt = M lap mu</span>
 <span class="c">-- The fourth-order operator is two chained radius-1 stages via the</span>
@@ -1718,6 +1722,7 @@ param mob = 1.0
 param dt = 0.004
 
 extern sin
+use exterior-calculus { Δ }
 
 field c : scalar
 
@@ -1776,7 +1781,7 @@ end function</pre></details>
 <div class="card">
   <h3>TDGL 超伝導(量子化渦)</h3>
   <div class="math">∂<sub>t</sub>ψ = ψ − |ψ|²ψ + ∇²ψ&nbsp;&nbsp;(ψ = a + ib)</div>
-  <details class="codebox" data-fe="tdgl3d/tdgl3d.fe" open><summary>Formurae ソース全文(tdgl3d.fe・22 行)</summary>
+  <details class="codebox" data-fe="tdgl3d/tdgl3d.fe" open><summary>Formurae ソース全文(tdgl3d.fe・23 行)</summary>
 <pre><span class="c">-- Time-dependent Ginzburg-Landau (relaxational, psi = a + ib):</span>
 <span class="c">--   da/dt = a - |psi|^2 a + lap a ;  db/dt likewise</span>
 <span class="c">-- From small noise the bulk saturates to |psi| ~ 1 while quantized</span>
@@ -1788,6 +1793,7 @@ axes x, y, z
 param dt = 0.05
 
 extern sin
+use exterior-calculus { Δ }
 
 field a : scalar
 field b : scalar
@@ -1854,7 +1860,7 @@ end function</pre></details>
   <h3>極座標の円環(平坦)</h3>
   <div class="math">Δu = (1/r)∂<sub>r</sub>(r∂<sub>r</sub>u) + (1/r²)∂<sub>φφ</sub>u,&nbsp;r ∈ [1,2]&nbsp;
     <span class="note">曲率 0 — 曲がっているのは座標だけ</span></div>
-  <details class="codebox" data-fe="polar2d/polar2d.fe" open><summary>Formurae ソース全文(polar2d.fe・25 行)</summary>
+  <details class="codebox" data-fe="polar2d/polar2d.fe" open><summary>Formurae ソース全文(polar2d.fe・26 行)</summary>
 <pre><span class="c">-- Heat equation on a PLANAR ANNULUS in polar coordinates</span>
 <span class="c">-- (r_phys, phi) = (1 + r, phi), r_phys in [1, 2].  The geometry is</span>
 <span class="c">-- flat (curvature 0) -- only the COORDINATES are curved: from the</span>
@@ -1870,6 +1876,7 @@ param dt = 0.0001
 
 extern exp
 extern cos
+use exterior-calculus { Δ }
 
 embedding [ `(1 + r) * cos φ, `(1 + r) * sin φ, z ]
 
@@ -1958,7 +1965,7 @@ end function</pre></details>
 <div class="card">
   <h3>球座標の球殻(3D)</h3>
   <div class="math">Δu = (1/r²)∂<sub>r</sub>(r²∂<sub>r</sub>u) + (1/r²sinθ)∂<sub>θ</sub>(sinθ∂<sub>θ</sub>u) + (1/r²sin²θ)∂<sub>φφ</sub>u</div>
-  <details class="codebox" data-fe="spherical3d/spherical3d.fe" open><summary>Formurae ソース全文(spherical3d.fe・27 行)</summary>
+  <details class="codebox" data-fe="spherical3d/spherical3d.fe" open><summary>Formurae ソース全文(spherical3d.fe・28 行)</summary>
 <pre><span class="c">-- Heat equation in FULL 3D SPHERICAL COORDINATES, on a shell:</span>
 <span class="c">-- (r_phys, theta_phys, phi) = (1 + r, 1 + theta, phi),</span>
 <span class="c">-- r_phys in [1, 2], theta_phys in [1, 1 + L] (poles avoided).</span>
@@ -1976,6 +1983,7 @@ param dt = 0.0002
 extern exp
 extern cos
 extern sin
+use exterior-calculus { Δ }
 
 embedding [ `(1 + r) * sin (1 + θ) * cos φ, `(1 + r) * sin (1 + θ) * sin φ, `(1 + r) * cos (1 + θ) ]
 
@@ -2067,7 +2075,7 @@ end function</pre></details>
   <h3>計量つき拡散(トーラス上の Laplace–Beltrami)</h3>
   <div class="math">∂<sub>t</sub>u = (1/√g)&thinsp;∂<sub>i</sub>(√g&thinsp;g<sup>ij</sup>&thinsp;∂<sub>j</sub>u)<br>
     <span class="note">トーラス R=2, r=1: √g = 2+cos θ, g<sup>θθ</sup>=1, g<sup>φφ</sup>=1/(2+cos θ)²</span></div>
-  <details class="codebox" data-fe="metric_torus/metric_torus.fe" open><summary>Formurae ソース全文(metric_torus.fe・31 行)</summary>
+  <details class="codebox" data-fe="metric_torus/metric_torus.fe" open><summary>Formurae ソース全文(metric_torus.fe・32 行)</summary>
 <pre><span class="c">-- Heat equation on a curved surface (a torus), from the COORDINATES:</span>
 <span class="c">-- the embedding of the (theta, phi, z) chart into R^4 below is the</span>
 <span class="c">-- only geometric input.  The compiler differentiates it (CAS), forms</span>
@@ -2089,6 +2097,7 @@ param dt = 0.0005
 
 extern exp
 extern cos
+use exterior-calculus { Δ }
 
 embedding [ `(2 + cos θ) * cos φ, `(2 + cos θ) * sin φ, sin θ, z ]
 
@@ -2180,7 +2189,7 @@ end function</pre></details>
   <h3>球面の帯(正曲率)</h3>
   <div class="math">∂<sub>t</sub>u = Δ<sub>S²</sub>u,&nbsp;&nbsp;余緯度 θ ∈ [1, 1+L] の帯<br>
     <span class="note">埋め込みから g=diag(1, sin²θ) を CAS が導出、θ 壁は mirror(Neumann)</span></div>
-  <details class="codebox" data-fe="metric_sphere/metric_sphere.fe" open><summary>Formurae ソース全文(metric_sphere.fe・27 行)</summary>
+  <details class="codebox" data-fe="metric_sphere/metric_sphere.fe" open><summary>Formurae ソース全文(metric_sphere.fe・28 行)</summary>
 <pre><span class="c">-- Heat equation on a BAND OF THE UNIT SPHERE (positive curvature),</span>
 <span class="c">-- colatitude theta_phys = 1 + theta in [1, 1 + L] (poles avoided).</span>
 <span class="c">-- The embedding below is the only geometric input: the compiler</span>
@@ -2198,6 +2207,7 @@ param dt = 0.0001
 extern exp
 extern cos
 extern sin
+use exterior-calculus { Δ }
 
 embedding [ sin (1 + θ) * cos φ, sin (1 + θ) * sin φ, cos (1 + θ), z ]
 
