@@ -561,7 +561,8 @@ lbTarget m = case concatMap scan (mSteps m) of
 --
 -- Free indices come from the left-hand side; a repeated index letter
 -- inside a term is summed over 1..3 (Einstein convention).  delta_ij is
--- Kronecker's delta.  d_a applied to a staggered field component is the
+-- Kronecker's delta, and epsilon_i_j_k is the 3D Levi-Civita symbol.
+-- d_a applied to a staggered field component is the
 -- half-cell difference anchored at the placement of the TARGET
 -- component (Virieux/Yee); symmetric components are canonicalized
 -- (s_2_1 means s_1_2).
@@ -593,6 +594,24 @@ placeS :: Int -> Int -> String
 placeS a b | a == b = plOf [False, False, False]
            | otherwise = plOf [c == a || c == b | c <- [1, 2, 3]]
 
+leviCivita3 :: [Int] -> Int
+leviCivita3 xs
+  | sort xs /= [1, 2, 3] = 0
+  | xs `elem` [[1, 2, 3], [2, 3, 1], [3, 1, 2]] = 1
+  | otherwise = -1
+
+indexContractionDots :: String -> String
+indexContractionDots = go Nothing
+  where
+    go _ [] = []
+    go prev ('.':cs)
+      | maybe False isSpace prev
+      , case cs of
+          c:_ -> isSpace c
+          [] -> False
+      = '*' : go (Just '*') cs
+    go _ (c:cs) = c : go (Just c) cs
+
 indexDefs :: Model -> Step -> IO [String]
 indexDefs m st =
   case (kindOf m (sNm st), sIdx st) of
@@ -612,7 +631,7 @@ indexDefs m st =
 -- index letter is summed over the smallest term containing it, then
 -- names and derivatives are resolved
 ixExpand :: Model -> [(String, Int)] -> String -> String -> IO String
-ixExpand m env anchor expr = expandRegion env (itok expr)
+ixExpand m env anchor expr = expandRegion env (itok (indexContractionDots expr))
   where
     -- a region is a +/- separated list of terms
     expandRegion env' ts = goR env' (0 :: Int) [] ts
@@ -670,6 +689,9 @@ ixExpand m env anchor expr = expandRegion env (itok expr)
       -- Kronecker delta, one index per mark: delta~i_j / \948~i_j
       -- (normalized to delta_i_j).  The fused delta_ij is rejected at
       -- parse time.
+      | ("epsilon", [p@[_], q@[_], r@[_]]) <- splitIdentW = do
+          vals <- mapM (need env') [p, q, r]
+          fmap ((show (leviCivita3 vals)) ++) (resolve env' rest)
       | ("delta", [p@[_], q@[_]]) <- splitIdentW = do
           pv <- need env' p
           qv <- need env' q
