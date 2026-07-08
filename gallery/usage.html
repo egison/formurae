@@ -37,7 +37,9 @@
   <h1>Formurae 使い方ガイド</h1>
   <p>数式のままの表層言語 <b>Formurae</b>(フォーミュレ、拡張子 <code>.fe</code>)で書いた偏微分方程式を、
      Egison の計算機代数(CAS)でステンシルに展開し、Formura で MPI+temporal blocking つきの
-     C コードに落とすまでの手引きです。言語名は Formura の複数形= <i>formulae</i>(数式)への掛詞で、
+     C コードに落とすまでの手引きです。現在の <code>.fe</code> では、<code>∂x</code> のような座標微分、
+     <code>epsilon~i~j~k . ∂_j X_k</code> のような添字縮約、<code>sin</code>/<code>exp</code> などのスカラー関数を
+     数式に近い形で書けます。言語名は Formura の複数形= <i>formulae</i>(数式)への掛詞で、
      設計者・村主崇行氏の Formura の名を継いでいます。
      実例は <a href="dsl/index.html">Formurae ギャラリー(19例)</a>と<a href="index.html">総合ギャラリー(23例)</a>へ。</p>
 </header>
@@ -58,7 +60,7 @@
 
 <h2 id="pipeline">1. パイプラインの全体像</h2>
 <pre>
-model.fe    Formurae ソース: field 宣言+数式(添字記法・微分形式・計量)
+model.fe    Formurae ソース: field 宣言+数式(添字記法・微分形式・計量・ユーザ定義演算子)
    │  fec(Haskell; cabal build / cabal run -v0 fec --)
 model.egi   埋め込み形(生成中間物; lib/fmrgen.egi + lib/fmrdsl.egi 上の Egison)
    │  Egison の CAS が添字・微分形式・計量を記号的に展開
@@ -102,7 +104,7 @@ make diffusion3d
 <span class="c">#   fec が .egi を生成 → Egison が .fmr を生成 → formura が C を生成
 #   → cc でドライバとリンク → ./check が質量保存を検査して [OK]</span>
 </pre>
-<p>式を変えたら(例: <code>u' = u + dt * kappa * lap u - dt * u * d_x u</code> で移流を足す)、
+<p>式を変えたら(例: <code>u' = u + dt * kappa * lap u - dt * u * ∂x u</code> で移流を足す)、
 もう一度 <code>make diffusion3d</code> — 生成された式は <code>examples/diffusion3d/diffusion3d.fmr</code> で確認できます。</p>
 
 <h2 id="fe">4. Formurae 言語リファレンス(.fe)</h2>
@@ -111,10 +113,12 @@ make diffusion3d
 <table>
 <tr><th>構文</th><th>意味</th></tr>
 <tr><td><code>dimension 3</code></td><td>次元(<b>必須</b>・現状 3 のみ)</td></tr>
-<tr><td><code>def Δ u = 0 - δ (d u)</code></td><td><b>ユーザ定義演算子</b>(ファイルスコープ・使用箇所で展開。本文は先に定義された演算子のみ参照可、再帰不可。Δ はまさにこの形でプレリュード定義されている)</td></tr>
-<tr><td><code>axes r, θ, φ</code></td><td>軸名(<b>必須</b>)。<code>∂_θ</code> の解決や添字文字の走る範囲=座標系を確定させる宣言。式の中で使え、内部座標 x,y,z に写像される(生成物・yaml・ドライバは x,y,z のまま)</td></tr>
+<tr><td><code>def Δ u = 0 - δ (d u)</code></td><td><b>ユーザ定義演算子</b>(ファイルスコープ・使用箇所で展開。本文は先に定義された演算子のみ参照可、再帰不可)。<code>Δ</code> はこの形で Formurae prelude に定義されている</td></tr>
+<tr><td><code>def curl X~i = epsilon~i~j~k . ∂_j X_k</code></td><td><b>添字付きユーザ定義演算子</b>の書き方例。上付き/下付き添字を含む引数と、ε 記号・縮約 <code>.</code>・添字微分 <code>∂_j</code> を使って定義できる(現状は主に1引数演算子)。この <code>curl</code> 定義はまだ標準 prelude には入っていない</td></tr>
+<tr><td><code>def div X = ∂_i X~i</code> / <code>def grad u_i = ∂_i u</code></td><td>スカラーを返す演算子、添字付き成分を返す演算子の例。既存の <code>curl</code>/<code>divg</code> などは互換性のため <code>fec</code> が認識し、生成先 Egison ライブラリの定義へ接続している</td></tr>
+<tr><td><code>axes r, θ, φ</code></td><td>軸名(<b>必須</b>)。<code>∂θ</code> の解決や添字文字の走る範囲=座標系を確定させる宣言。式の中で使え、内部座標 x,y,z に写像される(生成物・yaml・ドライバは x,y,z のまま)</td></tr>
 <tr><td><code>param dt = 0.5*dx</code></td><td>Formura パラメタ(<code>double :: dt = …</code>)。値は Formura 式</td></tr>
-<tr><td><code>extern exp</code></td><td><code>extern function :: exp</code></td></tr>
+<tr><td><code>extern exp</code></td><td><code>extern function :: exp</code>。<code>sin</code>, <code>cos</code>, <code>exp</code>, <code>sqrt</code>, <code>fabs</code> など Formura が扱えるスカラー関数は、式や raw ヘルパで使われたら不足分を自動 extern する。明示 <code>extern</code> も従来通り可</td></tr>
 <tr><td><code>raw <i>行</i></code></td><td>Formura ソースへそのまま出す行(ヘルパ関数・コメント)</td></tr>
 <tr><td><code>field u : scalar</code></td><td>スカラー場</td></tr>
 <tr><td><code>field E : vector</code></td><td>ベクトル場(成分 Ex,Ey,Ez — ソースには書かない)</td></tr>
@@ -140,26 +144,78 @@ make diffusion3d
 <tr><td><code>u' = 式</code></td><td>スカラー更新。<code>X'</code> を右辺に書くと「更新後の X」への参照(symplectic な leapfrog が書ける)</td></tr>
 <tr><td><code>E' = E + dt * curl B</code></td><td>ベクトル方程式(成分・添字なし)</td></tr>
 <tr><td><code>B' = B - dt * d E'</code></td><td>形式方程式(d は次数で解決)</td></tr>
-<tr><td><code>v'_i = v_i + (dt/rho0) * d_j s_i_j</code></td><td><b>テンソル添字方程式</b>(staggered 場)。繰り返し添字は「それを含む最小の項」で総和(Einstein)、<code>delta_ij</code> は Kronecker δ、<code>d_a</code> は対象成分の配置にアンカーされた半セル差分</td></tr>
-<tr><td><code>local w = d2_x u</code></td><td>中間<b>格子場</b>(.fmr に1行として出る — 4階微分の2段化などに)</td></tr>
+<tr><td><code>v'~i = v~i + (dt/ρ0) * ∂_j s~i_j</code></td><td><b>テンソル添字方程式</b>(staggered 場)。繰り返し添字は「それを含む最小の項」で総和(Einstein)、<code>δ~i_j</code> は Kronecker δ、<code>∂_a</code> は対象成分の配置にアンカーされた半セル差分</td></tr>
+<tr><td><code>local w = ∂x (∂x u)</code></td><td>中間<b>格子場</b>(.fmr に1行として出る — 4階微分の2段化などに)</td></tr>
 <tr><td><code>let En_i = …</code></td><td>名前つき式(インライン展開される。格子場にはならない)</td></tr>
 </table>
 
-<h3>微分演算子(数式のまま書く)</h3>
+<h3>演算子の由来: 組み込み / prelude / Egison ライブラリ</h3>
 <table>
-<tr><th>演算子</th><th>意味</th></tr>
-<tr><td><code>∂_x e</code> / <code>d_x e</code></td><td>1階中心差分(軸名で: <code>∂_r</code>, <code>∂_θ</code> …)</td></tr>
-<tr><td><code>∂_x (∂_x e)</code></td><td>2階コンパクト差分(d の2回適用は半セル前進・後退の対として融合される。<code>d2</code> という演算子はない)</td></tr>
-<tr><td><code>Δ e</code>(= <code>∇²</code>, <code>lap</code>)</td><td>モデルの幾何のラプラシアン: 平坦なら3軸和、計量宣言下では自動的に Laplace–Beltrami。<b>Δ はプレリュードの <code>def Δ u = 0 - δ (d u)</code> として定義されており、再定義できる</b></td></tr>
-<tr><td><code>Δ4 e</code>(= <code>lap4</code>)</td><td>4次精度 Laplacian(係数は CAS が Taylor 条件を解いて導出。Richardson 外挿 (4Δ_h − Δ_2h)/3 と等価)</td></tr>
-<tr><td><code>curl X</code>(= <code>∇ × X</code>)</td><td>回転(ライブラリで ε 縮約として定義)</td></tr>
-<tr><td><code>divg X</code>(= <code>∇ · X</code>)</td><td>発散(離散 Jacobian の trace — 本体の <code>div</code> と同じ構成)</td></tr>
-<tr><td><code>d ω</code></td><td>離散外微分(0/1/2-形式で grad/curl/div)</td></tr>
-<tr><td><code>delta ω</code>(= <code>codiff</code>/<code>δ</code>)</td><td>余微分 (−1)^{n(k+1)+1} ⋆d⋆</td></tr>
-<tr><td><code>Δ u</code>(計量下)/ <code>lb u</code> / <code>0 - δ (d u)</code></td><td>Laplace–Beltrami = −δd(<code>metric scale</code> か <code>embedding</code> が必要。hodge 因子の係数場生成・半セル CAS 評価・保存流束まで自動。スカラーへの δ∘d は −Δ に降下)</td></tr>
+<tr><th>分類</th><th>演算子</th><th>説明</th></tr>
+<tr><td>Formurae prelude</td><td><code>Δ u</code></td><td><code>def Δ u = 0 - δ (d u)</code> として最初から入る通常の <code>def</code>。ユーザ定義で上書き可能</td></tr>
+<tr><td><code>fec</code> 組み込み変換</td><td><code>∂x e</code></td><td>軸名を見て <code>dC 1</code> などの中心差分へ下ろす。<code>∂x (∂x e)</code> は <code>dC2</code> へ融合する。<code>∂_x</code> と <code>d_x</code> は座標微分としては許可しない</td></tr>
+<tr><td><code>fec</code> 組み込み変換</td><td><code>∂_i X~i</code>, <code>δ~i_j</code>, <code>epsilon~i~j~k</code>, <code>.</code></td><td>添字方程式を成分ごとの式へ展開する。<code>.</code> は添字縮約、<code>*</code> は点ごとのスカラー積として扱う</td></tr>
+<tr><td><code>fec</code> 組み込み変換</td><td><code>d ω</code>, <code>δ ω</code> / <code>delta ω</code> / <code>codiff ω</code></td><td><code>field E : 1-form</code> などの形式場では、生成 Egison の <code>dForm</code>/<code>codiff</code> 呼び出しへ下ろす</td></tr>
+<tr><td><code>fec</code> 組み込み変換</td><td><code>δ (d u)</code></td><td>スカラー場では <code>-lap u</code>、計量付きモデルでは <code>-lb u</code> に下ろす。prelude の <code>Δ</code> はこの規則を使う</td></tr>
+<tr><td>Formura/extern 組み込み</td><td><code>sin</code>, <code>cos</code>, <code>exp</code>, <code>sqrt</code>, <code>fabs</code> など</td><td>スカラー関数。テンソル成分に適用されると成分ごとへ lift され、不足する <code>extern function :: ...</code> は <code>fec</code> が自動で出す</td></tr>
+<tr><td>生成先 Egison ライブラリ</td><td><code>lap</code>, <code>dGrad</code>, <code>curl</code>, <code>divg</code>, <code>Δ4</code>, <code>dForm</code>, <code>codiff</code></td><td><code>.fe</code> の prelude ではなく <code>lib/fmrgen.egi</code> の定義。<code>fec</code> が必要な呼び出しを生成する</td></tr>
 </table>
 
-<p><b>添字</b>: 添字方程式では上付き <code>~i</code> と下付き <code>_i</code> を併用できます(ユークリッド格子なので変位は記法上の区別。繰返し文字は上下によらず総和)。Kronecker delta は <code>δ~i_j</code>(1添字1マーク; 融合形 <code>delta_ij</code> は不可)。例(弾性波):
+<h3>prelude / ライブラリ定義</h3>
+<p>現時点の <b>Formurae prelude</b>(<code>fec/src/Main.hs</code>)に入っている数式演算子は <code>Δ</code> だけです。</p>
+<pre>
+def Δ u = 0 - δ (d u)
+</pre>
+<p>以下は <code>.fe</code> prelude ではなく、生成された <code>.egi</code> が読み込む <b>Egison 側ライブラリ</b>(<code>lib/fmrgen.egi</code>)の定義です。</p>
+<pre>
+def lap (u: MathValue) : MathValue :=
+  sum (map (\a -&gt; dC2 a u) [1, 2, 3])
+
+def dGrad (X: Vector MathValue) : Matrix MathValue :=
+  generateTensor (\[a, b] -&gt; dC a X_b) [3, 3]
+
+def curl (X: Vector MathValue) : Vector MathValue :=
+  withSymbols [i, j, k] (ε 3)~i~j~k . (dGrad X)_j_k
+
+def divg (X: Vector MathValue) : MathValue :=
+  trace (dGrad X)
+
+def Δ4 (u: MathValue) : MathValue :=
+  dTaylor 2 [-2, -1, 0, 1, 2] 1 u
+  + dTaylor 2 [-2, -1, 0, 1, 2] 2 u
+  + dTaylor 2 [-2, -1, 0, 1, 2] 3 u
+
+def dForm (f: (Integer, Integer, [MathValue])) : (Integer, Integer, [MathValue]) :=
+  let (c, k, cs) := f
+   in if k = 0
+        then (c, 1, map (\a -&gt; dYee a (sigmaC c 1 a) (nth 1 cs, sigmaC c 0 1)) [1, 2, 3])
+        else if k = 1
+          then (c, 2, map (\a -&gt; curlYee a (sigmaC c 2 a) (zip cs (map (sigmaC c 1) [1, 2, 3]))) [1, 2, 3])
+          else (c, 3, [sum (map (\a -&gt; dYee a (sigmaC c 3 1) (nth a cs, sigmaC c 2 a)) [1, 2, 3])])
+
+def codiff (f: (Integer, Integer, [MathValue])) : (Integer, Integer, [MathValue]) :=
+  scaleForm ((-1) ^ (3 * (formDeg f + 1) + 1)) (hodge (dForm (hodge f)))
+
+def δ := codiff
+</pre>
+
+<h3>演算子リファレンス(数式のまま書く)</h3>
+<table>
+<tr><th>演算子</th><th>由来</th><th>意味</th></tr>
+<tr><td><code>∂x e</code></td><td><code>fec</code> 組み込み</td><td>1階中心差分(軸名で: <code>∂r</code>, <code>∂θ</code>, <code>∂φ</code> …)。座標微分はこの形だけを許可する</td></tr>
+<tr><td><code>∂x (∂x e)</code></td><td><code>fec</code> 組み込み</td><td>2階コンパクト差分(d の2回適用は半セル前進・後退の対として融合される。<code>d2</code> という演算子はない)</td></tr>
+<tr><td><code>∂_i X~i</code></td><td><code>fec</code> 組み込み</td><td>添字微分。<code>axes</code> で宣言した座標方向について展開し、繰り返し添字は Einstein 総和になる</td></tr>
+<tr><td><code>Δ e</code>(= <code>∇²</code>)</td><td>Formurae prelude</td><td><code>def Δ u = 0 - δ (d u)</code>。平坦なら <code>lap</code>、計量宣言下では <code>lb</code> を使う形に <code>fec</code> が下ろす</td></tr>
+<tr><td><code>lap e</code></td><td>Egison ライブラリ</td><td>平坦3軸の 2階中心差分和</td></tr>
+<tr><td><code>lb e</code></td><td><code>fec</code> 組み込み生成</td><td>計量宣言下の Laplace–Beltrami。hodge 因子の係数場生成・半セル CAS 評価・保存流束まで自動</td></tr>
+<tr><td><code>Δ4 e</code>(= <code>lap4</code>)</td><td>Egison ライブラリ</td><td>4次精度 Laplacian。係数は CAS が Taylor 条件を解いて導出</td></tr>
+<tr><td><code>curl X</code>(= <code>∇ × X</code>)</td><td><code>fec</code> 認識 + Egison ライブラリ</td><td>回転。表層呼び出しを <code>fec</code> がベクトル式へ展開し、意味は <code>withSymbols [i,j,k] (ε 3)~i~j~k . (dGrad X)_j_k</code></td></tr>
+<tr><td><code>divg X</code>(= <code>∇ · X</code>)</td><td><code>fec</code> 認識 + Egison ライブラリ</td><td>発散。生成先では <code>trace (dGrad X)</code></td></tr>
+<tr><td><code>d ω</code></td><td><code>fec</code> 認識 + Egison ライブラリ</td><td>離散外微分(0/1/2-形式で grad/curl/div)。形式場では <code>dForm</code> 呼び出しになる</td></tr>
+<tr><td><code>delta ω</code>(= <code>codiff</code>/<code>δ</code>)</td><td><code>fec</code> 認識 + Egison ライブラリ</td><td>余微分 (−1)^{n(k+1)+1} ⋆d⋆。形式場では <code>codiff</code> 呼び出しになる</td></tr>
+</table>
+
+<p><b>添字</b>: 添字方程式では上付き <code>~i</code> と下付き <code>_i</code> を併用できます。現在のユークリッド/スタガード格子バックエンドでは生成時に互換な成分展開へ正規化しますが、記法上は将来の計量・上げ下げを見据えて区別します。繰返し文字は現状上下によらず総和します。Kronecker delta は <code>δ~i_j</code>(1添字1マーク; 融合形 <code>delta_ij</code> は不可)。例(弾性波):
 <code>v'~i = v~i + (dt / ρ0) * ∂_j s~i~j</code></p>
 
 <p><b>Unicode</b>: ギリシャ文字(θ, φ, ρ, τ, κ, μ, λ, …)は識別子として使え、
@@ -170,6 +226,9 @@ fec が Formura 向けに ASCII 名(theta, phi, …)へ字訳します。
 <code>embedding [ `(2 + cos θ) * cos φ, … ]</code> +
 <code>u' = u + dt * Δ u</code> の3行の幾何・物理で書けます
 (metric_torus.fe がこの形)。</p>
+
+<p class="note"><b>現在の実装範囲</b>: 添字付きユーザ定義演算子は、薄い変換器として既存の Egison 展開経路へ接続している段階です。
+上付き/下付きの完全な variance-aware 縮約、複数引数の一般テンソル関数、<code>grad</code>/<code>div</code>/<code>curl</code> の完全なプレリュード化は後続作業です。</p>
 
 <h2 id="yaml">5. yaml リファレンス(格子と実行構成)</h2>
 <pre>

@@ -66,8 +66,9 @@
 --   assert-dd-zero NAME'            gate generation on d(d NAME') == 0
 --
 -- Unicode: Greek letters transliterate to their ASCII names (theta,
--- phi, ...); the derivative sign is d (so d_x may be written as
--- either ∂_x or ∂x), the small delta is the codifferential, the minus sign
+-- phi, ...); coordinate derivatives are written only as ∂x, ∂theta,
+-- ... while ∂_i remains the indexed derivative.  The small delta is the
+-- codifferential, the minus sign
 -- is '-'.  The capital delta is a prelude def (0 - delta (d u)), so it
 -- is the Laplacian of the model's geometry (lap, or lb under a declared
 -- metric); the derived 4th-order Laplacian is spelled with the capital
@@ -292,8 +293,8 @@ parseFe name txt = go STop (Model name 0 [] [] [] [] [] [] Nothing Nothing Nothi
                       (zip [1 :: Int ..] (lines txt))
   where
     -- dimension and axes are required: they fix the coordinate frame
-    -- that gives the operators their meaning (which axis d_theta is,
-    -- what an index letter in d_j ranges over)
+    -- that gives the operators their meaning (which axis ∂theta is,
+    -- what an index letter in ∂_j ranges over)
     go _ m []
       | mDim m == 0 = fatal "dimension declaration is required (dimension 3)"
       | null (mAxes m) = fatal "axes declaration is required (e.g. axes x, y, z)"
@@ -308,6 +309,16 @@ parseFe name txt = go STop (Model name 0 [] [] [] [] [] [] Nothing Nothing Nothi
                                     return st { sEx = ex })
                          (reverse (mSteps m))
           inits' <- mapM (expandInit defs) (reverse (mInits m))
+          mapM_ (\(nm, (_, body)) ->
+                    case surfaceBanned m body of
+                      Just bad -> fatal (bad ++ " in def " ++ nm)
+                      Nothing -> return ())
+                defs
+          mapM_ (\st ->
+                    case surfaceBanned m (sEx st) of
+                      Just bad -> fatal (bad ++ " in step expression: " ++ sEx st)
+                      Nothing -> return ())
+                steps'
           return m { mParams = reverse (mParams m), mHelp = reverse (mHelp m)
                    , mFlds = reverse (mFlds m), mInits = inits'
                    , mSteps = steps', mDefs = defs }
@@ -519,17 +530,25 @@ parseFe name txt = go STop (Model name 0 [] [] [] [] [] [] Nothing Nothing Nothi
       | otherwise = fatal ("bad step eq: " ++ s ++ " (line " ++ show ln ++ ")")
       where
         s = normalizeIndexMarks s0
-        -- not part of the language: d2 is d applied twice, and the
-        -- Kronecker delta carries one index per mark
-        banned = foldr (\t acc -> check t `orElse` acc) Nothing (tokenize s)
-        check (TId nm _)
-          | take 3 nm == "d2_" =
-              Just ("d2 is not an operator; write d_a (d_a u) for the second difference: " ++ nm)
-          | ("delta" : ps) <- splitOn '_' nm, any ((> 1) . length) ps =
-              Just ("Kronecker delta takes one index per mark (delta~i_j): " ++ nm)
-        check _ = Nothing
-        orElse (Just x) _ = Just x
-        orElse Nothing y = y
+        banned = surfaceBanned m s
+
+surfaceBanned :: Model -> String -> Maybe String
+surfaceBanned m s = foldr (\t acc -> check t `orElse` acc) Nothing (tokenize s)
+  where
+    check (TId nm _)
+      | Just ax <- stripPrefix "d_" nm, ax `elem` mAxes m =
+          Just ("coordinate derivative must be written ∂" ++ ax
+                ++ "; ∂_" ++ ax ++ " and d_" ++ ax ++ " are not part of Formurae")
+      | Just ax <- stripPrefix "d2_" nm, ax `elem` mAxes m =
+          Just ("d2 is not an operator; write ∂" ++ ax ++ " (∂" ++ ax
+                ++ " u) for the second difference: " ++ nm)
+      | take 3 nm == "d2_" =
+          Just ("d2 is not an operator; write ∂a (∂a u) for the second difference: " ++ nm)
+      | ("delta" : ps) <- splitOn '_' nm, any ((> 1) . length) ps =
+          Just ("Kronecker delta takes one index per mark (delta~i_j): " ++ nm)
+    check _ = Nothing
+    orElse (Just x) _ = Just x
+    orElse Nothing y = y
 
 -- --------------------------------------------------- expression rewriting
 
@@ -569,13 +588,13 @@ lbTarget m = case concatMap scan (mSteps m) of
 
 -- ------------------------------------ tensor index equations (staggered)
 --
--- v'_i   = v_i + (dt / rho0) * d_j s_i_j
--- s'_i_j = s_i_j + dt * (la * delta_ij * d_k v'_k + mu * (d_i v'_j + d_j v'_i))
+-- v'~i   = v~i + (dt / rho0) * ∂_j s~i_j
+-- s'~i_j = s~i_j + dt * (la * δ~i_j * ∂_k v'~k + mu * (∂_i v'~j + ∂_j v'~i))
 --
 -- Free indices come from the left-hand side; a repeated index letter
--- inside a term is summed over 1..3 (Einstein convention).  delta_ij is
--- Kronecker's delta, and epsilon_i_j_k is the 3D Levi-Civita symbol.
--- d_a applied to a staggered field component is the
+-- inside a term is summed over 1..3 (Einstein convention).  δ~i_j is
+-- Kronecker's delta, and epsilon~i~j~k is the 3D Levi-Civita symbol.
+-- ∂_a applied to a staggered field component is the
 -- half-cell difference anchored at the placement of the TARGET
 -- component (Virieux/Yee); symmetric components are canonicalized
 -- (s_2_1 means s_1_2).
@@ -817,8 +836,8 @@ mathOps m = concatMap out . tokenize
   where
     axmap = zip (mAxes m) ["1", "2", "3"]
     out (TId nm pr)
-      | not pr, Just rest <- stripPrefix "d2_" nm, Just n <- lookup rest axmap = "dC2 " ++ n
-      | not pr, Just rest <- stripPrefix "d_" nm, Just n <- lookup rest axmap = "dC " ++ n
+      | not pr, Just rest <- stripPrefix "pd2_" nm, Just n <- lookup rest axmap = "dC2 " ++ n
+      | not pr, Just rest <- stripPrefix "pd_" nm, Just n <- lookup rest axmap = "dC " ++ n
       | not pr, nm == "lap4" = ['\916', '4']   -- alias of the main spelling Δ4
       | otherwise = nm ++ (if pr then "'" else "")
     out (TC c) = [c]
@@ -850,20 +869,20 @@ closeParenT n (TC ')' : ts) acc
   | otherwise = closeParenT (n - 1) ts (TC ')' : acc)
 closeParenT n (t : ts) acc = closeParenT n ts (t : acc)
 
--- d_a (d_a X) fuses to the compact second difference d2_a (X): repeated
+-- ∂a (∂a X) fuses to the compact second difference pd2_a (X): repeated
 -- derivatives pair up as staggered half-cell differences (forward then
--- backward), which is the d2_ stencil -- not the double-width central
+-- backward), which is the dC2 stencil -- not the double-width central
 -- composition -- so writing d twice generates byte-identical code.
 fuseDD :: String -> String
 fuseDD = untok . go . tokenize
   where
     go (TId d1 False : ts)
-      | Just ax <- stripPrefix "d_" d1
+      | Just ax <- stripPrefix "pd_" d1
       , (_, TC '(' : ts1) <- span isSpTok ts
       , (_, TId d2 False : ts2) <- span isSpTok ts1
-      , stripPrefix "d_" d2 == Just ax
+      , stripPrefix "pd_" d2 == Just ax
       , Just (inner, rest) <- closeParenT 1 ts2 []
-      = TId ("d2_" ++ ax) False : TC '(' : go inner ++ (TC ')' : go rest)
+      = TId ("pd2_" ++ ax) False : TC '(' : go inner ++ (TC ')' : go rest)
     go (t : ts) = t : go ts
     go [] = []
 
@@ -1161,9 +1180,9 @@ emit m = do
 
 -- Unicode input: Greek letters transliterate to their ASCII names.  A
 -- partial-derivative sign followed immediately by an identifier is the
--- coordinate/indexed derivative operator (so `∂x` and `∂_x` both become
--- d_x, and `∂x (∂x u)` fuses to the compact second difference).  A bare
--- partial sign still becomes d.  The small delta becomes the
+-- coordinate derivative operator (`∂x`); a subscripted partial
+-- (`∂_i`) is the indexed derivative.  `∂_x` is therefore rejected when
+-- x is a declared axis.  A bare partial sign still becomes d.  The small delta becomes the
 -- codifferential, and the minus sign becomes '-'.  The capital delta
 -- (Laplacian) is model-dependent and resolved in mathOps instead.
 transliterate :: String -> String
@@ -1174,7 +1193,7 @@ transliterate = go
     go ('\8706':cs@(c:_))
       | isAlpha c =
           let (nm, rest) = span isW cs
-          in "d_" ++ concatMap tr nm ++ go rest
+          in "pd_" ++ concatMap tr nm ++ go rest
     go ('\8706':cs) = "d" ++ go cs
     go (c:cs) = tr c ++ go cs
 

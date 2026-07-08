@@ -7,7 +7,7 @@ Formura のラテン語風複数形で *formulae*(数式)への掛詞 — 「数
 
 **v1.8(2026-07-08): Unicode と基本演算子** — ギリシャ文字識別子(θ, φ, …
 → fec が ASCII へ字訳)・∂=d・δ=codiff・−=-・Δ=幾何のラプラシアン
-(平坦 lap/計量 lb)。`∂_x (∂_x u)` は compact 2階差分に融合、スカラーへの
+(平坦 lap/計量 lb)。`∂x (∂x u)` は compact 2階差分に融合、スカラーへの
 `δ (d u)` は −Δ へ降下 — いずれも生成 .fmr バイト一致で検証
 (metric_torus=θφΔ・maxwell_dec=δ・ks3d=∂2回・hyperbolic=−δd)。
 Egison 側の function symbol 改良(functionSymbol 構築子・quote 透過
@@ -221,14 +221,14 @@ step:
    残り = indexed family(`field f : family 19`)で LBM、ε_ijk とスカラー対象の
    添字和で yee/acoustic、ユーザ定義ヘルパ(def)で MHD。
 5. ✅ v1.7(2026-07-10): **数式演算子と Einstein 添字記法** — レビュー指摘
-   「dC2 のような関数でなく数式どおりに」を受け、.fe の微分は
-   `d_x`/`d2_x`(軸名で書く;dC/dC2/dTaylor は .fe から撤去、lap4 追加)。
+   「dC2 のような関数でなく数式どおりに」を受け、.fe の座標軸微分は
+   `∂x` 形式だけを許す(dC/dC2/dTaylor は .fe から撤去、lap4 追加)。
    `field v : vector @ staggered`・`field s : symmetric @ staggered` を宣言すると
    **テンソル添字方程式**が書ける:
-   `v'_i = v_i + (dt/rho0) * d_j s_i_j` /
-   `s'_i_j = s_i_j + dt * (la * delta_ij * d_k v'_k + mu * (d_i v'_j + d_j v'_i))`。
+   `v'~i = v~i + (dt/rho0) * ∂_j s~i_j` /
+   `s'~i_j = s~i_j + dt * (la * δ~i_j * ∂_k v'~k + mu * (∂_i v'~j + ∂_j v'~i))`。
    繰り返し添字は「それを含む最小の項」で総和(Einstein;括弧は独立領域)、
-   delta_ij は Kronecker、d_a は対象成分の配置にアンカーされた半セル差分
+   δ~i_j は Kronecker、∂_a は対象成分の配置にアンカーされた半セル差分
    (dYee)に落ち、対称成分は正準化(s_2_1 = s_1_2)。elastic3d.fe の生成
    .fmr は v0 テンソル版と**バイト一致**。
 6. v2: 2D/1D、変数別境界条件、多段時間積分スキーム、Christoffel 一般計量
@@ -289,11 +289,11 @@ step:
    - `contractWith`: テンソル同士の積と添字縮約(Egison の `.` に対応)
    - `∂symbol`: 座標軸 `symbol` に沿う偏微分/差分生成子(`∂x`, `∂theta` など)
 
-   `d_symbol` のような綴りは `_` が下添字と衝突し、`d_i`(添字付き微分演算子)と
-   `d_x`(座標軸 x の微分)の区別も読みにくい。非ユークリッド座標・一般計量へ進むなら、
+   `d_symbol` のような綴りは `_` が下添字と衝突し、`∂_i`(添字付き微分演算子)と
+   `∂x`(座標軸 x の微分)の区別も読みにくい。非ユークリッド座標・一般計量へ進むなら、
    軸名に対する微分は `∂x` のように演算子名として書き、添字を持つ微分は別途
    `∂_i`/`∂~i` などとして扱う方が安全。表層仕様では、座標軸微分については
-   `∂x` 形式だけを許す選択肢を検討する。
+   `∂x` 形式だけを許す。
 
    その上で、`grad`・`div`・`curl`・`dForm`・`hodge`・`codiff`・`Δ`・`lb` は
    組み込みではなくプレリュード定義に落とす。`epsilon`・`delta`・`g`・`gInv`・
