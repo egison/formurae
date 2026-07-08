@@ -41,6 +41,9 @@
 --                                    and may be redefined.
 --   param NAME = RAW                Formura parameter (double :: NAME = RAW)
 --   extern NAME                     extern function :: NAME
+--                                   (core scalar intrinsics such as sin,
+--                                    cos, exp, sqrt, ... are also emitted
+--                                    automatically when they are used)
 --   raw LINE                        verbatim Formura helper line
 --   field NAME : scalar             one grid field
 --   field NAME : vector             3 components (NAMEx,NAMEy,NAMEz)
@@ -96,6 +99,17 @@ vecOps = ["d", "delta", "codiff", "\948", "curl", "divg", "dGrad"]
 vecRet = ["curl"]
 deltaOps = ["delta", "codiff", "\948"]
 
+-- Scalar functions supported as Formura/C extern functions.  In Egison's
+-- tensor notation these are scalar functions that can be lifted over tensors;
+-- fec uses the list to make the Formura extern surface explicit.
+scalarIntrinsics :: [String]
+scalarIntrinsics =
+  [ "sin", "cos", "tan"
+  , "asin", "acos", "atan", "atan2"
+  , "sinh", "cosh", "tanh"
+  , "exp", "log", "sqrt", "pow", "fabs"
+  ]
+
 fatal :: String -> IO a
 fatal msg = hPutStrLn stderr ("fec: error: " ++ msg) >> exitFailure
 
@@ -128,6 +142,57 @@ data Model = Model
 
 kindOf :: Model -> String -> Maybe Kind
 kindOf m nm = lookup nm (mFlds m)
+
+declaredExterns :: [String] -> [String]
+declaredExterns = foldr collect []
+  where
+    collect h acc =
+      case stripPrefix "extern function :: " (strip h) of
+        Just nm | not (null (strip nm)) -> strip nm : acc
+        _ -> acc
+
+autoScalarExterns :: Model -> [String] -> [String]
+autoScalarExterns m helps =
+  [ "extern function :: " ++ nm
+  | nm <- scalarIntrinsics
+  , nm `notElem` declared
+  , any (usesFunctionName nm) (modelExprTexts m)
+  ]
+  where
+    declared = declaredExterns helps
+
+modelExprTexts :: Model -> [String]
+modelExprTexts m =
+  map snd (mParams m)
+  ++ helperExprs (mHelp m)
+  ++ concatMap initExpr (mInits m)
+  ++ map sEx (mSteps m)
+  ++ maybe [] id (mMetric m)
+  ++ map (snd . snd) (mDefs m)
+  where
+    helperExprs = filter isExprHelper
+    isExprHelper h =
+      let s = strip h
+      in not (null s)
+         && take 1 s /= "#"
+         && stripPrefix "extern function :: " s == Nothing
+    initExpr it = case it of
+      IRaw _ rhs -> [rhs]
+      IVec _ es -> es
+      ISym _ es -> es
+      ICas _ ex -> [ex]
+
+usesFunctionName :: String -> String -> Bool
+usesFunctionName nm = go . tokenize
+  where
+    go [] = False
+    go (TId w False : ts)
+      | w == nm =
+          case dropWhile isSpTok ts of
+            TC '(' : _ -> True
+            TId _ _ : _ -> True
+            _ -> go ts
+    go (_ : ts) = go ts
 
 -- ------------------------------------------------------------- utilities
 
@@ -925,9 +990,10 @@ emit m = do
       feParams = "def feParams := ["
                  ++ intercalate ", " [ "(\"" ++ n ++ "\", \"" ++ v ++ "\")"
                                      | (n, v) <- mParams m ] ++ "]"
-      helps = mHelp m ++ (case mEmbed m of
+      explicitHelps = mHelp m ++ (case mEmbed m of
                               Just _ -> ["extern function :: sqrt"]
                               Nothing -> [])
+      helps = autoScalarExterns m explicitHelps ++ explicitHelps
       feHelpers
         | null helps = ["def feHelpers : [String] := []"]
         | otherwise = "def feHelpers :="
@@ -964,8 +1030,6 @@ emit m = do
                    ++ [feParams] ++ feHelpers ++ [feFlds] ++ feInits
                    ++ [feSteps] ++ [""] ++ mainDef))
   where
-    isCas (ICas _ _) = True
-    isCas _ = False
     fdecl (nm, Scalar) = ["def " ++ nm ++ " := function (x, y, z)"]
     fdecl (nm, Vector _) =
       ["def " ++ nm ++ "_i := generateTensor (\\[i] -> function (x, y, z)) [3]"]
