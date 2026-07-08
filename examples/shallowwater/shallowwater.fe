@@ -4,6 +4,9 @@
 -- telescope exactly.  A 1% bump splits into gravity waves at
 -- c = sqrt(g h0) = 1, measured by the check driver.
 
+dimension 3
+axes x, y, z
+
 param g = 1.0
 param λ = 0.05
 param dt = 0.05

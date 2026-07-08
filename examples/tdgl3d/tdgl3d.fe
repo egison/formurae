@@ -3,6 +3,9 @@
 -- From small noise the bulk saturates to |psi| ~ 1 while quantized
 -- vortices (cores with 2 pi winding) form and annihilate.
 
+dimension 3
+axes x, y, z
+
 param dt = 0.05
 
 extern sin

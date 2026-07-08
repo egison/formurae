@@ -13,9 +13,10 @@
 --
 -- Formurae grammar (v1):
 --   -- comment                      (kept out of the output)
---   dimension 3                     (default 3; v1 supports 3 only)
---   axes x, y, z                    (default x,y,z; the names are mapped to
---                                    the internal coordinates x,y,z, so
+--   dimension 3                     (REQUIRED; v1 supports 3 only)
+--   axes x, y, z                    (REQUIRED; fixes the coordinate frame
+--                                    the operators refer to.  The names map
+--                                    to the internal coordinates x,y,z, so
 --                                    axes r, theta, phi works in CAS exprs)
 --   metric scale [h1, h2, h3]       Lame scale factors of an orthogonal
 --                                   metric, written in the axis names.
@@ -41,6 +42,9 @@
 --   init:
 --     COMP = RAW                    raw Formura initializer (component)
 --     NAME = [| e1, e2, e3 |]       vector/form initializer (component-wise raw)
+--     NAME = [| [| xx, xy, xz |],   symmetric-tensor initializer: full 3x3
+--            [| yy, yz |], [| zz |] |]  (checked symmetric) or upper triangle;
+--                                    may span lines until brackets balance
 --     NAME := EXPR                  CAS initializer (printed via fmrInit)
 --   step:
 --     let N_i = EXPR                named tensor expression (inlined)
@@ -91,7 +95,9 @@ fatal msg = hPutStrLn stderr ("fec: error: " ++ msg) >> exitFailure
 
 data Kind = Scalar | Vector Bool | Form Int | SymM deriving (Eq, Show)
 
-data Init = IRaw String String | IVec String [String] | ICas String String
+data Init = IRaw String String | IVec String [String]
+          | ISym String [String]   -- xx, yy, zz, xy, xz, yz
+          | ICas String String
 
 data SK = KLet | KLocal | KEq deriving Eq
 
@@ -179,12 +185,22 @@ primeEqForm s = do
 data Section = STop | SInit | SStep
 
 parseFe :: String -> String -> IO Model
-parseFe name txt = go STop (Model name 3 ["x", "y", "z"] [] [] [] [] [] Nothing Nothing Nothing)
+parseFe name txt = go STop (Model name 0 [] [] [] [] [] [] Nothing Nothing Nothing)
                       (zip [1 :: Int ..] (lines txt))
   where
-    go _ m [] = return m { mParams = reverse (mParams m), mHelp = reverse (mHelp m)
-                         , mFlds = reverse (mFlds m), mInits = reverse (mInits m)
-                         , mSteps = reverse (mSteps m) }
+    -- dimension and axes are required: they fix the coordinate frame
+    -- that gives the operators their meaning (which axis d_theta is,
+    -- what an index letter in d_j ranges over)
+    go _ m []
+      | mDim m == 0 = fatal "dimension declaration is required (dimension 3)"
+      | null (mAxes m) = fatal "axes declaration is required (e.g. axes x, y, z)"
+      | length (mAxes m) /= mDim m =
+          fatal ("axes declares " ++ show (length (mAxes m))
+                 ++ " names for dimension " ++ show (mDim m))
+      | otherwise =
+          return m { mParams = reverse (mParams m), mHelp = reverse (mHelp m)
+                   , mFlds = reverse (mFlds m), mInits = reverse (mInits m)
+                   , mSteps = reverse (mSteps m) }
     go sec m ((ln, raw):rest) = do
       let code = rstrip (stripComment raw)
           s = strip code
@@ -196,8 +212,24 @@ parseFe name txt = go STop (Model name 3 ["x", "y", "z"] [] [] [] [] [] Nothing 
             let sec' = if take 1 code /= " " then STop else sec
             case sec' of
               STop -> top ln s m >>= \m' -> go STop m' rest
+              -- an init line may continue over following lines until its
+              -- brackets balance (tensor initializers span rows)
+              SInit | bal s > 0 ->
+                let (more, rest') = grab (bal s) rest
+                in ini ln (s ++ " " ++ more) m >>= \m' -> go SInit m' rest'
               SInit -> ini ln s m >>= \m' -> go SInit m' rest
               SStep -> stp ln s m >>= \m' -> go SStep m' rest
+
+    bal t = sum [1 :: Int | c <- t, c `elem` "(["] - sum [1 | c <- t, c `elem` ")]"]
+
+    grab _ [] = ("", [])
+    grab d ((_, raw):rest) =
+      let t = strip (rstrip (stripComment raw))
+          d' = d + bal t
+      in if d' <= 0
+           then (t, rest)
+           else let (more, rest') = grab d' rest
+                in (t ++ " " ++ more, rest')
 
     top ln s m
       | Just r <- stripPrefix "param " s =
@@ -257,20 +289,37 @@ parseFe name txt = go STop (Model name 3 ["x", "y", "z"] [] [] [] [] [] Nothing 
     ini ln s m
       | Just (nm, ex) <- casForm s = return m { mInits = ICas nm ex : mInits m }
       | Just (nm, rhs) <- rawForm s =
-          case vecLit rhs of
-            Just elems -> do
-              let ok = case kindOf m nm of
+          case (kindOf m nm, vecLit rhs) of
+            (Just SymM, Just rows) -> do
+              rows' <- mapM (\r -> case vecLit (strip r) of
+                        Just es -> return (map strip es)
+                        Nothing -> fatal ("symmetric initializer rows must be [| ... |] (line "
+                                          ++ show ln ++ ")")) rows
+              comps <- case rows' of
+                -- full 3x3: must be symmetric; the upper triangle is used
+                [r1@[_, _, _], r2@[_, _, _], r3@[_, _, _]]
+                  | r1 !! 1 == r2 !! 0 && r1 !! 2 == r3 !! 0 && r2 !! 2 == r3 !! 1 ->
+                      return [r1 !! 0, r2 !! 1, r3 !! 2, r1 !! 1, r1 !! 2, r2 !! 2]
+                  | otherwise ->
+                      fatal ("symmetric initializer is not symmetric (line " ++ show ln ++ ")")
+                -- upper triangle by rows: [| xx,xy,xz |], [| yy,yz |], [| zz |]
+                [[xx, xy, xz], [yy, yz], [zz]] -> return [xx, yy, zz, xy, xz, yz]
+                _ -> fatal ("symmetric initializer needs 3x3 or upper-triangle rows (line "
+                            ++ show ln ++ ")")
+              return m { mInits = ISym nm comps : mInits m }
+            (k, Just elems) -> do
+              let ok = case k of
                          Just (Vector _) -> True
                          Just (Form _) -> True
                          _ -> False
               if not ok
-                then fatal ("[| ... |] initializer needs a vector/form field: "
+                then fatal ("[| ... |] initializer needs a vector/form/symmetric field: "
                             ++ nm ++ " (line " ++ show ln ++ ")")
                 else if length elems /= 3
                   then fatal ("[| ... |] initializer needs 3 components (line "
                               ++ show ln ++ ")")
                   else return m { mInits = IVec nm elems : mInits m }
-            Nothing -> return m { mInits = IRaw nm rhs : mInits m }
+            _ -> return m { mInits = IRaw nm rhs : mInits m }
       | otherwise = fatal ("bad init: " ++ s ++ " (line " ++ show ln ++ ")")
       where
         casForm t = do
@@ -882,6 +931,8 @@ emit m = do
       IRaw nm rhs -> return ["\"  " ++ nm ++ "[i,j,k] = " ++ escQ rhs ++ "\""]
       IVec nm els -> return [ "\"  " ++ nm ++ suf ++ "[i,j,k] = " ++ escQ el ++ "\""
                             | (suf, el) <- zip ["x", "y", "z"] els ]
+      ISym nm els -> return [ "\"  " ++ nm ++ suf ++ "[i,j,k] = " ++ escQ el ++ "\""
+                            | (suf, el) <- zip ["xx", "yy", "zz", "xy", "xz", "yz"] els ]
       ICas nm ex -> do
         e <- rewrite m lets Nothing ex
         return ["fmrInit \"" ++ nm ++ "\" (" ++ e ++ ")"]

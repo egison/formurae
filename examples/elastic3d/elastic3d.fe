@@ -13,6 +13,9 @@
 -- lattice, derived rather than declared.  With lambda=2, mu=1, rho0=1 the
 -- P and S speeds are 2 and 1, measured by the check driver.
 
+dimension 3
+axes x, y, z
+
 param λ = 2.0
 param μ = 1.0
 param ρ0 = 1.0
@@ -26,16 +29,11 @@ field v : vector @ staggered
 field s : symmetric @ staggered
 
 init:
-  vx = gp((i + 0.5)*dx)
-  vy = gp(i*dx)
-  vz = 0.0
-  sxx = 0.0 - 2.0*gp(i*dx)
-  syy = 0.0
-  szz = 0.0
-  sxy = 0.0 - 1.0*gp((i + 0.5)*dx)
-  sxz = 0.0
-  syz = 0.0
+  v = [| gp((i + 0.5)*dx), gp(i*dx), 0.0 |]
+  s = [| [| 0.0 - 2.0*gp(i*dx), 0.0 - 1.0*gp((i + 0.5)*dx), 0.0 |],
+         [| 0.0, 0.0 |],
+         [| 0.0 |] |]
 
 step:
-  v'~i = v~i + (dt / ρ0) * ∂_j s~i~j
-  s'~i~j = s~i~j + dt * (λ * δ~i~j * ∂_k v'~k + μ * (∂_i v'~j + ∂_j v'~i))
+  v'~i = v~i + (dt / ρ0) * ∂_j s~i_j
+  s'~i_j = s~i_j + dt * (λ * δ~i_j * ∂_k v'~k + μ * (∂_i v'~j + ∂_j v'~i))

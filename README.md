@@ -118,7 +118,7 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
 | `examples/cahnhilliard3d/` | **Cahn–Hilliard**(4階微分を中間場 μ の2段構成で。質量は `reduces` 経由で監視) |
 | `examples/tdgl3d/` | **TDGL 超伝導**(\|ψ\|⁴ 理論。量子化渦の自発形成) |
 | `examples/mhd_ot/` | **理想 MHD: Orszag–Tang 渦**(保存形+Rusanov 流束を中間流束場19本で生成。8保存量を `reduces` で監視) |
-| `examples/elastic3d/` | **弾性波(Virieux)**(.fe の **Einstein 添字記法2行**: `v'~i = v~i + (dt/ρ0) * ∂_j s~i~j` と `s'~i~j = … λ * δ~i~j … ∂_i v'~j …`。繰り返し添字は自動総和(上付き ~i と下付き _i は併用可)、`@ staggered` 宣言で ∂_a が対象配置アンカーの半セル差分に = Virieux 格子を導出。P/S 両波速を1回で実測) |
+| `examples/elastic3d/` | **弾性波(Virieux)**(.fe の **Einstein 添字記法2行**: `v'~i = v~i + (dt/ρ0) * ∂_j s~i_j` と `s'~i_j = … λ * δ~i_j … ∂_i v'~j …`。繰り返し添字は自動総和(上付き ~i と下付き _i は併用可)、`@ staggered` 宣言で ∂_a が対象配置アンカーの半セル差分に = Virieux 格子を導出。P/S 両波速を1回で実測) |
 | `examples/metric_torus/` | **計量つき拡散(トーラス上の Laplace–Beltrami)**(.fe の `embedding [...]`(座標系の埋め込み)だけから CAS が計量 g_ab=∂X·∂X を導出・**直交性を記号検査**・h_a=√g_aa → hodge 因子の係数場・半セル評価・保存流束まで自動。物理は `u' = u + dt * Δ u` の1行(`Δ` は計量下で自動的に Laplace–Beltrami; `u - dt * δ (d u)` とも書ける)。`metric scale` 直接指定も可) |
 | `examples/kleingordon/` | **非線形 Klein–Gordon(φ⁴ キンク)**(leapfrog 2場。ブーストした kink–antikink 対で速度と相対論的エネルギーを実測) |
 | `examples/shallowwater/` | **浅水方程式**(保存形+人工粘性。重力波速 √(gh) を実測、質量は流束形式で厳密保存) |

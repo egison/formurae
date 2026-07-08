@@ -2,6 +2,9 @@
 -- FHPC 2016, Listing 1): below-ground dynamics of mycorrhiza modelled
 -- by Pearson's equations, with the paper's parameters.
 
+dimension 3
+axes x, y, z
+
 param Fu = 1.0/86400.0
 param Fv = 6.0/86400.0
 param Fe = 1.0/900.0

@@ -73,8 +73,11 @@
   <div class="math">∂<sub>t</sub>u = κ∇²u</div>
   <div class="dslbox"><b>.fe(16行)</b>: 場1行・物理1行
     (<code>u' = u + dt * kappa * lap u</code>)+パラメタ2行+初期条件1行。</div>
-  <details class="codebox" data-fe="diffusion3d/diffusion3d.fe" open><summary>Formurae ソース全文(diffusion3d.fe・15 行)</summary>
+  <details class="codebox" data-fe="diffusion3d/diffusion3d.fe" open><summary>Formurae ソース全文(diffusion3d.fe・18 行)</summary>
 <pre><span class="c">-- The 3D diffusion equation: du/dt = kappa * laplacian(u)</span>
+
+dimension 3
+axes x, y, z
 
 param κ = 1.0
 param dt = 0.1*dx*dx
@@ -141,12 +144,15 @@ end function</pre></details>
   <div class="dslbox"><b>.fe(18行)</b>: 係数はどこにも書かず
     <code>dTaylor 2 [-2, -1, 0, 1, 2] a u</code> — Taylor 条件の連立を CAS が
     厳密有理数で解いてステンシルを合成。</div>
-  <details class="codebox" data-fe="highorder4/highorder4.fe" open><summary>Formurae ソース全文(highorder4.fe・18 行)</summary>
+  <details class="codebox" data-fe="highorder4/highorder4.fe" open><summary>Formurae ソース全文(highorder4.fe・21 行)</summary>
 <pre><span class="c">-- Diffusion with a DERIVED 4th-order Laplacian: the five-point</span>
 <span class="c">-- coefficients (-1/12, 4/3, -5/2, 4/3, -1/12) appear nowhere here --</span>
 <span class="c">-- dTaylor solves the Taylor conditions by exact rational Gaussian</span>
 <span class="c">-- elimination inside the CAS.  The check driver verifies the run</span>
 <span class="c">-- against the exact discrete symbol of the derived stencil.</span>
+
+dimension 3
+axes x, y, z
 
 param κ = 1.0
 param dt = 0.0005
@@ -209,13 +215,16 @@ end function</pre></details>
   <div class="math">∂<sub>t</sub>u = κ∇²u,&nbsp;&nbsp;u|<sub>壁</sub> = 0</div>
   <div class="dslbox"><b>.fe(19行)</b>: 物理は周期版と同一の1行 — 壁は yaml の
     <code>boundary: [fixed 0.0, periodic, periodic]</code>(fork 拡張)だけ。</div>
-  <details class="codebox" data-fe="dirichlet_diffusion/dirichlet_diffusion.fe" open><summary>Formurae ソース全文(dirichlet_diffusion.fe・20 行)</summary>
+  <details class="codebox" data-fe="dirichlet_diffusion/dirichlet_diffusion.fe" open><summary>Formurae ソース全文(dirichlet_diffusion.fe・23 行)</summary>
 <pre><span class="c">-- Diffusion between two cold walls: the yaml declares</span>
 <span class="c">--   boundary: [fixed 0.0, periodic, periodic]</span>
 <span class="c">-- (the fork's boundary support), so the physics stays the periodic</span>
 <span class="c">-- one-liner.  The initial condition is the fundamental discrete</span>
 <span class="c">-- Dirichlet eigenmode, whose exact decay (1 + lam dt)^n the check</span>
 <span class="c">-- driver asserts to machine precision.</span>
+
+dimension 3
+axes x, y, z
 
 param κ = 1.0
 param dt = 0.00002
@@ -386,12 +395,15 @@ end function</pre></details>
     <code>codiff = (−1)^(n(k+1)+1) hodge∘dForm∘hodge</code> で合成(Egison 本体の
     Yang–Mills サンプルの連続版 δ と同じ構造)。<code>assert-dd-zero E'</code> で
     <b>d∘d=0 の CAS 検査</b>を通らない限り生成しない。</div>
-  <details class="codebox" data-fe="maxwell_dec/maxwell_dec.fe" open><summary>Formurae ソース全文(maxwell_dec.fe・23 行)</summary>
+  <details class="codebox" data-fe="maxwell_dec/maxwell_dec.fe" open><summary>Formurae ソース全文(maxwell_dec.fe・26 行)</summary>
 <pre><span class="c">-- Maxwell's equations as discrete differential forms (DEC)</span>
 <span class="c">--   Faraday :  dB/dt = -d E'          (d : 1-form -&gt; 2-form)</span>
 <span class="c">--   Ampere  :  dE/dt = delta B        (codifferential: delta = *d* on 2-forms)</span>
 <span class="c">-- No grid placements appear anywhere: the form degrees determine the</span>
 <span class="c">-- Yee lattice, and generation is gated on the CAS reducing d(dE') to 0.</span>
+
+dimension 3
+axes x, y, z
 
 param dt = 0.5*dx
 
@@ -486,7 +498,7 @@ end function</pre></details>
     <code>s'_i_j = s_i_j + dt * (la * delta_ij * d_k v'_k + mu * (d_i v'_j + d_j v'_i))</code>。
     繰り返し添字は自動で総和、δ_ij は Kronecker、<code>@ staggered</code> 宣言により
     d_a は<b>対象成分の配置にアンカーされた半セル差分</b>になる(Virieux 格子が導出される)。</div>
-  <details class="codebox" data-fe="elastic3d/elastic3d.fe" open><summary>Formurae ソース全文(elastic3d.fe・41 行)</summary>
+  <details class="codebox" data-fe="elastic3d/elastic3d.fe" open><summary>Formurae ソース全文(elastic3d.fe・39 行)</summary>
 <pre><span class="c">-- Linear elastic waves, velocity-stress formulation (Virieux), written</span>
 <span class="c">-- exactly as the mathematics:</span>
 <span class="c">--</span>
@@ -502,6 +514,9 @@ end function</pre></details>
 <span class="c">-- lattice, derived rather than declared.  With lambda=2, mu=1, rho0=1 the</span>
 <span class="c">-- P and S speeds are 2 and 1, measured by the check driver.</span>
 
+dimension 3
+axes x, y, z
+
 param λ = 2.0
 param μ = 1.0
 param ρ0 = 1.0
@@ -515,19 +530,14 @@ field v : vector @ staggered
 field s : symmetric @ staggered
 
 init:
-  vx = gp((i + 0.5)*dx)
-  vy = gp(i*dx)
-  vz = 0.0
-  sxx = 0.0 - 2.0*gp(i*dx)
-  syy = 0.0
-  szz = 0.0
-  sxy = 0.0 - 1.0*gp((i + 0.5)*dx)
-  sxz = 0.0
-  syz = 0.0
+  v = [| gp((i + 0.5)*dx), gp(i*dx), 0.0 |]
+  s = [| [| 0.0 - 2.0*gp(i*dx), 0.0 - 1.0*gp((i + 0.5)*dx), 0.0 |],
+         [| 0.0, 0.0 |],
+         [| 0.0 |] |]
 
 step:
-  v'~i = v~i + (dt / ρ0) * ∂_j s~i~j
-  s'~i~j = s~i~j + dt * (λ * δ~i~j * ∂_k v'~k + μ * (∂_i v'~j + ∂_j v'~i))</pre></details>
+  v'~i = v~i + (dt / ρ0) * ∂_j s~i_j
+  s'~i_j = s~i_j + dt * (λ * δ~i_j * ∂_k v'~k + μ * (∂_i v'~j + ∂_j v'~i))</pre></details>
   <details class="codebox" data-egi="elastic3d/elastic3d.egi"><summary>生成された Egison(中間形・fec 出力)(elastic3d.egi・41 行)</summary>
 <pre><span class="c">--</span>
 <span class="c">-- GENERATED by fec (the Formurae compiler) from elastic3d.fe -- edit the .fe, not this file</span>
@@ -619,11 +629,14 @@ end function</pre></details>
   <div class="dslbox"><b>.fe(23行)</b>: スカラー2場の leapfrog(kick–drift)。
     <code>phi' = phi + dt * w'</code> の <code>w'</code> は「更新後の w」への参照
     (Formura の primed 配列)= シンプレクティック。</div>
-  <details class="codebox" data-fe="kleingordon/kleingordon.fe" open><summary>Formurae ソース全文(kleingordon.fe・22 行)</summary>
+  <details class="codebox" data-fe="kleingordon/kleingordon.fe" open><summary>Formurae ソース全文(kleingordon.fe・25 行)</summary>
 <pre><span class="c">-- Nonlinear Klein-Gordon (phi^4): phi_tt = phi_xx + phi - phi^3</span>
 <span class="c">-- Leapfrog (kick-drift); the drift references the updated w', which</span>
 <span class="c">-- makes the pair symplectic.  Initial data: a kink-antikink pair</span>
 <span class="c">-- boosted to v = +-0.2 (Lorentz-contracted tanh profiles).</span>
+
+dimension 3
+axes x, y, z
 
 param dt = 0.05
 
@@ -706,11 +719,14 @@ end function</pre></details>
   <div class="dslbox"><b>.fe(19行)</b>: 非線形移流も
     <code>u' = u + dt * (nu * lap u - u * dC 1 u)</code> の1行。
     Cole–Hopf 厳密解が非線形項生成の機械検証になる。</div>
-  <details class="codebox" data-fe="burgers3d/burgers3d.fe" open><summary>Formurae ソース全文(burgers3d.fe・19 行)</summary>
+  <details class="codebox" data-fe="burgers3d/burgers3d.fe" open><summary>Formurae ソース全文(burgers3d.fe・22 行)</summary>
 <pre><span class="c">-- Viscous Burgers equation: du/dt = nu lap u - u du/dx</span>
 <span class="c">-- The Cole-Hopf transform gives a periodic exact solution which the</span>
 <span class="c">-- check driver compares against -- the regression benchmark for</span>
 <span class="c">-- NONLINEAR term generation (products of grid references).</span>
+
+dimension 3
+axes x, y, z
 
 param ν = 0.05
 param dt = 0.0001
@@ -778,12 +794,15 @@ end function</pre></details>
     ∂<sub>t</sub>(hu) + ∂<sub>x</sub>(hu² + gh²/2) + … = 0</div>
   <div class="dslbox"><b>.fe(29行)</b>: 運動量流束を <code>local</code> 3本で、
     更新3本は保存形+粘性をそのまま記述(全て流束形式 = 質量厳密保存)。</div>
-  <details class="codebox" data-fe="shallowwater/shallowwater.fe" open><summary>Formurae ソース全文(shallowwater.fe・28 行)</summary>
+  <details class="codebox" data-fe="shallowwater/shallowwater.fe" open><summary>Formurae ソース全文(shallowwater.fe・31 行)</summary>
 <pre><span class="c">-- Shallow water equations in conservation form (h, hu, hv), central</span>
 <span class="c">-- differences on the momentum fluxes (locals) plus a small Laplacian</span>
 <span class="c">-- viscosity; every piece is in flux form, so mass and momentum</span>
 <span class="c">-- telescope exactly.  A 1% bump splits into gravity waves at</span>
 <span class="c">-- c = sqrt(g h0) = 1, measured by the check driver.</span>
+
+dimension 3
+axes x, y, z
 
 param g = 1.0
 param λ = 0.05
@@ -872,12 +891,15 @@ end function</pre></details>
     ∂<sub>t</sub>E + ∂<sub>x</sub>((E+p)u) = 0</div>
   <div class="dslbox"><b>.fe(29行)</b>: 圧力と流束が <code>local</code> 3本、
     保存形更新3本。周期格子用の二重ダイアフラムは raw ヘルパ1行。</div>
-  <details class="codebox" data-fe="euler_sod/euler_sod.fe" open><summary>Formurae ソース全文(euler_sod.fe・29 行)</summary>
+  <details class="codebox" data-fe="euler_sod/euler_sod.fe" open><summary>Formurae ソース全文(euler_sod.fe・32 行)</summary>
 <pre><span class="c">-- Compressible Euler (1D flow), Sod shock tube.  Conservation form</span>
 <span class="c">-- with pressure and fluxes as locals, plus Lax-Friedrichs-type</span>
 <span class="c">-- viscosity; the periodic domain holds a DOUBLE Riemann problem</span>
 <span class="c">-- (tanh-smoothed diaphragms at x=4 and x=12) and the check driver</span>
 <span class="c">-- compares density with the exact solution before the fans interact.</span>
+
+dimension 3
+axes x, y, z
 
 param λ = 0.028
 param dt = 0.01
@@ -968,11 +990,14 @@ end function</pre></details>
   <div class="math">∂<sub>t</sub>u = −(u²/2)<sub>x</sub> − u<sub>xx</sub> − u<sub>xxxx</sub></div>
   <div class="dslbox"><b>.fe(18行)</b>: 4階微分は <code>local w = dC2 1 u</code>
     (中間格子場として emit)を2段重ね — 袖幅1×2 で temporal blocking 安全。</div>
-  <details class="codebox" data-fe="ks3d/ks3d.fe" open><summary>Formurae ソース全文(ks3d.fe・18 行)</summary>
+  <details class="codebox" data-fe="ks3d/ks3d.fe" open><summary>Formurae ソース全文(ks3d.fe・21 行)</summary>
 <pre><span class="c">-- Kuramoto-Sivashinsky: u_t = -(u^2/2)_x - u_xx - u_xxxx</span>
 <span class="c">-- The fourth derivative goes through the intermediate field w = u_xx</span>
 <span class="c">-- (a `local`, emitted as a grid field line), so every term telescopes</span>
 <span class="c">-- and sum u is conserved exactly.  L = 22: spatio-temporal chaos.</span>
+
+dimension 3
+axes x, y, z
 
 param dt = 0.00015
 
@@ -1044,10 +1069,13 @@ end function</pre></details>
     ∂<sub>t</sub>V = F<sub>e</sub>UV² − F<sub>v</sub>V + D<sub>v</sub>∇²V</div>
   <div class="dslbox"><b>.fe(25行)</b>: FHPC'16 Listing 1 と同一の方程式・パラメタが
     param 6行+方程式2行に。</div>
-  <details class="codebox" data-fe="pearson3d/pearson3d.fe" open><summary>Formurae ソース全文(pearson3d.fe・24 行)</summary>
+  <details class="codebox" data-fe="pearson3d/pearson3d.fe" open><summary>Formurae ソース全文(pearson3d.fe・27 行)</summary>
 <pre><span class="c">-- The flagship simulation of the Formura paper (Muranushi et al.,</span>
 <span class="c">-- FHPC 2016, Listing 1): below-ground dynamics of mycorrhiza modelled</span>
 <span class="c">-- by Pearson's equations, with the paper's parameters.</span>
+
+dimension 3
+axes x, y, z
 
 param Fu = 1.0/86400.0
 param Fv = 6.0/86400.0
@@ -1127,12 +1155,15 @@ end function</pre></details>
   <div class="math">μ = c³ − c − κ∇²c,&nbsp;&nbsp;∂<sub>t</sub>c = M∇²μ</div>
   <div class="dslbox"><b>.fe(22行)</b>: 4階微分は
     <code>local mu = c^3 - c - kap * lap c</code>(中間格子場)の2段構成。</div>
-  <details class="codebox" data-fe="cahnhilliard3d/cahnhilliard3d.fe" open><summary>Formurae ソース全文(cahnhilliard3d.fe・20 行)</summary>
+  <details class="codebox" data-fe="cahnhilliard3d/cahnhilliard3d.fe" open><summary>Formurae ソース全文(cahnhilliard3d.fe・23 行)</summary>
 <pre><span class="c">-- Cahn-Hilliard spinodal decomposition:</span>
 <span class="c">--   mu = c^3 - c - kap lap c ;  dc/dt = M lap mu</span>
 <span class="c">-- The fourth-order operator is two chained radius-1 stages via the</span>
 <span class="c">-- intermediate field mu (a `local`).  Mass (sum c) is conserved</span>
 <span class="c">-- exactly; the yaml monitors it through reduces.</span>
+
+dimension 3
+axes x, y, z
 
 param kap = 2.0
 param mob = 1.0
@@ -1198,11 +1229,14 @@ end function</pre></details>
   <h3>TDGL 超伝導(量子化渦)</h3>
   <div class="math">∂<sub>t</sub>ψ = ψ − |ψ|²ψ + ∇²ψ&nbsp;&nbsp;(ψ = a + ib)</div>
   <div class="dslbox"><b>.fe(20行)</b>: 実2場・|ψ|⁴ 理論が方程式2行に。</div>
-  <details class="codebox" data-fe="tdgl3d/tdgl3d.fe" open><summary>Formurae ソース全文(tdgl3d.fe・19 行)</summary>
+  <details class="codebox" data-fe="tdgl3d/tdgl3d.fe" open><summary>Formurae ソース全文(tdgl3d.fe・22 行)</summary>
 <pre><span class="c">-- Time-dependent Ginzburg-Landau (relaxational, psi = a + ib):</span>
 <span class="c">--   da/dt = a - |psi|^2 a + lap a ;  db/dt likewise</span>
 <span class="c">-- From small noise the bulk saturates to |psi| ~ 1 while quantized</span>
 <span class="c">-- vortices (cores with 2 pi winding) form and annihilate.</span>
+
+dimension 3
+axes x, y, z
 
 param dt = 0.05
 

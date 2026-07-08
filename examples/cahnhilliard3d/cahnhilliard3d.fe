@@ -4,6 +4,9 @@
 -- intermediate field mu (a `local`).  Mass (sum c) is conserved
 -- exactly; the yaml monitors it through reduces.
 
+dimension 3
+axes x, y, z
+
 param kap = 2.0
 param mob = 1.0
 param dt = 0.004

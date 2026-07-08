@@ -4,6 +4,9 @@
 -- No grid placements appear anywhere: the form degrees determine the
 -- Yee lattice, and generation is gated on the CAS reducing d(dE') to 0.
 
+dimension 3
+axes x, y, z
+
 param dt = 0.5*dx
 
 extern exp

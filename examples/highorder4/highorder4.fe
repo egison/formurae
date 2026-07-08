@@ -4,6 +4,9 @@
 -- elimination inside the CAS.  The check driver verifies the run
 -- against the exact discrete symbol of the derived stencil.
 
+dimension 3
+axes x, y, z
+
 param κ = 1.0
 param dt = 0.0005
 

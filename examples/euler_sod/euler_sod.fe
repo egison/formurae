@@ -4,6 +4,9 @@
 -- (tanh-smoothed diaphragms at x=4 and x=12) and the check driver
 -- compares density with the exact solution before the fans interact.
 
+dimension 3
+axes x, y, z
+
 param λ = 0.028
 param dt = 0.01
 

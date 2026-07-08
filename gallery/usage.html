@@ -110,8 +110,8 @@ make diffusion3d
 <h3>宣言</h3>
 <table>
 <tr><th>構文</th><th>意味</th></tr>
-<tr><td><code>dimension 3</code></td><td>次元(現状 3 のみ・省略可)</td></tr>
-<tr><td><code>axes r, theta, phi</code></td><td>軸名(省略時 x,y,z)。式の中で使え、内部座標 x,y,z に写像される(生成物・yaml・ドライバは x,y,z のまま)</td></tr>
+<tr><td><code>dimension 3</code></td><td>次元(<b>必須</b>・現状 3 のみ)</td></tr>
+<tr><td><code>axes r, θ, φ</code></td><td>軸名(<b>必須</b>)。<code>∂_θ</code> の解決や添字文字の走る範囲=座標系を確定させる宣言。式の中で使え、内部座標 x,y,z に写像される(生成物・yaml・ドライバは x,y,z のまま)</td></tr>
 <tr><td><code>param dt = 0.5*dx</code></td><td>Formura パラメタ(<code>double :: dt = …</code>)。値は Formura 式</td></tr>
 <tr><td><code>extern exp</code></td><td><code>extern function :: exp</code></td></tr>
 <tr><td><code>raw <i>行</i></code></td><td>Formura ソースへそのまま出す行(ヘルパ関数・コメント)</td></tr>
