@@ -8,14 +8,22 @@ Date: 2026-07-09
   `Δ` は暗黙 prelude ではなく `use` で有効化される。
 - 2026-07-09: `use vector-calculus { curl, divg }` の第一段階を実装済み。
   `curl`、`divg`、`dGrad` は `use vector-calculus` なしではエラーになる。
-  定義本体はまだ `lib/fmrgen.egi` の既存定義を使う。
+  現在は生成 `.egi` 側に座標文脈つき定義を出す。
 - 2026-07-09: `use exterior-calculus { d, δ }` の第一段階を実装済み。
-  ユーザが直接書いた `d`、`δ`、`codiff`、`dForm` は `use exterior-calculus`
-  なしではエラーになる。`Δ` の内部依存としての `δ (d u)` は `Δ` use だけで動く。
+  ユーザが直接書いた `d`、`δ`、`codiff`、`dForm`、`hodge` は
+  `use exterior-calculus` なしではエラーになる。`Δ` の内部依存としての
+  `δ (d u)` は `Δ` use だけで動く。
 - 2026-07-09: 生成 `.egi` に `feDim`、`feAxes`、`feCoords`、`feHsteps` を
   出す足場を実装済み。`embedding` の計量導出は `nth a [x, y, z]` ではなく
   `feCoords_a` を参照し、計量係数場の半セル評価も `feCoords_a`/`feHsteps_a`
   を参照する。
+- 2026-07-09: 生成 `.egi` に座標文脈つき数学プリミティブを出す段階まで実装。
+  `shift`、`dC`、`dC2`、`lap` は `feCoords`/`feHsteps` を参照する。
+  `use vector-calculus` で `dGrad`、`curl`、`divg` を生成し、
+  `use exterior-calculus { d, δ }` や `assert-dd-zero` では
+  `dYee`、`curlYee`、`sigmaC`、`hodge`、`dForm`、`codiff` を生成する。
+  計量つき `Δ` は保存流束に必要な Yee プリミティブを生成する。
+  生成 `.fmr` は全 `.fe` 例でバイト一致。
 
 このメモは、Formurae の数学演算子ライブラリを
 `dimension`、`axes`、`metric scale`、`embedding` で指定された座標文脈に

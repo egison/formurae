@@ -21,7 +21,8 @@ Formura のラテン語風複数形で *formulae*(数式)への掛詞 — 「数
 `curl` は `use vector-calculus { curl }`、`divg` は
 `use vector-calculus { divg }` なしでは `.fmr` 生成前にエラーにする。
 `maxwell3d.fe` には `use vector-calculus { curl }` を明示し、生成 .egi は
-バイト一致。現時点では定義本体はまだ `lib/fmrgen.egi` の `curl`/`divg` を使う。
+バイト一致。当初は定義本体に `lib/fmrgen.egi` の `curl`/`divg` を使ったが、
+v1.17 で生成 `.egi` 側の座標文脈つき定義へ移した。
 次は `d`/`δ` の use 化、または `lib/fmrgen.egi` の座標文脈つき定義生成へ進む。
 
 **v1.15(2026-07-09): `use exterior-calculus { d, δ }` の第一段階** —
@@ -29,7 +30,8 @@ Formura のラテン語風複数形で *formulae*(数式)への掛詞 — 「数
 必須にした。`maxwell_dec.fe` と `hyperbolic.fe` に `use exterior-calculus { d, δ }`
 を明示し、生成 .egi はバイト一致。`Δ` の内部定義 `δ (d u)` は
 `use exterior-calculus { Δ }` の依存として扱い、`Δ` 単独 use は引き続き動く。
-定義本体はまだ `lib/fmrgen.egi` の `dForm`/`codiff` を使う。
+当初は定義本体に `lib/fmrgen.egi` の `dForm`/`codiff` を使ったが、
+v1.17 で生成 `.egi` 側の座標文脈つき定義へ移した。
 
 **v1.16(2026-07-09): 生成 `.egi` への座標文脈定義** —
 `use` または計量宣言を持つモデルの生成 `.egi` に
@@ -39,6 +41,15 @@ Formura のラテン語風複数形で *formulae*(数式)への掛詞 — 「数
 を使う。これはまだ `lib/fmrgen.egi` の `coords`/`hsteps` 本体置換ではないが、
 座標文脈つきライブラリ生成へ進むための足場になる。生成 `.fmr` は全 `.fe` 例で
 バイト一致。
+
+**v1.17(2026-07-09): 座標文脈つき数学プリミティブ生成** —
+`use` または計量宣言を持つモデルでは、生成 `.egi` の先頭に
+`feAxisIds` と、`feCoords`/`feHsteps` を参照する `shift`・`dC`・`dC2`・`lap`
+を出す。`use vector-calculus` では `dGrad`・`curl`・`divg` を同じ文脈で生成し、
+`use exterior-calculus { d, δ }` や `assert-dd-zero` では `dYee`・`curlYee`・
+`sigmaC`・`hodge`・`dForm`・`codiff` も生成する。計量つき `Δ` では保存流束に
+必要な Yee プリミティブだけを生成する。`hodge` も `use exterior-calculus { hodge }`
+なしではエラーにした。全 `.fe` 例の `.fmr` はバイト一致。
 
 **v1.8(2026-07-08): Unicode と基本演算子** — ギリシャ文字識別子(θ, φ, …
 → fec が ASCII へ字訳)・∂=d・δ=codiff・−=-・Δ=幾何のラプラシアン

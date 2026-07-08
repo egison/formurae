@@ -6,8 +6,54 @@ declare symbol dt
 
 def feDim : Integer := 3
 def feAxes : [String] := ["x", "y", "z"]
+def feAxisIds : [Integer] := [1, 2, 3]
 def feCoords : Vector MathValue := [| x, y, z |]
 def feHsteps : Vector MathValue := [| hx, hy, hz |]
+def shift (a: Integer) (c: MathValue) (u: MathValue) : MathValue :=
+  substitute [(feCoords_a, feCoords_a + c * feHsteps_a)] u
+def dC (a: Integer) (u: MathValue) : MathValue :=
+  (shift a 1 u - shift a (-1) u) / (2 * feHsteps_a)
+def dC2 (a: Integer) (u: MathValue) : MathValue :=
+  (shift a 1 u - 2 * u + shift a (-1) u) / ((feHsteps_a) ^ 2)
+def dF (a: Integer) (u: MathValue) : MathValue := (shift a 1 u - u) / feHsteps_a
+def dB (a: Integer) (u: MathValue) : MathValue := (u - shift a (-1) u) / feHsteps_a
+def lap (u: MathValue) : MathValue := sum (map (\a -> dC2 a u) feAxisIds)
+def feIndexPairs : [(Integer, Integer)] := [(1, 1), (1, 2), (1, 3), (2, 1), (2, 2), (2, 3), (3, 1), (3, 2), (3, 3)]
+def yeeRef (sT: [MathValue]) (fld: (MathValue, [MathValue])) (disp: [MathValue]) : MathValue :=
+  let (fF, sF) := fld
+   in substitute
+        (map (\a -> (feCoords_a, feCoords_a + (nth a disp + nth a sT - nth a sF) * feHsteps_a)) feAxisIds)
+        fF
+def unit3 (a: Integer) (c: MathValue) : [MathValue] :=
+  map (\b -> if a = b then c else 0) feAxisIds
+def dYee (a: Integer) (sT: [MathValue]) (fld: (MathValue, [MathValue])) : MathValue :=
+  (yeeRef sT fld (unit3 a (1 / 2)) - yeeRef sT fld (unit3 a (-1 / 2))) / feHsteps_a
+def curlYee (i1: Integer) (sT: [MathValue]) (flds: [(MathValue, [MathValue])]) : MathValue :=
+  sum (map (\(j1, k1) -> (ε 3)_i1_j1_k1 * dYee j1 sT (nth k1 flds))
+           feIndexPairs)
+def sigma0 : [MathValue] := [0, 0, 0]
+def sigma1 (a: Integer) : [MathValue] := unit3 a (1 / 2)
+def sigma2 (a: Integer) : [MathValue] :=
+  map (\(p, q) -> p - q) (zip [1 / 2, 1 / 2, 1 / 2] (sigma1 a))
+def sigma3 : [MathValue] := [1 / 2, 1 / 2, 1 / 2]
+def sigmaC (c: Integer) (k: Integer) (a: Integer) : [MathValue] :=
+  let kp := if c = 0 then k else feDim - k
+   in if kp = 0 then sigma0
+        else if kp = 1 then sigma1 a
+        else if kp = 2 then sigma2 a
+        else sigma3
+def hodge (f: (Integer, Integer, [MathValue])) : (Integer, Integer, [MathValue]) :=
+  let (c, k, cs) := f in (1 - c, feDim - k, cs)
+def dForm (f: (Integer, Integer, [MathValue])) : (Integer, Integer, [MathValue]) :=
+  let (c, k, cs) := f
+   in if k = 0
+        then (c, 1, map (\a -> dYee a (sigmaC c 1 a) (nth 1 cs, sigmaC c 0 1)) feAxisIds)
+        else if k = 1
+          then (c, 2, map (\a -> curlYee a (sigmaC c 2 a) (zip cs (map (sigmaC c 1) feAxisIds))) feAxisIds)
+          else (c, feDim, [sum (map (\a -> dYee a (sigmaC c feDim 1) (nth a cs, sigmaC c (feDim - 1) a)) feAxisIds)])
+def codiff (f: (Integer, Integer, [MathValue])) : (Integer, Integer, [MathValue]) :=
+  scaleForm ((-1) ^ (feDim * (formDeg f + 1) + 1)) (hodge (dForm (hodge f)))
+def δ := codiff
 
 def E_i := generateTensor (\[i] -> function (x, y, z)) [3]
 def Ef : (Integer, Integer, [MathValue]) := (0, 1, [E_1, E_2, E_3])

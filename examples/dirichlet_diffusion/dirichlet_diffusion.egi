@@ -6,8 +6,18 @@ declare symbol kappa, dt
 
 def feDim : Integer := 3
 def feAxes : [String] := ["x", "y", "z"]
+def feAxisIds : [Integer] := [1, 2, 3]
 def feCoords : Vector MathValue := [| x, y, z |]
 def feHsteps : Vector MathValue := [| hx, hy, hz |]
+def shift (a: Integer) (c: MathValue) (u: MathValue) : MathValue :=
+  substitute [(feCoords_a, feCoords_a + c * feHsteps_a)] u
+def dC (a: Integer) (u: MathValue) : MathValue :=
+  (shift a 1 u - shift a (-1) u) / (2 * feHsteps_a)
+def dC2 (a: Integer) (u: MathValue) : MathValue :=
+  (shift a 1 u - 2 * u + shift a (-1) u) / ((feHsteps_a) ^ 2)
+def dF (a: Integer) (u: MathValue) : MathValue := (shift a 1 u - u) / feHsteps_a
+def dB (a: Integer) (u: MathValue) : MathValue := (u - shift a (-1) u) / feHsteps_a
+def lap (u: MathValue) : MathValue := sum (map (\a -> dC2 a u) feAxisIds)
 
 def u := function (x, y, z)
 

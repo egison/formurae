@@ -343,6 +343,8 @@ missingUse m s = foldr (\t acc -> check t `orElse` acc) Nothing (tokenize s)
       Just "codiff requires use exterior-calculus { codiff }"
     check (TId "dForm" _) | not (hasUse m "exterior-calculus" "dForm") =
       Just "dForm requires use exterior-calculus { dForm }"
+    check (TId "hodge" _) | not (hasUse m "exterior-calculus" "hodge") =
+      Just "hodge requires use exterior-calculus { hodge }"
     check (TId "\916" _) | not (hasUse m "exterior-calculus" "\916") =
       Just "Δ requires use exterior-calculus { Δ }"
     check (TId "curl" _) | not (hasUse m "vector-calculus" "curl") =
@@ -1114,13 +1116,90 @@ emit m = do
       hstepVec = "[| " ++ intercalate ", " internalHsteps ++ " |]"
       stringList xs = "[" ++ intercalate ", " (map show xs) ++ "]"
       coordArgs = intercalate ", " internalCoords
+      axisIds = [1 .. mDim m]
+      axisList = "[" ++ intercalate ", " (map show axisIds) ++ "]"
+      axisPairList =
+        "[" ++ intercalate ", " [ "(" ++ show a ++ ", " ++ show b ++ ")"
+                                | a <- axisIds, b <- axisIds ] ++ "]"
+      zeroPlace = "[" ++ intercalate ", " (replicate (mDim m) "0") ++ "]"
+      halfPlace = "[" ++ intercalate ", " (replicate (mDim m) "1 / 2") ++ "]"
+      hasExt names = any (hasUse m "exterior-calculus") names
+      hasVec names = any (hasUse m "vector-calculus") names
+      needsVectorContext = hasVec ["dGrad", "curl", "divg"]
+      needsFormContext = hasExt ["d", "delta", "codiff", "dForm", "hodge"] || mDd m /= Nothing
+      needsYeeContext = mtx /= Nothing || needsFormContext
       contextDecls
         | null (mUses m) && mMetric m == Nothing && mEmbed m == Nothing = []
         | otherwise =
             [ "def feDim : Integer := " ++ show (mDim m)
             , "def feAxes : [String] := " ++ stringList (mAxes m)
+            , "def feAxisIds : [Integer] := " ++ axisList
             , "def feCoords : Vector MathValue := " ++ coordVec
             , "def feHsteps : Vector MathValue := " ++ hstepVec
+            ]
+      contextMathDecls
+        | null contextDecls = []
+        | otherwise = scalarContextDecls
+                      ++ (if needsVectorContext then vectorContextDecls else [])
+                      ++ (if needsYeeContext then yeeContextDecls else [])
+                      ++ (if needsFormContext then formContextDecls else [])
+      scalarContextDecls =
+            [ "def shift (a: Integer) (c: MathValue) (u: MathValue) : MathValue :="
+            , "  substitute [(feCoords_a, feCoords_a + c * feHsteps_a)] u"
+            , "def dC (a: Integer) (u: MathValue) : MathValue :="
+            , "  (shift a 1 u - shift a (-1) u) / (2 * feHsteps_a)"
+            , "def dC2 (a: Integer) (u: MathValue) : MathValue :="
+            , "  (shift a 1 u - 2 * u + shift a (-1) u) / ((feHsteps_a) ^ 2)"
+            , "def dF (a: Integer) (u: MathValue) : MathValue := (shift a 1 u - u) / feHsteps_a"
+            , "def dB (a: Integer) (u: MathValue) : MathValue := (u - shift a (-1) u) / feHsteps_a"
+            , "def lap (u: MathValue) : MathValue := sum (map (\\a -> dC2 a u) feAxisIds)"
+            ]
+      vectorContextDecls =
+            [ "def dGrad (X: Vector MathValue) : Matrix MathValue :="
+            , "  generateTensor (\\[a, b] -> dC a X_b) [feDim, feDim]"
+            , "def curl (X: Vector MathValue) : Vector MathValue :="
+            , "  withSymbols [i, j, k] (\949 3)~i~j~k . (dGrad X)_j_k"
+            , "def divg (X: Vector MathValue) : MathValue := trace (dGrad X)"
+            ]
+      yeeContextDecls =
+            [ "def feIndexPairs : [(Integer, Integer)] := " ++ axisPairList
+            , "def yeeRef (sT: [MathValue]) (fld: (MathValue, [MathValue])) (disp: [MathValue]) : MathValue :="
+            , "  let (fF, sF) := fld"
+            , "   in substitute"
+            , "        (map (\\a -> (feCoords_a, feCoords_a + (nth a disp + nth a sT - nth a sF) * feHsteps_a)) feAxisIds)"
+            , "        fF"
+            , "def unit3 (a: Integer) (c: MathValue) : [MathValue] :="
+            , "  map (\\b -> if a = b then c else 0) feAxisIds"
+            , "def dYee (a: Integer) (sT: [MathValue]) (fld: (MathValue, [MathValue])) : MathValue :="
+            , "  (yeeRef sT fld (unit3 a (1 / 2)) - yeeRef sT fld (unit3 a (-1 / 2))) / feHsteps_a"
+            , "def curlYee (i1: Integer) (sT: [MathValue]) (flds: [(MathValue, [MathValue])]) : MathValue :="
+            , "  sum (map (\\(j1, k1) -> (\949 3)_i1_j1_k1 * dYee j1 sT (nth k1 flds))"
+            , "           feIndexPairs)"
+            ]
+      formContextDecls =
+            [ "def sigma0 : [MathValue] := " ++ zeroPlace
+            , "def sigma1 (a: Integer) : [MathValue] := unit3 a (1 / 2)"
+            , "def sigma2 (a: Integer) : [MathValue] :="
+            , "  map (\\(p, q) -> p - q) (zip " ++ halfPlace ++ " (sigma1 a))"
+            , "def sigma3 : [MathValue] := " ++ halfPlace
+            , "def sigmaC (c: Integer) (k: Integer) (a: Integer) : [MathValue] :="
+            , "  let kp := if c = 0 then k else feDim - k"
+            , "   in if kp = 0 then sigma0"
+            , "        else if kp = 1 then sigma1 a"
+            , "        else if kp = 2 then sigma2 a"
+            , "        else sigma3"
+            , "def hodge (f: (Integer, Integer, [MathValue])) : (Integer, Integer, [MathValue]) :="
+            , "  let (c, k, cs) := f in (1 - c, feDim - k, cs)"
+            , "def dForm (f: (Integer, Integer, [MathValue])) : (Integer, Integer, [MathValue]) :="
+            , "  let (c, k, cs) := f"
+            , "   in if k = 0"
+            , "        then (c, 1, map (\\a -> dYee a (sigmaC c 1 a) (nth 1 cs, sigmaC c 0 1)) feAxisIds)"
+            , "        else if k = 1"
+            , "          then (c, 2, map (\\a -> curlYee a (sigmaC c 2 a) (zip cs (map (sigmaC c 1) feAxisIds))) feAxisIds)"
+            , "          else (c, feDim, [sum (map (\\a -> dYee a (sigmaC c feDim 1) (nth a cs, sigmaC c (feDim - 1) a)) feAxisIds)])"
+            , "def codiff (f: (Integer, Integer, [MathValue])) : (Integer, Integer, [MathValue]) :="
+            , "  scaleForm ((-1) ^ (feDim * (formDeg f + 1) + 1)) (hodge (dForm (hodge f)))"
+            , "def \948 := codiff"
             ]
       embDefs = case mEmbed m of
         Nothing -> []
@@ -1222,7 +1301,8 @@ emit m = do
       mainDef
         | null gates = [ "def main (args: [String]) : IO () := " ++ emitCall ]
         | otherwise = [ "def main (args: [String]) : IO () :=", "  " ++ nest gates ]
-  return (unlines (header ++ contextDecls ++ (if null contextDecls then [] else [""])
+  return (unlines (header ++ contextDecls ++ contextMathDecls
+                   ++ (if null contextDecls then [] else [""])
                    ++ fieldDecls ++ primDecls ++ localDecls ++ [""]
                    ++ concat body ++ ddDef ++ [""]
                    ++ [feParams] ++ feHelpers ++ [feFlds] ++ feInits

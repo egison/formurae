@@ -6,8 +6,31 @@ declare symbol dt
 
 def feDim : Integer := 3
 def feAxes : [String] := ["r", "phi", "z"]
+def feAxisIds : [Integer] := [1, 2, 3]
 def feCoords : Vector MathValue := [| x, y, z |]
 def feHsteps : Vector MathValue := [| hx, hy, hz |]
+def shift (a: Integer) (c: MathValue) (u: MathValue) : MathValue :=
+  substitute [(feCoords_a, feCoords_a + c * feHsteps_a)] u
+def dC (a: Integer) (u: MathValue) : MathValue :=
+  (shift a 1 u - shift a (-1) u) / (2 * feHsteps_a)
+def dC2 (a: Integer) (u: MathValue) : MathValue :=
+  (shift a 1 u - 2 * u + shift a (-1) u) / ((feHsteps_a) ^ 2)
+def dF (a: Integer) (u: MathValue) : MathValue := (shift a 1 u - u) / feHsteps_a
+def dB (a: Integer) (u: MathValue) : MathValue := (u - shift a (-1) u) / feHsteps_a
+def lap (u: MathValue) : MathValue := sum (map (\a -> dC2 a u) feAxisIds)
+def feIndexPairs : [(Integer, Integer)] := [(1, 1), (1, 2), (1, 3), (2, 1), (2, 2), (2, 3), (3, 1), (3, 2), (3, 3)]
+def yeeRef (sT: [MathValue]) (fld: (MathValue, [MathValue])) (disp: [MathValue]) : MathValue :=
+  let (fF, sF) := fld
+   in substitute
+        (map (\a -> (feCoords_a, feCoords_a + (nth a disp + nth a sT - nth a sF) * feHsteps_a)) feAxisIds)
+        fF
+def unit3 (a: Integer) (c: MathValue) : [MathValue] :=
+  map (\b -> if a = b then c else 0) feAxisIds
+def dYee (a: Integer) (sT: [MathValue]) (fld: (MathValue, [MathValue])) : MathValue :=
+  (yeeRef sT fld (unit3 a (1 / 2)) - yeeRef sT fld (unit3 a (-1 / 2))) / feHsteps_a
+def curlYee (i1: Integer) (sT: [MathValue]) (flds: [(MathValue, [MathValue])]) : MathValue :=
+  sum (map (\(j1, k1) -> (ε 3)_i1_j1_k1 * dYee j1 sT (nth k1 flds))
+           feIndexPairs)
 
 def u := function (x, y, z)
 def feX : [MathValue] := [`(1 + x) * cos y, `(1 + x) * sin y, z]
