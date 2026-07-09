@@ -45,11 +45,15 @@
 --                                    library-level operators such as
 --                                    exterior-calculus { d, delta } and
 --                                    vector-calculus { curl, divg }.
---   def NAME ARG = EXPR             user-defined scalar operator, expanded
---                                    at use sites (file scope; a body may use
---                                    only operators defined before it).
---   def NAME ARG_i = EXPR           user-defined tensor operator whose result
---                                    indices are supplied at each call site.
+--   def NAME ARG... = EXPR          user-defined operator, expanded at use
+--                                    sites (file scope; a body may use only
+--                                    operators defined before it).  Operator
+--                                    definitions follow Egison: result indices
+--                                    are not written in the head; use
+--                                    withSymbols for newly introduced free
+--                                    indices and contractWith / `.` for
+--                                    contraction.
+--   def (.) A B = EXPR              user-defined tensor dot operator.
 --   param NAME = RAW                Formura parameter (double :: NAME = RAW)
 --   extern NAME                     extern function :: NAME
 --                                   (core scalar intrinsics such as sin,
@@ -103,6 +107,7 @@
 
 import Data.Char (isAlpha, isAlphaNum, isDigit, isSpace)
 import Data.List (dropWhileEnd, intercalate, permutations, sort, nub, stripPrefix)
+import Control.Monad (foldM)
 import System.Environment (getArgs)
 import System.IO (hPutStrLn, stderr)
 
@@ -154,7 +159,7 @@ modelExprTexts m =
   ++ map sEx (mSteps m)
   ++ maybe [] id (mMetric m)
   ++ map tdBody (mTensorDefs m)
-  ++ map (snd . snd) (mDefs m)
+  ++ map defBody (mDefs m)
   where
     helperExprs = filter isExprHelper
     isExprHelper h =
@@ -274,27 +279,34 @@ eqForm marker s = do
     headDef d [] = d
     headDef _ (c:_) = c
 
--- def NAME PARAM = BODY
--- def NAME PARAM_i = BODY
+-- def NAME PARAM... = BODY
+-- def (.) A B = BODY
 --
--- The suffix on PARAM is the result index structure, not an indexed
--- parameter.  Thus `def grad u_i = d_i u` defines a rank-1 operator over a
--- scalar argument u, while `def div X = d_i X~i` remains a scalar operator.
-defForm :: String -> Maybe (String, String, [IxPart], String)
+-- Operator definitions follow Egison: the result index is not written in the
+-- head.  Indices that appear on parameters in the body are views of the
+-- argument, not result indices.
+defForm :: String -> Maybe Def
 defForm r = do
-  (nm, r1) <- identU (strip r)
-  (p0, r2) <- identParam (dropWhile isSpace r1)
-  let (p, resultIx) = parseIndexedIdent p0
-  r3 <- stripPrefix "=" (dropWhile isSpace r2)
-  let body = strip r3
-  if null body || null p then Nothing else Just (nm, p, resultIx, body)
+  (nm, r1) <- defNameP (strip r)
+  let (lhs, rhs0) = break (== '=') r1
+  rhs <- case rhs0 of
+           '=':body0 -> Just (strip body0)
+           _ -> Nothing
+  params <- parseParams (words lhs)
+  if null rhs || null params
+    then Nothing
+    else Just (Def nm params rhs)
   where
+    defNameP ('(':'.':')':rest) = Just (".", rest)
+    defNameP s = identU s
     identU (c:cs) | isAlpha c = let (a, b) = span isW cs in Just (c : a, b)
     identU _ = Nothing
-    identParam (c:cs) | isAlpha c =
-      let (a, b) = span (\ch -> isAlphaNum ch || ch == '_' || ch == '~') cs
-      in Just (c : a, b)
-    identParam _ = Nothing
+    parseParams ps =
+      if all validParam ps && length ps == length (nub ps)
+        then Just ps
+        else Nothing
+    validParam p =
+      validSurfaceName p && null (snd (parseIndexedIdent p))
 
 -- NAME'(~a|_a)(~b|_b)? = EXPR   (a, b single index letters)
 primeEqForm :: String -> Maybe (String, [IxPart], String)
@@ -426,14 +438,17 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
           validateMetricName mUse
           validateUses mUse
           validateDimensionFeatures mUse
-          mapM_ (\(_, (_, body)) ->
-                    checkUserSurface mUse "in def" body)
+          mapM_ (\df ->
+                    checkUserSurface mUse (defParams df)
+                      ("in def " ++ defName df) (defBody df))
                 (mDefs mUse)
           mapM_ (\td ->
-                    checkUserSurface mUse ("in def " ++ tdName td) (tdBody td))
+                    checkUserSurface mUse [tdParam td]
+                      ("in def " ++ tdName td) (tdBody td))
                 (mTensorDefs mUse)
           mapM_ (\st ->
-                    checkUserSurface mUse ("in step expression: " ++ sEx st) (sEx st))
+                    checkUserSurface mUse []
+                      ("in step expression: " ++ sEx st) (sEx st))
                 (mSteps mUse)
           mapM_ (checkInitUse mUse) (mInits mUse)
           -- resolve user-defined operators (definition order; a body may
@@ -445,14 +460,17 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
                                     return st { sEx = ex })
                          (reverse (mSteps mUse))
           inits' <- mapM (expandInit defs) (reverse (mInits mUse))
-          mapM_ (\(nm, (_, body)) ->
-                    checkGeneratedSurface mDef ("in def " ++ nm) body)
+          mapM_ (\df ->
+                    checkGeneratedSurface mDef (defParams df)
+                      ("in def " ++ defName df) (defBody df))
                 defs
           mapM_ (\td ->
-                    checkGeneratedSurface mDef ("in def " ++ tdName td) (tdBody td))
+                    checkGeneratedSurface mDef [tdParam td]
+                      ("in def " ++ tdName td) (tdBody td))
                 tensorDefs
           mapM_ (\st ->
-                    checkGeneratedSurface mDef ("in step expression: " ++ sEx st) (sEx st))
+                    checkGeneratedSurface mDef []
+                      ("in step expression: " ++ sEx st) (sEx st))
                 steps'
           return mDef { mParams = reverse (mParams mDef), mHelp = reverse (mHelp mDef)
                    , mFlds = reverse (mFlds mDef)
@@ -485,14 +503,14 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
         -- earlier defs are expanded into the body, so a resolved body
         -- may contain no def name at all: any survivor is a self or
         -- forward reference
-        allNames = map fst ds
+        allNames = map defName ds
         goD acc [] = return acc
-        goD acc ((nm, (p, body)) : more) = do
-          body' <- applyDefs acc body
+        goD acc (df : more) = do
+          body' <- applyDefs acc (defBody df)
           case [w | TId w _ <- tokenize body', w `elem` allNames] of
-            (w:_) -> fatal ("def " ++ nm ++ " uses " ++ w
+            (w:_) -> fatal ("def " ++ defName df ++ " uses " ++ w
                             ++ " which is not defined before it")
-            [] -> goD ((nm, (p, body')) : acc) more
+            [] -> goD (df { defBody = body' } : acc) more
 
     resolveTensorDefs defs = mapM resolveOne
       where
@@ -500,33 +518,142 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
           body' <- applyDefs defs (tdBody td)
           return td { tdBody = body' }
 
-    -- expand operator applications: NAME ARG with ARG an identifier or
-    -- a parenthesized expression.  Bodies are def-free after
-    -- resolveDefs, so one pass suffices; arguments are expanded first.
+    -- expand operator applications.  Bodies are def-free after resolveDefs,
+    -- so one pass suffices; arguments are expanded first.
     applyDefs defs s = fmap untok (goE (tokenize s))
       where
+        goE ts
+          | Just dotDef <- lookupDef "." defs
+          , Just parts <- splitTopDotT ts =
+              fmap tokenize (expandDot dotDef parts)
         goE [] = return []
         goE (TId nm False : ts)
-          | Just (p, body) <- lookup nm defs = do
-              let (_, rest) = span isSpTok ts
-              (arg, rest') <- case rest of
-                (TC '(' : r) -> case closeParenT 1 r [] of
-                  Just (inner, r') -> return (untok inner, r')
-                  Nothing -> fatal ("unbalanced argument to " ++ nm)
-                (TId a pr : r) -> return (a ++ (if pr then "'" else ""), r)
-                _ -> fatal ("operator " ++ nm ++ " needs an argument")
-              arg' <- fmap untok (goE (tokenize arg))
-              let argS = if all (\c -> isW c || c == '\'') arg'
-                           then arg' else "(" ++ arg' ++ ")"
-                  bodyT = concatMap (substP p argS) (tokenize body)
+          | Just df <- lookupDef nm defs = do
+              (args, rest') <- parseArgs (length (defParams df)) ts
+              args' <- mapM (fmap untok . goE . tokenize) args
+              let bodyT = tokenize (substDef df args')
               fmap ((TC '(' : bodyT ++ [TC ')']) ++) (goE rest')
         goE (t : ts) = fmap (t :) (goE ts)
-        substP p argS (TId w pr)
-          | base == p =
-              tokenize (argS ++ concatMap ixSuffix parts ++ (if pr then "'" else ""))
+
+        lookupDef nm defs' =
+          case [df | df <- defs', defName df == nm] of
+            df:_ -> Just df
+            [] -> Nothing
+
+        expandDot _ [] = return ""
+        expandDot dotDef (p:ps) = do
+          first <- fmap untok (goE p)
+          foldM (dotApply dotDef) first ps
+
+        dotApply dotDef lhs rhsT = do
+          rhs <- fmap untok (goE rhsT)
+          return ("(" ++ substDef dotDef [lhs, rhs] ++ ")")
+
+        splitTopDotT ts =
+          case goD (0 :: Int) [] ts of
+            [_] -> Nothing
+            parts -> Just parts
           where
-            (base, parts) = parseIndexedIdent w
-        substP _ _ t = [t]
+            goD _ acc [] = [trimTok (reverse acc)]
+            goD d acc (t@(TC c) : rest)
+              | c `elem` "([" = goD (d + 1) (t : acc) rest
+              | c `elem` ")]" = goD (d - 1) (t : acc) rest
+              | d == 0
+              , c == '.'
+              , leftSpaceT acc
+              , rightSpaceT rest =
+                  trimTok (reverse acc) : goD d [] rest
+            goD d acc (t : rest) = goD d (t : acc) rest
+
+        leftSpaceT (TC c : _) = isSpace c
+        leftSpaceT _ = False
+
+        rightSpaceT (TC c : _) = isSpace c
+        rightSpaceT _ = False
+
+        trimTok = dropWhile isSpTok . reverse . dropWhile isSpTok . reverse . dropWhile isSpTok
+
+        parseArgs 0 ts = return ([], ts)
+        parseArgs n ts = do
+          let rest = dropWhile isSpTok ts
+          (arg, rest') <- parseArg rest
+          (args, rest'') <- parseArgs (n - 1) rest'
+          return (arg : args, rest'')
+
+        parseArg (TC '(' : r) =
+          case closeParenT 1 r [] of
+            Just (inner, r') ->
+              let (suffix, r'') = indexedSuffixT r'
+              in return ("(" ++ untok inner ++ ")" ++ suffix, r'')
+            Nothing -> fatal "unbalanced argument to operator"
+        parseArg (TId a pr : r) =
+          let (suffix, r') = indexedSuffixT r
+          in return (a ++ (if pr then "'" else "") ++ suffix, r')
+        parseArg _ = fatal "operator application needs an argument"
+
+        indexedSuffixT (TC m : TId ix False : rest)
+          | m == '~' || m == '_' =
+              let (more, rest') = indexedSuffixT rest
+              in (m : ix ++ more, rest')
+        indexedSuffixT ts = ("", ts)
+
+        substDef df args =
+          let env = zip (defParams df) (map parseArgInfo args)
+          in substIToks env (itok (defBody df))
+
+        substIToks _ [] = []
+        substIToks env (II w : IC '.' : IC '.' : IC '.' : rest) =
+          let (appendParts, rest') = indexedSuffixI rest
+              (base0, parts) = parseIndexedIdent w
+              (base, primes) = fieldBaseOf base0
+              headText =
+                case lookup base env of
+                  Just arg -> argWithAppendParts arg primes parts appendParts
+                  Nothing -> w ++ "..." ++ concatMap ixSuffix appendParts
+          in headText ++ substIToks env rest'
+        substIToks env (tok : rest) =
+          substITok env tok ++ substIToks env rest
+
+        substITok _ (IC c) = [c]
+        substITok env (II w) =
+          let (base0, parts) = parseIndexedIdent w
+              (base, primes) = fieldBaseOf base0
+          in case lookup base env of
+               Just arg | null parts -> argWithPrimes arg primes
+                        | otherwise -> argWithParts arg primes parts
+               Nothing -> w
+
+        parseArgInfo arg =
+          let sArg = strip arg
+              simple = all (\c -> isAlphaNum c || c `elem` "_~'") sArg
+              (base0, parts) = parseIndexedIdent sArg
+              (base, primes) = fieldBaseOf base0
+          in (sArg, simple, base, primes, parts)
+
+        argWithPrimes (arg, simple, base, primes0, parts) primes
+          | simple = base ++ replicate (primes0 + primes) '\'' ++ concatMap ixSuffix parts
+          | primes == 0 = arg
+          | otherwise = "(" ++ arg ++ ")" ++ replicate primes '\''
+
+        argWithParts (arg, simple, base, primes0, _) primes parts
+          | simple = base ++ replicate (primes0 + primes) '\'' ++ concatMap ixSuffix parts
+          | otherwise = "(" ++ arg ++ ")" ++ concatMap ixSuffix parts
+
+        argWithAppendParts (arg, simple, base, primes0, argParts) primes parts appendParts =
+          let keptParts = if null parts then argParts else parts
+          in if simple
+               then base ++ replicate (primes0 + primes) '\''
+                    ++ concatMap ixSuffix (keptParts ++ appendParts)
+               else "(" ++ arg ++ ")" ++ concatMap ixSuffix (keptParts ++ appendParts)
+
+        indexedSuffixI (IC m : II nm : rest)
+          | m == '~' || m == '_' =
+              case parseMarkedPrefix (m : nm) of
+                Just (parts, suffixRest) | null suffixRest ->
+                  let (more, rest') = indexedSuffixI rest
+                  in (parts ++ more, rest')
+                _ -> ([], IC m : II nm : rest)
+        indexedSuffixI ts = ([], ts)
 
     expandInit defs it = case it of
       ICas nm ex -> do ex' <- applyDefs defs ex
@@ -535,22 +662,23 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
                                return (ICasIndex nm ix ex')
       _ -> return it
 
-    checkUserSurface m' context body =
-      case surfaceBanned m' body of
+    checkUserSurface m' locals context body =
+      case surfaceBanned m' locals body of
         Just bad -> fatal (bad ++ " " ++ context)
         Nothing ->
           case missingUse m' body of
             Just bad -> fatal (bad ++ " " ++ context)
             Nothing -> return ()
 
-    checkGeneratedSurface m' context body =
-      case surfaceBanned m' body of
+    checkGeneratedSurface m' locals context body =
+      case surfaceBanned m' locals body of
         Just bad -> fatal (bad ++ " " ++ context)
         Nothing -> return ()
 
     checkInitUse m' it = case it of
-      ICas nm ex -> checkUserSurface m' ("in init expression: " ++ nm) ex
-      ICasIndex nm ix ex -> checkUserSurface m' ("in init expression: " ++ nm ++ showIxParts ix) ex
+      ICas nm ex -> checkUserSurface m' [] ("in init expression: " ++ nm) ex
+      ICasIndex nm ix ex ->
+        checkUserSurface m' [] ("in init expression: " ++ nm ++ showIxParts ix) ex
       _ -> return ()
 
     grab _ [] = ("", [])
@@ -565,15 +693,12 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
     top ln s m
       | Just r <- stripPrefix "def " s =
           case defForm r of
-            Just (nm, p, resultIx, body) -> do
-              rejectReservedName ln nm
-              rejectReservedName ln p
-              if null resultIx
-                then return m { mDefs = (nm, (p, body)) : mDefs m }
-                else validateTensorDefResult ln nm resultIx
-                     >> return m { mTensorDefs = TensorDef nm p resultIx body : mTensorDefs m }
+            Just df -> do
+              rejectReservedName ln (defName df)
+              mapM_ (rejectReservedName ln) (defParams df)
+              return m { mDefs = df : mDefs m }
             Nothing -> fatal ("bad def (line " ++ show ln
-                              ++ "): def NAME ARG = EXPR")
+                              ++ "): def NAME ARG... = EXPR")
       | Just r <- stripPrefix "param " s =
           case break (== '=') r of
             (nm, '=':v) | not (null (strip nm)) && not (null (strip v)) -> do
@@ -641,14 +766,6 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
                       then Nothing
                       else Just (modName, names)
                _ -> Nothing
-        validateTensorDefResult ln' nm parts
-          | all isSingleAlphaIx parts
-          , let names = map ixName parts
-          , length names == length (nub names) = return ()
-          | otherwise =
-              fatal ("bad tensor def result indices in " ++ nm ++ showIxParts parts
-                     ++ " (line " ++ show ln' ++ ")")
-
     ini ln s m
       | Just (nm, ix, ex) <- casForm s = do
           rejectReservedName ln (dropWhileEnd (== '\'') nm)
@@ -894,10 +1011,10 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
       | otherwise = fatal ("bad step eq: " ++ s ++ " (line " ++ show ln ++ ")")
       where
         s = s0
-        banned = surfaceBanned m s
+        banned = surfaceBanned m [] s
 
-surfaceBanned :: Model -> String -> Maybe String
-surfaceBanned m s =
+surfaceBanned :: Model -> [String] -> String -> Maybe String
+surfaceBanned m locals s =
   bareIndexedField (tokenize s)
   `orElse`
   foldr (\t acc -> checkTok t `orElse` acc) Nothing (tokenize s)
@@ -907,6 +1024,7 @@ surfaceBanned m s =
     bareIndexedField [] = Nothing
     bareIndexedField (TId nm _ : rest)
       | isBareIndexedFieldName nm
+      , nm `notElem` locals
       , not (indexedAfter rest) =
           Just ("indexed tensor field " ++ nm
                 ++ " must be referenced with indices")
@@ -990,8 +1108,9 @@ lbTarget m = case concatMap scan (mSteps m) of
 -- v'~i   = v~i + (dt / rho0) * ∂_j s~i_j
 -- s'~i_j = s~i_j + dt * (la * δ~i_j * ∂_k v'~k + mu * (∂_i v'~j + ∂_j v'~i))
 --
--- Free indices come from the left-hand side; a repeated index letter
--- inside a term is summed over 1..dimension (Einstein convention).
+-- Free indices come from the left-hand side.  Repeated upper/lower index
+-- letters form diagonal axes; only contractWith, or `.` via contractWith,
+-- folds those axes.
 -- δ~i_j is Kronecker's delta, and epsilon~i~j~k is the 3D Levi-Civita
 -- symbol.
 -- ∂_a applied to a staggered field component is the
@@ -1001,10 +1120,11 @@ lbTarget m = case concatMap scan (mSteps m) of
 
 strictEinstein :: Model -> [String] -> [IxPart] -> String -> IO ()
 strictEinstein m lets lhs expr = do
-  alts <- regionOccurrences (itok expr)
+  alts <- regionOccurrences [] (itok expr)
   mapM_ checkTerm alts
   where
-    regionOccurrences ts = fmap concat (mapM termOccurrences (splitTerms ts))
+    regionOccurrences aliases ts =
+      fmap concat (mapM (termOccurrences aliases) (splitTerms ts))
 
     splitTerms = go (0 :: Int) []
       where
@@ -1018,21 +1138,57 @@ strictEinstein m lets lhs expr = do
                 else reverse cur : go d [] rest
         go d cur (t : rest) = go d (t : cur) rest
 
-    termOccurrences ts = go [[]] ts
+    termOccurrences aliases ts = go [[]] ts
       where
         go acc [] = return acc
+        go acc (II "withSymbols" : rest) =
+          case parseWithSymbolsBody rest of
+            Just (names, body) -> do
+              let aliases' = zip names (map ixName lhs) ++ aliases
+              innerAlts <- regionOccurrences aliases' body
+              return [a ++ b | a <- acc, b <- innerAlts]
+            Nothing -> go acc rest
         go acc (II w : rest) = do
           occ <- identOccurrences w
-          go (map (++ occ) acc) rest
+          go (map (++ map (renameIx aliases) occ) acc) rest
         go acc (IC '(' : rest) = do
           let (inner, rest') = matchGroup ')' rest
-          innerAlts <- regionOccurrences inner
+          innerAlts <- regionOccurrences aliases inner
           go [a ++ b | a <- acc, b <- innerAlts] rest'
         go acc (IC '[' : rest) = do
           let (inner, rest') = matchGroup ']' rest
-          innerAlts <- regionOccurrences inner
+          innerAlts <- regionOccurrences aliases inner
           go [a ++ b | a <- acc, b <- innerAlts] rest'
         go acc (_ : rest) = go acc rest
+
+    renameIx aliases (IxPart v nm) =
+      case lookup nm aliases of
+        Just nm' -> IxPart v nm'
+        Nothing -> IxPart v nm
+
+    parseWithSymbolsBody rest =
+      case dropWhile isSpaceI rest of
+        IC '[' : rest1 ->
+          let (inside, body) = breakSymbolList (0 :: Int) [] rest1
+          in Just (symbolNames inside, dropWhile isSpaceI body)
+        _ -> Nothing
+
+    breakSymbolList _ acc [] = (reverse acc, [])
+    breakSymbolList d acc (IC ']' : rest)
+      | d == 0 = (reverse acc, rest)
+      | otherwise = breakSymbolList (d - 1) (IC ']' : acc) rest
+    breakSymbolList d acc (IC '[' : rest) =
+      breakSymbolList (d + 1) (IC '[' : acc) rest
+    breakSymbolList d acc (t : rest) = breakSymbolList d (t : acc) rest
+
+    symbolNames = go
+      where
+        go [] = []
+        go (II nm : rest) | validSurfaceName nm = nm : go rest
+        go (_ : rest) = go rest
+
+    isSpaceI (IC c) = isSpace c
+    isSpaceI _ = False
 
     matchGroup close = goG (0 :: Int) []
       where
@@ -1241,20 +1397,29 @@ ixExpand m lets env anchor expr = expandRegion env (itok expr)
           return (joinAdd c e1 e2)
     goR env' d cur (t : rest) = goR env' d (t : cur) rest
 
-    -- one term: sum its own (depth-0) dummies, then resolve
+    -- one term: explicit contraction is handled by contractWith or `.`;
+    -- otherwise unresolved diagonal axes are an error.
     expandTerm env' ts =
-      case parseContractWith ts of
-        Just (reducer, body) -> expandContract env' reducer body
+      case parseWithSymbols ts of
+        Just (names, body) -> expandWithSymbols env' names body
         Nothing ->
-          case dotProduct ts of
-            Just body -> expandContract env' "+" body
-            Nothing -> expandImplicit env' ts
+          case parseContractWith ts of
+            Just (reducer, body) -> expandContract env' reducer body
+            Nothing ->
+              case dotProduct ts of
+                Just body -> expandContract env' "+" body
+                Nothing -> expandImplicit env' ts
+
+    expandWithSymbols env' names body =
+      let vals = map snd env'
+          localEnv = zip names vals
+          envNoShadow = [(k, v) | (k, v) <- env', k `notElem` names]
+      in expandRegion (localEnv ++ envNoShadow) body
 
     expandImplicit env' ts =
       case levelDummies env' ts of
-        (k:_) -> do
-          parts <- mapM (\n -> expandImplicit ((k, n) : env') ts) (axisRange m)
-          return (sumText parts)
+        (k:_) ->
+          fatal ("index " ++ k ++ " is diagonal but not contracted; use contractWith or . in: " ++ expr)
         [] | zeroByIdentityTensor env' ts -> return "0"
            | otherwise -> resolve env' ts
 
@@ -1269,19 +1434,59 @@ ixExpand m lets env anchor expr = expandRegion env (itok expr)
 
     parseContractWith ts =
       case dropWhile isSpaceI ts of
-        II "contractWith" : rest -> parseReducer (dropWhile isSpaceI rest)
+        II "contractWith" : rest ->
+          case parseContractWithCall rest of
+            Just (reducer, body, rest2)
+              | all isSpaceI rest2 -> Just (reducer, body)
+            _ ->
+              case parseReducerWithRest (dropWhile isSpaceI rest) of
+                Just (_, IC '(' : _) -> Nothing
+                Just (reducer, body) -> Just (reducer, dropWhile isSpaceI body)
+                Nothing -> Nothing
         _ -> Nothing
-
-    parseReducer (IC '(' : IC op : IC ')' : rest)
-      | op `elem` "+*" =
-          Just ([op], dropWhile isSpaceI rest)
-    parseReducer (II nm : rest)
-      | validSurfaceName nm =
-          Just (nm, dropWhile isSpaceI rest)
-    parseReducer _ = Nothing
 
     isSpaceI (IC c) = isSpace c
     isSpaceI _ = False
+
+    parseWithSymbols ts =
+      case dropWhile isSpaceI ts of
+        II "withSymbols" : rest -> do
+          (names, body) <- parseSymbolList (dropWhile isSpaceI rest)
+          Just (names, dropWhile isSpaceI body)
+        _ -> Nothing
+
+    parseSymbolList (IC '[' : rest) =
+      let (inside, rest1) = breakSymbolList (0 :: Int) [] rest
+      in Just (symbolNames inside, rest1)
+    parseSymbolList _ = Nothing
+
+    breakSymbolList _ acc [] = (reverse acc, [])
+    breakSymbolList d acc (IC ']' : rest)
+      | d == 0 = (reverse acc, rest)
+      | otherwise = breakSymbolList (d - 1) (IC ']' : acc) rest
+    breakSymbolList d acc (IC '[' : rest) =
+      breakSymbolList (d + 1) (IC '[' : acc) rest
+    breakSymbolList d acc (t : rest) = breakSymbolList d (t : acc) rest
+
+    symbolNames = go
+      where
+        go [] = []
+        go (II nm : rest) | validSurfaceName nm = nm : go rest
+        go (_ : rest) = go rest
+
+    parseContractWithCall rest = do
+      (reducer, rest1) <- parseReducerWithRest (dropWhile isSpaceI rest)
+      case dropWhile isSpaceI rest1 of
+        IC '(' : bodyRest ->
+          let (body, rest2) = matchParen (0 :: Int) [] bodyRest
+          in Just (reducer, body, rest2)
+        _ -> Nothing
+
+    parseReducerWithRest (IC '(' : IC op : IC ')' : rest)
+      | op `elem` "+*" = Just ([op], rest)
+    parseReducerWithRest (II nm : rest)
+      | validSurfaceName nm = Just (nm, rest)
+    parseReducerWithRest _ = Nothing
 
     dotProduct ts =
       case splitTopDots ts of
@@ -1403,6 +1608,14 @@ ixExpand m lets env anchor expr = expandRegion env (itok expr)
           | c `elem` "([" = go2 (d + 1) rest
           | c `elem` ")]" = go2 (d - 1) rest
           | otherwise = go2 d rest
+        go2 0 (II "withSymbols" : rest) =
+          case parseSymbolList (dropWhile isSpaceI rest) of
+            Just (_, rest2) -> go2 0 rest2
+            Nothing -> []
+        go2 0 (II "contractWith" : rest) =
+          case parseContractWithCall rest of
+            Just (_, _, rest2) -> go2 0 rest2
+            Nothing -> []
         go2 d (II w : rest)
           | d == 0 = [l | l <- idxLetters w, lookup l env' == Nothing] ++ go2 d rest
           | otherwise = go2 d rest
@@ -1422,6 +1635,20 @@ ixExpand m lets env anchor expr = expandRegion env (itok expr)
       e <- expandRegion env' inner
       fmap (("(" ++ e ++ ")") ++) (resolve env' rest')
     resolve env' (IC c : rest) = fmap ([c] ++) (resolve env' rest)
+    resolve env' (II "contractWith" : rest) =
+      case parseContractWithCall rest of
+        Just (reducer, body, rest2) -> do
+          e <- expandContract env' reducer body
+          fmap (e ++) (resolve env' rest2)
+        Nothing ->
+          fatal ("contractWith needs a reducer and parenthesized body: " ++ expr)
+    resolve env' (II "withSymbols" : rest) =
+      case parseSymbolList (dropWhile isSpaceI rest) of
+        Just (names, body) -> do
+          e <- expandWithSymbols env' names body
+          return e
+        Nothing ->
+          fatal ("withSymbols needs a bracketed symbol list: " ++ expr)
     resolve env' (II w : rest)
       -- Kronecker delta, one index per mark: delta~i_j / \948~i_j.
       -- Same-variance metric components are written with the declared metric

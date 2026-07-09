@@ -49,6 +49,12 @@ data TensorDef = TensorDef
   , tdBody     :: String
   }
 
+data Def = Def
+  { defName   :: String
+  , defParams :: [String]
+  , defBody   :: String
+  } deriving (Eq, Show)
+
 data Model = Model
   { mName   :: String
   , mDim    :: Int
@@ -65,7 +71,7 @@ data Model = Model
   , mMetric :: Maybe [String]
   , mEmbed  :: Maybe [String]
   , mTensorDefs :: [TensorDef]
-  , mDefs   :: [(String, (String, String))]
+  , mDefs   :: [Def]
   }
 
 data Tok = TId String Bool | TC Char

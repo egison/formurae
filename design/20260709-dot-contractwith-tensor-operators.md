@@ -400,7 +400,7 @@ Formurae の lowering は次の順に行う。
 
 ### Step 2: 現在の `ixExpand` と同じ結果を出す lowering
 
-- `g~i~j . ∂_i ∂_j u` を現在の `g~i~j * ∂_i ∂_j u` と同じ stencil へ落とす
+- `g~i~j . ∂_i ∂_j u` を従来 `g~i~j * ∂_i ∂_j u` で得ていた stencil と同じ形へ落とす
 - `X~i . Y_i`、`A~i_j . B~j_k` の小さな smoke test を作る
 - Euclidean `metric g` は従来通り恒等行列として簡約する
 
