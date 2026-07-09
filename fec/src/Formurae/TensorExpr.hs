@@ -19,7 +19,7 @@ module Formurae.TensorExpr
   , validateFieldRefParts
   ) where
 
-import Data.Char (isAlphaNum, isDigit, isSpace)
+import Data.Char (isAlpha, isAlphaNum, isDigit, isSpace)
 import Data.List (intercalate, nub, stripPrefix)
 import Control.Monad (foldM)
 
@@ -909,7 +909,7 @@ ixExpand m lets env anchor expr = expandAst env parsedExpr
           body <- expandAst env' e
           return ("(" ++ body ++ ")")
         TERaw raw ->
-          expandRegion env' (itok raw)
+          expandRawScalarAst raw
 
     dotAsProduct [] = TERaw "1"
     dotAsProduct [p] = p
@@ -1074,6 +1074,29 @@ ixExpand m lets env anchor expr = expandAst env parsedExpr
               , indexedMetricPart q ->
                   resolvedDifferent p q
               | otherwise -> False
+
+    expandRawScalarAst raw =
+      case rawIndexedTokens raw of
+        bad:_ ->
+          fatal ("unsupported indexed tensor syntax inside raw scalar expression: "
+                 ++ bad ++ " in: " ++ expr)
+        [] -> return raw
+
+    rawIndexedTokens raw =
+      [ w
+      | II w <- itok raw
+      , let (_, parts) = parseIndexedIdent w
+      , not (null parts)
+      , all isRawIndexPart parts
+      , not (isAxisDerivativeToken w parts)
+      ]
+
+    isRawIndexPart (IxPart _ [c]) = isAlpha c || isDigit c
+    isRawIndexPart _ = False
+
+    isAxisDerivativeToken w parts =
+      (take 2 w == "d_" || take 3 w == "d2_")
+      && all (\p -> ixName p `elem` (mAxes m ++ internalCoordNames m)) parts
 
     -- one term: explicit contraction is handled by contractWith or `.`;
     -- otherwise unresolved diagonal axes are an error.
