@@ -2,6 +2,11 @@
 
 Date: 2026-07-09
 
+2026-07-10 時点の上位ロードマップは
+`design/20260710-tensor-expr-ir-roadmap.md` にまとめる。
+この文書は、そのうち `IndexedExpr`/`TensorExpr` を実装へ落とすための
+詳細計画として読む。
+
 ## 目的
 
 Formurae で目指す状態は、Egison の利点である
