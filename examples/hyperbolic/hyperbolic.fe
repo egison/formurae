@@ -14,7 +14,7 @@ param dt = 0.00002
 
 extern exp
 extern cos
-use exterior-calculus { d, δ }
+def Δ u = lb u
 
 metric g
 metric scale [ 1 / (1 + y), 1 / (1 + y), 1 ]
@@ -25,4 +25,4 @@ init:
   u := exp (cos x - 1) * exp (0 - 4 * (y - 1 / 2) ^ 2)
 
 step:
-  u' = u - dt * δ (d u)
+  u' = u + dt * Δ u

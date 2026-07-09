@@ -41,12 +41,10 @@
 --                                   coefficient FIELDS evaluated by the
 --                                   CAS at the half-cell placements.
 --   use MODULE { NAME, ... }         coordinate-context mathematical operators
---                                    made available to this file; v1 starts
---                                    with exterior-calculus { Δ } and
+--                                    made available to this file; these are
+--                                    library-level operators such as
+--                                    exterior-calculus { d, delta } and
 --                                    vector-calculus { curl, divg }.
---                                    Δ injects def Δ u = 0 - delta (d u);
---                                    vector operators are generated under
---                                    the current coordinate context.
 --   def NAME ARG(~i|_i)* = EXPR     user-defined operator, expanded at use
 --                                    sites (file scope; a body may use only
 --                                    operators defined before it).  A use
@@ -82,19 +80,11 @@
 --   assert-dd-zero NAME'            gate generation on d(d NAME') == 0
 --
 -- Unicode: Greek letters transliterate to their ASCII names (theta,
--- phi, ...); coordinate derivatives are written only as ∂x, ∂theta,
--- ... while ∂_i remains the indexed derivative.  The small delta is the
--- codifferential, the minus sign
--- is '-'.  The capital delta becomes the model's geometric Laplacian
--- when enabled by `use exterior-calculus { Δ }`; the derived 4th-order
--- Laplacian is spelled with the capital delta followed by 4 (lap4 is an
--- accepted alias).  Writing d twice fuses to the
--- compact second difference (there is no d2 operator), and delta (d u) on
--- a scalar lowers to -(Laplacian), so the heat equation reads
--- u' = u - dt * delta (d u) with basic operators only; all of these
--- generate byte-identical code to their named-operator forms.
--- Nabla combinations work too: nabla-cross is curl, nabla-dot is divg,
--- and nabla^2 (or with the superscript two) is the Laplacian.
+-- phi, ...); coordinate derivatives are written as ∂x, ∂2x, or ∂m,rx,
+-- while ∂_i remains the indexed derivative.  The small delta is the
+-- codifferential, and the minus sign is '-'.  Higher mathematical
+-- operators such as Δ or Δ4 are ordinary user definitions over these
+-- derivative primitives rather than built-in aliases.
 -- In index equations superscripts (~i) and subscripts (_i) are kept
 -- distinct.  Kronecker's delta is the mixed identity (delta~i_j, or
 -- with the small delta sign), while the metric tensor name declared by
@@ -317,7 +307,7 @@ data Section = STop | SInit | SStep
 
 supportedUses :: [(String, [String])]
 supportedUses =
-  [ ("exterior-calculus", ["d", "delta", "codiff", "dForm", "hodge", "\916"])
+  [ ("exterior-calculus", ["d", "delta", "codiff", "dForm", "hodge"])
   , ("vector-calculus", ["dGrad", "curl", "divg"])
   ]
 
@@ -367,12 +357,6 @@ validateDimensionFeatures m
         k:_ -> Just k
         [] -> Nothing
 
-usePreludeDefs :: Model -> [(String, (String, String))]
-usePreludeDefs m =
-  [ ("\916", ("u", "0 - delta (d u)"))
-  | hasUse m "exterior-calculus" "\916"
-  ]
-
 missingUse :: Model -> String -> Maybe String
 missingUse m s = go (tokenize s)
   where
@@ -392,8 +376,6 @@ missingUse m s = go (tokenize s)
       Just "dForm requires use exterior-calculus { dForm }"
     check (TId "hodge" _) _ | not (hasUse m "exterior-calculus" "hodge") =
       Just "hodge requires use exterior-calculus { hodge }"
-    check (TId "\916" _) _ | not (hasUse m "exterior-calculus" "\916") =
-      Just "Δ requires use exterior-calculus { Δ }"
     check (TId "curl" _) _ | not (hasUse m "vector-calculus" "curl") =
       Just "curl requires use vector-calculus { curl }"
     check (TId "divg" _) _ | not (hasUse m "vector-calculus" "divg") =
@@ -437,7 +419,7 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
           mapM_ (checkInitUse mUse) (mInits mUse)
           -- resolve user-defined operators (definition order; a body may
           -- use only operators defined before it) and expand all uses
-          defs <- resolveDefs (usePreludeDefs mUse ++ reverse (mDefs mUse))
+          defs <- resolveDefs (reverse (mDefs mUse))
           steps' <- mapM (\st -> do ex <- applyDefs defs (sEx st)
                                     return st { sEx = ex })
                          (reverse (mSteps mUse))
@@ -878,6 +860,8 @@ surfaceBanned m s =
   foldr (\t acc -> checkIndexTok t `orElse` acc) Nothing (itok s)
   where
     checkTok (TId nm _)
+      | Just msg <- invalidDerivativeOp m nm =
+          Just msg
       | Just ax <- stripPrefix "d_" nm, ax `elem` mAxes m =
           Just ("coordinate derivative must be written ∂" ++ ax
                 ++ "; ∂_" ++ ax ++ " and d_" ++ ax ++ " are not part of Formurae")
@@ -915,7 +899,8 @@ tokenize (c:cs)
   | otherwise = TC c : tokenize cs
 
 -- the field to which lb is applied, if any (scans the same
--- preprocessed form the rewriter uses, so Δ and delta (d u) count)
+-- preprocessed form the rewriter uses, so a user-defined Δ can expand
+-- to lb u before this pass)
 lbTarget :: Model -> Maybe String
 lbTarget m = case concatMap scan (mSteps m) of
                (nm:_) -> Just nm
@@ -1347,19 +1332,52 @@ mathOps m = concatMap out . tokenize
   where
     axmap = zip (mAxes m) (map show (axisRange m))
     out (TId nm pr)
+      | not pr, Just (ordr, radius, ax) <- derivativeOpParts nm
+      , Just n <- lookup ax axmap =
+          derivativeCall ordr radius n
       | not pr, Just rest <- stripPrefix "pd2_" nm, Just n <- lookup rest axmap = "dC2 " ++ n
       | not pr, Just rest <- stripPrefix "pd_" nm, Just n <- lookup rest axmap = "dC " ++ n
-      | not pr, nm == "lap4" = ['\916', '4']   -- alias of the main spelling Δ4
       | otherwise = nm ++ (if pr then "'" else "")
     out (TC c) = [c]
+    derivativeCall 1 1 n = "dC " ++ n
+    derivativeCall 2 1 n = "dC2 " ++ n
+    derivativeCall ordr radius n =
+      "dTaylor " ++ show ordr ++ " " ++ stencil radius ++ " " ++ n
+    stencil radius =
+      "[" ++ intercalate ", " (map show [-radius .. radius]) ++ "]"
 
-metricOn :: Model -> Bool
-metricOn m = mMetric m /= Nothing || mEmbed m /= Nothing
+derivativeOpParts :: String -> Maybe (Int, Int, String)
+derivativeOpParts nm = do
+  rest0 <- stripPrefix "pd" nm
+  let (mDigits, rest1) = span isDigit rest0
+  if null mDigits then Nothing else do
+    rest2 <- stripPrefix "r" rest1
+    let (rDigits, rest3) = span isDigit rest2
+    ax <- stripPrefix "_" rest3
+    if null rDigits || null ax
+      then Nothing
+      else Just (read mDigits, read rDigits, ax)
 
--- shared step-expression preprocessing: fuse repeated d, lower
--- delta (d u), rename axes, resolve math operators (incl. Δ)
+invalidDerivativeOp :: Model -> String -> Maybe String
+invalidDerivativeOp m nm =
+  case derivativeOpParts nm of
+    Nothing -> Nothing
+    Just (ordr, radius, ax)
+      | ax `notElem` mAxes m ->
+          Just ("unknown coordinate derivative axis in " ++ nm)
+      | ordr < 1 ->
+          Just ("coordinate derivative order must be at least 1: " ++ nm)
+      | radius < 1 ->
+          Just ("coordinate derivative stencil radius must be at least 1: " ++ nm)
+      | ordr >= 2 * radius + 1 ->
+          Just ("coordinate derivative ∂" ++ show ordr ++ "," ++ show radius ++ ax
+                ++ " has too few stencil points")
+      | otherwise -> Nothing
+
+-- shared step-expression preprocessing: rename axes, then resolve the
+-- small coordinate derivative primitives.
 stepPre :: Model -> String -> String
-stepPre m = mathOps m . renameAxes m . lowerDeltaD m . fuseDD
+stepPre m = mathOps m . renameAxes m
 
 isSpTok :: Tok -> Bool
 isSpTok (TC c) = isSpace c
@@ -1379,51 +1397,6 @@ closeParenT n (TC ')' : ts) acc
   | n == 1 = Just (reverse acc, ts)
   | otherwise = closeParenT (n - 1) ts (TC ')' : acc)
 closeParenT n (t : ts) acc = closeParenT n ts (t : acc)
-
--- ∂a (∂a X) fuses to the compact second difference pd2_a (X): repeated
--- derivatives pair up as staggered half-cell differences (forward then
--- backward), which is the dC2 stencil -- not the double-width central
--- composition -- so writing d twice generates byte-identical code.
-fuseDD :: String -> String
-fuseDD = untok . go . tokenize
-  where
-    go (TId d1 False : ts)
-      | Just ax <- stripPrefix "pd_" d1
-      , (_, TC '(' : ts1) <- span isSpTok ts
-      , (_, TId d2 False : ts2) <- span isSpTok ts1
-      , stripPrefix "pd_" d2 == Just ax
-      , Just (inner, rest) <- closeParenT 1 ts2 []
-      = TId ("pd2_" ++ ax) False : TC '(' : go inner ++ (TC ')' : go rest)
-    go (t : ts) = t : go ts
-    go [] = []
-
--- delta (d u) on a scalar field lowers to minus the Laplacian: the
--- codifferential of the exterior derivative is -lap (flat) or -lb
--- (with a declared metric), so `u' = u - dt * delta (d u)` is the heat
--- equation written with the basic operators only.
-lowerDeltaD :: Model -> String -> String
-lowerDeltaD m = untok . go . tokenize
-  where
-    lapNm = if metricOn m then "lb" else "lap"
-    go (TId "delta" False : ts)
-      | (_, TC '(' : ts1) <- span isSpTok ts
-      , (_, TId "d" False : ts2) <- span isSpTok ts1
-      , Just (inner, rest) <- closeParenT 1 ts2 []
-      = case bareIdent inner of
-          Just (nm, pr) | kindOf m nm == Just Scalar ->
-            tokenize ("((0 - 1) * " ++ lapNm ++ " " ++ nm ++ (if pr then "'" else "") ++ ")")
-              ++ go rest
-          -- compound operand: flat geometry only (the metric flux
-          -- machinery is anchored to a named field)
-          _ | not (metricOn m) ->
-            tokenize ("((0 - 1) * lap (" ++ untok inner ++ "))") ++ go rest
-          _ -> TId "delta" False : go ts
-    go (t : ts) = t : go ts
-    go [] = []
-    bareIdent ts = case filter (not . isSpTok) ts of
-      [TId nm pr] -> Just (nm, pr)
-      [TC '(', TId nm pr, TC ')'] -> Just (nm, pr)
-      _ -> Nothing
 
 rewrite :: Model -> [String] -> Maybe String -> String -> IO String
 rewrite m lets mk expr = fmap concat (mapM render (attach elems))
@@ -1601,8 +1574,6 @@ emit m = do
             , "def lap (u: MathValue) : MathValue := sum (map (\\a -> dC2 a u) feAxisIds)"
             , "def dTaylor (m: Integer) (ks: [MathValue]) (a: Integer) (u: MathValue) : MathValue :="
             , "  sum (map (\\(c, k) -> c * shift a k u) (zip (taylorStencil m ks) ks)) / (feHsteps_a ^ m)"
-            , "def \916\&4 (u: MathValue) : MathValue :="
-            , "  sum (map (\\a -> dTaylor 2 [-2, -1, 0, 1, 2] a u) feAxisIds)"
             ]
       vectorContextDecls =
             [ "def dGrad (X: Vector MathValue) : Matrix MathValue :="
@@ -2094,23 +2065,45 @@ emit m = do
     rawGridPoint = "[" ++ intercalate "," (internalIndexNames m) ++ "]"
 
 -- Unicode input: Greek letters transliterate to their ASCII names.  A
--- partial-derivative sign followed immediately by an identifier is the
--- coordinate derivative operator (`∂x`); a subscripted partial
--- (`∂_i`) is the indexed derivative.  `∂_x` is therefore rejected when
--- x is a declared axis.  A bare partial sign still becomes d.  The small delta becomes the
--- codifferential, and the minus sign becomes '-'.  The capital delta
--- (Laplacian) is model-dependent and resolved in mathOps instead.
+-- partial-derivative sign followed by an optional derivative order,
+-- optional stencil radius, and an axis name is a coordinate derivative:
+-- `∂x`, `∂2x`, `∂2,2x`.  A subscripted partial (`∂_i`) is the indexed
+-- derivative.  `∂_x` is therefore rejected when x is a declared axis.
+-- A bare partial sign still becomes d.  The small delta becomes the
+-- codifferential, and the minus sign becomes '-'.
 transliterate :: String -> String
 transliterate = go
   where
     go [] = []
     go ('\8706':'_':cs) = "d_" ++ go cs
-    go ('\8706':cs@(c:_))
-      | isAlpha c =
-          let (nm, rest) = span isW cs
-          in "pd_" ++ concatMap tr nm ++ go rest
-    go ('\8706':cs) = "d" ++ go cs
+    go ('\8706':cs) =
+      case coordDerivative cs of
+        Just ((ordr, radius, ax), rest) ->
+          "pd" ++ show ordr ++ "r" ++ show radius ++ "_"
+          ++ concatMap tr ax ++ go rest
+        Nothing -> "d" ++ go cs
     go (c:cs) = tr c ++ go cs
+
+    coordDerivative cs =
+      case cs of
+        c:_ | isAlpha c ->
+          let (ax, rest) = span isW cs
+          in Just ((1 :: Int, 1 :: Int, ax), rest)
+        c:_ | isDigit c ->
+          let (mDigits, rest1) = span isDigit cs
+          in case rest1 of
+               ',':r2 ->
+                 let (rDigits, rest3) = span isDigit r2
+                 in case rest3 of
+                      a:_ | not (null rDigits), isAlpha a ->
+                        let (ax, rest4) = span isW rest3
+                        in Just ((read mDigits, read rDigits, ax), rest4)
+                      _ -> Nothing
+               a:_ | isAlpha a ->
+                 let (ax, rest2) = span isW rest1
+                 in Just ((read mDigits, 1 :: Int, ax), rest2)
+               _ -> Nothing
+        _ -> Nothing
 
     tr '\952' = "theta"    -- θ
     tr '\966' = "phi"      -- φ
@@ -2136,31 +2129,12 @@ transliterate = go
     tr '\8722' = "-"       -- − (minus sign)
     tr c = [c]
 
--- nabla combinations, resolved before parsing: ∇^2 (or ∇²) is the
--- Laplacian (the capital delta, so lap or lb by geometry), ∇× is curl,
--- ∇· (or ∇.) is divergence.  A space after ∇ is allowed.  A bare ∇
--- passes through (and fails downstream) -- gradients of scalars are
--- written d u (forms) instead.
-nablaPass :: String -> String
-nablaPass = go
-  where
-    go [] = []
-    go ('\8711':cs) =
-      case dropWhile (== ' ') cs of
-        ('^':'2':r)  -> '\916' : go r
-        ('\178':r)   -> '\916' : go r
-        ('\215':r)   -> " curl " ++ go r
-        ('\183':r)   -> " divg " ++ go r
-        ('.':r)      -> " divg " ++ go r
-        _            -> '\8711' : go cs
-    go (c:cs) = c : go cs
-
 main :: IO ()
 main = do
   args <- getArgs
   case args of
     [path] -> do
-      txt <- fmap (nablaPass . transliterate) (readFile path)
+      txt <- fmap transliterate (readFile path)
       let name = takeWhile (/= '.') (reverse (takeWhile (/= '/') (reverse path)))
       m <- parseFe name txt
       out <- emit m

@@ -33,8 +33,8 @@ init:
   B = [| 0, 0, gauss1(i*dx) |]
 
 step:
-  E' = E + dt * ∇ × B
-  B' = B - dt * ∇ × E'    -- E' は更新済み配列への参照(symplectic・袖幅1)
+  E' = E + dt * curl B
+  B' = B - dt * curl E'    -- E' は更新済み配列への参照(symplectic・袖幅1)
 ```
 
 微分形式版(maxwell_dec.fe)なら:
@@ -58,17 +58,17 @@ Unicode でもそのまま書ける(fec が Formura 向けに ASCII へ字訳す
 ```
 axes θ, φ, z
 embedding [ `(2 + cos θ) * cos φ, `(2 + cos θ) * sin φ, sin θ, z ]
-use exterior-calculus { Δ }
+def Δ u = lb u
 
 u' = u + dt * Δ u
 ```
 
-`Δ` は `use exterior-calculus { Δ }` で有効化する、モデルの幾何のラプラシアン(計量下では Laplace–Beltrami)。
+`Δ` は組み込みではなく、この例では `def Δ u = lb u` として定義している。
 生成 `.fmr` でも `axes :: theta,phi,z` となり、格子幅や C ドライバの名前も
 `dtheta`、`dphi`、`space_interval_theta` のように宣言した軸名に追随する。
-基本演算子だけでも書ける: `∂x (∂x u)` は compact な2階差分に融合し、
-`u' = u - dt * δ (d u)` は −δd 形の熱方程式 — いずれも生成コードは
-名前つき演算子版とバイト一致。
+基本演算子だけでも書ける: `∂x u` は1階中心差分、`∂2x u` は2階中心差分、
+`∂2,2x u` は半径2の5点 stencil で導出される2階差分になる。
+平坦格子の Laplacian は、例えば `def Δ u = ∂2x u + ∂2y u + ∂2z u` と書く。
 
 `dimension` は 1、2、3 を指定できる。スカラー、ベクトル、添字付き rank-1、
 対称/反対称/full rank-2 field、微分形式 `k-form` は宣言次元に応じた成分数で
@@ -82,8 +82,8 @@ Maxwell 方程式の場合、Egison 側の物理記述はこれだけ:
 def E_i := generateTensor (\[i] -> function (x, y, z)) [3]   -- E はベクトル場(1行)
 def B_i := generateTensor (\[i] -> function (x, y, z)) [3]
 
-def En_i := withSymbols [i] E_i + dt * (curl B_#)_i          -- E' = E + dt ∇×B
-def Bn_i := withSymbols [i] B_i - dt * (curl En_#)_i         -- B' = B − dt ∇×E'
+def En_i := withSymbols [i] E_i + dt * (curl B_#)_i          -- E' = E + dt curl B
+def Bn_i := withSymbols [i] B_i - dt * (curl En_#)_i         -- B' = B - dt curl E'
 ```
 
 `curl` は `use vector-calculus { curl }` で有効化する。生成 `.egi` の先頭には、
@@ -122,9 +122,9 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
 | `fec/` + `fec.cabal` | **Formurae コンパイラ**: 表層言語 Formurae(.fe;`field E : vector`・`E' = E + dt * curl B`・`B' = B - dt * d E'`)を埋め込み形 .egi に変換。Haskell(base のみ)、リポジトリ直下で `cabal build` / `cabal run -v0 fec -- model.fe`。意味論は Egison 側に一本化した薄い変換層 |
 | `lib/fmrgen.egi` | 生成コア: Taylor 条件から係数を導出する **`taylorStencil`**、quote cleanup、形式補助などの座標非依存基盤 |
 | `lib/fmrlegacy3d.egi` | まだ `.fe` 化していない手書き `.egi` 例のための 3D 互換文脈。`.fe` 由来の生成物では使わない |
-| `examples/diffusion1d/` | 1D 拡散方程式。`dimension 1` と `axes x` だけで `Δ` が 1軸 Laplacian に下り、check driver が質量保存とピーク減衰を検査 |
+| `examples/diffusion1d/` | 1D 拡散方程式。`def Δ u = ∂2x u` と書き、check driver が質量保存とピーク減衰を検査 |
 | `examples/diffusion2d/` | 2D 拡散方程式。`dimension 2` と `axes x, y` に応じて Formura/C の配列・Navi・Laplacian が2次元化される |
-| `examples/diffusion3d/` | 3D 拡散方程式(`use exterior-calculus { Δ }` で Laplacian を有効化し、物理は `u' = u + dt * κ * Δ u` の1行) |
+| `examples/diffusion3d/` | 3D 拡散方程式(`def Δ u = ∂2x u + ∂2y u + ∂2z u` で Laplacian を定義し、物理は `u' = u + dt * κ * Δ u` の1行) |
 | `examples/maxwell3d/` | Maxwell 方程式(**E・B がベクトル場**。`use vector-calculus { curl }` で回転を有効化し、全ベクトル更新2本から ε 縮約 curl の collocated 格子コードを生成) |
 | `examples/maxwell3d_yee/` | **Yee-FDTD**(E=辺・B=面のスタガード格子+leapfrog。場ごとの配置オフセット宣言から教科書どおりの FDTD を生成) |
 | `examples/maxwell_dec/` | **Maxwell(微分形式/DEC)**(`use exterior-calculus { d, δ }` で外微分・余微分を有効化。E=1-form・B=2-form の**次数宣言だけ**で Yee 配置を導出。B の storage は `B_1_2,B_1_3,B_2_3` の幾何基底名。d∘d=0 を CAS が生成時に検査し、check driver がエネルギー・伝播・divB を検証) |
@@ -134,7 +134,7 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
 | `examples/tdgl3d/` | **TDGL 超伝導**(\|ψ\|⁴ 理論。量子化渦の自発形成) |
 | `examples/mhd_ot/` | **理想 MHD: Orszag–Tang 渦**(保存形+Rusanov 流束を中間流束場19本で生成。8保存量を `reduces` で監視) |
 | `examples/elastic3d/` | **弾性波(Virieux)**(.fe の **Einstein 添字記法2行**: `field v~i @ staggered`、`field σ{~i~j} @ staggered` と宣言し、`v'~i = v~i + (dt/ρ0) * ∂_j σ~i~j`、`σ'~i~j = … λ * δ~i~j … δ~i~k * ∂_k v'~j …` と書く。繰り返し添字は上1・下1だけを総和し、上げ下げは metric を明示する。`@ staggered` 宣言で ∂_a が対象配置アンカーの半セル差分に = Virieux 格子を導出。P/S 両波速を1回で実測) |
-| `examples/metric_torus/` | **計量つき拡散(トーラス上の Laplace–Beltrami)**(.fe の `embedding [...]`(座標系の埋め込み)だけから CAS が計量 g_ab=∂X·∂X を導出・**直交性を記号検査**・h_a=√g_aa → hodge 因子の係数場・半セル評価・保存流束まで自動。`use exterior-calculus { Δ }` により、物理は `u' = u + dt * Δ u` の1行(`Δ` は計量下で自動的に Laplace–Beltrami; `u - dt * δ (d u)` とも書ける)。`metric scale` 直接指定も可) |
+| `examples/metric_torus/` | **計量つき拡散(トーラス上の Laplace–Beltrami)**(.fe の `embedding [...]`(座標系の埋め込み)だけから CAS が計量 g_ab=∂X·∂X を導出・**直交性を記号検査**・h_a=√g_aa → hodge 因子の係数場・半セル評価・保存流束まで自動。`def Δ u = lb u` と定義し、物理は `u' = u + dt * Δ u` の1行。`metric scale` 直接指定も可) |
 | `examples/kleingordon/` | **非線形 Klein–Gordon(φ⁴ キンク)**(leapfrog 2場。ブーストした kink–antikink 対で速度と相対論的エネルギーを実測) |
 | `examples/shallowwater/` | **浅水方程式**(保存形+人工粘性。重力波速 √(gh) を実測、質量は流束形式で厳密保存) |
 | `examples/lbm_d3q19/` | **格子ボルツマン D3Q19**(19方向の衝突・ストリーミング・平衡分布 init を全部 Egison の map で生成。BGK 粘性を解析値と照合) |
@@ -270,7 +270,8 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
   アトラクタ統計(rms=0.916 ∈ [0.8,2.2]、|u|max=1.81 有界)で検証。
   保存形の非線形項+望遠鏡和により **Σu ドリフト 5.4e-12**(60万 step 後)。7 秒。
 - **4次精度スキーム自動導出**(64×8×8、100 step): 5点係数 (−1/12, 4/3, −5/2, 4/3, −1/12)
-  は**ソースのどこにも書かれておらず**、`taylorStencil 2 [-2..2]` が Taylor 条件の連立を
+  は**ソースのどこにも書かれておらず**、`.fe` の `def Δ4 u = ∂2,2x u + ∂2,2y u + ∂2,2z u`
+  から生成される `taylorStencil 2 [-2..2]` が Taylor 条件の連立を
   厳密有理数のガウス消去で解いて導出(.fmr ヘッダに導出値をコメント出力)。単一 Fourier
   モードの振幅比が導出ステンシルの厳密離散シンボル (1+λ₄dt)ⁿ と **4.4e-16 で一致**、
   残差 \|λ₄+k²\| = 4.17e-3 は4次理論値 k⁶h⁴/90 = 4.23e-3 の 98.6%(2次の 1/49)。0.1 秒。

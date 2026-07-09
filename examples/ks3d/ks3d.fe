@@ -17,5 +17,5 @@ init:
   u = cos(0.28559933214452665*i*dx) + 0.1*cos(0.5711986642890533*i*dx)
 
 step:
-  local w = ∂x (∂x u)
-  u' = u - dt * (∂x (u * u / 2) + w + ∂x (∂x w))
+  local w = ∂2x u
+  u' = u - dt * (∂x (u * u / 2) + w + ∂2x w)

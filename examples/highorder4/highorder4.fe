@@ -11,6 +11,7 @@ param κ = 1.0
 param dt = 0.0005
 
 extern sin
+def Δ4 u = ∂2,2x u + ∂2,2y u + ∂2,2z u
 
 field u : scalar
 

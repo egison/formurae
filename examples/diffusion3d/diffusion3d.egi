@@ -33,8 +33,6 @@ def dB (a: Integer) (u: MathValue) : MathValue := (u - shift a (-1) u) / feHstep
 def lap (u: MathValue) : MathValue := sum (map (\a -> dC2 a u) feAxisIds)
 def dTaylor (m: Integer) (ks: [MathValue]) (a: Integer) (u: MathValue) : MathValue :=
   sum (map (\(c, k) -> c * shift a k u) (zip (taylorStencil m ks) ks)) / (feHsteps_a ^ m)
-def Δ4 (u: MathValue) : MathValue :=
-  sum (map (\a -> dTaylor 2 [-2, -1, 0, 1, 2] a u) feAxisIds)
 def offsetSuffix (o: MathValue) : String :=
   match o as mathValue with
     | #0 -> ""
@@ -144,6 +142,6 @@ def feComps : [String] := ["u"]
 def feInits :=
   [ "  u[i,j,k] = gauss(i*dx,j*dy,k*dz)"
   ]
-def feSteps := scalarEq "u" (u + dt * kappa * (0 - ((0 - 1) * lap u)))
+def feSteps := scalarEq "u" (u + dt * kappa * (dC2 1 u + dC2 2 u + dC2 3 u))
 
 def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feComps feInits feSteps)

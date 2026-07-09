@@ -9,7 +9,7 @@ axes x, y, z
 param dt = 0.05
 
 extern sin
-use exterior-calculus { Δ }
+def Δ u = ∂2x u + ∂2y u + ∂2z u
 
 field a : scalar
 field b : scalar

@@ -12,7 +12,7 @@ param k0 = 6.283185307179586
 
 extern sin
 extern cos
-use exterior-calculus { Δ }
+def Δ u = ∂2x u + ∂2y u + ∂2z u
 
 field u : scalar
 
