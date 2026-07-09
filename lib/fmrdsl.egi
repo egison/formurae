@@ -10,7 +10,8 @@
 --
 -- Field kinds: 0 = scalar, 1 = vector / 1-form / 2-form (3 components
 -- named _1,_2,_3), 2 = symmetric matrix (6 upper-triangle components),
--- 3 = full rank-2 tensor (9 components).  The .fe compiler now emits the
+-- 3 = full rank-2 tensor (9 components), 4 = antisymmetric rank-2 tensor
+-- (3 upper off-diagonal components).  The .fe compiler now emits the
 -- component-name list directly; these helpers are kept for hand-written DSL
 -- files and use axis-independent numeric names.
 --
@@ -19,6 +20,7 @@ def compSuffixes (k: Integer) : [String] :=
   if k = 0 then [""]
     else if k = 1 then ["_1", "_2", "_3"]
     else if k = 2 then ["_1_1", "_2_2", "_3_3", "_1_2", "_1_3", "_2_3"]
+    else if k = 4 then ["_1_2", "_1_3", "_2_3"]
     else ["_1_1", "_1_2", "_1_3", "_2_1", "_2_2", "_2_3", "_3_1", "_3_2", "_3_3"]
 
 def compNames (f: (String, Integer)) : [String] :=
@@ -46,6 +48,13 @@ def symEqs (names: [String]) (cxx: MathValue) (cyy: MathValue) (czz: MathValue)
   , fmrEq (S.append (nth 4 names) "'") cxy
   , fmrEq (S.append (nth 5 names) "'") cxz
   , fmrEq (S.append (nth 6 names) "'") cyz
+  ]
+
+-- step lines for an antisymmetric rank-2 field (upper off-diagonal)
+def antiEqs (names: [String]) (cxy: MathValue) (cxz: MathValue) (cyz: MathValue) : [String] :=
+  [ fmrEq (S.append (nth 1 names) "'") cxy
+  , fmrEq (S.append (nth 2 names) "'") cxz
+  , fmrEq (S.append (nth 3 names) "'") cyz
   ]
 
 def tensor2Eqs (names: [String])

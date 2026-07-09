@@ -134,6 +134,7 @@ make diffusion3d
 <tr><td><code>field E : 1-form / 2-form</code></td><td>微分形式(配置は次数から: 1-form=辺・2-form=面)</td></tr>
 <tr><td><code>field v~i @ staggered</code></td><td>スタガード rank-1 tensor。添字の上下は宣言時に固定され、v_i と参照するとエラー</td></tr>
 <tr><td><code>field σ{~i~j} @ staggered</code></td><td>対称 rank-2 tensor。<code>{...}</code> は対称、σ^ij は辺i⊕辺j — Virieux 配置が導出される</td></tr>
+<tr><td><code>field A[_i_j] @ staggered</code></td><td>反対称 rank-2 tensor。<code>[...]</code> は反対称。独立 storage は上三角 off-diagonal の3成分で、<code>A_j_i</code> は <code>-A_i_j</code>、<code>A_i_i</code> は 0 に下りる</td></tr>
 <tr><td><code>metric g</code> / <code>metric δ</code></td><td>計量テンソルとして使う表層名を宣言する。宣言後は <code>g~i~j</code>/<code>g_i_j</code> や <code>δ_i_j</code> などを書ける。宣言した名前を <code>param</code>/<code>field</code> にも使うとエラー</td></tr>
 <tr><td><code>metric scale [1, 2 + cos theta, 1]</code></td><td>直交計量を Lamé スケール因子で直接指定 → <code>lb</code> が使える</td></tr>
 <tr><td><code>embedding [`(1+r) * cos phi, …]</code></td><td>座標系の埋め込みから計量を CAS が<b>自動導出</b>(直交性は記号検査で強制)。バッククォートで因子を原子に保つと √ が閉じる</td></tr>
@@ -146,6 +147,8 @@ make diffusion3d
 <tr><th>構文</th><th>意味</th></tr>
 <tr><td><code>u = gauss(i*dx,j*dy,k*dz)</code></td><td>スカラー場の生の Formura 初期化式</td></tr>
 <tr><td><code>E = [| 0, gauss1(i*dx), 0 |]</code></td><td>ベクトル/形式の成分一括指定(要素は Formura 式)</td></tr>
+<tr><td><code>σ~i~j := δ~i~j * exp(x)</code></td><td><b>添字付き CAS 初期化</b>: strict Einstein 検査後に成分展開し、field の配置に合わせて半セル substitute して init に焼き込む</td></tr>
+<tr><td><code>A_i_j = [| [| a12,a13 |], [| a23 |] |]_i_j</code></td><td>反対称 rank-2 field の上三角 off-diagonal 初期化。3x3 反対称行列も受け付ける</td></tr>
 <tr><td><code>u := exp (cos theta - 1)</code></td><td><b>CAS 初期化</b>: 記号式を評価して init に焼き込む(座標は軸名で書く)</td></tr>
 </table>
 
@@ -241,7 +244,7 @@ def δ := codiff
 <tr><td><code>delta ω</code>(= <code>codiff</code>/<code>δ</code>)</td><td><code>use exterior-calculus { δ }</code></td><td>余微分 (−1)^{n(k+1)+1} ⋆d⋆。形式場では <code>codiff</code> 呼び出しになる。<code>use</code> なしの <code>δ</code> はエラー</td></tr>
 </table>
 
-<p><b>添字</b>: 添字方程式では上付き <code>~i</code> と下付き <code>_i</code> を常に区別します。添字つき field は <code>field v~i @ staggered</code> や <code>field σ{~i~j} @ staggered</code> のように宣言し、rank・上下・対称性・Formura 出力 layout は添字仕様から推論します。初期値も <code>v~i = [| ... |]~i</code> や <code>σ~i~j = [| ... |]~i~j</code> のように同じ添字 suffix を明示します。<code>{...}</code> は対称、<code>[...]</code> は反対称です。右辺の各項は strict 検査され、自由添字は LHS と上下まで一致し、ダミー添字は上1・下1だけを許します。添字の上げ下げは自動化しないため、必要なら <code>g_i_j * v~j</code> のように metric を明示します。<code>metric g</code> で宣言した計量名は <code>g~i~j</code>/<code>g~i_j</code>/<code>g_i~j</code>/<code>g_i_j</code> を別々の計量テンソルとして展開します。<code>metric δ</code> と宣言すれば、Euclidean 計量を <code>δ_i_j</code> や <code>δ~i~j</code> と書けます。Kronecker delta は metric 名でない場合の mixed identity <code>δ~i_j</code>(1添字1マーク; 融合形 <code>delta_ij</code> は不可)です。例(弾性波):
+<p><b>添字</b>: 添字方程式では上付き <code>~i</code> と下付き <code>_i</code> を常に区別します。添字つき field は <code>field v~i @ staggered</code>、<code>field σ{~i~j} @ staggered</code>、<code>field A[_i_j] @ staggered</code> のように宣言し、rank・上下・対称性・Formura 出力 layout は添字仕様から推論します。初期値も <code>v~i = [| ... |]~i</code>、<code>σ~i~j = [| ... |]~i~j</code>、<code>σ~i~j := δ~i~j * exp(x)</code> のように同じ添字 suffix を明示します。<code>{...}</code> は対称、<code>[...]</code> は反対称です。反対称 field は <code>A_j_i = -A_i_j</code>、<code>A_i_i = 0</code> に正準化されます。右辺の各項は strict 検査され、自由添字は LHS と上下まで一致し、ダミー添字は上1・下1だけを許します。添字の上げ下げは自動化しないため、必要なら <code>g_i_j * v~j</code> のように metric を明示します。<code>metric g</code> で宣言した計量名は <code>g~i~j</code>/<code>g~i_j</code>/<code>g_i~j</code>/<code>g_i_j</code> を別々の計量テンソルとして展開します。<code>metric δ</code> と宣言すれば、Euclidean 計量を <code>δ_i_j</code> や <code>δ~i~j</code> と書けます。Kronecker delta は metric 名でない場合の mixed identity <code>δ~i_j</code>(1添字1マーク; 融合形 <code>delta_ij</code> は不可)です。例(弾性波):
 <code>v'~i = v~i + (dt / ρ0) * ∂_j σ~i~j</code></p>
 
 <p><b>内部名</b>: <code>metric g</code> の <code>g</code> は生成 Egison で <code>FormuraeInternalMetricContra</code>、<code>FormuraeInternalMetricMixedUpDown</code>、<code>FormuraeInternalMetricMixedDownUp</code>、<code>FormuraeInternalMetricCov</code> に下ります。添字付き field と <code>let A_i</code> のような一時テンソルについても <code>FormuraeInternalTensor...Up/Down...</code> という内部束縛を生成します。<code>FormuraeInternal</code> prefix は予約済みで、ユーザ定義名には使えません。</p>
@@ -256,8 +259,8 @@ fec が Formura 向けに ASCII 名(theta, phi, …)へ字訳します。
 <code>u' = u + dt * Δ u</code> の4行で幾何・使う演算子・物理を書けます
 (metric_torus.fe がこの形)。</p>
 
-<p class="note"><b>現在の実装範囲</b>: 添字付き field の上下・自由添字・ダミー添字検査は strict に行います。
-一方、ユーザが定義する一般の添字付きテンソル演算子、多引数テンソル関数、反対称 rank-2 field の backend は後続作業です。</p>
+<p class="note"><b>現在の実装範囲</b>: 添字付き field の上下・自由添字・ダミー添字検査、indexed CAS initializer、対称/反対称 rank-2 field backend は実装済みです。
+一方、ユーザが定義する一般の添字付きテンソル演算子、多引数テンソル関数は後続作業です。</p>
 
 <h2 id="yaml">5. yaml リファレンス(格子と実行構成)</h2>
 <pre>

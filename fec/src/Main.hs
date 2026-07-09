@@ -57,7 +57,7 @@
 --                                    automatically when they are used)
 --   raw LINE                        verbatim Formura helper line
 --   field NAME : scalar             one grid field
---   field NAME : vector             3 components (NAMEx,NAMEy,NAMEz)
+--   field NAME : vector             3 components (NAME_1,NAME_2,NAME_3)
 --   field NAME : 1-form | 2-form    3 components placed by form degree (DEC)
 --   init:
 --     COMP = RAW                    raw Formura initializer (component)
@@ -66,6 +66,9 @@
 --     NAME~i~j = [| [| xx,... |],   indexed tensor initializer; RHS suffix
 --                  ... |]~i~j       must match the LHS suffix
 --                                    may span lines until brackets balance
+--     NAME~i~j := EXPR              indexed CAS initializer; components are
+--                                    expanded and evaluated at their layout
+--                                    placement
 --     NAME := EXPR                  scalar CAS initializer (printed via fmrInit)
 --   step:
 --     let N_i = EXPR                named tensor expression (inlined)
@@ -129,12 +132,13 @@ fatal msg = hPutStrLn stderr ("fec: error: " ++ msg) >> exitFailure
 
 -- ---------------------------------------------------------------- model
 
-data Kind = Scalar | Vector Bool | Form Int | SymM | Tensor2 Bool deriving (Eq, Show)
+data Kind = Scalar | Vector Bool | Form Int | SymM | AntiM | Tensor2 Bool deriving (Eq, Show)
 
 data FieldLayout =
     ScalarLayout
   | Rank1Layout
   | SymRank2Layout
+  | AntiRank2Layout
   | FullRank2Layout
   deriving (Eq, Show)
 
@@ -156,8 +160,10 @@ data FieldDecl = FieldDecl
 
 data Init = IRaw String String | IVec String [String]
           | ISym String [String]   -- xx, yy, zz, xy, xz, yz
+          | IAnti String [String]  -- xy, xz, yz
           | ITensor2 String [String] -- xx, xy, xz, yx, yy, yz, zx, zy, zz
           | ICas String String
+          | ICasIndex String [IxPart] String
 
 data SK = KLet | KLocal | KEq deriving Eq
 
@@ -227,8 +233,10 @@ modelExprTexts m =
       IRaw _ rhs -> [rhs]
       IVec _ es -> es
       ISym _ es -> es
+      IAnti _ es -> es
       ITensor2 _ es -> es
       ICas _ ex -> [ex]
+      ICasIndex _ _ ex -> [ex]
 
 usesFunctionName :: String -> String -> Bool
 usesFunctionName nm = go . tokenize
@@ -328,6 +336,7 @@ parseFieldDecl ln r =
     kindFor ScalarLayout _ = Scalar
     kindFor Rank1Layout staggered = Vector staggered
     kindFor SymRank2Layout _ = SymM
+    kindFor AntiRank2Layout _ = AntiM
     kindFor FullRank2Layout staggered = Tensor2 staggered
 
 parseFieldSpec :: String -> Maybe (String, Maybe FieldIndex)
@@ -393,7 +402,8 @@ fieldDeclAcceptsParts fd parts =
     Just (FieldIndex [Plain decl]) -> sameVarianceList decl parts
     Just (FieldIndex [Symmetric decl]) ->
       sameVarianceList decl parts || sameVarianceList (reverse decl) parts
-    Just (FieldIndex [Antisymmetric _]) -> False
+    Just (FieldIndex [Antisymmetric decl]) ->
+      sameVarianceList decl parts || sameVarianceList (reverse decl) parts
     _ -> False
 
 fieldDeclIndexSuffix :: FieldDecl -> String
@@ -417,9 +427,8 @@ inferFieldLayout ln spec (Just (FieldIndex [Symmetric parts])) _
   | length parts == 2 = fatal ("symmetric field needs same-variance indices: " ++ spec ++ " (line " ++ show ln ++ ")")
   | otherwise = fatal ("symmetric field must have rank 2: " ++ spec ++ " (line " ++ show ln ++ ")")
 inferFieldLayout ln spec (Just (FieldIndex [Antisymmetric parts])) _
-  | length parts == 2 =
-      fatal ("antisymmetric rank-2 fields are not supported by the Formura backend yet: "
-             ++ spec ++ " (line " ++ show ln ++ ")")
+  | length parts == 2 && sameVarianceParts parts = return AntiRank2Layout
+  | length parts == 2 = fatal ("antisymmetric field needs same-variance indices: " ++ spec ++ " (line " ++ show ln ++ ")")
   | otherwise = fatal ("antisymmetric field must have rank 2: " ++ spec ++ " (line " ++ show ln ++ ")")
 inferFieldLayout ln spec _ _ =
   fatal ("unsupported field spec: " ++ spec ++ " (line " ++ show ln ++ ")")
@@ -689,6 +698,8 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
     expandInit defs it = case it of
       ICas nm ex -> do ex' <- applyDefs defs ex
                        return (ICas nm ex')
+      ICasIndex nm ix ex -> do ex' <- applyDefs defs ex
+                               return (ICasIndex nm ix ex')
       _ -> return it
 
     checkUserSurface m' context body =
@@ -706,6 +717,7 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
 
     checkInitUse m' it = case it of
       ICas nm ex -> checkUserSurface m' ("in init expression: " ++ nm) ex
+      ICasIndex nm ix ex -> checkUserSurface m' ("in init expression: " ++ nm ++ showIxParts ix) ex
       _ -> return ()
 
     grab _ [] = ("", [])
@@ -795,9 +807,17 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
           rejectReservedName ln (dropWhileEnd (== '\'') nm)
           if null ix
             then return m { mInits = ICas nm ex : mInits m }
-            else fatal ("CAS initializer for indexed fields is not supported yet; use "
-                        ++ nm ++ showIxParts ix ++ " = [| ... |]" ++ showIxParts ix
-                        ++ " (line " ++ show ln ++ ")")
+            else do
+              let baseNm = dropWhileEnd (== '\'') nm
+              if baseNm /= nm
+                then fatal ("indexed CAS initializer target cannot be primed: "
+                            ++ nm ++ showIxParts ix ++ " (line " ++ show ln ++ ")")
+                else return ()
+              validateInitTarget baseNm ix
+              if isIndexKind (kindOf m baseNm)
+                then return m { mInits = ICasIndex baseNm ix ex : mInits m }
+                else fatal ("CAS initializer with indices needs an indexed tensor field: "
+                            ++ nm ++ showIxParts ix ++ " (line " ++ show ln ++ ")")
       | Just (nm, lhsIx, rhs) <- rawForm s = do
           rejectReservedName ln nm
           validateInitTarget nm lhsIx
@@ -822,6 +842,31 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
                 _ -> fatal ("symmetric initializer needs 3x3 or upper-triangle rows (line "
                             ++ show ln ++ ")")
               return m { mInits = ISym nm comps : mInits m }
+            (Just AntiM, Just (rows, rhsIx)) -> do
+              validateInitSuffix nm lhsIx rhsIx
+              rows' <- mapM (\r -> case vecLit (strip r) of
+                        Just (es, []) -> return (map strip es)
+                        Just (_, ix) -> fatal ("antisymmetric initializer row must not have an index suffix: "
+                                               ++ showIxParts ix ++ " (line " ++ show ln ++ ")")
+                        Nothing -> fatal ("antisymmetric initializer rows must be [| ... |] (line "
+                                          ++ show ln ++ ")")) rows
+              comps <- case rows' of
+                -- full 3x3: diagonal zero and lower triangle is the negative
+                -- of the upper triangle; the upper off-diagonal is stored.
+                [r1@[_, _, _], r2@[_, _, _], r3@[_, _, _]]
+                  | isZeroExpr (r1 !! 0) && isZeroExpr (r2 !! 1) && isZeroExpr (r3 !! 2)
+                  , negatesExpr (r2 !! 0) (r1 !! 1)
+                  , negatesExpr (r3 !! 0) (r1 !! 2)
+                  , negatesExpr (r3 !! 1) (r2 !! 2) ->
+                      return [r1 !! 1, r1 !! 2, r2 !! 2]
+                  | otherwise ->
+                      fatal ("antisymmetric initializer is not antisymmetric (line "
+                             ++ show ln ++ ")")
+                -- upper off-diagonal by rows: [| xy,xz |], [| yz |]
+                [[xy, xz], [yz]] -> return [xy, xz, yz]
+                _ -> fatal ("antisymmetric initializer needs 3x3 or upper-off-diagonal rows (line "
+                            ++ show ln ++ ")")
+              return m { mInits = IAnti nm comps : mInits m }
             (Just (Tensor2 _), Just (rows, rhsIx)) -> do
               validateInitSuffix nm lhsIx rhsIx
               rows' <- mapM (\r -> case vecLit (strip r) of
@@ -945,6 +990,20 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
               fatal ("initializer RHS index suffix " ++ showIxParts rhsIx
                      ++ " does not match LHS suffix " ++ showIxParts lhsIx
                      ++ " (line " ++ show ln ++ ")")
+        normExpr = filter (not . isSpace)
+        stripOuterParens t =
+          let u = normExpr t
+          in case u of
+               '(':rest | not (null rest), last rest == ')' -> init rest
+               _ -> u
+        isZeroExpr t = stripOuterParens t `elem` ["0", "0.0"]
+        negatesExpr lhs upper =
+          let l = stripOuterParens lhs
+              u = stripOuterParens upper
+          in l == "0-" ++ u
+             || l == "-" ++ u
+             || l == "(-1)*" ++ u
+             || l == "-1*" ++ u
 
     -- Step equations keep superscripts (~i) and subscripts (_i)
     -- distinct.  The current component expander still lowers existing
@@ -1157,17 +1216,23 @@ componentRank Scalar = 0
 componentRank (Vector _) = 1
 componentRank (Form _) = 1
 componentRank SymM = 2
+componentRank AntiM = 2
 componentRank (Tensor2 _) = 2
 
 symComponentIndices :: Int -> [[Int]]
 symComponentIndices dim =
   [[a, a] | a <- [1 .. dim]] ++ [[a, b] | a <- [1 .. dim], b <- [a + 1 .. dim]]
 
+antiComponentIndices :: Int -> [[Int]]
+antiComponentIndices dim =
+  [[a, b] | a <- [1 .. dim], b <- [a + 1 .. dim]]
+
 componentIndices :: Int -> Kind -> [[Int]]
 componentIndices _ Scalar = [[]]
 componentIndices dim (Vector _) = [[a] | a <- [1 .. dim]]
 componentIndices dim (Form _) = [[a] | a <- [1 .. dim]]
 componentIndices dim SymM = symComponentIndices dim
+componentIndices dim AntiM = antiComponentIndices dim
 componentIndices dim (Tensor2 _) = [[a, b] | a <- [1 .. dim], b <- [1 .. dim]]
 
 componentVariances :: Model -> String -> Kind -> [Maybe Variance]
@@ -1353,8 +1418,10 @@ validateFieldRefParts m lets w =
           if sameVarianceList decl parts || sameVarianceList (reverse decl) parts
             then return ()
             else fatal ("symmetric field " ++ fdName fd ++ " is referenced with incompatible index variance: " ++ w)
-        (Just (FieldIndex [Antisymmetric _]), _) ->
-          fatal ("antisymmetric field references are not supported yet: " ++ w)
+        (Just (FieldIndex [Antisymmetric decl]), _) ->
+          if sameVarianceList decl parts || sameVarianceList (reverse decl) parts
+            then return ()
+            else fatal ("antisymmetric field " ++ fdName fd ++ " is referenced with incompatible index variance: " ++ w)
         _ -> fatal ("unsupported field index declaration for " ++ fdName fd)
 
 indexDefs :: Model -> [String] -> Step -> IO [String]
@@ -1369,6 +1436,9 @@ indexDefs m lets st = do
     (Just SymM, [fi, fj]) ->
       mapM (\(a, b) -> comp [(ixName fi, a), (ixName fj, b)] (placeS a b) (base ++ show a ++ show b))
            ([(1,1),(2,2),(3,3),(1,2),(1,3),(2,3)] :: [(Int, Int)])
+    (Just AntiM, [fi, fj]) ->
+      mapM (\(a, b) -> comp [(ixName fi, a), (ixName fj, b)] (placeS a b) (base ++ show a ++ show b))
+           ([(1,2),(1,3),(2,3)] :: [(Int, Int)])
     (Just (Tensor2 staggered), [fi, fj]) ->
       mapM (\(a, b) -> comp [(ixName fi, a), (ixName fj, b)]
                               (if staggered then placeS a b else plOf [False, False, False])
@@ -1525,6 +1595,13 @@ ixExpand m lets env anchor expr = expandRegion env (itok (indexContractionDots e
           let (lo, hi) = (min a b2, max a b2)
           in return (fname ++ replicate primes '\'' ++ "_" ++ show lo ++ "_" ++ show hi,
                      placeS a b2)
+        (Just AntiM, [a, b2]) ->
+          let (lo, hi) = (min a b2, max a b2)
+              comp = fname ++ replicate primes '\'' ++ "_" ++ show lo ++ "_" ++ show hi
+              signed | a == b2 = "0"
+                     | a < b2 = comp
+                     | otherwise = "(0 - " ++ comp ++ ")"
+          in return (signed, placeS a b2)
         (Just (Tensor2 staggered), [a, b2]) ->
           return (fname ++ replicate primes '\'' ++ "_" ++ show a ++ "_" ++ show b2,
                   if staggered then placeS a b2 else plOf [False, False, False])
@@ -1540,6 +1617,7 @@ ixExpand m lets env anchor expr = expandRegion env (itok (indexContractionDots e
 isIndexKind :: Maybe Kind -> Bool
 isIndexKind (Just (Vector _)) = True
 isIndexKind (Just SymM) = True
+isIndexKind (Just AntiM) = True
 isIndexKind (Just (Tensor2 _)) = True
 isIndexKind _ = False
 
@@ -1785,7 +1863,7 @@ emit m = do
       needsVectorContext = hasVec ["dGrad", "curl", "divg"]
       needsFormContext = hasExt ["d", "delta", "codiff", "dForm", "hodge"] || mDd m /= Nothing
       needsStaggeredContext =
-        any (\(_, k) -> k == Vector True || k == SymM || k == Tensor2 True) (mFlds m)
+        any (\(_, k) -> k == Vector True || k == SymM || k == AntiM || k == Tensor2 True) (mFlds m)
       needsYeeContext = mtx /= Nothing || needsFormContext || needsStaggeredContext
       symbolCase sym repl = "    | #\"" ++ sym ++ "\" -> \"" ++ repl ++ "\""
       contextDecls =
@@ -1984,6 +2062,11 @@ emit m = do
             , "  , fmrEq (S.append (nth 5 names) \"'\") cxz"
               , "  , fmrEq (S.append (nth 6 names) \"'\") cyz"
               , "  ]"
+              , "def antiEqs (names: [String]) (cxy: MathValue) (cxz: MathValue) (cyz: MathValue) : [String] :="
+              , "  [ fmrEq (S.append (nth 1 names) \"'\") cxy"
+              , "  , fmrEq (S.append (nth 2 names) \"'\") cxz"
+              , "  , fmrEq (S.append (nth 3 names) \"'\") cyz"
+              , "  ]"
               , "def tensor2Eqs (names: [String])"
               , "               (cxx: MathValue) (cxy: MathValue) (cxz: MathValue)"
               , "               (cyx: MathValue) (cyy: MathValue) (cyz: MathValue)"
@@ -2136,6 +2219,8 @@ emit m = do
       ["def " ++ nm ++ "_i := generateTensor (\\[i] -> function (" ++ fieldCoordArgs ++ ")) [3]"]
     fdecl (nm, SymM) =
       ["def " ++ nm ++ "_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) [3, 3]"]
+    fdecl (nm, AntiM) =
+      ["def " ++ nm ++ "_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) [3, 3]"]
     fdecl (nm, Tensor2 _) =
       ["def " ++ nm ++ "_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) [3, 3]"]
     fdecl (nm, Form k) =
@@ -2147,6 +2232,8 @@ emit m = do
       Just (Vector _) ->
         ["def " ++ nm ++ "'_i := generateTensor (\\[i] -> function (" ++ fieldCoordArgs ++ ")) [3]"]
       Just SymM ->
+        ["def " ++ nm ++ "'_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) [3, 3]"]
+      Just AntiM ->
         ["def " ++ nm ++ "'_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) [3, 3]"]
       Just (Tensor2 _) ->
         ["def " ++ nm ++ "'_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) [3, 3]"]
@@ -2160,6 +2247,7 @@ emit m = do
       Vector _ -> rank1Aliases nm primes
       Form _ -> rank1Aliases nm primes
       SymM -> symRank2Aliases nm primes
+      AntiM -> antiRank2Aliases nm primes
       Tensor2 _ -> fullRank2Aliases nm primes
     primedBase nm primes = nm ++ replicate primes '\''
     rank1Aliases nm primes =
@@ -2170,6 +2258,12 @@ emit m = do
       [ "def " ++ tensorInternalBase nm vars ++ replicate primes '\'' ++ "_i_j := "
         ++ "generateTensor (\\[i, j] -> if i <= j then "
         ++ primedBase nm primes ++ "_i_j else "
+        ++ primedBase nm primes ++ "_j_i) [feDim, feDim]"
+      | vars <- [[VUp, VUp], [VUp, VDown], [VDown, VUp], [VDown, VDown]] ]
+    antiRank2Aliases nm primes =
+      [ "def " ++ tensorInternalBase nm vars ++ replicate primes '\'' ++ "_i_j := "
+        ++ "generateTensor (\\[i, j] -> if i = j then 0 else if i < j then "
+        ++ primedBase nm primes ++ "_i_j else 0 - "
         ++ primedBase nm primes ++ "_j_i) [feDim, feDim]"
       | vars <- [[VUp, VUp], [VUp, VDown], [VDown, VUp], [VDown, VDown]] ]
     fullRank2Aliases nm primes =
@@ -2211,6 +2305,12 @@ emit m = do
               in return (Just ("symEqs " ++ names ++ " "
                                ++ unwords ["feq" ++ nm ++ show a ++ show b
                                           | (a, b) <- [(1,1),(2,2),(3,3),(1,2),(1,3),(2,3)] :: [(Int,Int)]]))
+        | Just AntiM <- kindOf m (sNm st) ->
+            let nm = sNm st
+                names = egiStringList (componentStorageNamesOf m nm)
+            in return (Just ("antiEqs " ++ names ++ " "
+                             ++ unwords ["feq" ++ nm ++ show a ++ show b
+                                        | (a, b) <- [(1,2),(1,3),(2,3)] :: [(Int,Int)]]))
         | Just (Tensor2 _) <- kindOf m (sNm st) ->
             let nm = sNm st
                 names = egiStringList (componentStorageNamesOf m nm)
@@ -2236,11 +2336,47 @@ emit m = do
                             | (lhs, el) <- zip (componentStorageNamesOf m nm) els ]
       ISym nm els -> return [ "\"  " ++ lhs ++ "[i,j,k] = " ++ escQ el ++ "\""
                             | (lhs, el) <- zip (componentStorageNamesOf m nm) els ]
+      IAnti nm els -> return [ "\"  " ++ lhs ++ "[i,j,k] = " ++ escQ el ++ "\""
+                             | (lhs, el) <- zip (componentStorageNamesOf m nm) els ]
       ITensor2 nm els -> return [ "\"  " ++ lhs ++ "[i,j,k] = " ++ escQ el ++ "\""
                                 | (lhs, el) <- zip (componentStorageNamesOf m nm) els ]
       ICas nm ex -> do
         e <- rewriteScalar m lets ex
         return ["fmrInit \"" ++ nm ++ "\" (" ++ e ++ ")"]
+      ICasIndex nm lhsIx ex -> indexedInitLines lets nm lhsIx ex
+
+    indexedInitLines lets nm lhsIx ex = do
+      strictEinstein m lets lhsIx pre
+      case (kindOf m nm, lhsIx) of
+        (Just (Vector staggered), [fi]) ->
+          mapM (\a -> comp [a] [(ixName fi, a)]
+                       (if staggered then placeV a else plOf [False, False, False]))
+               [1, 2, 3]
+        (Just SymM, [fi, fj]) ->
+          mapM (\(a, b) -> comp [a, b] [(ixName fi, a), (ixName fj, b)] (placeS a b))
+               (map pairOf (symComponentIndices (mDim m)))
+        (Just AntiM, [fi, fj]) ->
+          mapM (\(a, b) -> comp [a, b] [(ixName fi, a), (ixName fj, b)] (placeS a b))
+               (map pairOf (antiComponentIndices (mDim m)))
+        (Just (Tensor2 staggered), [fi, fj]) ->
+          mapM (\(a, b) -> comp [a, b] [(ixName fi, a), (ixName fj, b)]
+                       (if staggered then placeS a b else plOf [False, False, False]))
+               (map pairOf (componentIndices (mDim m) (Tensor2 staggered)))
+        _ -> fatal ("indexed CAS initializer has wrong indices for its field kind: " ++ nm)
+      where
+        pre = stepPre m ex
+        kind = case kindOf m nm of
+                 Just k -> k
+                 Nothing -> Scalar
+        comp inds env anchor = do
+          e <- ixExpand m lets env anchor pre
+          let lhs = componentStorageName m nm kind inds
+          return ("fmrInit \"" ++ lhs ++ "\" (" ++ shiftTo anchor e ++ ")")
+        shiftTo anchor e =
+          "substitute (map (\\a -> (feCoords_a, feCoords_a + nth a "
+          ++ anchor ++ " * feHsteps_a)) feAxisIds) (" ++ e ++ ")"
+        pairOf [a, b] = (a, b)
+        pairOf xs = error ("internal rank-2 component shape: " ++ show xs)
 
 -- Unicode input: Greek letters transliterate to their ASCII names.  A
 -- partial-derivative sign followed immediately by an identifier is the

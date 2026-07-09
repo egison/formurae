@@ -210,9 +210,9 @@ F_i_i  0
 F~i_j  error
 ```
 
-最初の実装では、対称 rank-2 field を既存の `SymM` lowering へ対応させる。
-反対称 field と一般 rank-2 tensor は構文だけ先に設計し、実装段階では
-未対応エラーにしてもよい。
+最初の実装では、対称 rank-2 field を既存の `SymM` lowering へ対応させた。
+その後、反対称 rank-2 field も上三角 off-diagonal の3成分 storage として
+backend 対応した。一般 rank-2 tensor は full 3x3 storage として扱う。
 
 添字の上げ下げは自動では行わない。`v~i` と宣言された field を `v_i` と
 参照することは許さず、必要なら常に `g_i_j * v~j` のように metric を明示する。
@@ -429,7 +429,13 @@ NG:
 ∂_i v'~j         -- free indices do not match s'~i~j
 v_i              -- field v~i declared contravariant
 s~i_j            -- field s{~i~j} declared contravariant/contravariant
-field A[_i_j] @ staggered  -- antisymmetric backend未対応なら明示エラー
+```
+
+OK:
+
+```text
+field A[_i_j] @ staggered
+A'_i_j = A_i_j + dt * A_j_i  -- A_j_i は -A_i_j に正準化
 ```
 
 代表例:
@@ -442,7 +448,7 @@ make elastic3d metric_torus hyperbolic maxwell_dec shallowwater diffusion3d
 ## 8. 未決事項
 
 - 一般 rank-2 `field T~i~j @ staggered` を Formura の field 出力としてどう表すか
-- 反対称 tensor を `2-form` backend へ接続できるか
+- 反対称 tensor を `2-form` backend へさらに接続できるか
 - `metric δ` がある場合の `δ~i_j` を metric mixed tensor として優先する現仕様を
   Kronecker delta とどう説明するか
 

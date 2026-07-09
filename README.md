@@ -182,6 +182,9 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
   添字つき field は `field v~i @ staggered` や `field σ{~i~j} @ staggered` のように宣言し、
   rank・上下・対称性・Formura 出力 layout は添字仕様から推論する。
   初期値も `v~i = [| ... |]~i` や `σ~i~j = [| ... |]~i~j` のように同じ添字を明示する。
+  記号式で初期化したい場合は `σ~i~j := δ~i~j * exp(x)` のような indexed CAS initializer も使える。
+  反対称 rank-2 field は `field A[_i_j] @ staggered` と宣言し、storage は独立な
+  上三角 off-diagonal 3成分だけを持つ。参照時には `A_j_i = -A_i_j`、`A_i_i = 0` に正準化する。
   上付き `~i` と下付き `_i` は strict に区別し、`metric g` で宣言した計量名は
   `g~i~j`/`g~i_j`/`g_i~j`/`g_i_j` の上下パターンごとに生成 `.egi` の
   内部計量テンソルへ下ろす(Euclidean では単位行列)。`metric δ` と宣言すれば

@@ -147,6 +147,11 @@ def symEqs (names: [String]) (cxx: MathValue) (cyy: MathValue) (czz: MathValue)
   , fmrEq (S.append (nth 5 names) "'") cxz
   , fmrEq (S.append (nth 6 names) "'") cyz
   ]
+def antiEqs (names: [String]) (cxy: MathValue) (cxz: MathValue) (cyz: MathValue) : [String] :=
+  [ fmrEq (S.append (nth 1 names) "'") cxy
+  , fmrEq (S.append (nth 2 names) "'") cxz
+  , fmrEq (S.append (nth 3 names) "'") cyz
+  ]
 def tensor2Eqs (names: [String])
                (cxx: MathValue) (cxy: MathValue) (cxz: MathValue)
                (cyx: MathValue) (cyy: MathValue) (cyz: MathValue)
