@@ -1,9 +1,13 @@
 module Formurae.TensorExpr
-  ( Placement
+  ( TensorExpr(..)
+  , Placement
   , zeroPlaceB
   , placeVB
   , placeSB
   , placeText
+  , parseTensorExpr
+  , renderTensorExpr
+  , normalizeTensorExpr
   , ixExpand
   , expandTensorDefs
   , expandDefs
@@ -18,6 +22,18 @@ import Control.Monad (foldM)
 import Formurae.Common (fatal, strip, validSurfaceName)
 import Formurae.Index
 import Formurae.Syntax
+
+data TensorExpr
+  = TERaw String
+  | TEIdent String [IxPart]
+  | TEAppendIndexed TensorExpr [IxPart]
+  | TEWithSymbols [String] TensorExpr
+  | TEContractWith String TensorExpr
+  | TEDerivative [IxPart] TensorExpr
+  | TEDot [TensorExpr]
+  | TEBinary String TensorExpr TensorExpr
+  | TEGroup TensorExpr
+  deriving (Eq, Show)
 
 type Placement = [Bool]
 
@@ -38,6 +54,281 @@ togglePlace a =
 
 placeText :: Placement -> String
 placeText = plOf
+
+parseTensorExpr :: String -> TensorExpr
+parseTensorExpr = parseTensorTokens . trimTensorIToks . itok
+
+renderTensorExpr :: TensorExpr -> String
+renderTensorExpr (TERaw s) = s
+renderTensorExpr (TEIdent base parts) = base ++ concatMap ixSuffix parts
+renderTensorExpr (TEAppendIndexed e parts) =
+  renderTensorAtom e ++ "..." ++ concatMap ixSuffix parts
+renderTensorExpr (TEWithSymbols names body) =
+  "withSymbols [" ++ intercalate ", " names ++ "] " ++ renderTensorExpr body
+renderTensorExpr (TEContractWith reducer body) =
+  "contractWith " ++ renderReducer reducer ++ " " ++ renderContractBody body
+renderTensorExpr (TEDerivative parts body) =
+  unwords (map (\p -> "d" ++ ixSuffix p) parts ++ [renderTensorAtom body])
+renderTensorExpr (TEDot parts) = intercalate " . " (map renderTensorDotPart parts)
+renderTensorExpr (TEBinary op lhs rhs) =
+  renderTensorBinarySide op lhs ++ " " ++ op ++ " " ++ renderTensorBinarySide op rhs
+renderTensorExpr (TEGroup e) = "(" ++ renderTensorExpr e ++ ")"
+
+normalizeTensorExpr :: String -> String
+normalizeTensorExpr = renderTensorExpr . parseTensorExpr
+
+parseTensorTokens :: [ITok] -> TensorExpr
+parseTensorTokens ts0 =
+  let ts = trimTensorIToks ts0
+  in case splitTopAddI ts of
+       Just (lhs, op, rhs) ->
+         TEBinary [op] (parseTensorTokens lhs) (parseTensorTokens rhs)
+       Nothing ->
+         case splitTopDotsI ts of
+           (_:_:_) | not (hasEllipsisAtTop ts) ->
+             TEDot (map parseTensorTokens (splitTopDotsI ts))
+           _ ->
+             case splitTopMulDivI ts of
+               Just (lhs, op, rhs) ->
+                 TEBinary [op] (parseTensorTokens lhs) (parseTensorTokens rhs)
+               Nothing -> parseTensorAtom ts
+
+parseTensorAtom :: [ITok] -> TensorExpr
+parseTensorAtom ts =
+  case stripOuterGroupI ts of
+    Just inner -> TEGroup (parseTensorTokens inner)
+    Nothing ->
+      case parseContractWithExpr ts of
+        Just e -> e
+        Nothing ->
+          case parseWithSymbolsExpr ts of
+            Just e -> e
+            Nothing ->
+              case parseDerivativeExpr ts of
+                Just e -> e
+                Nothing ->
+                  case parseAppendExpr ts of
+                    Just e -> e
+                    Nothing ->
+                      case ts of
+                        [II w] ->
+                          let (base, parts) = parseIndexedIdent w
+                          in TEIdent base parts
+                        _ -> TERaw (renderIToks ts)
+
+parseContractWithExpr :: [ITok] -> Maybe TensorExpr
+parseContractWithExpr ts =
+  case dropWhile isSpaceITok ts of
+    II "contractWith" : rest -> do
+      (reducer, rest1) <- parseReducerI (dropWhile isSpaceITok rest)
+      let body = dropWhile isSpaceITok rest1
+      if null body
+        then Nothing
+        else Just (TEContractWith reducer (parseTensorTokens body))
+    _ -> Nothing
+
+parseWithSymbolsExpr :: [ITok] -> Maybe TensorExpr
+parseWithSymbolsExpr ts =
+  case dropWhile isSpaceITok ts of
+    II "withSymbols" : rest -> do
+      (names, body) <- parseSymbolListTx (dropWhile isSpaceITok rest)
+      Just (TEWithSymbols names (parseTensorTokens body))
+    _ -> Nothing
+
+parseDerivativeExpr :: [ITok] -> Maybe TensorExpr
+parseDerivativeExpr ts = do
+  (parts, rest) <- collectDerivatives [] (dropWhile isSpaceITok ts)
+  if null parts || null (trimTensorIToks rest)
+    then Nothing
+    else Just (TEDerivative parts (parseTensorTokens rest))
+  where
+    collectDerivatives acc (II w : rest)
+      | ("d", [p]) <- parseIndexedIdent w =
+          collectDerivatives (acc ++ [p]) (dropWhile isSpaceITok rest)
+    collectDerivatives acc rest = Just (acc, rest)
+
+parseAppendExpr :: [ITok] -> Maybe TensorExpr
+parseAppendExpr ts =
+  case breakTopEllipsis ts of
+    Just (headT, suffixT) -> do
+      parts <- indexedSuffixOnlyI suffixT
+      Just (TEAppendIndexed (parseTensorTokens headT) parts)
+    Nothing -> Nothing
+
+renderReducer :: String -> String
+renderReducer "+" = "(+)"
+renderReducer "*" = "(*)"
+renderReducer reducer = reducer
+
+renderContractBody :: TensorExpr -> String
+renderContractBody body@(TEGroup _) = renderTensorExpr body
+renderContractBody body@(TERaw _) = renderTensorExpr body
+renderContractBody body = renderTensorAtom body
+
+renderTensorAtom :: TensorExpr -> String
+renderTensorAtom e@(TEIdent _ _) = renderTensorExpr e
+renderTensorAtom e@(TEAppendIndexed _ _) = renderTensorExpr e
+renderTensorAtom e@(TEGroup _) = renderTensorExpr e
+renderTensorAtom e@(TERaw _) = renderTensorExpr e
+renderTensorAtom e = "(" ++ renderTensorExpr e ++ ")"
+
+renderTensorDotPart :: TensorExpr -> String
+renderTensorDotPart e@(TEBinary _ _ _) = "(" ++ renderTensorExpr e ++ ")"
+renderTensorDotPart e = renderTensorExpr e
+
+renderTensorBinarySide :: String -> TensorExpr -> String
+renderTensorBinarySide parentOp e@(TEBinary op _ _)
+  | parentOp `elem` ["+", "*"] && op == parentOp = renderTensorExpr e
+  | otherwise = "(" ++ renderTensorExpr e ++ ")"
+renderTensorBinarySide _ e@(TEDot _) = "(" ++ renderTensorExpr e ++ ")"
+renderTensorBinarySide _ e = renderTensorExpr e
+
+splitTopAddI :: [ITok] -> Maybe ([ITok], Char, [ITok])
+splitTopAddI = splitTopBinaryI "+-" True
+
+splitTopMulDivI :: [ITok] -> Maybe ([ITok], Char, [ITok])
+splitTopMulDivI = splitTopBinaryI "*/" False
+
+splitTopBinaryI :: [Char] -> Bool -> [ITok] -> Maybe ([ITok], Char, [ITok])
+splitTopBinaryI ops rejectUnary = go (0 :: Int) []
+  where
+    go _ _ [] = Nothing
+    go d acc (t@(IC c) : rest)
+      | c `elem` "([" = go (d + 1) (t : acc) rest
+      | c `elem` ")]" = go (d - 1) (t : acc) rest
+      | d == 0
+      , c `elem` ops
+      , not rejectUnary || binaryAddOp acc =
+          Just (trimTensorIToks (reverse acc), c, trimTensorIToks rest)
+    go d acc (t : rest) = go d (t : acc) rest
+
+    binaryAddOp acc =
+      case dropWhile isSpaceITok acc of
+        [] -> False
+        IC p : _ | p `elem` "([,+-*/^=" -> False
+        II e : _ | e == "e" || e == "E" -> False
+        _ -> True
+
+splitTopDotsI :: [ITok] -> [[ITok]]
+splitTopDotsI = go (0 :: Int) []
+  where
+    go _ acc [] = [trimTensorIToks (reverse acc)]
+    go d acc (t@(IC c) : rest)
+      | c `elem` "([" = go (d + 1) (t : acc) rest
+      | c `elem` ")]" = go (d - 1) (t : acc) rest
+      | d == 0
+      , c == '.'
+      , leftSpaceI acc
+      , rightSpaceI rest =
+          trimTensorIToks (reverse acc) : go d [] rest
+    go d acc (t : rest) = go d (t : acc) rest
+
+leftSpaceI :: [ITok] -> Bool
+leftSpaceI (IC c : _) = isSpace c
+leftSpaceI _ = False
+
+rightSpaceI :: [ITok] -> Bool
+rightSpaceI (IC c : _) = isSpace c
+rightSpaceI _ = False
+
+hasEllipsisAtTop :: [ITok] -> Bool
+hasEllipsisAtTop ts =
+  case breakTopEllipsis ts of
+    Just _ -> True
+    Nothing -> False
+
+breakTopEllipsis :: [ITok] -> Maybe ([ITok], [ITok])
+breakTopEllipsis = go (0 :: Int) []
+  where
+    go _ _ [] = Nothing
+    go d acc (IC c : rest)
+      | c `elem` "([" = go (d + 1) (IC c : acc) rest
+      | c `elem` ")]" = go (d - 1) (IC c : acc) rest
+    go 0 acc (IC '.' : IC '.' : IC '.' : rest) =
+      Just (trimTensorIToks (reverse acc), rest)
+    go d acc (t : rest) = go d (t : acc) rest
+
+stripOuterGroupI :: [ITok] -> Maybe [ITok]
+stripOuterGroupI ts =
+  case trimTensorIToks ts of
+    IC '(' : rest ->
+      case closeGroupI ')' rest [] of
+        Just (inner, rest') | all isSpaceITok rest' -> Just inner
+        _ -> Nothing
+    _ -> Nothing
+
+closeGroupI :: Char -> [ITok] -> [ITok] -> Maybe ([ITok], [ITok])
+closeGroupI close = go (0 :: Int)
+  where
+    go _ _ [] = Nothing
+    go d acc (IC c : rest)
+      | c == close && d == 0 = Just (reverse acc, rest)
+      | c == close = go (d - 1) (IC c : acc) rest
+      | (close == ')' && c == '(') || (close == ']' && c == '[') =
+          go (d + 1) (IC c : acc) rest
+    go d acc (t : rest) = go d (t : acc) rest
+
+parseReducerI :: [ITok] -> Maybe (String, [ITok])
+parseReducerI (IC '(' : rest0) =
+  case dropWhile isSpaceITok rest0 of
+    IC op : rest1 | op `elem` "+*" ->
+      case dropWhile isSpaceITok rest1 of
+        IC ')' : rest2 -> Just ([op], rest2)
+        _ -> Nothing
+    _ -> Nothing
+parseReducerI (II nm : rest)
+  | validSurfaceName nm = Just (nm, rest)
+parseReducerI _ = Nothing
+
+parseSymbolListTx :: [ITok] -> Maybe ([String], [ITok])
+parseSymbolListTx (IC '[' : rest) =
+  let (inside, rest1) = breakSymbolListTx (0 :: Int) [] rest
+  in Just (symbolNamesTx inside, dropWhile isSpaceITok rest1)
+parseSymbolListTx _ = Nothing
+
+breakSymbolListTx :: Int -> [ITok] -> [ITok] -> ([ITok], [ITok])
+breakSymbolListTx _ acc [] = (reverse acc, [])
+breakSymbolListTx d acc (IC ']' : rest)
+  | d == 0 = (reverse acc, rest)
+  | otherwise = breakSymbolListTx (d - 1) (IC ']' : acc) rest
+breakSymbolListTx d acc (IC '[' : rest) =
+  breakSymbolListTx (d + 1) (IC '[' : acc) rest
+breakSymbolListTx d acc (t : rest) = breakSymbolListTx d (t : acc) rest
+
+symbolNamesTx :: [ITok] -> [String]
+symbolNamesTx = go
+  where
+    go [] = []
+    go (II nm : rest) | validSurfaceName nm = nm : go rest
+    go (_ : rest) = go rest
+
+indexedSuffixOnlyI :: [ITok] -> Maybe [IxPart]
+indexedSuffixOnlyI ts =
+  let (parts, rest) = indexedSuffixTx ts
+  in if null (trimTensorIToks rest) then Just parts else Nothing
+
+indexedSuffixTx :: [ITok] -> ([IxPart], [ITok])
+indexedSuffixTx (IC m : II nm : rest)
+  | m == '~' || m == '_' =
+      case parseMarkedPrefix (m : nm) of
+        Just (parts, suffixRest) | null suffixRest ->
+          let (more, rest') = indexedSuffixTx rest
+          in (parts ++ more, rest')
+        _ -> ([], IC m : II nm : rest)
+indexedSuffixTx ts = ([], ts)
+
+trimTensorIToks :: [ITok] -> [ITok]
+trimTensorIToks = dropWhile isSpaceITok . reverse . dropWhile isSpaceITok . reverse . dropWhile isSpaceITok
+
+renderIToks :: [ITok] -> String
+renderIToks = concatMap outI
+  where
+    outI (II w) = w
+    outI (IC c) = [c]
+
+isSpaceITok :: ITok -> Bool
+isSpaceITok (IC c) = isSpace c
+isSpaceITok _ = False
 
 -- Expand operator applications.  Bodies are def-free after resolution,
 -- so one pass suffices; arguments are expanded first.
@@ -473,8 +764,10 @@ validateFieldRefParts m lets w =
 -- components use half-cell differences anchored at the target component
 -- placement (Virieux/Yee); symmetric components are canonicalized.
 ixExpand :: Model -> [String] -> [(String, Int)] -> Placement -> String -> IO String
-ixExpand m lets env anchor expr = expandRegion env (itok expr)
+ixExpand m lets env anchor expr = expandAst env parsedExpr
   where
+    parsedExpr = parseTensorExpr expr
+
     euclideanDeclaredMetric =
       mMetricName m /= Nothing && mMetric m == Nothing && mEmbed m == Nothing
 
@@ -504,6 +797,24 @@ ixExpand m lets env anchor expr = expandRegion env (itok expr)
           e2 <- goR env' 0 [] rest
           return (joinAdd c e1 e2)
     goR env' d cur (t : rest) = goR env' d (t : cur) rest
+
+    expandAst env' ast =
+      case ast of
+        TEBinary "+" lhs rhs -> do
+          e1 <- expandAst env' lhs
+          e2 <- expandAst env' rhs
+          return (joinAddPretty '+' e1 e2)
+        TEBinary "-" lhs rhs -> do
+          e1 <- expandAst env' lhs
+          e2 <- expandAst env' rhs
+          return (joinAddPretty '-' e1 e2)
+        TEWithSymbols names body ->
+          expandWithSymbols env' names (itok (renderTensorExpr body))
+        TEContractWith reducer body ->
+          expandContract env' reducer (itok (renderTensorExpr body))
+        TEDot parts ->
+          expandContract env' "+" (itok (intercalate " * " (map renderTensorExpr parts)))
+        _ -> expandRegion env' (itok (renderTensorExpr ast))
 
     -- one term: explicit contraction is handled by contractWith or `.`;
     -- otherwise unresolved diagonal axes are an error.
@@ -679,6 +990,13 @@ ixExpand m lets env anchor expr = expandRegion env (itok expr)
       | op == '+' && isZeroText e2 = e1
       | op == '-' && isZeroText e2 = e1
       | otherwise = e1 ++ [op] ++ e2
+
+    joinAddPretty op e1 e2
+      | null (strip e1) = [op] ++ e2
+      | op == '+' && isZeroText e1 = e2
+      | op == '+' && isZeroText e2 = e1
+      | op == '-' && isZeroText e2 = e1
+      | otherwise = e1 ++ " " ++ [op] ++ " " ++ e2
 
     isZeroText s = strip s == "0"
 
