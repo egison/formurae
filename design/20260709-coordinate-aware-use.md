@@ -7,7 +7,7 @@ Date: 2026-07-09
 - 2026-07-09: `use exterior-calculus { Δ }` はその後撤去し、
   `Δ`/`Δ4` は `.fe` 側の通常の `def` で書く方針へ移行済み。
   平坦格子用の生成 `.egi` 文脈からも `lap` は外し、
-  `∂2x`/`∂m,rx` と `dTaylor` を低水準プリミティブとして使う。
+  `∂ 2 1 x`/`∂ m r x` と `dTaylor` を低水準プリミティブとして使う。
   `use vector-calculus { divg }` については 2D 例 `examples/divergence2d` で検証済み。
 - 2026-07-09: `use exterior-calculus { Δ }` を実装済み。
   `Δ` は暗黙 prelude ではなく `use` で有効化される。

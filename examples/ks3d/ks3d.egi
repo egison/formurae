@@ -32,6 +32,19 @@ def dF (a: Integer) (u: MathValue) : MathValue := (shift a 1 u - u) / feHsteps_a
 def dB (a: Integer) (u: MathValue) : MathValue := (u - shift a (-1) u) / feHsteps_a
 def dTaylor (m: Integer) (ks: [MathValue]) (a: Integer) (u: MathValue) : MathValue :=
   sum (map (\(c, k) -> c * shift a k u) (zip (taylorStencil m ks) ks)) / (feHsteps_a ^ m)
+def axisId (axis: MathValue) : Integer :=
+  match axis as mathValue with
+    | symbol $v _ ->
+        match v as string with
+          | #"x" -> 1
+          | #"y" -> 2
+          | #"z" -> 3
+          | _ -> 0
+def ∂ (m: Integer) (r: Integer) (axis: MathValue) (u: MathValue) : MathValue :=
+  let a := axisId axis
+   in if m = 1 && r = 1 then dC a u
+      else if m = 2 && r = 1 then dC2 a u
+      else dTaylor m (between (0 - r) r) a u
 def offsetSuffix (o: MathValue) : String :=
   match o as mathValue with
     | #0 -> ""
@@ -142,6 +155,6 @@ def feComps : [String] := ["u"]
 def feInits :=
   [ "  u[i,j,k] = cos(0.28559933214452665*i*dx) + 0.1*cos(0.5711986642890533*i*dx)"
   ]
-def feSteps := [fmrEq "w" (dC2 1 u)] ++ scalarEq "u" (u - dt * (dC 1 (u * u / 2) + w + dC2 1 w))
+def feSteps := [fmrEq "w" (∂ 2 1 x u)] ++ scalarEq "u" (u - dt * (∂ 1 1 x (u * u / 2) + w + ∂ 2 1 x w))
 
 def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feComps feInits feSteps)

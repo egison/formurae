@@ -7,7 +7,7 @@ param κ = 1.0
 param dt = 0.1*dx*dx
 
 extern exp
-def Δ u = ∂2x u + ∂2y u + ∂2z u
+def Δ u = ∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u
 raw gauss = fun(x,y,z) exp(-((x-(total_grid_x*dx/2))/(5*dx))**2 - ((y-(total_grid_y*dy/2))/(5*dy))**2 - ((z-(total_grid_z*dz/2))/(5*dz))**2)
 
 field u : scalar

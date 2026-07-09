@@ -82,8 +82,10 @@
 --   assert-dd-zero NAME'            gate generation on d(d NAME') == 0
 --
 -- Unicode: Greek letters transliterate to their ASCII names (theta,
--- phi, ...); coordinate derivatives are written as ∂x, ∂2x, or ∂m,rx,
--- while ∂_i remains the indexed derivative.  The small delta is the
+-- phi, ...); coordinate derivatives are written as ∂ order radius axis expr
+-- in Formurae (with ∂x expr kept as the first-derivative shorthand) and
+-- lower to the generated Egison operator ∂ order radius axis expr.  The
+-- indexed derivative ∂_i remains distinct.  The small delta is the
 -- codifferential, and the minus sign is '-'.  Higher mathematical
 -- operators such as Δ or Δ4 are ordinary user definitions over these
 -- derivative primitives rather than built-in aliases.
@@ -872,14 +874,16 @@ surfaceBanned m s =
     checkTok (TId nm _)
       | Just msg <- invalidDerivativeOp m nm =
           Just msg
+      | nm == "badPartialDerivative" =
+          Just "coordinate derivative must be written ∂ order radius axis expr, e.g. ∂ 2 1 x u; ∂x u is the only compact shorthand"
       | Just ax <- stripPrefix "d_" nm, ax `elem` mAxes m =
           Just ("coordinate derivative must be written ∂" ++ ax
                 ++ "; ∂_" ++ ax ++ " and d_" ++ ax ++ " are not part of Formurae")
       | Just ax <- stripPrefix "d2_" nm, ax `elem` mAxes m =
-          Just ("d2 is not an operator; write ∂" ++ ax ++ " (∂" ++ ax
-                ++ " u) for the second difference: " ++ nm)
+          Just ("d2 is not an operator; write ∂ 2 1 " ++ ax
+                ++ " u for the compact second difference: " ++ nm)
       | take 3 nm == "d2_" =
-          Just ("d2 is not an operator; write ∂a (∂a u) for the second difference: " ++ nm)
+          Just ("d2 is not an operator; write ∂ 2 1 a u for the compact second difference: " ++ nm)
       | ("delta" : ps) <- splitOn '_' nm, any ((> 1) . length) ps =
           Just ("Kronecker delta takes one index per mark (delta~i_j): " ++ nm)
     checkTok _ = Nothing
@@ -1340,21 +1344,20 @@ lbExpansion m =
 mathOps :: Model -> String -> String
 mathOps m = concatMap out . tokenize
   where
-    axmap = zip (mAxes m) (map show (axisRange m))
+    axmap = zip (mAxes m) (internalCoordNames m)
     out (TId nm pr)
       | not pr, Just (ordr, radius, ax) <- derivativeOpParts nm
-      , Just n <- lookup ax axmap =
-          derivativeCall ordr radius n
-      | not pr, Just rest <- stripPrefix "pd2_" nm, Just n <- lookup rest axmap = "dC2 " ++ n
-      | not pr, Just rest <- stripPrefix "pd_" nm, Just n <- lookup rest axmap = "dC " ++ n
+      , Just axis <- lookup ax axmap =
+          derivativeCall ordr radius axis
+      | not pr, Just rest <- stripPrefix "pd2_" nm, Just axis <- lookup rest axmap =
+          derivativeCall 2 1 axis
+      | not pr, Just rest <- stripPrefix "pd_" nm, Just axis <- lookup rest axmap =
+          derivativeCall 1 1 axis
       | otherwise = nm ++ (if pr then "'" else "")
     out (TC c) = [c]
-    derivativeCall 1 1 n = "dC " ++ n
-    derivativeCall 2 1 n = "dC2 " ++ n
-    derivativeCall ordr radius n =
-      "dTaylor " ++ show ordr ++ " " ++ stencil radius ++ " " ++ n
-    stencil radius =
-      "[" ++ intercalate ", " (map show [-radius .. radius]) ++ "]"
+    derivativeCall :: Int -> Int -> String -> String
+    derivativeCall ordr radius axis =
+      "∂ " ++ show ordr ++ " " ++ show radius ++ " " ++ axis
 
 derivativeOpParts :: String -> Maybe (Int, Int, String)
 derivativeOpParts nm = do
@@ -1584,6 +1587,20 @@ emit m = do
             , "def dTaylor (m: Integer) (ks: [MathValue]) (a: Integer) (u: MathValue) : MathValue :="
             , "  sum (map (\\(c, k) -> c * shift a k u) (zip (taylorStencil m ks) ks)) / (feHsteps_a ^ m)"
             ]
+            ++ [ "def axisId (axis: MathValue) : Integer :="
+               , "  match axis as mathValue with"
+               , "    | symbol $v _ ->"
+               , "        match v as string with"
+               ]
+            ++ [ "          | #\"" ++ c ++ "\" -> " ++ show a
+               | (c, a) <- zip internalCoords axisIds ]
+            ++ [ "          | _ -> 0"
+               , "def ∂ (m: Integer) (r: Integer) (axis: MathValue) (u: MathValue) : MathValue :="
+               , "  let a := axisId axis"
+               , "   in if m = 1 && r = 1 then dC a u"
+               , "      else if m = 2 && r = 1 then dC2 a u"
+               , "      else dTaylor m (between (0 - r) r) a u"
+               ]
       vectorContextDecls =
             dGradDecls
             ++ (if hasUse m "vector-calculus" "curl" then curlDecls else [])
@@ -2082,12 +2099,12 @@ emit m = do
     rawGridPoint = "[" ++ intercalate "," (internalIndexNames m) ++ "]"
 
 -- Unicode input: Greek letters transliterate to their ASCII names.  A
--- partial-derivative sign followed by an optional derivative order,
--- optional stencil radius, and an axis name is a coordinate derivative:
--- `∂x`, `∂2x`, `∂2,2x`.  A subscripted partial (`∂_i`) is the indexed
--- derivative.  `∂_x` is therefore rejected when x is a declared axis.
--- A bare partial sign still becomes d.  The small delta becomes the
--- codifferential, and the minus sign becomes '-'.
+-- partial-derivative sign followed by `order radius axis` is a coordinate
+-- derivative: `∂ 2 1 x u`, `∂ 2 2 x u`.  The compact spelling `∂x` is
+-- kept as the first-derivative shorthand.  A subscripted partial (`∂_i`)
+-- is the indexed derivative.  `∂_x` is therefore rejected when x is a
+-- declared axis.  A bare partial sign still becomes d.  The small delta
+-- becomes the codifferential, and the minus sign becomes '-'.
 transliterate :: String -> String
 transliterate = go
   where
@@ -2098,29 +2115,44 @@ transliterate = go
         Just ((ordr, radius, ax), rest) ->
           "pd" ++ show ordr ++ "r" ++ show radius ++ "_"
           ++ concatMap tr ax ++ go rest
+        Nothing | oldCompactDerivative cs ->
+          "badPartialDerivative " ++ go cs
         Nothing -> "d" ++ go cs
     go (c:cs) = tr c ++ go cs
 
     coordDerivative cs =
+      spacedDerivative cs `orElse` firstDerivativeShorthand cs
+
+    firstDerivativeShorthand cs =
       case cs of
         c:_ | isAlpha c ->
           let (ax, rest) = span isW cs
           in Just ((1 :: Int, 1 :: Int, ax), rest)
-        c:_ | isDigit c ->
-          let (mDigits, rest1) = span isDigit cs
-          in case rest1 of
-               ',':r2 ->
-                 let (rDigits, rest3) = span isDigit r2
-                 in case rest3 of
-                      a:_ | not (null rDigits), isAlpha a ->
-                        let (ax, rest4) = span isW rest3
-                        in Just ((read mDigits, read rDigits, ax), rest4)
-                      _ -> Nothing
-               a:_ | isAlpha a ->
-                 let (ax, rest2) = span isW rest1
-                 in Just ((read mDigits, 1 :: Int, ax), rest2)
-               _ -> Nothing
         _ -> Nothing
+
+    oldCompactDerivative cs =
+      case dropWhile isSpace cs of
+        c:_ -> isDigit c
+        _ -> False
+
+    spacedDerivative cs = do
+      let r0 = dropWhile isSpace cs
+      (mDigits, r1) <- digits r0
+      let r2 = dropWhile isSpace r1
+      (rDigits, r3) <- digits r2
+      let r4 = dropWhile isSpace r3
+      case r4 of
+        a:_ | isAlpha a ->
+          let (ax, rest) = span isW r4
+          in Just ((read mDigits, read rDigits, ax), rest)
+        _ -> Nothing
+
+    digits s =
+      let (ds, rest) = span isDigit s
+      in if null ds then Nothing else Just (ds, rest)
+
+    orElse (Just x) _ = Just x
+    orElse Nothing y = y
 
     tr '\952' = "theta"    -- θ
     tr '\966' = "phi"      -- φ

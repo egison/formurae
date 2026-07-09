@@ -12,7 +12,7 @@ param κ = 1.0
 param dt = 0.00002
 
 extern sin
-def Δ u = ∂2x u + ∂2y u + ∂2z u
+def Δ u = ∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u
 raw # fundamental Dirichlet mode: nodes at the ghost walls i = -1, i = 64
 
 field u : scalar

@@ -66,9 +66,9 @@ u' = u + dt * Δ u
 `Δ` は組み込みではなく、この例では `def Δ u = lb u` として定義している。
 生成 `.fmr` でも `axes :: theta,phi,z` となり、格子幅や C ドライバの名前も
 `dtheta`、`dphi`、`space_interval_theta` のように宣言した軸名に追随する。
-基本演算子だけでも書ける: `∂x u` は1階中心差分、`∂2x u` は2階中心差分、
-`∂2,2x u` は半径2の5点 stencil で導出される2階差分になる。
-平坦格子の Laplacian は、例えば `def Δ u = ∂2x u + ∂2y u + ∂2z u` と書く。
+基本演算子だけでも書ける: `∂x u` は1階中心差分、`∂ 2 1 x u` は2階中心差分、
+`∂ 2 2 x u` は半径2の5点 stencil で導出される2階差分になる。
+平坦格子の Laplacian は、例えば `def Δ u = ∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u` と書く。
 
 `dimension` は 1、2、3 を指定できる。スカラー、ベクトル、添字付き rank-1、
 対称/反対称/full rank-2 field、微分形式 `k-form` は宣言次元に応じた成分数で
@@ -122,10 +122,10 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
 | `fec/` + `fec.cabal` | **Formurae コンパイラ**: 表層言語 Formurae(.fe;`field E : vector`・`E' = E + dt * curl B`・`B' = B - dt * d E'`)を埋め込み形 .egi に変換。Haskell(base のみ)、リポジトリ直下で `cabal build` / `cabal run -v0 fec -- model.fe`。意味論は Egison 側に一本化した薄い変換層 |
 | `lib/fmrgen.egi` | 生成コア: Taylor 条件から係数を導出する **`taylorStencil`**、quote cleanup、形式補助などの座標非依存基盤 |
 | `lib/fmrlegacy3d.egi` | まだ `.fe` 化していない手書き `.egi` 例のための 3D 互換文脈。`.fe` 由来の生成物では使わない |
-| `examples/diffusion1d/` | 1D 拡散方程式。`def Δ u = ∂2x u` と書き、check driver が質量保存とピーク減衰を検査 |
+| `examples/diffusion1d/` | 1D 拡散方程式。`def Δ u = ∂ 2 1 x u` と書き、check driver が質量保存とピーク減衰を検査 |
 | `examples/diffusion2d/` | 2D 拡散方程式。`dimension 2` と `axes x, y` に応じて Formura/C の配列・Navi・Laplacian が2次元化される |
 | `examples/divergence2d/` | 2D 発散演算子の smoke test。`use vector-calculus { divg }` で生成される `dGrad`/`divg` が `dimension 2` 文脈で動くことを、中心差分の離散記号と比較して検査 |
-| `examples/diffusion3d/` | 3D 拡散方程式(`def Δ u = ∂2x u + ∂2y u + ∂2z u` で Laplacian を定義し、物理は `u' = u + dt * κ * Δ u` の1行) |
+| `examples/diffusion3d/` | 3D 拡散方程式(`def Δ u = ∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u` で Laplacian を定義し、物理は `u' = u + dt * κ * Δ u` の1行) |
 | `examples/maxwell3d/` | Maxwell 方程式(**E・B がベクトル場**。`use vector-calculus { curl }` で回転を有効化し、全ベクトル更新2本から ε 縮約 curl の collocated 格子コードを生成) |
 | `examples/maxwell3d_yee/` | **Yee-FDTD**(E=辺・B=面のスタガード格子+leapfrog。場ごとの配置オフセット宣言から教科書どおりの FDTD を生成) |
 | `examples/maxwell_dec/` | **Maxwell(微分形式/DEC)**(`use exterior-calculus { d, δ }` で外微分・余微分を有効化。E=1-form・B=2-form の**次数宣言だけ**で Yee 配置を導出。B の storage は `B_1_2,B_1_3,B_2_3` の幾何基底名。d∘d=0 を CAS が生成時に検査し、check driver がエネルギー・伝播・divB を検証) |
@@ -174,7 +174,8 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
   Yee 配置なら curl の全項が整数オフセット(袖幅1)に落ちる。
 - **座標文脈つき `use`**: `use` または計量宣言を持つモデルでは、生成 `.egi` に
   `feDim`・`feAxes`・`feAxisIds`・`feCoords`・`feHsteps` と、その文脈を参照する
-  `shift`/`dC`/`dC2`/`dTaylor`、必要に応じて `curl`/`divg` や `dForm`/`codiff`、さらに `.fmr` プリンタを出す。
+  `shift`/`dC`/`dC2`/`dTaylor` と表向きの `∂ order radius axis expr`、
+  必要に応じて `curl`/`divg` や `dForm`/`codiff`、さらに `.fmr` プリンタを出す。
   `extern` は Formura/C 側のスカラー関数、`use` は Formurae が生成する数学演算子として分けている。
 - **離散微分形式(DEC)**: 形式は「(複体, 次数, 成分)」の3つ組で、**格子配置は複体と次数だけ
   から決まる**。`dimension n` の `k-form` は昇順の k 個の軸組
@@ -222,7 +223,7 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
 - **Pearson 反応拡散(Formura 論文 Listing 1 の再現)**(64³、dt = 200s、40,000 step、TB4):
   実行 78 秒。FHPC'16 と同一の方程式・パラメタ(Fu=1/86400 等)。値は範囲内・NaN なし・
   V コロニーが自己複製し、論文 Figure 7 と同じ Gray-Scott スポットパターンが創発。
-  物理の記述は2行で、Laplacian は `.fe` 側の `def Δ u = ∂2x u + ∂2y u + ∂2z u` と同じ形。
+  物理の記述は2行で、Laplacian は `.fe` 側の `def Δ u = ∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u` と同じ形。
 - **Burgers**(128×8×8、ν=0.05、5000 step、TB4): **Cole–Hopf 厳密解と max 誤差 3.5e-5**
   (離散化誤差オーダー)。非線形積項 u·∂u の生成を解析解で機械検証。0.4 秒。
 - **Cahn–Hilliard**(64×64×32、25,000 step): 質量(reduces 経由)**12桁保存**、
@@ -274,8 +275,8 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
   アトラクタ統計(rms=0.916 ∈ [0.8,2.2]、|u|max=1.81 有界)で検証。
   保存形の非線形項+望遠鏡和により **Σu ドリフト 5.4e-12**(60万 step 後)。7 秒。
 - **4次精度スキーム自動導出**(64×8×8、100 step): 5点係数 (−1/12, 4/3, −5/2, 4/3, −1/12)
-  は**ソースのどこにも書かれておらず**、`.fe` の `def Δ4 u = ∂2,2x u + ∂2,2y u + ∂2,2z u`
-  から生成される `taylorStencil 2 [-2..2]` が Taylor 条件の連立を
+  は**ソースのどこにも書かれておらず**、`.fe` の `def Δ4 u = ∂ 2 2 x u + ∂ 2 2 y u + ∂ 2 2 z u`
+  から生成される Egison 式 `∂ 2 2 x u` が `taylorStencil 2 [-2..2]` を呼び、Taylor 条件の連立を
   厳密有理数のガウス消去で解いて導出(.fmr ヘッダに導出値をコメント出力)。単一 Fourier
   モードの振幅比が導出ステンシルの厳密離散シンボル (1+λ₄dt)ⁿ と **4.4e-16 で一致**、
   残差 \|λ₄+k²\| = 4.17e-3 は4次理論値 k⁶h⁴/90 = 4.23e-3 の 98.6%(2次の 1/49)。0.1 秒。
