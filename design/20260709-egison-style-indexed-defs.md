@@ -2,11 +2,12 @@
 
 Date: 2026-07-09
 
-Follow-up: このメモは「Formurae に一般的な添字補完器を実装しない」という
-保守的な境界を記録したものだが、その後の方針として、Egison と同じ
-`.` / `contractWith` を Formurae の AST に持たせ、添字つき `def` を
-prelude 的な数式定義へ広げる方向を採る。詳細は
-`design/20260709-dot-contractwith-tensor-operators.md` を参照する。
+Superseded: このメモは「Formurae に一般的な添字補完器を実装しない」という
+保守的な境界を記録した履歴文書である。現行方針では、Egison と同じ
+`.` / `contractWith` / `withSymbols` を Formurae の AST に持たせ、添字つき `def` を
+prelude 的な数式定義へ広げる。詳細は
+`design/20260709-dot-contractwith-tensor-operators.md` と
+`design/20260709-indexed-expr-ast-implementation.md` を参照する。
 
 ## 目的
 
@@ -178,8 +179,15 @@ def grad u = ∂_i u
 def curl X = epsilon~i~j~k . ∂_j X_k
 ```
 
-この種類の数式抽象は Egison 側で定義する。Formurae は必要な定義を `use` に応じて
-生成 `.egi` に出す。
+現行仕様でも、`withSymbols` なしで新しい自由添字を導入するこの形は採用しない。
+現行仕様では次のように `withSymbols` で局所添字を導入する。
+
+```text
+def grad u = withSymbols [i] ∂_i u
+```
+
+この履歴メモを書いた時点では、この種類の数式抽象は Egison 側で定義し、
+Formurae は必要な定義を `use` に応じて生成 `.egi` に出す方針だった。
 
 ## 6. 実装状態
 
@@ -200,7 +208,7 @@ def curl X = epsilon~i~j~k . ∂_j X_k
 
 - `def curl X~i = ...` や `def grad u_i = ...` を Formurae の目標構文として紹介しない
 - `curl` / `divg` は `use` で生成される Egison 定義として説明する
-- Formurae には一般的な添字補完器を実装しないことを明記する
+- この履歴文書では、Formurae には一般的な添字補完器を実装しないことを明記する
 
 ### Step 2: 既存実装の境界を明確にする
 
