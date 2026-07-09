@@ -12,7 +12,7 @@ EGISON_DIR ?= $(abspath ../egison)
 FORMURA    ?= $(abspath bin/formura)
 MPISTUB    := $(abspath mpistub)
 FMRGEN     := $(abspath lib/fmrgen.egi)
-FMRDSL     := $(abspath lib/fmrdsl.egi)
+FMRLEGACY3 := $(abspath lib/fmrlegacy3d.egi)
 
 CC      ?= cc
 CFLAGS  ?= -O2 -std=c11
@@ -77,14 +77,14 @@ endef
 define FE_RULE
 $(1):
 	$$(FEC_RUN) $$(abspath examples/$(1)/$(1).fe) > $$(abspath examples/$(1)/$(1).egi)
-	$$(EGISON_RUN) -l $$(FMRGEN) -l $$(FMRDSL) $$(abspath examples/$(1)/$(1).egi) \
+	$$(EGISON_RUN) -l $$(FMRGEN) $$(abspath examples/$(1)/$(1).egi) \
 	  > $$(abspath examples/$(1)/$(1).fmr)
 	$$(call BUILD_AND_CHECK,$(1))
 endef
 
 define EGI_RULE
 $(1):
-	$$(EGISON_RUN) -l $$(FMRGEN) $$(abspath examples/$(1)/$(1).egi) \
+	$$(EGISON_RUN) -l $$(FMRGEN) -l $$(FMRLEGACY3) $$(abspath examples/$(1)/$(1).egi) \
 	  > $$(abspath examples/$(1)/$(1).fmr)
 	$$(call BUILD_AND_CHECK,$(1))
 endef

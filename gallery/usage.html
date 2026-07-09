@@ -62,7 +62,7 @@
 <pre>
 model.fe    Formurae ソース: field 宣言+数式(添字記法・微分形式・計量・ユーザ定義演算子)
    │  fec(Haskell; cabal build / cabal run -v0 fec --)
-model.egi   埋め込み形(生成中間物; lib/fmrgen.egi + lib/fmrdsl.egi 上の Egison)
+model.egi   埋め込み形(生成中間物; 座標文脈・演算子・プリンタを含む Egison)
    │  Egison の CAS が添字・微分形式・計量を記号的に展開
 model.fmr   Formura ソース(全更新式が具体的なステンシルに)
    │  Formura(fork; bin/formura)
@@ -169,8 +169,8 @@ make diffusion3d
 <tr><td><code>fec</code> 組み込み変換</td><td><code>d ω</code>, <code>δ ω</code> / <code>delta ω</code> / <code>codiff ω</code></td><td><code>field E : 1-form</code> などの形式場では、<code>use exterior-calculus</code> で有効化されたときに生成 Egison の <code>dForm</code>/<code>codiff</code> 呼び出しへ下ろす</td></tr>
 <tr><td><code>fec</code> 組み込み変換</td><td><code>δ (d u)</code></td><td>スカラー場では <code>-lap u</code>、計量付きモデルでは <code>-lb u</code> に下ろす。<code>use</code> で有効化された <code>Δ</code> はこの規則を使う</td></tr>
 <tr><td>Formura/extern 組み込み</td><td><code>sin</code>, <code>cos</code>, <code>exp</code>, <code>sqrt</code>, <code>fabs</code> など</td><td>スカラー関数。テンソル成分に適用されると成分ごとへ lift され、不足する <code>extern function :: ...</code> は <code>fec</code> が自動で出す</td></tr>
-<tr><td>生成 .egi の座標文脈定義</td><td><code>lap</code>, <code>dGrad</code>, <code>curl</code>, <code>divg</code>, <code>dForm</code>, <code>codiff</code></td><td><code>.fe</code> の prelude ではなく、<code>fec</code> が <code>dimension</code>/<code>axes</code>/<code>metric</code> から生成する定義。基盤とプリンタは <code>lib/fmrgen.egi</code> が提供する</td></tr>
-<tr><td>生成先 Egison ライブラリ</td><td><code>Δ4</code>, <code>taylorStencil</code>, <code>dTaylor</code></td><td>座標非依存の導出・プリンタ基盤として <code>lib/fmrgen.egi</code> に残る</td></tr>
+<tr><td>生成 .egi の座標文脈定義</td><td><code>lap</code>, <code>dGrad</code>, <code>curl</code>, <code>divg</code>, <code>dForm</code>, <code>codiff</code>, <code>dTaylor</code>, <code>Δ4</code>, <code>showFmr</code>, <code>emitModelOn</code></td><td><code>.fe</code> の prelude ではなく、<code>fec</code> が <code>dimension</code>/<code>axes</code>/<code>metric</code> から生成する定義</td></tr>
+<tr><td>生成先 Egison ライブラリ</td><td><code>taylorStencil</code>, <code>unquoteAll</code>, <code>formComps</code>, <code>scaleForm</code></td><td>座標非依存の小さな core として <code>lib/fmrgen.egi</code> に残る</td></tr>
 </table>
 
 <h3>use / ライブラリ定義</h3>
@@ -210,7 +210,7 @@ def codiff (f: (Integer, Integer, [MathValue])) : (Integer, Integer, [MathValue]
 
 def δ := codiff
 </pre>
-<p><code>Δ4</code>、<code>taylorStencil</code>、<code>dTaylor</code>、.fmr プリンタなどの座標非依存部分は、引き続き <code>lib/fmrgen.egi</code> の共通ライブラリ定義を使います。</p>
+<p><code>taylorStencil</code>、quote cleanup、形式補助などの座標非依存部分だけが <code>lib/fmrgen.egi</code> に残ります。<code>dTaylor</code>、<code>Δ4</code>、.fmr プリンタは生成 `.egi` 側に出ます。</p>
 
 <h3>演算子リファレンス(数式のまま書く)</h3>
 <table>
@@ -303,9 +303,10 @@ python3 gallery/tools/embed_src.py<span class="c"># カードに .fe / .egi / .f
 <h2 id="layers">9. 3層構造と検証の考え方</h2>
 <ul>
 <li><b>.fe</b> が唯一の編集対象。<b>.egi は生成中間物</b>(ヘッダに GENERATED 印。意味論は
-    <code>lib/fmrgen.egi</code>(差分コンビネータ・DEC・taylorStencil・プリンタ)と
-    <code>lib/fmrdsl.egi</code>(モデル組み立て)にあり、デバッグ時に読むと役立つ)。
-    一部の例(Yee・LBM・MHD・音響)はまだ埋め込み形で直接書かれている。</li>
+    座標文脈・差分コンビネータ・DEC・プリンタを含む。<code>lib/fmrgen.egi</code> は
+    <code>taylorStencil</code> などの小さな core に縮小した。
+    一部の例(Yee・LBM・MHD・音響)はまだ埋め込み形で直接書かれており、
+    それらだけ <code>lib/fmrlegacy3d.egi</code> を読む。</li>
 <li>リファクタや DSL 拡張の際の意味保存は「<b>生成 .fmr のバイト一致</b>」で検証するのが本リポジトリの
     流儀 — 記法を変えても同じ機械コードに落ちることが証明になる(例: 弾性波は成分手書き → generateTensor →
     Einstein 添字 .fe と3世代進化して .fmr は不変)。</li>

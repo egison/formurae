@@ -8,7 +8,7 @@
 --   generated stencils have radius 1 (TB-safe), and div B = 0 is
 --   preserved exactly by the discrete update.
 --
--- Run: egison -l fmrgen.egi maxwell3d_yee.egi > maxwell3d_yee.fmr
+-- Run: egison -l fmrgen.egi -l fmrlegacy3d.egi maxwell3d_yee.egi > maxwell3d_yee.fmr
 --
 
 declare symbol dt

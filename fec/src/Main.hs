@@ -3,13 +3,15 @@
 -- Formurae (.fe) is the mathematical surface language of this repo,
 -- named after Muranushi's Formura (its Latin-looking plural, and a pun
 -- on "formulae").  fec translates it into the embedded DSL form: an
--- Egison program over lib/fmrgen.egi + lib/fmrdsl.egi.  All semantics
--- (tensor index notation, differential forms, CAS expansion, the .fmr
--- printer) live on the Egison side; this is a thin, line-oriented
--- translator.  Base library only; build and run with
+-- Egison program that carries its own coordinate context, mathematical
+-- operators, and .fmr printer, while using lib/fmrgen.egi only for
+-- small coordinate-free helpers.  Tensor index notation, differential
+-- forms, CAS expansion, and printing are still expressed as generated
+-- Egison code; this is a thin, line-oriented translator.  Base library
+-- only; build and run with
 --
 --   cabal run -v0 fec -- model.fe > model.egi
---   egison -l lib/fmrgen.egi -l lib/fmrdsl.egi model.egi > model.fmr
+--   egison -l lib/fmrgen.egi model.egi > model.fmr
 --
 -- Formurae grammar (v1):
 --   -- comment                      (kept out of the output)
@@ -38,8 +40,8 @@
 --                                    with exterior-calculus { Δ } and
 --                                    vector-calculus { curl, divg }.
 --                                    Δ injects def Δ u = 0 - delta (d u);
---                                    vector operators use lib/fmrgen.egi
---                                    under the current coordinate context.
+--                                    vector operators are generated under
+--                                    the current coordinate context.
 --   def NAME ARG(~i|_i)* = EXPR     user-defined operator, expanded at use
 --                                    sites (file scope; a body may use only
 --                                    operators defined before it).  A use
@@ -1112,12 +1114,15 @@ emit m = do
     (Nothing, _, _) -> return Nothing
   let internalCoords = take (mDim m) ["x", "y", "z"]
       internalHsteps = take (mDim m) ["hx", "hy", "hz"]
+      internalGridSteps = take (mDim m) ["dx", "dy", "dz"]
+      internalIndexVars = take (mDim m) ["i", "j", "k"]
       coordVec = "[| " ++ intercalate ", " internalCoords ++ " |]"
       hstepVec = "[| " ++ intercalate ", " internalHsteps ++ " |]"
       stringList xs = "[" ++ intercalate ", " (map show xs) ++ "]"
       coordArgs = intercalate ", " internalCoords
       axisIds = [1 .. mDim m]
       axisList = "[" ++ intercalate ", " (map show axisIds) ++ "]"
+      symbolDecl = "declare symbol " ++ intercalate ", " (internalCoords ++ internalHsteps)
       axisPairList =
         "[" ++ intercalate ", " [ "(" ++ show a ++ ", " ++ show b ++ ")"
                                 | a <- axisIds, b <- axisIds ] ++ "]"
@@ -1127,22 +1132,30 @@ emit m = do
       hasVec names = any (hasUse m "vector-calculus") names
       needsVectorContext = hasVec ["dGrad", "curl", "divg"]
       needsFormContext = hasExt ["d", "delta", "codiff", "dForm", "hodge"] || mDd m /= Nothing
-      needsYeeContext = mtx /= Nothing || needsFormContext
-      contextDecls
-        | null (mUses m) && mMetric m == Nothing && mEmbed m == Nothing = []
-        | otherwise =
-            [ "def feDim : Integer := " ++ show (mDim m)
+      needsStaggeredContext = any (\(_, k) -> k == Vector True || k == SymM) (mFlds m)
+      needsYeeContext = mtx /= Nothing || needsFormContext || needsStaggeredContext
+      symbolCase sym repl = "    | #\"" ++ sym ++ "\" -> \"" ++ repl ++ "\""
+      contextDecls =
+            [ symbolDecl
+            , "def feDim : Integer := " ++ show (mDim m)
             , "def feAxes : [String] := " ++ stringList (mAxes m)
             , "def feAxisIds : [Integer] := " ++ axisList
             , "def feCoords : Vector MathValue := " ++ coordVec
             , "def feHsteps : Vector MathValue := " ++ hstepVec
+            , "def coords : Vector MathValue := feCoords"
+            , "def hsteps : Vector MathValue := feHsteps"
+            , "def axisName (a: Integer) : String := nth a " ++ stringList internalIndexVars
+            , "def symName (v: String) : String :="
+            , "  match v as string with"
             ]
-      contextMathDecls
-        | null contextDecls = []
-        | otherwise = scalarContextDecls
-                      ++ (if needsVectorContext then vectorContextDecls else [])
-                      ++ (if needsYeeContext then yeeContextDecls else [])
-                      ++ (if needsFormContext then formContextDecls else [])
+            ++ [ symbolCase h g | (h, g) <- zip internalHsteps internalGridSteps ]
+            ++ [ symbolCase c ("(" ++ ix ++ "*" ++ g ++ ")")
+               | (c, ix, g) <- zip3 internalCoords internalIndexVars internalGridSteps ]
+            ++ [ "    | _ -> v" ]
+      contextMathDecls = scalarContextDecls
+                         ++ (if needsVectorContext then vectorContextDecls else [])
+                         ++ (if needsYeeContext then yeeContextDecls else [])
+                         ++ (if needsFormContext then formContextDecls else [])
       scalarContextDecls =
             [ "def shift (a: Integer) (c: MathValue) (u: MathValue) : MathValue :="
             , "  substitute [(feCoords_a, feCoords_a + c * feHsteps_a)] u"
@@ -1153,6 +1166,10 @@ emit m = do
             , "def dF (a: Integer) (u: MathValue) : MathValue := (shift a 1 u - u) / feHsteps_a"
             , "def dB (a: Integer) (u: MathValue) : MathValue := (u - shift a (-1) u) / feHsteps_a"
             , "def lap (u: MathValue) : MathValue := sum (map (\\a -> dC2 a u) feAxisIds)"
+            , "def dTaylor (m: Integer) (ks: [MathValue]) (a: Integer) (u: MathValue) : MathValue :="
+            , "  sum (map (\\(c, k) -> c * shift a k u) (zip (taylorStencil m ks) ks)) / (feHsteps_a ^ m)"
+            , "def \916\&4 (u: MathValue) : MathValue :="
+            , "  sum (map (\\a -> dTaylor 2 [-2, -1, 0, 1, 2] a u) feAxisIds)"
             ]
       vectorContextDecls =
             [ "def dGrad (X: Vector MathValue) : Matrix MathValue :="
@@ -1200,6 +1217,137 @@ emit m = do
             , "def codiff (f: (Integer, Integer, [MathValue])) : (Integer, Integer, [MathValue]) :="
             , "  scaleForm ((-1) ^ (feDim * (formDeg f + 1) + 1)) (hodge (dForm (hodge f)))"
             , "def \948 := codiff"
+            ]
+      printerContextDecls =
+            [ "def offsetSuffix (o: MathValue) : String :="
+            , "  match o as mathValue with"
+            , "    | #0 -> \"\""
+            , "    | #1 -> \"+1\""
+            , "    | #2 -> \"+2\""
+            , "    | #3 -> \"+3\""
+            , "    | #(-1) -> \"-1\""
+            , "    | #(-2) -> \"-2\""
+            , "    | #(-3) -> \"-3\""
+            , "    | #(1 / 2) -> \"+1/2\""
+            , "    | #(-1 / 2) -> \"-1/2\""
+            , "    | #(3 / 2) -> \"+3/2\""
+            , "    | #(-3 / 2) -> \"-3/2\""
+            , "    | _ -> S.concat [\"+(\", show o, \")\"]"
+            , "def gridIndex (a: Integer) (arg: MathValue) : String :="
+            , "  S.append (axisName a) (offsetSuffix ((arg - coords_a) / hsteps_a))"
+            , "def axisLetter (s: String) : String :="
+            , "  match s as string with"
+            , "    | #\"1\" -> \"x\""
+            , "    | #\"2\" -> \"y\""
+            , "    | #\"3\" -> \"z\""
+            , "    | _ -> \"\""
+            , "def fmrFieldName (nm: String) : String :="
+            , "  let ps := S.split \"_\" nm"
+            , "   in if length ps >= 2 && all (\\p -> not (axisLetter p = \"\")) (tail ps)"
+            , "        then let letters := S.concat (map axisLetter (tail ps))"
+            , "              in match S.split \"'\" (head ps) as list string with"
+            , "                   | [$b, #\"\"] -> S.concat [b, letters, \"'\"]"
+            , "                   | _ -> S.concat [head ps, letters]"
+            , "        else nm"
+            , "def gridRef (g: MathValue) (args: [MathValue]) : String :="
+            , "  S.concat"
+            , "    [fmrFieldName (show g), \"[\","
+            , "     S.intercalate \",\" (map (\\(a, arg) -> gridIndex a arg) (zip feAxisIds args)),"
+            , "     \"]\"]"
+            , "def wrapNeg (s: String) : String :="
+            , "  if S.head s = '-' then S.concat [\"(\", s, \")\"] else s"
+            , "def applyName g := mathFunctionName g"
+            , "def showFactor (f: MathValue) : String :="
+            , "  match f as mathValue with"
+            , "    | func $g $args -> gridRef g args"
+            , "    | apply1 $g $a1 -> S.concat [applyName g, \"(\", showFmr a1, \")\"]"
+            , "    | quote $e -> S.concat [\"(\", showFmr e, \")\"]"
+            , "    | symbol $v _ -> symName v"
+            , "    | _ -> S.concat [\"(\", showFmr f, \")\"]"
+            , "def showPow (f: MathValue) (n: Integer) : String :="
+            , "  if n = 1 then showFactor f else S.concat [showFactor f, \"**\", show n]"
+            , "def coefPQ (c: MathValue) : (String, String) :="
+            , "  match c as mathValue with"
+            , "    | $p / $q -> (show p, show q)"
+            , "def showTerm (t: MathValue) : String :="
+            , "  match t as mathValue with"
+            , "    | term $c $xs ->"
+            , "        let (cp, cq) := coefPQ c"
+            , "         in let numFs := map (\\(f, n) -> showPow f n) (filter (\\(f, n) -> n > 0) xs)"
+            , "         in let denFs := map (\\(f, n) -> showPow f (0 - n)) (filter (\\(f, n) -> n < 0) xs)"
+            , "         in let numParts := if cp = \"1\" && not (numFs = []) then numFs"
+            , "                              else wrapNeg cp :: numFs"
+            , "         in let denParts := (if cq = \"1\" then [] else [cq]) ++ denFs"
+            , "         in let numStr := S.intercalate \"*\" numParts"
+            , "         in if denParts = []"
+            , "              then numStr"
+            , "              else S.concat [numStr, \"/(\", S.intercalate \"*\" denParts, \")\"]"
+            , "def showPoly (p: MathValue) : String :="
+            , "  match p as mathValue with"
+            , "    | #0 -> \"0\""
+            , "    | poly $ts / _ -> S.intercalate \" + \" (map showTerm ts)"
+            , "def showFmr (e: MathValue) : String :="
+            , "  match e as mathValue with"
+            , "    | #0 -> \"0\""
+            , "    | $nu / #1 -> showPoly nu"
+            , "    | $nu / $de -> S.concat [\"(\", showPoly nu, \")/(\", showPoly de, \")\"]"
+            , "def fmrEq (lhs: String) (rhs: MathValue) : String :="
+            , "  S.concat [\"  \", lhs, \" = \", showFmr rhs]"
+            , "def feGridPoint : String := S.intercalate \",\" (map axisName feAxisIds)"
+            , "def fmrInit (lhs: String) (rhs: MathValue) : String :="
+            , "  S.concat [\"  \", lhs, \"[\", feGridPoint, \"] = \", showFmr rhs]"
+            , "def compSuffixes (k: Integer) : [String] :="
+            , "  if k = 0 then [\"\"]"
+            , "    else if k = 1 then [\"x\", \"y\", \"z\"]"
+            , "    else [\"xx\", \"yy\", \"zz\", \"xy\", \"xz\", \"yz\"]"
+            , "def compNames (f: (String, Integer)) : [String] :="
+            , "  let (nm, k) := f"
+            , "   in map (\\s -> S.append nm s) (compSuffixes k)"
+            , "def allComps (flds: [(String, Integer)]) : [String] :="
+            , "  foldl (\\acc f -> acc ++ compNames f) [] flds"
+            , "def vecEqs (nm: String) (c1: MathValue) (c2: MathValue) (c3: MathValue) : [String] :="
+            , "  [ fmrEq (S.concat [nm, \"x'\"]) c1"
+            , "  , fmrEq (S.concat [nm, \"y'\"]) c2"
+            , "  , fmrEq (S.concat [nm, \"z'\"]) c3"
+            , "  ]"
+            , "def scalarEq (nm: String) (c: MathValue) : [String] := [fmrEq (S.append nm \"'\") c]"
+            , "def symEqs (nm: String) (cxx: MathValue) (cyy: MathValue) (czz: MathValue)"
+            , "           (cxy: MathValue) (cxz: MathValue) (cyz: MathValue) : [String] :="
+            , "  [ fmrEq (S.concat [nm, \"xx'\"]) cxx"
+            , "  , fmrEq (S.concat [nm, \"yy'\"]) cyy"
+            , "  , fmrEq (S.concat [nm, \"zz'\"]) czz"
+            , "  , fmrEq (S.concat [nm, \"xy'\"]) cxy"
+            , "  , fmrEq (S.concat [nm, \"xz'\"]) cxz"
+            , "  , fmrEq (S.concat [nm, \"yz'\"]) cyz"
+            , "  ]"
+            , "def tupleOf (xs: [String]) : String :="
+            , "  if length xs = 1"
+            , "    then head xs"
+            , "    else S.concat [\"(\", S.intercalate \",\" xs, \")\"]"
+            , "def emitModelOn (dim: Integer) (axes: [String])"
+            , "                (params: [(String, String)]) (helpers: [String])"
+            , "                (flds: [(String, Integer)]) (initLines: [String])"
+            , "                (stepLines: [String]) : String :="
+            , "  let comps := allComps flds"
+            , "   in let compsP := map (\\c -> S.append c \"'\") comps"
+            , "   in S.intercalate \"\\n\""
+            , "        ([ S.append \"dimension :: \" (show dim)"
+            , "         , S.append \"axes :: \" (S.intercalate \",\" axes)"
+            , "         , \"\""
+            , "         ]"
+            , "         ++ map (\\(n, v) -> S.concat [\"double :: \", n, \" = \", v]) params"
+            , "         ++ [\"\"] ++ helpers ++ [\"\"]"
+            , "         ++ [ S.concat [\"begin function \", tupleOf comps, \" = init()\"]"
+            , "            , S.concat [\"  double [] :: \", S.intercalate \", \" comps]"
+            , "            ]"
+            , "         ++ initLines"
+            , "         ++ [ \"end function\""
+            , "            , \"\""
+            , "            , S.concat [\"begin function \", tupleOf compsP,"
+            , "                        \" = step\", \"(\", S.intercalate \",\" comps, \")\"]"
+            , "            ]"
+            , "         ++ stepLines"
+            , "         ++ [ \"end function\" ])"
             ]
       embDefs = case mEmbed m of
         Nothing -> []
@@ -1301,7 +1449,7 @@ emit m = do
       mainDef
         | null gates = [ "def main (args: [String]) : IO () := " ++ emitCall ]
         | otherwise = [ "def main (args: [String]) : IO () :=", "  " ++ nest gates ]
-  return (unlines (header ++ contextDecls ++ contextMathDecls
+  return (unlines (header ++ contextDecls ++ contextMathDecls ++ printerContextDecls
                    ++ (if null contextDecls then [] else [""])
                    ++ fieldDecls ++ primDecls ++ localDecls ++ [""]
                    ++ concat body ++ ddDef ++ [""]

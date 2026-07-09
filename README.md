@@ -11,9 +11,8 @@ Formura を設計した村主崇行氏への敬意を込め、氏の言語の名
 ```
 .fe      : Formurae — 表層言語(field 宣言+添字記法・微分形式・計量の方程式) ← 19例(全例)
    ↓        fec(薄い変換層、Haskell; cabal build)
-Egison   : 埋め込み形(テンソル添字記法、物理は2〜3行)
-   ↓        差分化コンビネータ(substitute による座標シフト)
-   ↓        mathValue マッチャによる .fmr プリンタ
+Egison   : 生成 .egi(座標文脈・差分化コンビネータ・DEC・.fmr プリンタを含む)
+   ↓        Egison CAS + mathValue マッチャ
 Formura  : .fmr → C ライブラリ(MPI 通信・temporal blocking を自動生成)
    ↓
 C コンパイラ + ドライバ → 実行
@@ -113,8 +112,9 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
 | パス | 内容 |
 |---|---|
 | `fec/` + `fec.cabal` | **Formurae コンパイラ**: 表層言語 Formurae(.fe;`field E : vector`・`E' = E + dt * curl B`・`B' = B - dt * d E'`)を埋め込み形 .egi に変換。Haskell(base のみ)、リポジトリ直下で `cabal build` / `cabal run -v0 fec -- model.fe`。意味論は Egison 側に一本化した薄い変換層 |
-| `lib/fmrdsl.egi` | **DSL v0**: 宣言的モデル記述層(`emitModel` が preamble・宣言・init/step 雛形・出力タプルを場リストから自動生成) |
-| `lib/fmrgen.egi` | 生成ライブラリ: 座標非依存の基盤、Taylor 条件から係数を導出する **`taylorStencil`/`dTaylor`**、DEC 補助、.fmr プリンタ。`use` や計量を持つモデルでは、`fec` が `shift`/`dC`/`lap`/`curl`/`dForm`/`codiff` などを `.egi` 先頭へ座標文脈つきで生成する |
+| `lib/fmrgen.egi` | 生成コア: Taylor 条件から係数を導出する **`taylorStencil`**、quote cleanup、形式補助などの座標非依存基盤 |
+| `lib/fmrlegacy3d.egi` | まだ `.fe` 化していない手書き `.egi` 例のための 3D 互換文脈。`.fe` 由来の生成物では使わない |
+| `lib/fmrdsl.egi` | 旧 DSL v0 の宣言的モデル記述層。現在の `.fe` 生成物は必要な出力層を `.egi` 内に生成する |
 | `examples/diffusion3d/` | 3D 拡散方程式(`use exterior-calculus { Δ }` で Laplacian を有効化し、物理は `u' = u + dt * κ * Δ u` の1行) |
 | `examples/maxwell3d/` | Maxwell 方程式(**E・B がベクトル場**。`use vector-calculus { curl }` で回転を有効化し、全ベクトル更新2本から ε 縮約 curl の collocated 格子コードを生成) |
 | `examples/maxwell3d_yee/` | **Yee-FDTD**(E=辺・B=面のスタガード格子+leapfrog。場ごとの配置オフセット宣言から教科書どおりの FDTD を生成) |
@@ -156,7 +156,7 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
 
 - **場の表現**: `def u := function (x, y, z)`(抽象関数)。格子参照は
   `substitute [(x, x + hx)] u` が生む未解釈適用 `u (x + hx) y z` として現れる。
-- **プリンタ**: 正規化された数式を `mathValue` マッチャ(`poly`/`term`/`func`/`symbol`)で分解し、
+- **プリンタ**: `fec` が各 `.egi` に生成する。正規化された数式を `mathValue` マッチャ(`poly`/`term`/`func`/`symbol`)で分解し、
   適用引数から `(引数 − 座標)/h` でオフセットを有理数として逆算して `u[i+1,j,k]` に写す。
   半整数オフセット(`1/2`)も扱える。
 - **スタガード格子**: 場を「(抽象関数, 配置オフセット σ∈{0,½}³)」の組で表し、参照時に
@@ -164,7 +164,7 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
   Yee 配置なら curl の全項が整数オフセット(袖幅1)に落ちる。
 - **座標文脈つき `use`**: `use` または計量宣言を持つモデルでは、生成 `.egi` に
   `feDim`・`feAxes`・`feAxisIds`・`feCoords`・`feHsteps` と、その文脈を参照する
-  `shift`/`dC`/`lap`、必要に応じて `curl` や `dForm`/`codiff` を出す。
+  `shift`/`dC`/`lap`、必要に応じて `curl` や `dForm`/`codiff`、さらに `.fmr` プリンタを出す。
   `extern` は Formura/C 側のスカラー関数、`use` は Formurae が生成する数学演算子として分けている。
 - **離散微分形式(DEC)**: 形式は「(複体, 次数, 成分)」の3つ組で、**格子配置は複体と次数だけ
   から決まる**(primal: 0-形式=格子点、1-形式=辺、2-形式=面、3-形式=セル中心;dual は

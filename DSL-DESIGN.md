@@ -51,6 +51,14 @@ v1.17 で生成 `.egi` 側の座標文脈つき定義へ移した。
 必要な Yee プリミティブだけを生成する。`hodge` も `use exterior-calculus { hodge }`
 なしではエラーにした。全 `.fe` 例の `.fmr` はバイト一致。
 
+**v1.18(2026-07-09): `.egi` への出力層生成と `fmrgen` core 化** —
+固定の `lib/fmrgen.egi` から座標依存の数学演算子と `.fmr` プリンタを外し、
+`.fe` から生成される `.egi` が毎回 `feDim`/`feAxes`/`feCoords`/`feHsteps`、
+ステンシル・Yee/DEC 演算子、`showFmr`/`fmrEq`/`emitModelOn` まで含むようにした。
+`lib/fmrgen.egi` は `taylorStencil`・quote cleanup・形式補助などの座標非依存 core に縮小。
+まだ `.fe` 化していない手書き `.egi` 例だけは `lib/fmrlegacy3d.egi` の 3D 互換文脈を読む。
+全 `.fe` 例と手書き `.egi` 例で生成 `.fmr` はバイト一致。
+
 **v1.8(2026-07-08): Unicode と基本演算子** — ギリシャ文字識別子(θ, φ, …
 → fec が ASCII へ字訳)・∂=d・δ=codiff・−=-・Δ=幾何のラプラシアン
 (平坦 lap/計量 lb)。`∂x (∂x u)` は compact 2階差分に融合、スカラーへの
@@ -206,15 +214,16 @@ step:
 ```
 .fe(表層構文)
   → パーサ(薄い変換層)
-  → v0 の埋め込み形(Egison 式)      ← 意味論はここに一本化
+  → 座標文脈・演算子・プリンタを含む生成 .egi
   → Egison CAS が添字・微分形式・計量を展開
   → .fmr プリンタ
   → Formura(fork)→ MPI + temporal blocking つき C
 ```
 
-- **意味論は Egison ライブラリ(fmrgen/fmrdsl)に置いたまま**、パーサは
-  「表層 → 埋め込み形」の機械的変換のみを行う。バイト一致テストを意味の
-  アンカーとして維持する。
+- **意味論は生成される Egison コードに一本化**する。`lib/fmrgen.egi` は
+  `taylorStencil` や quote cleanup などの座標非依存 core に縮小し、
+  座標文脈つき演算子と `.fmr` プリンタは `.fe` ごとの `.egi` に出す。
+  バイト一致テストを意味のアンカーとして維持する。
 - パーサ実装は2案: (a) Egison の文字列パターンマッチ(ドッグフーディング、
   ただし式文法+優先順位は重い)、(b) Haskell(megaparsec; Formura fork と
   同じスタックで CI も共通化)。**推奨は (b)**。生成物は中間 .egi でよい

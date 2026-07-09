@@ -24,6 +24,10 @@ Date: 2026-07-09
   `dYee`、`curlYee`、`sigmaC`、`hodge`、`dForm`、`codiff` を生成する。
   計量つき `Δ` は保存流束に必要な Yee プリミティブを生成する。
   生成 `.fmr` は全 `.fe` 例でバイト一致。
+- 2026-07-09: `showFmr`、`fmrEq`、`fmrInit`、`emitModelOn` などの出力層も
+  生成 `.egi` 側へ移した。`lib/fmrgen.egi` は `taylorStencil`、quote cleanup、
+  形式補助だけの座標非依存 core になった。手書き `.egi` 例は移行まで
+  `lib/fmrlegacy3d.egi` の 3D 互換文脈を読む。
 
 このメモは、Formurae の数学演算子ライブラリを
 `dimension`、`axes`、`metric scale`、`embedding` で指定された座標文脈に
@@ -162,31 +166,34 @@ fec: error: curl requires dimension 3
 
 ## 5. `lib/fmrgen.egi` を分割する
 
-現在の `lib/fmrgen.egi` には、座標非依存の処理と、`x,y,z` 固定の座標依存処理が
-混在している。これを次のように分ける。
+当初の課題は、`lib/fmrgen.egi` に座標非依存の処理と `x,y,z` 固定の
+座標依存処理が混在していたことだった。現在は次のように分けている。
 
 ```text
 1. 座標非依存の基盤
-   taylorStencil, gaussSolve, showFmr, fmrEq, fmrInit など
+   lib/fmrgen.egi:
+   taylorStencil, gaussSolve, unquoteAll, formComps, scaleForm など
 
 2. モデルごとに生成する座標文脈つき定義
+   生成 .egi:
    coords, hsteps, shift, dC, dC2, lap, hodge, dForm, codiff など
 
 3. Formura 出力 DSL
-   scalarEq, vecEqs, symEqs, emitModelOn など
+   生成 .egi:
+   showFmr, fmrEq, fmrInit, scalarEq, vecEqs, symEqs, emitModelOn など
 ```
 
-最初はファイル分割までしなくてもよい。`fec` が `.egi` の先頭に
-座標文脈つき定義を生成し、既存の `lib/fmrgen.egi` の定義を上書きする形でもよい。
+`.fe` から生成される `.egi` は `lib/fmrgen.egi` だけを読む。まだ `.fe` 化していない
+手書き `.egi` 例は互換用に `lib/fmrlegacy3d.egi` も読む。
 
-ただし最終的には、`lib/fmrgen.egi` から
+`lib/fmrgen.egi` からは
 
 ```egison
 def coords : Vector MathValue := [| x, y, z |]
 def hsteps : Vector MathValue := [| hx, hy, hz |]
 ```
 
-のような固定定義を取り除き、モデルごとに生成する。
+のような固定定義を取り除いた。対応する定義はモデルごとの生成 `.egi` に出る。
 
 ## 6. 座標文脈つき定義を生成する
 
@@ -380,5 +387,5 @@ use exterior-calculus { Δ } を実装し、
 Δ を使う既存例に use を追加しても生成 .fmr がバイト一致することを確認する。
 ```
 
-この段階では、`lib/fmrgen.egi` の大規模分割はまだ行わなくてよい。
-まずは `use` の構文、名前解決、早期エラー、既存挙動との互換性を固める。
+このマイルストーンは完了した。`use` の構文、名前解決、早期エラーを導入し、
+さらに `lib/fmrgen.egi` の座標依存部分と出力層を生成 `.egi` 側へ移した。

@@ -14,7 +14,7 @@
 -- Test problem: a shear wave u_y = u0c sin(kk x) decaying at the exact
 -- BGK rate nu = (tau - 1/2)/3.
 --
--- Run: egison -l fmrgen.egi lbm_d3q19.egi > lbm_d3q19.fmr
+-- Run: egison -l fmrgen.egi -l fmrlegacy3d.egi lbm_d3q19.egi > lbm_d3q19.fmr
 --
 
 declare symbol tau, kk, u0c
