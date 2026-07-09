@@ -194,14 +194,14 @@ def emitModelOn (dim: Integer) (axes: [String])
          ++ [ "end function" ])
 
 def v_i := generateTensor (\[i] -> function (x, y, z)) [3]
-def s_i_j := generateTensor (\[i, j] -> function (x, y, z)) [3, 3]
+def sigma_i_j := generateTensor (\[i, j] -> function (x, y, z)) [3, 3]
 def v'_i := generateTensor (\[i] -> function (x, y, z)) [3]
 def FormuraeInternalTensorvUp_i := v_i
 def FormuraeInternalTensorvDown_i := v_i
-def FormuraeInternalTensorsUpUp_i_j := generateTensor (\[i, j] -> if i <= j then s_i_j else s_j_i) [feDim, feDim]
-def FormuraeInternalTensorsUpDown_i_j := generateTensor (\[i, j] -> if i <= j then s_i_j else s_j_i) [feDim, feDim]
-def FormuraeInternalTensorsDownUp_i_j := generateTensor (\[i, j] -> if i <= j then s_i_j else s_j_i) [feDim, feDim]
-def FormuraeInternalTensorsDownDown_i_j := generateTensor (\[i, j] -> if i <= j then s_i_j else s_j_i) [feDim, feDim]
+def FormuraeInternalTensorsigmaUpUp_i_j := generateTensor (\[i, j] -> if i <= j then sigma_i_j else sigma_j_i) [feDim, feDim]
+def FormuraeInternalTensorsigmaUpDown_i_j := generateTensor (\[i, j] -> if i <= j then sigma_i_j else sigma_j_i) [feDim, feDim]
+def FormuraeInternalTensorsigmaDownUp_i_j := generateTensor (\[i, j] -> if i <= j then sigma_i_j else sigma_j_i) [feDim, feDim]
+def FormuraeInternalTensorsigmaDownDown_i_j := generateTensor (\[i, j] -> if i <= j then sigma_i_j else sigma_j_i) [feDim, feDim]
 def FormuraeInternalTensorvUp'_i := v'_i
 def FormuraeInternalTensorvDown'_i := v'_i
 def FormuraeInternalMetricCov_i_j := generateTensor (\[i, j] -> if i = j then 1 else 0) [feDim, feDim]
@@ -209,15 +209,15 @@ def FormuraeInternalMetricContra_i_j := generateTensor (\[i, j] -> if i = j then
 def FormuraeInternalMetricMixedUpDown_i_j := generateTensor (\[i, j] -> if i = j then 1 else 0) [feDim, feDim]
 def FormuraeInternalMetricMixedDownUp_i_j := generateTensor (\[i, j] -> if i = j then 1 else 0) [feDim, feDim]
 
-def feqv1 := v_1 +( (dt / rho0) * dYee 1 [1 / 2, 0, 0] (s_1_1, [0, 0, 0]) +  (dt / rho0) * dYee 2 [1 / 2, 0, 0] (s_1_2, [1 / 2, 1 / 2, 0]) +  (dt / rho0) * dYee 3 [1 / 2, 0, 0] (s_1_3, [1 / 2, 0, 1 / 2]))
-def feqv2 := v_2 +( (dt / rho0) * dYee 1 [0, 1 / 2, 0] (s_1_2, [1 / 2, 1 / 2, 0]) +  (dt / rho0) * dYee 2 [0, 1 / 2, 0] (s_2_2, [0, 0, 0]) +  (dt / rho0) * dYee 3 [0, 1 / 2, 0] (s_2_3, [0, 1 / 2, 1 / 2]))
-def feqv3 := v_3 +( (dt / rho0) * dYee 1 [0, 0, 1 / 2] (s_1_3, [1 / 2, 0, 1 / 2]) +  (dt / rho0) * dYee 2 [0, 0, 1 / 2] (s_2_3, [0, 1 / 2, 1 / 2]) +  (dt / rho0) * dYee 3 [0, 0, 1 / 2] (s_3_3, [0, 0, 0]))
-def feqs11 := s_1_1 + dt * ((lambda * FormuraeInternalMetricContra_1_1 * dYee 1 [0, 0, 0] (v'_1, [1 / 2, 0, 0])  + lambda * FormuraeInternalMetricContra_1_1 * dYee 2 [0, 0, 0] (v'_2, [0, 1 / 2, 0])  + lambda * FormuraeInternalMetricContra_1_1 * dYee 3 [0, 0, 0] (v'_3, [0, 0, 1 / 2]) )+ mu * ((FormuraeInternalMetricContra_1_1 * dYee 1 [0, 0, 0] (v'_1, [1 / 2, 0, 0])  + FormuraeInternalMetricContra_1_2 * dYee 2 [0, 0, 0] (v'_1, [1 / 2, 0, 0])  + FormuraeInternalMetricContra_1_3 * dYee 3 [0, 0, 0] (v'_1, [1 / 2, 0, 0]) )+( FormuraeInternalMetricContra_1_1 * dYee 1 [0, 0, 0] (v'_1, [1 / 2, 0, 0]) +  FormuraeInternalMetricContra_1_2 * dYee 2 [0, 0, 0] (v'_1, [1 / 2, 0, 0]) +  FormuraeInternalMetricContra_1_3 * dYee 3 [0, 0, 0] (v'_1, [1 / 2, 0, 0]))))
-def feqs22 := s_2_2 + dt * ((lambda * FormuraeInternalMetricContra_2_2 * dYee 1 [0, 0, 0] (v'_1, [1 / 2, 0, 0])  + lambda * FormuraeInternalMetricContra_2_2 * dYee 2 [0, 0, 0] (v'_2, [0, 1 / 2, 0])  + lambda * FormuraeInternalMetricContra_2_2 * dYee 3 [0, 0, 0] (v'_3, [0, 0, 1 / 2]) )+ mu * ((FormuraeInternalMetricContra_2_1 * dYee 1 [0, 0, 0] (v'_2, [0, 1 / 2, 0])  + FormuraeInternalMetricContra_2_2 * dYee 2 [0, 0, 0] (v'_2, [0, 1 / 2, 0])  + FormuraeInternalMetricContra_2_3 * dYee 3 [0, 0, 0] (v'_2, [0, 1 / 2, 0]) )+( FormuraeInternalMetricContra_2_1 * dYee 1 [0, 0, 0] (v'_2, [0, 1 / 2, 0]) +  FormuraeInternalMetricContra_2_2 * dYee 2 [0, 0, 0] (v'_2, [0, 1 / 2, 0]) +  FormuraeInternalMetricContra_2_3 * dYee 3 [0, 0, 0] (v'_2, [0, 1 / 2, 0]))))
-def feqs33 := s_3_3 + dt * ((lambda * FormuraeInternalMetricContra_3_3 * dYee 1 [0, 0, 0] (v'_1, [1 / 2, 0, 0])  + lambda * FormuraeInternalMetricContra_3_3 * dYee 2 [0, 0, 0] (v'_2, [0, 1 / 2, 0])  + lambda * FormuraeInternalMetricContra_3_3 * dYee 3 [0, 0, 0] (v'_3, [0, 0, 1 / 2]) )+ mu * ((FormuraeInternalMetricContra_3_1 * dYee 1 [0, 0, 0] (v'_3, [0, 0, 1 / 2])  + FormuraeInternalMetricContra_3_2 * dYee 2 [0, 0, 0] (v'_3, [0, 0, 1 / 2])  + FormuraeInternalMetricContra_3_3 * dYee 3 [0, 0, 0] (v'_3, [0, 0, 1 / 2]) )+( FormuraeInternalMetricContra_3_1 * dYee 1 [0, 0, 0] (v'_3, [0, 0, 1 / 2]) +  FormuraeInternalMetricContra_3_2 * dYee 2 [0, 0, 0] (v'_3, [0, 0, 1 / 2]) +  FormuraeInternalMetricContra_3_3 * dYee 3 [0, 0, 0] (v'_3, [0, 0, 1 / 2]))))
-def feqs12 := s_1_2 + dt * ((lambda * FormuraeInternalMetricContra_1_2 * dYee 1 [1 / 2, 1 / 2, 0] (v'_1, [1 / 2, 0, 0])  + lambda * FormuraeInternalMetricContra_1_2 * dYee 2 [1 / 2, 1 / 2, 0] (v'_2, [0, 1 / 2, 0])  + lambda * FormuraeInternalMetricContra_1_2 * dYee 3 [1 / 2, 1 / 2, 0] (v'_3, [0, 0, 1 / 2]) )+ mu * ((FormuraeInternalMetricContra_1_1 * dYee 1 [1 / 2, 1 / 2, 0] (v'_2, [0, 1 / 2, 0])  + FormuraeInternalMetricContra_1_2 * dYee 2 [1 / 2, 1 / 2, 0] (v'_2, [0, 1 / 2, 0])  + FormuraeInternalMetricContra_1_3 * dYee 3 [1 / 2, 1 / 2, 0] (v'_2, [0, 1 / 2, 0]) )+( FormuraeInternalMetricContra_2_1 * dYee 1 [1 / 2, 1 / 2, 0] (v'_1, [1 / 2, 0, 0]) +  FormuraeInternalMetricContra_2_2 * dYee 2 [1 / 2, 1 / 2, 0] (v'_1, [1 / 2, 0, 0]) +  FormuraeInternalMetricContra_2_3 * dYee 3 [1 / 2, 1 / 2, 0] (v'_1, [1 / 2, 0, 0]))))
-def feqs13 := s_1_3 + dt * ((lambda * FormuraeInternalMetricContra_1_3 * dYee 1 [1 / 2, 0, 1 / 2] (v'_1, [1 / 2, 0, 0])  + lambda * FormuraeInternalMetricContra_1_3 * dYee 2 [1 / 2, 0, 1 / 2] (v'_2, [0, 1 / 2, 0])  + lambda * FormuraeInternalMetricContra_1_3 * dYee 3 [1 / 2, 0, 1 / 2] (v'_3, [0, 0, 1 / 2]) )+ mu * ((FormuraeInternalMetricContra_1_1 * dYee 1 [1 / 2, 0, 1 / 2] (v'_3, [0, 0, 1 / 2])  + FormuraeInternalMetricContra_1_2 * dYee 2 [1 / 2, 0, 1 / 2] (v'_3, [0, 0, 1 / 2])  + FormuraeInternalMetricContra_1_3 * dYee 3 [1 / 2, 0, 1 / 2] (v'_3, [0, 0, 1 / 2]) )+( FormuraeInternalMetricContra_3_1 * dYee 1 [1 / 2, 0, 1 / 2] (v'_1, [1 / 2, 0, 0]) +  FormuraeInternalMetricContra_3_2 * dYee 2 [1 / 2, 0, 1 / 2] (v'_1, [1 / 2, 0, 0]) +  FormuraeInternalMetricContra_3_3 * dYee 3 [1 / 2, 0, 1 / 2] (v'_1, [1 / 2, 0, 0]))))
-def feqs23 := s_2_3 + dt * ((lambda * FormuraeInternalMetricContra_2_3 * dYee 1 [0, 1 / 2, 1 / 2] (v'_1, [1 / 2, 0, 0])  + lambda * FormuraeInternalMetricContra_2_3 * dYee 2 [0, 1 / 2, 1 / 2] (v'_2, [0, 1 / 2, 0])  + lambda * FormuraeInternalMetricContra_2_3 * dYee 3 [0, 1 / 2, 1 / 2] (v'_3, [0, 0, 1 / 2]) )+ mu * ((FormuraeInternalMetricContra_2_1 * dYee 1 [0, 1 / 2, 1 / 2] (v'_3, [0, 0, 1 / 2])  + FormuraeInternalMetricContra_2_2 * dYee 2 [0, 1 / 2, 1 / 2] (v'_3, [0, 0, 1 / 2])  + FormuraeInternalMetricContra_2_3 * dYee 3 [0, 1 / 2, 1 / 2] (v'_3, [0, 0, 1 / 2]) )+( FormuraeInternalMetricContra_3_1 * dYee 1 [0, 1 / 2, 1 / 2] (v'_2, [0, 1 / 2, 0]) +  FormuraeInternalMetricContra_3_2 * dYee 2 [0, 1 / 2, 1 / 2] (v'_2, [0, 1 / 2, 0]) +  FormuraeInternalMetricContra_3_3 * dYee 3 [0, 1 / 2, 1 / 2] (v'_2, [0, 1 / 2, 0]))))
+def feqv1 := v_1 +( (dt / rho0) * dYee 1 [1 / 2, 0, 0] (sigma_1_1, [0, 0, 0]) +  (dt / rho0) * dYee 2 [1 / 2, 0, 0] (sigma_1_2, [1 / 2, 1 / 2, 0]) +  (dt / rho0) * dYee 3 [1 / 2, 0, 0] (sigma_1_3, [1 / 2, 0, 1 / 2]))
+def feqv2 := v_2 +( (dt / rho0) * dYee 1 [0, 1 / 2, 0] (sigma_1_2, [1 / 2, 1 / 2, 0]) +  (dt / rho0) * dYee 2 [0, 1 / 2, 0] (sigma_2_2, [0, 0, 0]) +  (dt / rho0) * dYee 3 [0, 1 / 2, 0] (sigma_2_3, [0, 1 / 2, 1 / 2]))
+def feqv3 := v_3 +( (dt / rho0) * dYee 1 [0, 0, 1 / 2] (sigma_1_3, [1 / 2, 0, 1 / 2]) +  (dt / rho0) * dYee 2 [0, 0, 1 / 2] (sigma_2_3, [0, 1 / 2, 1 / 2]) +  (dt / rho0) * dYee 3 [0, 0, 1 / 2] (sigma_3_3, [0, 0, 0]))
+def feqsigma11 := sigma_1_1 + dt * ((lambda * FormuraeInternalMetricContra_1_1 * dYee 1 [0, 0, 0] (v'_1, [1 / 2, 0, 0])  + lambda * FormuraeInternalMetricContra_1_1 * dYee 2 [0, 0, 0] (v'_2, [0, 1 / 2, 0])  + lambda * FormuraeInternalMetricContra_1_1 * dYee 3 [0, 0, 0] (v'_3, [0, 0, 1 / 2]) )+ mu * ((FormuraeInternalMetricContra_1_1 * dYee 1 [0, 0, 0] (v'_1, [1 / 2, 0, 0])  + FormuraeInternalMetricContra_1_2 * dYee 2 [0, 0, 0] (v'_1, [1 / 2, 0, 0])  + FormuraeInternalMetricContra_1_3 * dYee 3 [0, 0, 0] (v'_1, [1 / 2, 0, 0]) )+( FormuraeInternalMetricContra_1_1 * dYee 1 [0, 0, 0] (v'_1, [1 / 2, 0, 0]) +  FormuraeInternalMetricContra_1_2 * dYee 2 [0, 0, 0] (v'_1, [1 / 2, 0, 0]) +  FormuraeInternalMetricContra_1_3 * dYee 3 [0, 0, 0] (v'_1, [1 / 2, 0, 0]))))
+def feqsigma22 := sigma_2_2 + dt * ((lambda * FormuraeInternalMetricContra_2_2 * dYee 1 [0, 0, 0] (v'_1, [1 / 2, 0, 0])  + lambda * FormuraeInternalMetricContra_2_2 * dYee 2 [0, 0, 0] (v'_2, [0, 1 / 2, 0])  + lambda * FormuraeInternalMetricContra_2_2 * dYee 3 [0, 0, 0] (v'_3, [0, 0, 1 / 2]) )+ mu * ((FormuraeInternalMetricContra_2_1 * dYee 1 [0, 0, 0] (v'_2, [0, 1 / 2, 0])  + FormuraeInternalMetricContra_2_2 * dYee 2 [0, 0, 0] (v'_2, [0, 1 / 2, 0])  + FormuraeInternalMetricContra_2_3 * dYee 3 [0, 0, 0] (v'_2, [0, 1 / 2, 0]) )+( FormuraeInternalMetricContra_2_1 * dYee 1 [0, 0, 0] (v'_2, [0, 1 / 2, 0]) +  FormuraeInternalMetricContra_2_2 * dYee 2 [0, 0, 0] (v'_2, [0, 1 / 2, 0]) +  FormuraeInternalMetricContra_2_3 * dYee 3 [0, 0, 0] (v'_2, [0, 1 / 2, 0]))))
+def feqsigma33 := sigma_3_3 + dt * ((lambda * FormuraeInternalMetricContra_3_3 * dYee 1 [0, 0, 0] (v'_1, [1 / 2, 0, 0])  + lambda * FormuraeInternalMetricContra_3_3 * dYee 2 [0, 0, 0] (v'_2, [0, 1 / 2, 0])  + lambda * FormuraeInternalMetricContra_3_3 * dYee 3 [0, 0, 0] (v'_3, [0, 0, 1 / 2]) )+ mu * ((FormuraeInternalMetricContra_3_1 * dYee 1 [0, 0, 0] (v'_3, [0, 0, 1 / 2])  + FormuraeInternalMetricContra_3_2 * dYee 2 [0, 0, 0] (v'_3, [0, 0, 1 / 2])  + FormuraeInternalMetricContra_3_3 * dYee 3 [0, 0, 0] (v'_3, [0, 0, 1 / 2]) )+( FormuraeInternalMetricContra_3_1 * dYee 1 [0, 0, 0] (v'_3, [0, 0, 1 / 2]) +  FormuraeInternalMetricContra_3_2 * dYee 2 [0, 0, 0] (v'_3, [0, 0, 1 / 2]) +  FormuraeInternalMetricContra_3_3 * dYee 3 [0, 0, 0] (v'_3, [0, 0, 1 / 2]))))
+def feqsigma12 := sigma_1_2 + dt * ((lambda * FormuraeInternalMetricContra_1_2 * dYee 1 [1 / 2, 1 / 2, 0] (v'_1, [1 / 2, 0, 0])  + lambda * FormuraeInternalMetricContra_1_2 * dYee 2 [1 / 2, 1 / 2, 0] (v'_2, [0, 1 / 2, 0])  + lambda * FormuraeInternalMetricContra_1_2 * dYee 3 [1 / 2, 1 / 2, 0] (v'_3, [0, 0, 1 / 2]) )+ mu * ((FormuraeInternalMetricContra_1_1 * dYee 1 [1 / 2, 1 / 2, 0] (v'_2, [0, 1 / 2, 0])  + FormuraeInternalMetricContra_1_2 * dYee 2 [1 / 2, 1 / 2, 0] (v'_2, [0, 1 / 2, 0])  + FormuraeInternalMetricContra_1_3 * dYee 3 [1 / 2, 1 / 2, 0] (v'_2, [0, 1 / 2, 0]) )+( FormuraeInternalMetricContra_2_1 * dYee 1 [1 / 2, 1 / 2, 0] (v'_1, [1 / 2, 0, 0]) +  FormuraeInternalMetricContra_2_2 * dYee 2 [1 / 2, 1 / 2, 0] (v'_1, [1 / 2, 0, 0]) +  FormuraeInternalMetricContra_2_3 * dYee 3 [1 / 2, 1 / 2, 0] (v'_1, [1 / 2, 0, 0]))))
+def feqsigma13 := sigma_1_3 + dt * ((lambda * FormuraeInternalMetricContra_1_3 * dYee 1 [1 / 2, 0, 1 / 2] (v'_1, [1 / 2, 0, 0])  + lambda * FormuraeInternalMetricContra_1_3 * dYee 2 [1 / 2, 0, 1 / 2] (v'_2, [0, 1 / 2, 0])  + lambda * FormuraeInternalMetricContra_1_3 * dYee 3 [1 / 2, 0, 1 / 2] (v'_3, [0, 0, 1 / 2]) )+ mu * ((FormuraeInternalMetricContra_1_1 * dYee 1 [1 / 2, 0, 1 / 2] (v'_3, [0, 0, 1 / 2])  + FormuraeInternalMetricContra_1_2 * dYee 2 [1 / 2, 0, 1 / 2] (v'_3, [0, 0, 1 / 2])  + FormuraeInternalMetricContra_1_3 * dYee 3 [1 / 2, 0, 1 / 2] (v'_3, [0, 0, 1 / 2]) )+( FormuraeInternalMetricContra_3_1 * dYee 1 [1 / 2, 0, 1 / 2] (v'_1, [1 / 2, 0, 0]) +  FormuraeInternalMetricContra_3_2 * dYee 2 [1 / 2, 0, 1 / 2] (v'_1, [1 / 2, 0, 0]) +  FormuraeInternalMetricContra_3_3 * dYee 3 [1 / 2, 0, 1 / 2] (v'_1, [1 / 2, 0, 0]))))
+def feqsigma23 := sigma_2_3 + dt * ((lambda * FormuraeInternalMetricContra_2_3 * dYee 1 [0, 1 / 2, 1 / 2] (v'_1, [1 / 2, 0, 0])  + lambda * FormuraeInternalMetricContra_2_3 * dYee 2 [0, 1 / 2, 1 / 2] (v'_2, [0, 1 / 2, 0])  + lambda * FormuraeInternalMetricContra_2_3 * dYee 3 [0, 1 / 2, 1 / 2] (v'_3, [0, 0, 1 / 2]) )+ mu * ((FormuraeInternalMetricContra_2_1 * dYee 1 [0, 1 / 2, 1 / 2] (v'_3, [0, 0, 1 / 2])  + FormuraeInternalMetricContra_2_2 * dYee 2 [0, 1 / 2, 1 / 2] (v'_3, [0, 0, 1 / 2])  + FormuraeInternalMetricContra_2_3 * dYee 3 [0, 1 / 2, 1 / 2] (v'_3, [0, 0, 1 / 2]) )+( FormuraeInternalMetricContra_3_1 * dYee 1 [0, 1 / 2, 1 / 2] (v'_2, [0, 1 / 2, 0]) +  FormuraeInternalMetricContra_3_2 * dYee 2 [0, 1 / 2, 1 / 2] (v'_2, [0, 1 / 2, 0]) +  FormuraeInternalMetricContra_3_3 * dYee 3 [0, 1 / 2, 1 / 2] (v'_2, [0, 1 / 2, 0]))))
 
 def feParams := [("lambda", "2.0"), ("mu", "1.0"), ("rho0", "1.0"), ("dt", "0.0005")]
 def feHelpers :=
@@ -225,18 +225,18 @@ def feHelpers :=
   , "extern function :: exp"
   , "gp = fun(x) exp(-((x - 0.3)/0.02)*((x - 0.3)/0.02))"
   ]
-def feFlds : [(String, Integer)] := [("v", 1), ("s", 2)]
+def feFlds : [(String, Integer)] := [("v", 1), ("sigma", 2)]
 def feInits :=
   [ "  vx[i,j,k] = gp((i + 0.5)*dx)"
   , "  vy[i,j,k] = gp(i*dx)"
   , "  vz[i,j,k] = 0.0"
-  , "  sxx[i,j,k] = 0.0 - 2.0*gp(i*dx)"
-  , "  syy[i,j,k] = 0.0"
-  , "  szz[i,j,k] = 0.0"
-  , "  sxy[i,j,k] = 0.0 - 1.0*gp((i + 0.5)*dx)"
-  , "  sxz[i,j,k] = 0.0"
-  , "  syz[i,j,k] = 0.0"
+  , "  sigmaxx[i,j,k] = 0.0 - 2.0*gp(i*dx)"
+  , "  sigmayy[i,j,k] = 0.0"
+  , "  sigmazz[i,j,k] = 0.0"
+  , "  sigmaxy[i,j,k] = 0.0 - 1.0*gp((i + 0.5)*dx)"
+  , "  sigmaxz[i,j,k] = 0.0"
+  , "  sigmayz[i,j,k] = 0.0"
   ]
-def feSteps := vecEqs "v" feqv1 feqv2 feqv3 ++ symEqs "s" feqs11 feqs22 feqs33 feqs12 feqs13 feqs23
+def feSteps := vecEqs "v" feqv1 feqv2 feqv3 ++ symEqs "sigma" feqsigma11 feqsigma22 feqsigma33 feqsigma12 feqsigma13 feqsigma23
 
 def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feFlds feInits feSteps)

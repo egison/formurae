@@ -3,8 +3,8 @@
 #include <math.h>
 #include "elastic3d.h"
 
-/* Two pulses launched from x=0.3: a P pulse (vx, sxx) and an S pulse
- * (vy, sxy), both right-moving.  With la=2, mu=1, rho=1 they travel at
+/* Two pulses launched from x=0.3: a P pulse (vx, sigmaxx) and an S pulse
+ * (vy, sigmaxy), both right-moving.  With la=2, mu=1, rho=1 they travel at
  * vp=2 and vs=1; the driver measures both speeds in one run and checks
  * elastic energy conservation. */
 
@@ -30,13 +30,13 @@ static double energy(Formura_Navi n) {
         double v2 = formura_data.vx[i][j][k]*formura_data.vx[i][j][k]
                   + formura_data.vy[i][j][k]*formura_data.vy[i][j][k]
                   + formura_data.vz[i][j][k]*formura_data.vz[i][j][k];
-        double tr = formura_data.sxx[i][j][k] + formura_data.syy[i][j][k] + formura_data.szz[i][j][k];
-        double ss = formura_data.sxx[i][j][k]*formura_data.sxx[i][j][k]
-                  + formura_data.syy[i][j][k]*formura_data.syy[i][j][k]
-                  + formura_data.szz[i][j][k]*formura_data.szz[i][j][k]
-                  + 2*(formura_data.sxy[i][j][k]*formura_data.sxy[i][j][k]
-                     + formura_data.sxz[i][j][k]*formura_data.sxz[i][j][k]
-                     + formura_data.syz[i][j][k]*formura_data.syz[i][j][k]);
+        double tr = formura_data.sigmaxx[i][j][k] + formura_data.sigmayy[i][j][k] + formura_data.sigmazz[i][j][k];
+        double ss = formura_data.sigmaxx[i][j][k]*formura_data.sigmaxx[i][j][k]
+                  + formura_data.sigmayy[i][j][k]*formura_data.sigmayy[i][j][k]
+                  + formura_data.sigmazz[i][j][k]*formura_data.sigmazz[i][j][k]
+                  + 2*(formura_data.sigmaxy[i][j][k]*formura_data.sigmaxy[i][j][k]
+                     + formura_data.sigmaxz[i][j][k]*formura_data.sigmaxz[i][j][k]
+                     + formura_data.sigmayz[i][j][k]*formura_data.sigmayz[i][j][k]);
         E += 0.5*rho*v2 + ss/(4*mu) - la*tr*tr/(4*mu*(3*la+2*mu));
       }
   return E;

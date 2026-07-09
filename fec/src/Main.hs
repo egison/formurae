@@ -61,11 +61,12 @@
 --   field NAME : 1-form | 2-form    3 components placed by form degree (DEC)
 --   init:
 --     COMP = RAW                    raw Formura initializer (component)
---     NAME = [| e1, e2, e3 |]       vector/form initializer (component-wise raw)
---     NAME = [| [| xx, xy, xz |],   symmetric-tensor initializer: full 3x3
---            [| yy, yz |], [| zz |] |]  (checked symmetric) or upper triangle;
+--     NAME = [| e1, e2, e3 |]       legacy vector/form initializer
+--     NAME~i = [| e1,e2,e3 |]~i     indexed vector/form initializer
+--     NAME~i~j = [| [| xx,... |],   indexed tensor initializer; RHS suffix
+--                  ... |]~i~j       must match the LHS suffix
 --                                    may span lines until brackets balance
---     NAME := EXPR                  CAS initializer (printed via fmrInit)
+--     NAME := EXPR                  scalar CAS initializer (printed via fmrInit)
 --   step:
 --     let N_i = EXPR                named tensor expression (inlined)
 --     let N = EXPR                  named scalar expression (inlined)
@@ -354,9 +355,51 @@ parseMarkedSeq (m:c:rest)
       in fmap (IxPart VDown nm :) (parseMarkedSeq rest')
 parseMarkedSeq _ = Nothing
 
+parseMarkedPrefix :: String -> Maybe ([IxPart], String)
+parseMarkedPrefix = go []
+  where
+    go acc (m:c:rest)
+      | m == '~', isAlphaNum c =
+          let (nm, rest') = span isAlphaNum (c : rest)
+          in go (acc ++ [IxPart VUp nm]) rest'
+      | m == '_', isAlphaNum c =
+          let (nm, rest') = span isAlphaNum (c : rest)
+          in go (acc ++ [IxPart VDown nm]) rest'
+    go acc rest = Just (acc, rest)
+
+ixSuffix :: IxPart -> String
+ixSuffix (IxPart VUp nm) = "~" ++ nm
+ixSuffix (IxPart VDown nm) = "_" ++ nm
+
+showIxParts :: [IxPart] -> String
+showIxParts = concatMap ixSuffix
+
 sameVarianceParts :: [IxPart] -> Bool
 sameVarianceParts [] = True
 sameVarianceParts (IxPart v _ : xs) = all (\(IxPart v' _) -> v' == v) xs
+
+sameVarianceList :: [IxPart] -> [IxPart] -> Bool
+sameVarianceList xs ys =
+  length xs == length ys
+  && and [vx == vy | (IxPart vx _, IxPart vy _) <- zip xs ys]
+
+fieldDeclAcceptsParts :: FieldDecl -> [IxPart] -> Bool
+fieldDeclAcceptsParts fd parts =
+  case fdIndex fd of
+    Nothing -> null parts
+    Just (FieldIndex [Plain decl]) -> sameVarianceList decl parts
+    Just (FieldIndex [Symmetric decl]) ->
+      sameVarianceList decl parts || sameVarianceList (reverse decl) parts
+    Just (FieldIndex [Antisymmetric _]) -> False
+    _ -> False
+
+fieldDeclIndexSuffix :: FieldDecl -> String
+fieldDeclIndexSuffix fd =
+  case fdIndex fd of
+    Just (FieldIndex [Plain parts]) -> showIxParts parts
+    Just (FieldIndex [Symmetric parts]) -> showIxParts parts
+    Just (FieldIndex [Antisymmetric parts]) -> showIxParts parts
+    _ -> ""
 
 inferFieldLayout :: Int -> String -> Maybe FieldIndex -> Bool -> IO FieldLayout
 inferFieldLayout ln spec Nothing staggered
@@ -745,15 +788,23 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
                _ -> Nothing
 
     ini ln s m
-      | Just (nm, ex) <- casForm s = do
+      | Just (nm, ix, ex) <- casForm s = do
           rejectReservedName ln (dropWhileEnd (== '\'') nm)
-          return m { mInits = ICas nm ex : mInits m }
-      | Just (nm, rhs) <- rawForm s = do
+          if null ix
+            then return m { mInits = ICas nm ex : mInits m }
+            else fatal ("CAS initializer for indexed fields is not supported yet; use "
+                        ++ nm ++ showIxParts ix ++ " = [| ... |]" ++ showIxParts ix
+                        ++ " (line " ++ show ln ++ ")")
+      | Just (nm, lhsIx, rhs) <- rawForm s = do
           rejectReservedName ln nm
+          validateInitTarget nm lhsIx
           case (kindOf m nm, vecLit rhs) of
-            (Just SymM, Just rows) -> do
+            (Just SymM, Just (rows, rhsIx)) -> do
+              validateInitSuffix nm lhsIx rhsIx
               rows' <- mapM (\r -> case vecLit (strip r) of
-                        Just es -> return (map strip es)
+                        Just (es, []) -> return (map strip es)
+                        Just (_, ix) -> fatal ("tensor initializer row must not have an index suffix: "
+                                               ++ showIxParts ix ++ " (line " ++ show ln ++ ")")
                         Nothing -> fatal ("symmetric initializer rows must be [| ... |] (line "
                                           ++ show ln ++ ")")) rows
               comps <- case rows' of
@@ -768,9 +819,12 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
                 _ -> fatal ("symmetric initializer needs 3x3 or upper-triangle rows (line "
                             ++ show ln ++ ")")
               return m { mInits = ISym nm comps : mInits m }
-            (Just (Tensor2 _), Just rows) -> do
+            (Just (Tensor2 _), Just (rows, rhsIx)) -> do
+              validateInitSuffix nm lhsIx rhsIx
               rows' <- mapM (\r -> case vecLit (strip r) of
-                        Just es -> return (map strip es)
+                        Just (es, []) -> return (map strip es)
+                        Just (_, ix) -> fatal ("tensor initializer row must not have an index suffix: "
+                                               ++ showIxParts ix ++ " (line " ++ show ln ++ ")")
                         Nothing -> fatal ("tensor initializer rows must be [| ... |] (line "
                                           ++ show ln ++ ")")) rows
               comps <- case rows' of
@@ -781,7 +835,8 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
                 _ -> fatal ("tensor initializer needs a full 3x3 matrix (line "
                             ++ show ln ++ ")")
               return m { mInits = ITensor2 nm comps : mInits m }
-            (k, Just elems) -> do
+            (k, Just (elems, rhsIx)) -> do
+              validateInitSuffix nm lhsIx rhsIx
               let ok = case k of
                          Just (Vector _) -> True
                          Just (Form _) -> True
@@ -793,29 +848,100 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
                   then fatal ("[| ... |] initializer needs 3 components (line "
                               ++ show ln ++ ")")
                   else return m { mInits = IVec nm elems : mInits m }
-            _ -> return m { mInits = IRaw nm rhs : mInits m }
+            _
+              | not (null lhsIx) ->
+                  fatal ("indexed initializer needs a [| ... |] literal with matching suffix: "
+                         ++ nm ++ showIxParts lhsIx ++ " = [| ... |]"
+                         ++ showIxParts lhsIx ++ " (line " ++ show ln ++ ")")
+              | otherwise -> return m { mInits = IRaw nm rhs : mInits m }
       | otherwise = fatal ("bad init: " ++ s ++ " (line " ++ show ln ++ ")")
       where
         casForm t = do
-          (nm, r1) <- identW t
+          (nm, ix, r1) <- initLhs t
           let (nm', r1') = case stripPrefix "'" r1 of
                              Just r -> (nm ++ "'", r)
                              Nothing -> (nm, r1)
           r2 <- stripPrefix ":=" (dropWhile isSpace r1')
           let ex = strip r2
-          if null ex then Nothing else Just (nm', ex)
+          if null ex then Nothing else Just (nm', ix, ex)
         rawForm t = do
-          (nm, r1) <- identW t
+          (nm, ix, r1) <- initLhs t
           r2 <- stripPrefix "=" (dropWhile isSpace r1)
           let ex = strip r2
-          if null ex then Nothing else Just (nm, ex)
+          if null ex then Nothing else Just (nm, ix, ex)
+        initLhs t =
+          case indexedLhs t of
+            Just lhs@(_, _, r1) | assignmentFollows r1 -> Just lhs
+            Nothing -> do
+              (nm, r1) <- identW t
+              Just (nm, [], r1)
+            _ -> do
+              (nm, r1) <- identW t
+              Just (nm, [], r1)
+        indexedLhs (c:cs) | isAlpha c = do
+          let (a, r1) = span isAlphaNum cs
+              nm = c : a
+          (ix, r2) <- parseMarkedPrefix r1
+          Just (nm, ix, r2)
+        indexedLhs _ = Nothing
+        assignmentFollows r =
+          case dropWhile isSpace r of
+            '=':_ -> True
+            ':':'=':_ -> True
+            '\'':rest -> assignmentFollows rest
+            _ -> False
         identW (c:cs) | isAlpha c = let (a, b) = span isW cs in Just (c : a, b)
         identW _ = Nothing
         vecLit t = do
-          r1 <- stripPrefix "[|" t
-          let r2 = reverse r1
-          r3 <- stripPrefix "]|" r2
-          return (splitTop ',' (reverse r3))
+          (elems, rest) <- vecLitWithRest t
+          ix <- parseMarkedSeq (strip rest)
+          return (elems, ix)
+        vecLitWithRest t = do
+          r1 <- stripPrefix "[|" (strip t)
+          closeVec (0 :: Int) [] r1
+        closeVec _ _ [] = Nothing
+        closeVec d acc ('|':']':rest)
+          | d == 0 = Just (splitTop ',' (reverse acc), rest)
+          | otherwise = closeVec (d - 1) (']' : '|' : acc) rest
+        closeVec d acc ('[':'|':rest) =
+          closeVec (d + 1) ('|' : '[' : acc) rest
+        closeVec d acc (c:rest) = closeVec d (c : acc) rest
+        validateInitTarget nm ix =
+          case fieldDeclOf m nm of
+            Just fd
+              | fieldDeclAcceptsParts fd ix -> return ()
+              | fdIndex fd /= Nothing && null ix ->
+                  fatal ("indexed field initializer must write declared indices: "
+                         ++ nm ++ fieldDeclIndexSuffix fd ++ " = [| ... |]"
+                         ++ fieldDeclIndexSuffix fd ++ " (line " ++ show ln ++ ")")
+              | fdIndex fd == Nothing ->
+                  fatal ("field " ++ nm ++ " has no declared index variance; remove "
+                         ++ showIxParts ix ++ " from the initializer (line "
+                         ++ show ln ++ ")")
+              | otherwise ->
+                  fatal ("initializer for field " ++ nm
+                         ++ " has incompatible index variance: "
+                         ++ nm ++ showIxParts ix ++ " (line " ++ show ln ++ ")")
+            Nothing
+              | null ix -> return ()
+              | otherwise ->
+                  fatal ("indexed initializer refers to unknown field: "
+                         ++ nm ++ showIxParts ix ++ " (line " ++ show ln ++ ")")
+        validateInitSuffix nm lhsIx rhsIx
+          | null lhsIx && null rhsIx = return ()
+          | null rhsIx =
+              fatal ("indexed initializer RHS must carry the same suffix as the LHS: "
+                     ++ nm ++ showIxParts lhsIx ++ " = [| ... |]"
+                     ++ showIxParts lhsIx ++ " (line " ++ show ln ++ ")")
+          | null lhsIx =
+              fatal ("initializer RHS has indices but the LHS does not: "
+                     ++ nm ++ " = [| ... |]" ++ showIxParts rhsIx
+                     ++ " (line " ++ show ln ++ ")")
+          | lhsIx == rhsIx = return ()
+          | otherwise =
+              fatal ("initializer RHS index suffix " ++ showIxParts rhsIx
+                     ++ " does not match LHS suffix " ++ showIxParts lhsIx
+                     ++ " (line " ++ show ln ++ ")")
 
     -- Step equations keep superscripts (~i) and subscripts (_i)
     -- distinct.  The current component expander still lowers existing
@@ -1156,9 +1282,6 @@ validateFieldRefParts m lets w =
         (Just (FieldIndex [Antisymmetric _]), _) ->
           fatal ("antisymmetric field references are not supported yet: " ++ w)
         _ -> fatal ("unsupported field index declaration for " ++ fdName fd)
-    sameVarianceList xs ys =
-      length xs == length ys
-      && and [vx == vy | (IxPart vx _, IxPart vy _) <- zip xs ys]
 
 indexDefs :: Model -> [String] -> Step -> IO [String]
 indexDefs m lets st = do
@@ -1183,8 +1306,6 @@ indexDefs m lets st = do
     comp env anchor defnm = do
       e <- ixExpand m lets env anchor (sEx st)
       return ("def " ++ defnm ++ " := " ++ e)
-    ixSuffix (IxPart VUp nm) = "~" ++ nm
-    ixSuffix (IxPart VDown nm) = "_" ++ nm
 
 -- expand one component: parens are independent regions, a repeated
 -- index letter is summed over the smallest term containing it, then

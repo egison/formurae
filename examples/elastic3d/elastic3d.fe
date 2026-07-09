@@ -11,7 +11,7 @@
 -- v' refers to the updated velocity (symplectic).
 -- The fields are declared staggered, so every d_a becomes a half-cell
 -- difference anchored at the placement of the target component --
--- which puts v^i on edge i and s^ij at edge i (+) edge j: the Virieux
+-- which puts v^i on edge i and sigma^ij at edge i (+) edge j: the Virieux
 -- lattice, derived rather than declared.  With lambda=2, mu=1, rho0=1 the
 -- P and S speeds are 2 and 1, measured by the check driver.
 
@@ -29,14 +29,14 @@ extern exp
 raw gp = fun(x) exp(-((x - 0.3)/0.02)*((x - 0.3)/0.02))
 
 field v~i @ staggered
-field s{~i~j} @ staggered
+field σ{~i~j} @ staggered
 
 init:
-  v = [| gp((i + 0.5)*dx), gp(i*dx), 0.0 |]
-  s = [| [| 0.0 - 2.0*gp(i*dx), 0.0 - 1.0*gp((i + 0.5)*dx), 0.0 |],
-         [| 0.0, 0.0 |],
-         [| 0.0 |] |]
+  v~i = [| gp((i + 0.5)*dx), gp(i*dx), 0.0 |]~i
+  σ~i~j = [| [| 0.0 - 2.0*gp(i*dx), 0.0 - 1.0*gp((i + 0.5)*dx), 0.0 |],
+                  [| 0.0, 0.0 |],
+                  [| 0.0 |] |]~i~j
 
 step:
-  v'~i = v~i + (dt / ρ0) * ∂_j s~i~j
-  s'~i~j = s~i~j + dt * (λ * δ~i~j * ∂_k v'~k + μ * (δ~i~k * ∂_k v'~j + δ~j~k * ∂_k v'~i))
+  v'~i = v~i + (dt / ρ0) * ∂_j σ~i~j
+  σ'~i~j = σ~i~j + dt * (λ * δ~i~j * ∂_k v'~k + μ * (δ~i~k * ∂_k v'~j + δ~j~k * ∂_k v'~i))

@@ -124,7 +124,7 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
 | `examples/cahnhilliard3d/` | **Cahn–Hilliard**(4階微分を中間場 μ の2段構成で。質量は `reduces` 経由で監視) |
 | `examples/tdgl3d/` | **TDGL 超伝導**(\|ψ\|⁴ 理論。量子化渦の自発形成) |
 | `examples/mhd_ot/` | **理想 MHD: Orszag–Tang 渦**(保存形+Rusanov 流束を中間流束場19本で生成。8保存量を `reduces` で監視) |
-| `examples/elastic3d/` | **弾性波(Virieux)**(.fe の **Einstein 添字記法2行**: `field v~i @ staggered`、`field s{~i~j} @ staggered` と宣言し、`v'~i = v~i + (dt/ρ0) * ∂_j s~i~j`、`s'~i~j = … λ * δ~i~j … δ~i~k * ∂_k v'~j …` と書く。繰り返し添字は上1・下1だけを総和し、上げ下げは metric を明示する。`@ staggered` 宣言で ∂_a が対象配置アンカーの半セル差分に = Virieux 格子を導出。P/S 両波速を1回で実測) |
+| `examples/elastic3d/` | **弾性波(Virieux)**(.fe の **Einstein 添字記法2行**: `field v~i @ staggered`、`field σ{~i~j} @ staggered` と宣言し、`v'~i = v~i + (dt/ρ0) * ∂_j σ~i~j`、`σ'~i~j = … λ * δ~i~j … δ~i~k * ∂_k v'~j …` と書く。繰り返し添字は上1・下1だけを総和し、上げ下げは metric を明示する。`@ staggered` 宣言で ∂_a が対象配置アンカーの半セル差分に = Virieux 格子を導出。P/S 両波速を1回で実測) |
 | `examples/metric_torus/` | **計量つき拡散(トーラス上の Laplace–Beltrami)**(.fe の `embedding [...]`(座標系の埋め込み)だけから CAS が計量 g_ab=∂X·∂X を導出・**直交性を記号検査**・h_a=√g_aa → hodge 因子の係数場・半セル評価・保存流束まで自動。`use exterior-calculus { Δ }` により、物理は `u' = u + dt * Δ u` の1行(`Δ` は計量下で自動的に Laplace–Beltrami; `u - dt * δ (d u)` とも書ける)。`metric scale` 直接指定も可) |
 | `examples/kleingordon/` | **非線形 Klein–Gordon(φ⁴ キンク)**(leapfrog 2場。ブーストした kink–antikink 対で速度と相対論的エネルギーを実測) |
 | `examples/shallowwater/` | **浅水方程式**(保存形+人工粘性。重力波速 √(gh) を実測、質量は流束形式で厳密保存) |
@@ -177,8 +177,9 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
   Yee スキームの div B 厳密保存の構造的理由になる。
 - **テンソル**: `Vector MathValue` 等の型注釈でテンソルごと受け取り(λ⊗ のスカラー/テンソルパラメタ)、
   `ε`・`generateTensor`・添字縮約は Egison 標準ライブラリをそのまま使う。
-  添字つき field は `field v~i @ staggered` や `field s{~i~j} @ staggered` のように宣言し、
+  添字つき field は `field v~i @ staggered` や `field σ{~i~j} @ staggered` のように宣言し、
   rank・上下・対称性・Formura 出力 layout は添字仕様から推論する。
+  初期値も `v~i = [| ... |]~i` や `σ~i~j = [| ... |]~i~j` のように同じ添字を明示する。
   上付き `~i` と下付き `_i` は strict に区別し、`metric g` で宣言した計量名は
   `g~i~j`/`g~i_j`/`g_i~j`/`g_i_j` の上下パターンごとに生成 `.egi` の
   内部計量テンソルへ下ろす(Euclidean では単位行列)。`metric δ` と宣言すれば

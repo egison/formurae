@@ -10,27 +10,27 @@ double :: dt = 0.0005
 extern function :: exp
 gp = fun(x) exp(-((x - 0.3)/0.02)*((x - 0.3)/0.02))
 
-begin function (vx,vy,vz,sxx,syy,szz,sxy,sxz,syz) = init()
-  double [] :: vx, vy, vz, sxx, syy, szz, sxy, sxz, syz
+begin function (vx,vy,vz,sigmaxx,sigmayy,sigmazz,sigmaxy,sigmaxz,sigmayz) = init()
+  double [] :: vx, vy, vz, sigmaxx, sigmayy, sigmazz, sigmaxy, sigmaxz, sigmayz
   vx[i,j,k] = gp((i + 0.5)*dx)
   vy[i,j,k] = gp(i*dx)
   vz[i,j,k] = 0.0
-  sxx[i,j,k] = 0.0 - 2.0*gp(i*dx)
-  syy[i,j,k] = 0.0
-  szz[i,j,k] = 0.0
-  sxy[i,j,k] = 0.0 - 1.0*gp((i + 0.5)*dx)
-  sxz[i,j,k] = 0.0
-  syz[i,j,k] = 0.0
+  sigmaxx[i,j,k] = 0.0 - 2.0*gp(i*dx)
+  sigmayy[i,j,k] = 0.0
+  sigmazz[i,j,k] = 0.0
+  sigmaxy[i,j,k] = 0.0 - 1.0*gp((i + 0.5)*dx)
+  sigmaxz[i,j,k] = 0.0
+  sigmayz[i,j,k] = 0.0
 end function
 
-begin function (vx',vy',vz',sxx',syy',szz',sxy',sxz',syz') = step(vx,vy,vz,sxx,syy,szz,sxy,sxz,syz)
-  vx' = vx[i,j,k] + dt*sxz[i,j,k]/(dz*rho0) + (-1)*dt*sxz[i,j,k-1]/(dz*rho0) + dt*sxy[i,j,k]/(dy*rho0) + (-1)*dt*sxy[i,j-1,k]/(dy*rho0) + (-1)*dt*sxx[i,j,k]/(dx*rho0) + dt*sxx[i+1,j,k]/(dx*rho0)
-  vy' = vy[i,j,k] + dt*syz[i,j,k]/(dz*rho0) + (-1)*dt*syz[i,j,k-1]/(dz*rho0) + (-1)*dt*syy[i,j,k]/(dy*rho0) + dt*syy[i,j+1,k]/(dy*rho0) + dt*sxy[i,j,k]/(dx*rho0) + (-1)*dt*sxy[i-1,j,k]/(dx*rho0)
-  vz' = vz[i,j,k] + (-1)*dt*szz[i,j,k]/(dz*rho0) + dt*szz[i,j,k+1]/(dz*rho0) + dt*syz[i,j,k]/(dy*rho0) + (-1)*dt*syz[i,j-1,k]/(dy*rho0) + dt*sxz[i,j,k]/(dx*rho0) + (-1)*dt*sxz[i-1,j,k]/(dx*rho0)
-  sxx' = dt*lambda*vz'[i,j,k]/(dz) + (-1)*dt*lambda*vz'[i,j,k-1]/(dz) + dt*lambda*vy'[i,j,k]/(dy) + (-1)*dt*lambda*vy'[i,j-1,k]/(dy) + 2*dt*mu*vx'[i,j,k]/(dx) + (-2)*dt*mu*vx'[i-1,j,k]/(dx) + dt*lambda*vx'[i,j,k]/(dx) + (-1)*dt*lambda*vx'[i-1,j,k]/(dx) + sxx[i,j,k]
-  syy' = dt*lambda*vz'[i,j,k]/(dz) + (-1)*dt*lambda*vz'[i,j,k-1]/(dz) + 2*dt*mu*vy'[i,j,k]/(dy) + (-2)*dt*mu*vy'[i,j-1,k]/(dy) + dt*lambda*vy'[i,j,k]/(dy) + (-1)*dt*lambda*vy'[i,j-1,k]/(dy) + dt*lambda*vx'[i,j,k]/(dx) + (-1)*dt*lambda*vx'[i-1,j,k]/(dx) + syy[i,j,k]
-  szz' = 2*dt*mu*vz'[i,j,k]/(dz) + (-2)*dt*mu*vz'[i,j,k-1]/(dz) + dt*lambda*vz'[i,j,k]/(dz) + (-1)*dt*lambda*vz'[i,j,k-1]/(dz) + dt*lambda*vy'[i,j,k]/(dy) + (-1)*dt*lambda*vy'[i,j-1,k]/(dy) + dt*lambda*vx'[i,j,k]/(dx) + (-1)*dt*lambda*vx'[i-1,j,k]/(dx) + szz[i,j,k]
-  sxy' = (-1)*dt*mu*vx'[i,j,k]/(dy) + dt*mu*vx'[i,j+1,k]/(dy) + (-1)*dt*mu*vy'[i,j,k]/(dx) + dt*mu*vy'[i+1,j,k]/(dx) + sxy[i,j,k]
-  sxz' = (-1)*dt*mu*vx'[i,j,k]/(dz) + dt*mu*vx'[i,j,k+1]/(dz) + (-1)*dt*mu*vz'[i,j,k]/(dx) + dt*mu*vz'[i+1,j,k]/(dx) + sxz[i,j,k]
-  syz' = (-1)*dt*mu*vy'[i,j,k]/(dz) + dt*mu*vy'[i,j,k+1]/(dz) + (-1)*dt*mu*vz'[i,j,k]/(dy) + dt*mu*vz'[i,j+1,k]/(dy) + syz[i,j,k]
+begin function (vx',vy',vz',sigmaxx',sigmayy',sigmazz',sigmaxy',sigmaxz',sigmayz') = step(vx,vy,vz,sigmaxx,sigmayy,sigmazz,sigmaxy,sigmaxz,sigmayz)
+  vx' = vx[i,j,k] + dt*sigmaxz[i,j,k]/(dz*rho0) + (-1)*dt*sigmaxz[i,j,k-1]/(dz*rho0) + dt*sigmaxy[i,j,k]/(dy*rho0) + (-1)*dt*sigmaxy[i,j-1,k]/(dy*rho0) + (-1)*dt*sigmaxx[i,j,k]/(dx*rho0) + dt*sigmaxx[i+1,j,k]/(dx*rho0)
+  vy' = vy[i,j,k] + dt*sigmayz[i,j,k]/(dz*rho0) + (-1)*dt*sigmayz[i,j,k-1]/(dz*rho0) + (-1)*dt*sigmayy[i,j,k]/(dy*rho0) + dt*sigmayy[i,j+1,k]/(dy*rho0) + dt*sigmaxy[i,j,k]/(dx*rho0) + (-1)*dt*sigmaxy[i-1,j,k]/(dx*rho0)
+  vz' = vz[i,j,k] + (-1)*dt*sigmazz[i,j,k]/(dz*rho0) + dt*sigmazz[i,j,k+1]/(dz*rho0) + dt*sigmayz[i,j,k]/(dy*rho0) + (-1)*dt*sigmayz[i,j-1,k]/(dy*rho0) + dt*sigmaxz[i,j,k]/(dx*rho0) + (-1)*dt*sigmaxz[i-1,j,k]/(dx*rho0)
+  sigmaxx' = dt*lambda*vz'[i,j,k]/(dz) + (-1)*dt*lambda*vz'[i,j,k-1]/(dz) + dt*lambda*vy'[i,j,k]/(dy) + (-1)*dt*lambda*vy'[i,j-1,k]/(dy) + 2*dt*mu*vx'[i,j,k]/(dx) + (-2)*dt*mu*vx'[i-1,j,k]/(dx) + dt*lambda*vx'[i,j,k]/(dx) + (-1)*dt*lambda*vx'[i-1,j,k]/(dx) + sigmaxx[i,j,k]
+  sigmayy' = dt*lambda*vz'[i,j,k]/(dz) + (-1)*dt*lambda*vz'[i,j,k-1]/(dz) + 2*dt*mu*vy'[i,j,k]/(dy) + (-2)*dt*mu*vy'[i,j-1,k]/(dy) + dt*lambda*vy'[i,j,k]/(dy) + (-1)*dt*lambda*vy'[i,j-1,k]/(dy) + dt*lambda*vx'[i,j,k]/(dx) + (-1)*dt*lambda*vx'[i-1,j,k]/(dx) + sigmayy[i,j,k]
+  sigmazz' = 2*dt*mu*vz'[i,j,k]/(dz) + (-2)*dt*mu*vz'[i,j,k-1]/(dz) + dt*lambda*vz'[i,j,k]/(dz) + (-1)*dt*lambda*vz'[i,j,k-1]/(dz) + dt*lambda*vy'[i,j,k]/(dy) + (-1)*dt*lambda*vy'[i,j-1,k]/(dy) + dt*lambda*vx'[i,j,k]/(dx) + (-1)*dt*lambda*vx'[i-1,j,k]/(dx) + sigmazz[i,j,k]
+  sigmaxy' = (-1)*dt*mu*vx'[i,j,k]/(dy) + dt*mu*vx'[i,j+1,k]/(dy) + (-1)*dt*mu*vy'[i,j,k]/(dx) + dt*mu*vy'[i+1,j,k]/(dx) + sigmaxy[i,j,k]
+  sigmaxz' = (-1)*dt*mu*vx'[i,j,k]/(dz) + dt*mu*vx'[i,j,k+1]/(dz) + (-1)*dt*mu*vz'[i,j,k]/(dx) + dt*mu*vz'[i+1,j,k]/(dx) + sigmaxz[i,j,k]
+  sigmayz' = (-1)*dt*mu*vy'[i,j,k]/(dz) + dt*mu*vy'[i,j,k+1]/(dz) + (-1)*dt*mu*vz'[i,j,k]/(dy) + dt*mu*vz'[i,j+1,k]/(dy) + sigmayz[i,j,k]
 end function
