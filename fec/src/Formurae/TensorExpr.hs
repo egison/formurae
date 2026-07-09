@@ -1,5 +1,8 @@
 module Formurae.TensorExpr
   ( TensorExpr(..)
+  , TensorInfo(..)
+  , DiagIx(..)
+  , ElaboratedTensorExpr(..)
   , Placement
   , zeroPlaceB
   , placeVB
@@ -8,6 +11,7 @@ module Formurae.TensorExpr
   , parseTensorExpr
   , renderTensorExpr
   , normalizeTensorExpr
+  , elaborateTensorExpr
   , ixExpand
   , expandTensorDefs
   , expandDefs
@@ -34,6 +38,24 @@ data TensorExpr
   | TEBinary String TensorExpr TensorExpr
   | TEGroup TensorExpr
   deriving (Eq, Show)
+
+data DiagIx = DiagIx
+  { diagName :: String
+  , diagUp   :: IxPart
+  , diagDown :: IxPart
+  } deriving (Eq, Show)
+
+data TensorInfo = TensorInfo
+  { tiFreeIx :: [IxPart]
+  , tiDiagIx :: [DiagIx]
+  , tiRank   :: Int
+  } deriving (Eq, Show)
+
+data ElaboratedTensorExpr = ElaboratedTensorExpr
+  { eteExpr     :: TensorExpr
+  , eteInfo     :: TensorInfo
+  , eteTermInfo :: [TensorInfo]
+  } deriving (Eq, Show)
 
 type Placement = [Bool]
 
@@ -76,6 +98,153 @@ renderTensorExpr (TEGroup e) = "(" ++ renderTensorExpr e ++ ")"
 
 normalizeTensorExpr :: String -> String
 normalizeTensorExpr = renderTensorExpr . parseTensorExpr
+
+elaborateTensorExpr :: Model -> [String] -> [IxPart] -> TensorExpr -> IO ElaboratedTensorExpr
+elaborateTensorExpr m lets lhs expr = do
+  termOccs <- tensorTermOccurrences m lets lhs [] expr
+  let termInfos = map tensorInfoFromOccurrences termOccs
+      mergedInfo = mergeTensorInfos termInfos
+  return (ElaboratedTensorExpr expr mergedInfo termInfos)
+
+tensorTermOccurrences :: Model -> [String] -> [IxPart] -> [(String, String)] -> TensorExpr -> IO [[IxPart]]
+tensorTermOccurrences m lets lhs aliases expr =
+  case expr of
+    TEBinary op l r | op == "+" || op == "-" -> do
+      lTerms <- tensorTermOccurrences m lets lhs aliases l
+      rTerms <- tensorTermOccurrences m lets lhs aliases r
+      return (lTerms ++ rTerms)
+    TEGroup e -> tensorTermOccurrences m lets lhs aliases e
+    _ -> fmap (: []) (tensorOccurrences m lets lhs aliases expr)
+
+tensorOccurrences :: Model -> [String] -> [IxPart] -> [(String, String)] -> TensorExpr -> IO [IxPart]
+tensorOccurrences m lets lhs aliases expr =
+  case expr of
+    TERaw raw -> rawOccurrences m lets aliases raw
+    TEIdent base parts -> indexedIdentOccurrences m lets base parts (base ++ concatMap ixSuffix parts)
+    TEAppendIndexed e parts -> do
+      occ <- tensorOccurrences m lets lhs aliases e
+      return (occ ++ map (renameIxPart aliases) parts)
+    TEWithSymbols names body -> do
+      let lhsNames = map ixName lhs
+          aliases' = zip names lhsNames ++ aliases
+      tensorOccurrences m lets lhs aliases' body
+    TEContractWith _ body -> do
+      occ <- concat <$> tensorTermOccurrences m lets lhs aliases body
+      return (removeContractedOccurrences occ)
+    TEDerivative parts body -> do
+      occ <- tensorOccurrences m lets lhs aliases body
+      return (map (renameIxPart aliases) parts ++ occ)
+    TEDot parts -> do
+      occ <- concat <$> mapM (tensorOccurrences m lets lhs aliases) parts
+      return (removeContractedOccurrences occ)
+    TEBinary _ l r -> do
+      lo <- tensorOccurrences m lets lhs aliases l
+      ro <- tensorOccurrences m lets lhs aliases r
+      return (lo ++ ro)
+    TEGroup e -> tensorOccurrences m lets lhs aliases e
+
+rawOccurrences :: Model -> [String] -> [(String, String)] -> String -> IO [IxPart]
+rawOccurrences m lets aliases raw =
+  fmap concat (mapM tokOccurrences (itok raw))
+  where
+    tokOccurrences (II w) =
+      let (base0, parts) = parseIndexedIdent w
+      in map (renameIxPart aliases) <$> indexedIdentOccurrences m lets base0 parts w
+    tokOccurrences _ = return []
+
+indexedIdentOccurrences :: Model -> [String] -> String -> [IxPart] -> String -> IO [IxPart]
+indexedIdentOccurrences m lets base0 parts w =
+  let (base, _) = fieldBaseOf base0
+  in case () of
+       _
+         | Just metricNm <- mMetricName m
+         , base == metricNm
+         , length parts == 2
+         , all isIndexedMetricPart parts ->
+             metricIdentOccurrences metricNm parts w
+         | base == "epsilon", not (null parts) ->
+             if mDim m /= 3
+               then fatal ("epsilon currently requires dimension 3: " ++ w)
+               else if length parts == 3 && all isSingleAlphaIx parts
+               then return parts
+               else fatal ("epsilon takes three single marked indices, e.g. epsilon~i~j~k: " ++ w)
+         | base == "delta", not (null parts) ->
+             kroneckerIdentOccurrences parts w
+         | base == "d", not (null parts) ->
+             derivativeIdentOccurrences parts w
+         | fieldDeclOf m base /= Nothing && not (null parts) -> do
+             validateFieldRefParts m lets w
+             return parts
+         | base `elem` lets && not (null parts) ->
+             return parts
+         | Just metricNm <- mMetricName m
+         , base == metricNm
+         , not (null parts) ->
+             metricIdentOccurrences metricNm parts w
+         | otherwise ->
+             return []
+
+metricIdentOccurrences :: String -> [IxPart] -> String -> IO [IxPart]
+metricIdentOccurrences metricNm parts w =
+  if length parts == 2 && all isIndexedMetricPart parts
+    then return parts
+    else fatal ("metric tensor " ++ metricNm ++ " needs exactly two marked indices: " ++ w)
+
+kroneckerIdentOccurrences :: [IxPart] -> String -> IO [IxPart]
+kroneckerIdentOccurrences [p, q] w
+  | all isSingleAlphaIx [p, q] =
+      if isMixedIxPair p q
+        then return [p, q]
+        else fatal ("Kronecker delta indices must be mixed, e.g. delta~i_j; use metric g and g~i~j/g_i_j for metric components: " ++ w)
+kroneckerIdentOccurrences _ w =
+  fatal ("Kronecker delta takes two single marked indices, e.g. delta~i_j: " ++ w)
+
+derivativeIdentOccurrences :: [IxPart] -> String -> IO [IxPart]
+derivativeIdentOccurrences [p] _ = return [p]
+derivativeIdentOccurrences _ w =
+  fatal ("indexed derivative takes one marked index, e.g. d_i or d~i: " ++ w)
+
+isIndexedMetricPart :: IxPart -> Bool
+isIndexedMetricPart (IxPart _ nm) = all isAlphaNum nm && not (null nm)
+
+isMixedIxPair :: IxPart -> IxPart -> Bool
+isMixedIxPair (IxPart VUp _) (IxPart VDown _) = True
+isMixedIxPair (IxPart VDown _) (IxPart VUp _) = True
+isMixedIxPair _ _ = False
+
+renameIxPart :: [(String, String)] -> IxPart -> IxPart
+renameIxPart aliases (IxPart v nm) =
+  case lookup nm aliases of
+    Just nm' -> IxPart v nm'
+    Nothing -> IxPart v nm
+
+tensorInfoFromOccurrences :: [IxPart] -> TensorInfo
+tensorInfoFromOccurrences occs =
+  let names = nub (map ixName occs)
+      diags = concatMap diagForName names
+      diagNames = map diagName diags
+      free = [p | p <- occs, ixName p `notElem` diagNames]
+  in TensorInfo free diags (length free + length diags)
+  where
+    sameName nm (IxPart _ nm') = nm == nm'
+    diagForName nm =
+      case filter (sameName nm) occs of
+        [u@(IxPart VUp _), d@(IxPart VDown _)] -> [DiagIx nm u d]
+        [d@(IxPart VDown _), u@(IxPart VUp _)] -> [DiagIx nm u d]
+        _ -> []
+
+mergeTensorInfos :: [TensorInfo] -> TensorInfo
+mergeTensorInfos [] = TensorInfo [] [] 0
+mergeTensorInfos infos =
+  let frees = nub (concatMap tiFreeIx infos)
+      diags = nub (concatMap tiDiagIx infos)
+  in TensorInfo frees diags (length frees + length diags)
+
+removeContractedOccurrences :: [IxPart] -> [IxPart]
+removeContractedOccurrences occs =
+  let info = tensorInfoFromOccurrences occs
+      contracted = map diagName (tiDiagIx info)
+  in [p | p <- occs, ixName p `notElem` contracted]
 
 parseTensorTokens :: [ITok] -> TensorExpr
 parseTensorTokens ts0 =
