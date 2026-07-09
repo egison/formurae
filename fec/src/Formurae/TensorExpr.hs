@@ -90,11 +90,17 @@ renderTensorExpr (TEWithSymbols names body) =
 renderTensorExpr (TEContractWith reducer body) =
   "contractWith " ++ renderReducer reducer ++ " " ++ renderContractBody body
 renderTensorExpr (TEDerivative parts body) =
-  unwords (map (\p -> "d" ++ ixSuffix p) parts ++ [renderTensorAtom body])
+  let (parts', body') = flattenDerivative parts body
+  in unwords (map (\p -> "d" ++ ixSuffix p) parts' ++ [renderTensorAtom body'])
 renderTensorExpr (TEDot parts) = intercalate " . " (map renderTensorDotPart parts)
 renderTensorExpr (TEBinary op lhs rhs) =
   renderTensorBinarySide op lhs ++ " " ++ op ++ " " ++ renderTensorBinarySide op rhs
 renderTensorExpr (TEGroup e) = "(" ++ renderTensorExpr e ++ ")"
+
+flattenDerivative :: [IxPart] -> TensorExpr -> ([IxPart], TensorExpr)
+flattenDerivative acc (TEDerivative parts body) =
+  flattenDerivative (acc ++ parts) body
+flattenDerivative acc body = (acc, body)
 
 normalizeTensorExpr :: String -> String
 normalizeTensorExpr = renderTensorExpr . parseTensorExpr
@@ -611,7 +617,29 @@ expandDefs defs s = fmap untok (goE (tokenize s))
 
     substDef df args =
       let env = zip (defParams df) (map parseArgInfo args)
-      in substIToks env (itok (defBody df))
+      in renderTensorExpr (substExpr env (parseTensorExpr (defBody df)))
+
+    substExpr env expr =
+      case expr of
+        TERaw raw -> parseTensorExpr (substIToks env (itok raw))
+        TEIdent base0 parts ->
+          let (base, primes) = fieldBaseOf base0
+          in case lookup base env of
+               Just arg | null parts -> parseTensorExpr (argWithPrimes arg primes)
+                        | otherwise -> parseTensorExpr (argWithParts arg primes parts)
+               Nothing -> expr
+        TEAppendIndexed (TEIdent base0 parts) appendParts ->
+          let (base, primes) = fieldBaseOf base0
+          in case lookup base env of
+               Just arg -> parseTensorExpr (argWithAppendParts arg primes parts appendParts)
+               Nothing -> TEAppendIndexed (TEIdent base0 parts) appendParts
+        TEAppendIndexed e parts -> TEAppendIndexed (substExpr env e) parts
+        TEWithSymbols names body -> TEWithSymbols names (substExpr env body)
+        TEContractWith reducer body -> TEContractWith reducer (substExpr env body)
+        TEDerivative parts body -> TEDerivative parts (substExpr env body)
+        TEDot parts -> TEDot (map (substExpr env) parts)
+        TEBinary op lhs rhs -> TEBinary op (substExpr env lhs) (substExpr env rhs)
+        TEGroup e -> TEGroup (substExpr env e)
 
     substIToks _ [] = []
     substIToks env (II w : IC '.' : IC '.' : IC '.' : rest) =
