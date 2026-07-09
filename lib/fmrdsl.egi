@@ -9,15 +9,17 @@
 -- boilerplate strings beyond its init expressions.
 --
 -- Field kinds: 0 = scalar, 1 = vector / 1-form / 2-form (3 components
--- named x,y,z), 2 = symmetric matrix (6 components xx,yy,zz,xy,xz,yz),
--- 3 = full rank-2 tensor (9 components xx,xy,xz,yx,yy,yz,zx,zy,zz).
+-- named _1,_2,_3), 2 = symmetric matrix (6 upper-triangle components),
+-- 3 = full rank-2 tensor (9 components).  The .fe compiler now emits the
+-- component-name list directly; these helpers are kept for hand-written DSL
+-- files and use axis-independent numeric names.
 --
 
 def compSuffixes (k: Integer) : [String] :=
   if k = 0 then [""]
-    else if k = 1 then ["x", "y", "z"]
-    else if k = 2 then ["xx", "yy", "zz", "xy", "xz", "yz"]
-    else ["xx", "xy", "xz", "yx", "yy", "yz", "zx", "zy", "zz"]
+    else if k = 1 then ["_1", "_2", "_3"]
+    else if k = 2 then ["_1_1", "_2_2", "_3_3", "_1_2", "_1_3", "_2_3"]
+    else ["_1_1", "_1_2", "_1_3", "_2_1", "_2_2", "_2_3", "_3_1", "_3_2", "_3_3"]
 
 def compNames (f: (String, Integer)) : [String] :=
   let (nm, k) := f
@@ -26,39 +28,39 @@ def compNames (f: (String, Integer)) : [String] :=
 def allComps (flds: [(String, Integer)]) : [String] :=
   foldl (\acc f -> acc ++ compNames f) [] flds
 
--- step lines for a vector field: nm{x,y,z}' = the three components
-def vecEqs (nm: String) (c1: MathValue) (c2: MathValue) (c3: MathValue) : [String] :=
-  [ fmrEq (S.concat [nm, "x'"]) c1
-  , fmrEq (S.concat [nm, "y'"]) c2
-  , fmrEq (S.concat [nm, "z'"]) c3
+-- step lines for a vector field: names are the storage component names
+def vecEqs (names: [String]) (c1: MathValue) (c2: MathValue) (c3: MathValue) : [String] :=
+  [ fmrEq (S.append (nth 1 names) "'") c1
+  , fmrEq (S.append (nth 2 names) "'") c2
+  , fmrEq (S.append (nth 3 names) "'") c3
   ]
 
 def scalarEq (nm: String) (c: MathValue) : [String] := [fmrEq (S.append nm "'") c]
 
 -- step lines for a symmetric matrix field (upper-triangle components)
-def symEqs (nm: String) (cxx: MathValue) (cyy: MathValue) (czz: MathValue)
+def symEqs (names: [String]) (cxx: MathValue) (cyy: MathValue) (czz: MathValue)
            (cxy: MathValue) (cxz: MathValue) (cyz: MathValue) : [String] :=
-  [ fmrEq (S.concat [nm, "xx'"]) cxx
-  , fmrEq (S.concat [nm, "yy'"]) cyy
-  , fmrEq (S.concat [nm, "zz'"]) czz
-  , fmrEq (S.concat [nm, "xy'"]) cxy
-  , fmrEq (S.concat [nm, "xz'"]) cxz
-  , fmrEq (S.concat [nm, "yz'"]) cyz
+  [ fmrEq (S.append (nth 1 names) "'") cxx
+  , fmrEq (S.append (nth 2 names) "'") cyy
+  , fmrEq (S.append (nth 3 names) "'") czz
+  , fmrEq (S.append (nth 4 names) "'") cxy
+  , fmrEq (S.append (nth 5 names) "'") cxz
+  , fmrEq (S.append (nth 6 names) "'") cyz
   ]
 
-def tensor2Eqs (nm: String)
+def tensor2Eqs (names: [String])
                (cxx: MathValue) (cxy: MathValue) (cxz: MathValue)
                (cyx: MathValue) (cyy: MathValue) (cyz: MathValue)
                (czx: MathValue) (czy: MathValue) (czz: MathValue) : [String] :=
-  [ fmrEq (S.concat [nm, "xx'"]) cxx
-  , fmrEq (S.concat [nm, "xy'"]) cxy
-  , fmrEq (S.concat [nm, "xz'"]) cxz
-  , fmrEq (S.concat [nm, "yx'"]) cyx
-  , fmrEq (S.concat [nm, "yy'"]) cyy
-  , fmrEq (S.concat [nm, "yz'"]) cyz
-  , fmrEq (S.concat [nm, "zx'"]) czx
-  , fmrEq (S.concat [nm, "zy'"]) czy
-  , fmrEq (S.concat [nm, "zz'"]) czz
+  [ fmrEq (S.append (nth 1 names) "'") cxx
+  , fmrEq (S.append (nth 2 names) "'") cxy
+  , fmrEq (S.append (nth 3 names) "'") cxz
+  , fmrEq (S.append (nth 4 names) "'") cyx
+  , fmrEq (S.append (nth 5 names) "'") cyy
+  , fmrEq (S.append (nth 6 names) "'") cyz
+  , fmrEq (S.append (nth 7 names) "'") czx
+  , fmrEq (S.append (nth 8 names) "'") czy
+  , fmrEq (S.append (nth 9 names) "'") czz
   ]
 
 -- a single output needs no tuple parentheses in Formura
@@ -69,10 +71,9 @@ def tupleOf (xs: [String]) : String :=
 
 def emitModelOn (dim: Integer) (axes: [String])
                 (params: [(String, String)]) (helpers: [String])
-                (flds: [(String, Integer)]) (initLines: [String])
+                (comps: [String]) (initLines: [String])
                 (stepLines: [String]) : String :=
-  let comps := allComps flds
-   in let compsP := map (\c -> S.append c "'") comps
+  let compsP := map (\c -> S.append c "'") comps
    in S.intercalate "\n"
         ([ S.append "dimension :: " (show dim)
          , S.append "axes :: " (S.intercalate "," axes)

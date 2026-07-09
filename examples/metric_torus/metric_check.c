@@ -14,8 +14,8 @@
 
 static double H(Formura_Navi n) {
   double s = 0;
-  for (int i = n.lower_x; i < n.upper_x; i++)
-    for (int j = n.lower_y; j < n.upper_y; j++)
+  for (int i = n.lower_theta; i < n.upper_theta; i++)
+    for (int j = n.lower_phi; j < n.upper_phi; j++)
       s += formura_data.sg[i][j][1] * formura_data.u[i][j][1];
   return s;
 }
@@ -55,8 +55,8 @@ int main(int argc, char **argv) {
   double md = 0;
   for (int i = 0; i < NX; i++)
     for (int j = 0; j < NY; j++) {
-      int ci = ((i + n.offset_x) % NX + NX) % NX;
-      int cj = ((j + n.offset_y) % NY + NY) % NY;
+      int ci = ((i + n.offset_theta) % NX + NX) % NX;
+      int cj = ((j + n.offset_phi) % NY + NY) % NY;
       double d = fabs(formura_data.u[i][j][1] - ru[ci][cj]);
       if (d > md) md = d;
     }

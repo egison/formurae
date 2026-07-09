@@ -6,21 +6,21 @@ double :: dt = 0.1*dx
 extern function :: exp
 gauss1 = fun(x) exp(-((x-(total_grid_x*dx/2))/(8*dx))**2)
 
-begin function (Ex,Ey,Ez,Bx,By,Bz) = init()
-  double [] :: Ex, Ey, Ez, Bx, By, Bz
-  Ex[i,j,k] = 0
-  Ey[i,j,k] = gauss1(i*dx)
-  Ez[i,j,k] = 0
-  Bx[i,j,k] = 0
-  By[i,j,k] = 0
-  Bz[i,j,k] = gauss1(i*dx)
+begin function (E_1,E_2,E_3,B_1,B_2,B_3) = init()
+  double [] :: E_1, E_2, E_3, B_1, B_2, B_3
+  E_1[i,j,k] = 0
+  E_2[i,j,k] = gauss1(i*dx)
+  E_3[i,j,k] = 0
+  B_1[i,j,k] = 0
+  B_2[i,j,k] = 0
+  B_3[i,j,k] = gauss1(i*dx)
 end function
 
-begin function (Ex',Ey',Ez',Bx',By',Bz') = step(Ex,Ey,Ez,Bx,By,Bz)
-  Ex' = Ex[i,j,k] + (-1)*Bz[i,j-1,k]*dt/(2*dy) + Bz[i,j+1,k]*dt/(2*dy) + By[i,j,k-1]*dt/(2*dz) + (-1)*By[i,j,k+1]*dt/(2*dz)
-  Ey' = Ey[i,j,k] + Bz[i-1,j,k]*dt/(2*dx) + (-1)*Bz[i+1,j,k]*dt/(2*dx) + (-1)*Bx[i,j,k-1]*dt/(2*dz) + Bx[i,j,k+1]*dt/(2*dz)
-  Ez' = Ez[i,j,k] + (-1)*By[i-1,j,k]*dt/(2*dx) + By[i+1,j,k]*dt/(2*dx) + Bx[i,j-1,k]*dt/(2*dy) + (-1)*Bx[i,j+1,k]*dt/(2*dy)
-  Bx' = Ez'[i,j-1,k]*dt/(2*dy) + (-1)*Ez'[i,j+1,k]*dt/(2*dy) + (-1)*Ey'[i,j,k-1]*dt/(2*dz) + Ey'[i,j,k+1]*dt/(2*dz) + Bx[i,j,k]
-  By' = (-1)*Ez'[i-1,j,k]*dt/(2*dx) + Ez'[i+1,j,k]*dt/(2*dx) + Ex'[i,j,k-1]*dt/(2*dz) + (-1)*Ex'[i,j,k+1]*dt/(2*dz) + By[i,j,k]
-  Bz' = Ey'[i-1,j,k]*dt/(2*dx) + (-1)*Ey'[i+1,j,k]*dt/(2*dx) + (-1)*Ex'[i,j-1,k]*dt/(2*dy) + Ex'[i,j+1,k]*dt/(2*dy) + Bz[i,j,k]
+begin function (E_1',E_2',E_3',B_1',B_2',B_3') = step(E_1,E_2,E_3,B_1,B_2,B_3)
+  E_1' = E_1[i,j,k] + (-1)*B_3[i,j-1,k]*dt/(2*dy) + B_3[i,j+1,k]*dt/(2*dy) + B_2[i,j,k-1]*dt/(2*dz) + (-1)*B_2[i,j,k+1]*dt/(2*dz)
+  E_2' = E_2[i,j,k] + B_3[i-1,j,k]*dt/(2*dx) + (-1)*B_3[i+1,j,k]*dt/(2*dx) + (-1)*B_1[i,j,k-1]*dt/(2*dz) + B_1[i,j,k+1]*dt/(2*dz)
+  E_3' = E_3[i,j,k] + (-1)*B_2[i-1,j,k]*dt/(2*dx) + B_2[i+1,j,k]*dt/(2*dx) + B_1[i,j-1,k]*dt/(2*dy) + (-1)*B_1[i,j+1,k]*dt/(2*dy)
+  B_1' = E_3'[i,j-1,k]*dt/(2*dy) + (-1)*E_3'[i,j+1,k]*dt/(2*dy) + (-1)*E_2'[i,j,k-1]*dt/(2*dz) + E_2'[i,j,k+1]*dt/(2*dz) + B_1[i,j,k]
+  B_2' = (-1)*E_3'[i-1,j,k]*dt/(2*dx) + E_3'[i+1,j,k]*dt/(2*dx) + E_1'[i,j,k-1]*dt/(2*dz) + (-1)*E_1'[i,j,k+1]*dt/(2*dz) + B_2[i,j,k]
+  B_3' = E_2'[i-1,j,k]*dt/(2*dx) + (-1)*E_2'[i+1,j,k]*dt/(2*dx) + (-1)*E_1'[i,j-1,k]*dt/(2*dy) + E_1'[i,j+1,k]*dt/(2*dy) + B_3[i,j,k]
 end function

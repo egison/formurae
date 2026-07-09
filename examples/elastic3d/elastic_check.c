@@ -3,8 +3,8 @@
 #include <math.h>
 #include "elastic3d.h"
 
-/* Two pulses launched from x=0.3: a P pulse (vx, sigmaxx) and an S pulse
- * (vy, sigmaxy), both right-moving.  With la=2, mu=1, rho=1 they travel at
+/* Two pulses launched from x=0.3: a P pulse (v_up1, sigma_up1_up1) and an S pulse
+ * (v_up2, sigma_up1_up2), both right-moving.  With la=2, mu=1, rho=1 they travel at
  * vp=2 and vs=1; the driver measures both speeds in one run and checks
  * elastic energy conservation. */
 
@@ -12,7 +12,7 @@ static double centerOf(Formura_Navi n, int which) {
   double C = 0, S = 0;
   int N = n.total_grid_x;
   for (int i = n.lower_x; i < n.upper_x; i++) {
-    double v = (which == 0) ? formura_data.vx[i][2][2] : formura_data.vy[i][2][2];
+    double v = (which == 0) ? formura_data.v_up1[i][2][2] : formura_data.v_up2[i][2][2];
     double w = v * v;
     double th = 2.0 * M_PI * to_pos_x(i, n) / n.length_x;
     C += w * cos(th); S += w * sin(th);
@@ -27,16 +27,16 @@ static double energy(Formura_Navi n) {
   for (int i = n.lower_x; i < n.upper_x; i++)
     for (int j = n.lower_y; j < n.upper_y; j++)
       for (int k = n.lower_z; k < n.upper_z; k++) {
-        double v2 = formura_data.vx[i][j][k]*formura_data.vx[i][j][k]
-                  + formura_data.vy[i][j][k]*formura_data.vy[i][j][k]
-                  + formura_data.vz[i][j][k]*formura_data.vz[i][j][k];
-        double tr = formura_data.sigmaxx[i][j][k] + formura_data.sigmayy[i][j][k] + formura_data.sigmazz[i][j][k];
-        double ss = formura_data.sigmaxx[i][j][k]*formura_data.sigmaxx[i][j][k]
-                  + formura_data.sigmayy[i][j][k]*formura_data.sigmayy[i][j][k]
-                  + formura_data.sigmazz[i][j][k]*formura_data.sigmazz[i][j][k]
-                  + 2*(formura_data.sigmaxy[i][j][k]*formura_data.sigmaxy[i][j][k]
-                     + formura_data.sigmaxz[i][j][k]*formura_data.sigmaxz[i][j][k]
-                     + formura_data.sigmayz[i][j][k]*formura_data.sigmayz[i][j][k]);
+        double v2 = formura_data.v_up1[i][j][k]*formura_data.v_up1[i][j][k]
+                  + formura_data.v_up2[i][j][k]*formura_data.v_up2[i][j][k]
+                  + formura_data.v_up3[i][j][k]*formura_data.v_up3[i][j][k];
+        double tr = formura_data.sigma_up1_up1[i][j][k] + formura_data.sigma_up2_up2[i][j][k] + formura_data.sigma_up3_up3[i][j][k];
+        double ss = formura_data.sigma_up1_up1[i][j][k]*formura_data.sigma_up1_up1[i][j][k]
+                  + formura_data.sigma_up2_up2[i][j][k]*formura_data.sigma_up2_up2[i][j][k]
+                  + formura_data.sigma_up3_up3[i][j][k]*formura_data.sigma_up3_up3[i][j][k]
+                  + 2*(formura_data.sigma_up1_up2[i][j][k]*formura_data.sigma_up1_up2[i][j][k]
+                     + formura_data.sigma_up1_up3[i][j][k]*formura_data.sigma_up1_up3[i][j][k]
+                     + formura_data.sigma_up2_up3[i][j][k]*formura_data.sigma_up2_up3[i][j][k]);
         E += 0.5*rho*v2 + ss/(4*mu) - la*tr*tr/(4*mu*(3*la+2*mu));
       }
   return E;

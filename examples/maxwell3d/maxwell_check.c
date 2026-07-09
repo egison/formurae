@@ -11,9 +11,9 @@ static double energy(Formura_Navi n) {
   for (int ix = n.lower_x; ix < n.upper_x; ix++)
     for (int iy = n.lower_y; iy < n.upper_y; iy++)
       for (int iz = n.lower_z; iz < n.upper_z; iz++) {
-        double ex = formura_data.Ex[ix][iy][iz], ey = formura_data.Ey[ix][iy][iz],
-               ez = formura_data.Ez[ix][iy][iz], bx = formura_data.Bx[ix][iy][iz],
-               by = formura_data.By[ix][iy][iz], bz = formura_data.Bz[ix][iy][iz];
+        double ex = formura_data.E_1[ix][iy][iz], ey = formura_data.E_2[ix][iy][iz],
+               ez = formura_data.E_3[ix][iy][iz], bx = formura_data.B_1[ix][iy][iz],
+               by = formura_data.B_2[ix][iy][iz], bz = formura_data.B_3[ix][iy][iz];
         s += ex*ex + ey*ey + ez*ez + bx*bx + by*by + bz*bz;
       }
   return s;
@@ -26,7 +26,7 @@ static double centerX(Formura_Navi n) {
   for (int ix = n.lower_x; ix < n.upper_x; ix++)
     for (int iy = n.lower_y; iy < n.upper_y; iy++)
       for (int iz = n.lower_z; iz < n.upper_z; iz++) {
-        double ey = formura_data.Ey[ix][iy][iz], bz = formura_data.Bz[ix][iy][iz];
+        double ey = formura_data.E_2[ix][iy][iz], bz = formura_data.B_3[ix][iy][iz];
         double w = ey*ey + bz*bz;
         double th = 2.0 * M_PI * to_pos_x(ix, n) / n.length_x;
         C += w * cos(th); S += w * sin(th);

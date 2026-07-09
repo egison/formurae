@@ -17,9 +17,9 @@ static double fr[NR + 1][NT][NP], ft[NR][NT + 1][NP];
 
 static double H(Formura_Navi n) {
   double s = 0;
-  for (int i = n.lower_x; i < n.upper_x; i++)
-    for (int j = n.lower_y; j < n.upper_y; j++)
-      for (int k = n.lower_z; k < n.upper_z; k++)
+  for (int i = n.lower_r; i < n.upper_r; i++)
+    for (int j = n.lower_theta; j < n.upper_theta; j++)
+      for (int k = n.lower_phi; k < n.upper_phi; k++)
         s += formura_data.sg[i][j][k] * formura_data.u[i][j][k];
   return s;
 }
@@ -70,16 +70,16 @@ int main(int argc, char **argv) {
   double dt = 0.0002;
   Formura_Navi n;
   Formura_Init(&argc, &argv, &n);
-  double hr = n.space_interval_x, ht = n.space_interval_y, hp = n.space_interval_z;
+  double hr = n.space_interval_r, ht = n.space_interval_theta, hp = n.space_interval_phi;
   double H0 = H(n), mx0 = n.reduce_umax, mn0 = n.reduce_umin;
 
   while (n.time_step < steps) Formura_Forward(&n);
 
   refRun(steps, dt, hr, ht, hp);
   double md = 0;
-  for (int i = n.lower_x; i < n.upper_x; i++)
-    for (int j = n.lower_y; j < n.upper_y; j++)
-      for (int k = n.lower_z; k < n.upper_z; k++) {
+  for (int i = n.lower_r; i < n.upper_r; i++)
+    for (int j = n.lower_theta; j < n.upper_theta; j++)
+      for (int k = n.lower_phi; k < n.upper_phi; k++) {
         double d = fabs(formura_data.u[i][j][k] - ru[i][j][k]);
         if (d > md) md = d;
       }

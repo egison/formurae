@@ -16,8 +16,8 @@ static double ru[NX][NY], rn[NX][NY], f1[NX + 1][NY];
 
 static double H(Formura_Navi n) {
   double s = 0;
-  for (int i = n.lower_x; i < n.upper_x; i++)
-    for (int j = n.lower_y; j < n.upper_y; j++)
+  for (int i = n.lower_theta; i < n.upper_theta; i++)
+    for (int j = n.lower_phi; j < n.upper_phi; j++)
       s += formura_data.sg[i][j][1] * formura_data.u[i][j][1];
   return s;
 }
@@ -55,15 +55,15 @@ int main(int argc, char **argv) {
   double dt = 0.0001;
   Formura_Navi n;
   Formura_Init(&argc, &argv, &n);
-  double hx = n.space_interval_x, hy = n.space_interval_y;
+  double hx = n.space_interval_theta, hy = n.space_interval_phi;
   double H0 = H(n), mx0 = n.reduce_umax, mn0 = n.reduce_umin;
 
   while (n.time_step < steps) Formura_Forward(&n);
 
   refRun(steps, dt, hx, hy);
   double md = 0;
-  for (int i = n.lower_x; i < n.upper_x; i++)
-    for (int j = n.lower_y; j < n.upper_y; j++) {
+  for (int i = n.lower_theta; i < n.upper_theta; i++)
+    for (int j = n.lower_phi; j < n.upper_phi; j++) {
       double d = fabs(formura_data.u[i][j][1] - ru[i][j]);
       if (d > md) md = d;
     }

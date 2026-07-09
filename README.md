@@ -64,6 +64,8 @@ u' = u + dt * Δ u
 ```
 
 `Δ` は `use exterior-calculus { Δ }` で有効化する、モデルの幾何のラプラシアン(計量下では Laplace–Beltrami)。
+生成 `.fmr` でも `axes :: theta,phi,z` となり、格子幅や C ドライバの名前も
+`dtheta`、`dphi`、`space_interval_theta` のように宣言した軸名に追随する。
 基本演算子だけでも書ける: `∂x (∂x u)` は compact な2階差分に融合し、
 `u' = u - dt * δ (d u)` は −δd 形の熱方程式 — いずれも生成コードは
 名前つき演算子版とバイト一致。
@@ -90,8 +92,8 @@ def curl (X: Vector MathValue) : Vector MathValue :=
 ここから6本の更新式が全自動で展開される(生成物の1本):
 
 ```
-Ey' = Ey[i,j,k] + Bz[i-1,j,k]*dt/(2*dx) + (-1)*Bz[i+1,j,k]*dt/(2*dx)
-    + (-1)*Bx[i,j,k-1]*dt/(2*dz) + Bx[i,j,k+1]*dt/(2*dz)
+E_2' = E_2[i,j,k] + B_3[i-1,j,k]*dt/(2*dx) + (-1)*B_3[i+1,j,k]*dt/(2*dx)
+     + (-1)*B_1[i,j,k-1]*dt/(2*dz) + B_1[i,j,k+1]*dt/(2*dz)
 ```
 
 ## クイックスタート

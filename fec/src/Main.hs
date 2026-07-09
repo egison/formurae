@@ -278,6 +278,9 @@ metricNameConflicts m =
   map fst (mParams m)
   ++ map fst (mFlds m)
 
+egiStringList :: [String] -> String
+egiStringList xs = "[" ++ intercalate ", " (map show xs) ++ "]"
+
 validateMetricName :: Model -> IO ()
 validateMetricName m =
   case mMetricName m of
@@ -1138,6 +1141,77 @@ indexContractionDots = go Nothing
 fieldBaseOf :: String -> (String, Int)
 fieldBaseOf w = (takeWhile (/= '\'') w, length (filter (== '\'') w))
 
+ixVariance :: IxPart -> Variance
+ixVariance (IxPart v _) = v
+
+fieldIndexParts :: FieldDecl -> Maybe [IxPart]
+fieldIndexParts fd =
+  case fdIndex fd of
+    Just (FieldIndex [Plain parts]) -> Just parts
+    Just (FieldIndex [Symmetric parts]) -> Just parts
+    Just (FieldIndex [Antisymmetric parts]) -> Just parts
+    _ -> Nothing
+
+componentRank :: Kind -> Int
+componentRank Scalar = 0
+componentRank (Vector _) = 1
+componentRank (Form _) = 1
+componentRank SymM = 2
+componentRank (Tensor2 _) = 2
+
+symComponentIndices :: Int -> [[Int]]
+symComponentIndices dim =
+  [[a, a] | a <- [1 .. dim]] ++ [[a, b] | a <- [1 .. dim], b <- [a + 1 .. dim]]
+
+componentIndices :: Int -> Kind -> [[Int]]
+componentIndices _ Scalar = [[]]
+componentIndices dim (Vector _) = [[a] | a <- [1 .. dim]]
+componentIndices dim (Form _) = [[a] | a <- [1 .. dim]]
+componentIndices dim SymM = symComponentIndices dim
+componentIndices dim (Tensor2 _) = [[a, b] | a <- [1 .. dim], b <- [1 .. dim]]
+
+componentVariances :: Model -> String -> Kind -> [Maybe Variance]
+componentVariances m nm kind =
+  case fieldDeclOf m nm >>= fieldIndexParts of
+    Just parts | length parts == componentRank kind -> map (Just . ixVariance) parts
+    _ -> replicate (componentRank kind) Nothing
+
+storageIndexTag :: Maybe Variance -> Int -> String
+storageIndexTag Nothing a = "_" ++ show a
+storageIndexTag (Just VUp) a = "_up" ++ show a
+storageIndexTag (Just VDown) a = "_down" ++ show a
+
+componentStorageName :: Model -> String -> Kind -> [Int] -> String
+componentStorageName m nm kind inds =
+  nm ++ concat (zipWith storageIndexTag (componentVariances m nm kind) inds)
+
+componentStorageNames :: Model -> String -> Kind -> [String]
+componentStorageNames m nm kind =
+  [ componentStorageName m nm kind inds | inds <- componentIndices (mDim m) kind ]
+
+componentStorageNamesOf :: Model -> String -> [String]
+componentStorageNamesOf m nm =
+  case kindOf m nm of
+    Just kind -> componentStorageNames m nm kind
+    Nothing -> [nm]
+
+firstComponentStorageName :: Model -> String -> String
+firstComponentStorageName m nm =
+  case componentStorageNamesOf m nm of
+    x:_ -> x
+    [] -> nm
+
+egisonComponentName :: String -> Int -> [Int] -> String
+egisonComponentName nm primes inds =
+  nm ++ replicate primes '\'' ++ concatMap (('_' :) . show) inds
+
+fieldStorageMapEntries :: Model -> (String, Kind) -> [(String, String)]
+fieldStorageMapEntries m (nm, kind) =
+  [ (egisonComponentName nm primes inds, storage ++ replicate primes '\'')
+  | (inds, storage) <- zip (componentIndices (mDim m) kind) (componentStorageNames m nm kind)
+  , primes <- [0, 1]
+  ]
+
 strictEinstein :: Model -> [String] -> [IxPart] -> String -> IO ()
 strictEinstein m lets lhs expr = do
   alts <- regionOccurrences (itok (indexContractionDots expr))
@@ -1693,11 +1767,10 @@ emit m = do
     (Nothing, _, _) -> return Nothing
   let internalCoords = take (mDim m) ["x", "y", "z"]
       internalHsteps = take (mDim m) ["hx", "hy", "hz"]
-      internalGridSteps = take (mDim m) ["dx", "dy", "dz"]
+      internalGridSteps = map ("d" ++) (mAxes m)
       internalIndexVars = take (mDim m) ["i", "j", "k"]
       coordVec = "[| " ++ intercalate ", " internalCoords ++ " |]"
       hstepVec = "[| " ++ intercalate ", " internalHsteps ++ " |]"
-      stringList xs = "[" ++ intercalate ", " (map show xs) ++ "]"
       coordArgs = intercalate ", " internalCoords
       axisIds = [1 .. mDim m]
       axisList = "[" ++ intercalate ", " (map show axisIds) ++ "]"
@@ -1718,13 +1791,13 @@ emit m = do
       contextDecls =
             [ symbolDecl
             , "def feDim : Integer := " ++ show (mDim m)
-            , "def feAxes : [String] := " ++ stringList (mAxes m)
+            , "def feAxes : [String] := " ++ egiStringList (mAxes m)
             , "def feAxisIds : [Integer] := " ++ axisList
             , "def feCoords : Vector MathValue := " ++ coordVec
             , "def feHsteps : Vector MathValue := " ++ hstepVec
             , "def coords : Vector MathValue := feCoords"
             , "def hsteps : Vector MathValue := feHsteps"
-            , "def axisName (a: Integer) : String := nth a " ++ stringList internalIndexVars
+            , "def axisName (a: Integer) : String := nth a " ++ egiStringList internalIndexVars
             , "def symName (v: String) : String :="
             , "  match v as string with"
             ]
@@ -1821,6 +1894,12 @@ emit m = do
                    , gen (metricInternalBase VUp VDown) identity
                    , gen (metricInternalBase VDown VUp) identity
                    ]
+      fmrFieldNameCases =
+        [ "    | #\"" ++ escH egisonName ++ "\" -> \"" ++ escH storageName ++ "\""
+        | (egisonName, storageName) <- concatMap (fieldStorageMapEntries m) (mFlds m)
+        , egisonName /= storageName
+        ]
+        ++ ["    | _ -> nm"]
       printerContextDecls =
             [ "def offsetSuffix (o: MathValue) : String :="
             , "  match o as mathValue with"
@@ -1838,21 +1917,12 @@ emit m = do
             , "    | _ -> S.concat [\"+(\", show o, \")\"]"
             , "def gridIndex (a: Integer) (arg: MathValue) : String :="
             , "  S.append (axisName a) (offsetSuffix ((arg - coords_a) / hsteps_a))"
-            , "def axisLetter (s: String) : String :="
-            , "  match s as string with"
-            , "    | #\"1\" -> \"x\""
-            , "    | #\"2\" -> \"y\""
-            , "    | #\"3\" -> \"z\""
-            , "    | _ -> \"\""
             , "def fmrFieldName (nm: String) : String :="
-            , "  let ps := S.split \"_\" nm"
-            , "   in if length ps >= 2 && all (\\p -> not (axisLetter p = \"\")) (tail ps)"
-            , "        then let letters := S.concat (map axisLetter (tail ps))"
-            , "              in match S.split \"'\" (head ps) as list string with"
-            , "                   | [$b, #\"\"] -> S.concat [b, letters, \"'\"]"
-            , "                   | _ -> S.concat [head ps, letters]"
-            , "        else nm"
-            , "def gridRef (g: MathValue) (args: [MathValue]) : String :="
+            , "  match nm as string with"
+            ]
+            ++ fmrFieldNameCases
+            ++
+            [ "def gridRef (g: MathValue) (args: [MathValue]) : String :="
             , "  S.concat"
             , "    [fmrFieldName (show g), \"[\","
             , "     S.intercalate \",\" (map (\\(a, arg) -> gridIndex a arg) (zip feAxisIds args)),"
@@ -1899,44 +1969,34 @@ emit m = do
             , "def feGridPoint : String := S.intercalate \",\" (map axisName feAxisIds)"
             , "def fmrInit (lhs: String) (rhs: MathValue) : String :="
             , "  S.concat [\"  \", lhs, \"[\", feGridPoint, \"] = \", showFmr rhs]"
-              , "def compSuffixes (k: Integer) : [String] :="
-              , "  if k = 0 then [\"\"]"
-              , "    else if k = 1 then [\"x\", \"y\", \"z\"]"
-              , "    else if k = 2 then [\"xx\", \"yy\", \"zz\", \"xy\", \"xz\", \"yz\"]"
-              , "    else [\"xx\", \"xy\", \"xz\", \"yx\", \"yy\", \"yz\", \"zx\", \"zy\", \"zz\"]"
-            , "def compNames (f: (String, Integer)) : [String] :="
-            , "  let (nm, k) := f"
-            , "   in map (\\s -> S.append nm s) (compSuffixes k)"
-            , "def allComps (flds: [(String, Integer)]) : [String] :="
-            , "  foldl (\\acc f -> acc ++ compNames f) [] flds"
-            , "def vecEqs (nm: String) (c1: MathValue) (c2: MathValue) (c3: MathValue) : [String] :="
-            , "  [ fmrEq (S.concat [nm, \"x'\"]) c1"
-            , "  , fmrEq (S.concat [nm, \"y'\"]) c2"
-            , "  , fmrEq (S.concat [nm, \"z'\"]) c3"
+            , "def vecEqs (names: [String]) (c1: MathValue) (c2: MathValue) (c3: MathValue) : [String] :="
+            , "  [ fmrEq (S.append (nth 1 names) \"'\") c1"
+            , "  , fmrEq (S.append (nth 2 names) \"'\") c2"
+            , "  , fmrEq (S.append (nth 3 names) \"'\") c3"
             , "  ]"
             , "def scalarEq (nm: String) (c: MathValue) : [String] := [fmrEq (S.append nm \"'\") c]"
-              , "def symEqs (nm: String) (cxx: MathValue) (cyy: MathValue) (czz: MathValue)"
+              , "def symEqs (names: [String]) (cxx: MathValue) (cyy: MathValue) (czz: MathValue)"
               , "           (cxy: MathValue) (cxz: MathValue) (cyz: MathValue) : [String] :="
-              , "  [ fmrEq (S.concat [nm, \"xx'\"]) cxx"
-            , "  , fmrEq (S.concat [nm, \"yy'\"]) cyy"
-            , "  , fmrEq (S.concat [nm, \"zz'\"]) czz"
-            , "  , fmrEq (S.concat [nm, \"xy'\"]) cxy"
-            , "  , fmrEq (S.concat [nm, \"xz'\"]) cxz"
-              , "  , fmrEq (S.concat [nm, \"yz'\"]) cyz"
+              , "  [ fmrEq (S.append (nth 1 names) \"'\") cxx"
+            , "  , fmrEq (S.append (nth 2 names) \"'\") cyy"
+            , "  , fmrEq (S.append (nth 3 names) \"'\") czz"
+            , "  , fmrEq (S.append (nth 4 names) \"'\") cxy"
+            , "  , fmrEq (S.append (nth 5 names) \"'\") cxz"
+              , "  , fmrEq (S.append (nth 6 names) \"'\") cyz"
               , "  ]"
-              , "def tensor2Eqs (nm: String)"
+              , "def tensor2Eqs (names: [String])"
               , "               (cxx: MathValue) (cxy: MathValue) (cxz: MathValue)"
               , "               (cyx: MathValue) (cyy: MathValue) (cyz: MathValue)"
               , "               (czx: MathValue) (czy: MathValue) (czz: MathValue) : [String] :="
-              , "  [ fmrEq (S.concat [nm, \"xx'\"]) cxx"
-              , "  , fmrEq (S.concat [nm, \"xy'\"]) cxy"
-              , "  , fmrEq (S.concat [nm, \"xz'\"]) cxz"
-              , "  , fmrEq (S.concat [nm, \"yx'\"]) cyx"
-              , "  , fmrEq (S.concat [nm, \"yy'\"]) cyy"
-              , "  , fmrEq (S.concat [nm, \"yz'\"]) cyz"
-              , "  , fmrEq (S.concat [nm, \"zx'\"]) czx"
-              , "  , fmrEq (S.concat [nm, \"zy'\"]) czy"
-              , "  , fmrEq (S.concat [nm, \"zz'\"]) czz"
+              , "  [ fmrEq (S.append (nth 1 names) \"'\") cxx"
+              , "  , fmrEq (S.append (nth 2 names) \"'\") cxy"
+              , "  , fmrEq (S.append (nth 3 names) \"'\") cxz"
+              , "  , fmrEq (S.append (nth 4 names) \"'\") cyx"
+              , "  , fmrEq (S.append (nth 5 names) \"'\") cyy"
+              , "  , fmrEq (S.append (nth 6 names) \"'\") cyz"
+              , "  , fmrEq (S.append (nth 7 names) \"'\") czx"
+              , "  , fmrEq (S.append (nth 8 names) \"'\") czy"
+              , "  , fmrEq (S.append (nth 9 names) \"'\") czz"
               , "  ]"
             , "def tupleOf (xs: [String]) : String :="
             , "  if length xs = 1"
@@ -1944,10 +2004,9 @@ emit m = do
             , "    else S.concat [\"(\", S.intercalate \",\" xs, \")\"]"
             , "def emitModelOn (dim: Integer) (axes: [String])"
             , "                (params: [(String, String)]) (helpers: [String])"
-            , "                (flds: [(String, Integer)]) (initLines: [String])"
+            , "                (comps: [String]) (initLines: [String])"
             , "                (stepLines: [String]) : String :="
-            , "  let comps := allComps flds"
-            , "   in let compsP := map (\\c -> S.append c \"'\") comps"
+            , "  let compsP := map (\\c -> S.append c \"'\") comps"
             , "   in S.intercalate \"\\n\""
             , "        ([ S.append \"dimension :: \" (show dim)"
             , "         , S.append \"axes :: \" (S.intercalate \",\" axes)"
@@ -2044,27 +2103,19 @@ emit m = do
         | otherwise = "def feHelpers :="
             : [ (if i == (0 :: Int) then "  [ " else "  , ") ++ "\"" ++ escH h ++ "\""
               | (i, h) <- zip [0 ..] helps ] ++ ["  ]"]
-      kindnum Scalar = "0"
-      kindnum (Tensor2 _) = "3"
-      kindnum SymM = "2"
-      kindnum _ = "1"
-      feFlds = "def feFlds : [(String, Integer)] := ["
-               ++ intercalate ", " [ "(\"" ++ n ++ "\", " ++ kindnum k ++ ")"
-                                   | (n, k) <- mFlds m ++ mtFlds ] ++ "]"
+      feComps = "def feComps : [String] := "
+                ++ egiStringList (concat [componentStorageNames m n k
+                                          | (n, k) <- mFlds m ++ mtFlds])
       feInits = "def feInits :="
         : [ (if i == (0 :: Int) then "  [ " else "  , ") ++ ln
           | (i, ln) <- zip [0 ..] (concat inits ++ mtInits) ] ++ ["  ]"]
       feSteps = "def feSteps := " ++ intercalate " ++ " stepItems
-      -- user axis names live only in the .fe (they are renamed to the
-      -- internal x,y,z); the generated program stays on x,y,z so that
-      -- Formura's derived names (dx, to_pos_x, ...) match the printer,
-      -- the yaml, and the drivers
-      emitter = "emitModelOn " ++ show (mDim m) ++ " " ++ stringList internalCoords
+      emitter = "emitModelOn " ++ show (mDim m) ++ " " ++ egiStringList (mAxes m)
       gates = orthoGate ++ (case mDd m of
                 Just _ -> [("feDD = 0",
                             "# ERROR: d . d /= 0 on this grid -- refusing to generate")]
                 Nothing -> [])
-      emitCall = "print (" ++ emitter ++ " feParams feHelpers feFlds feInits feSteps)"
+      emitCall = "print (" ++ emitter ++ " feParams feHelpers feComps feInits feSteps)"
       nest [] = emitCall
       nest ((c, msg):gs) =
         "if " ++ c ++ " then (" ++ nest gs ++ ") else print \"" ++ escH msg ++ "\""
@@ -2076,7 +2127,7 @@ emit m = do
                    ++ fieldDecls ++ primDecls ++ localDecls ++ tensorAliasDecls
                    ++ metricContextDecls ++ [""]
                    ++ concat body ++ ddDef ++ [""]
-                   ++ [feParams] ++ feHelpers ++ [feFlds] ++ feInits
+                   ++ [feParams] ++ feHelpers ++ [feComps] ++ feInits
                    ++ [feSteps] ++ [""] ++ mainDef))
   where
     fieldCoordArgs = intercalate ", " (take (mDim m) ["x", "y", "z"])
@@ -2151,37 +2202,42 @@ emit m = do
       KEq
         | Just (Vector True) <- kindOf m (sNm st) ->
             let nm = sNm st
-            in return (Just ("vecEqs \"" ++ nm ++ "\" feq" ++ nm ++ "1 feq"
+                names = egiStringList (componentStorageNamesOf m nm)
+            in return (Just ("vecEqs " ++ names ++ " feq" ++ nm ++ "1 feq"
                              ++ nm ++ "2 feq" ++ nm ++ "3"))
           | Just SymM <- kindOf m (sNm st) ->
               let nm = sNm st
-              in return (Just ("symEqs \"" ++ nm ++ "\" "
+                  names = egiStringList (componentStorageNamesOf m nm)
+              in return (Just ("symEqs " ++ names ++ " "
                                ++ unwords ["feq" ++ nm ++ show a ++ show b
                                           | (a, b) <- [(1,1),(2,2),(3,3),(1,2),(1,3),(2,3)] :: [(Int,Int)]]))
         | Just (Tensor2 _) <- kindOf m (sNm st) ->
             let nm = sNm st
-            in return (Just ("tensor2Eqs \"" ++ nm ++ "\" "
+                names = egiStringList (componentStorageNamesOf m nm)
+            in return (Just ("tensor2Eqs " ++ names ++ " "
                              ++ unwords ["feq" ++ nm ++ show a ++ show b
                                         | (a, b) <- [(x, y) | x <- [1,2,3], y <- [1,2,3]] :: [(Int,Int)]]))
         | not (null (sIdx st)) || kindOf m (sNm st) == Just (Vector False) ->
             let nm = sNm st
-            in return (Just ("vecEqs \"" ++ nm ++ "\" feq" ++ nm ++ "_1 feq"
+                names = egiStringList (componentStorageNamesOf m nm)
+            in return (Just ("vecEqs " ++ names ++ " feq" ++ nm ++ "_1 feq"
                              ++ nm ++ "_2 feq" ++ nm ++ "_3"))
         | Just (Form _) <- kindOf m (sNm st) -> do
             cs <- mapM (\k -> rewrite m lets (Just (show (k :: Int))) (sEx st)) [1, 2, 3]
-            return (Just ("vecEqs \"" ++ sNm st ++ "\" "
+            return (Just ("vecEqs " ++ egiStringList (componentStorageNamesOf m (sNm st)) ++ " "
                           ++ unwords ["(" ++ c ++ ")" | c <- cs]))
         | otherwise -> do
             e <- rewriteScalar m lets (sEx st)
             return (Just ("scalarEq \"" ++ sNm st ++ "\" (" ++ e ++ ")"))
     initLine lets it = case it of
-      IRaw nm rhs -> return ["\"  " ++ nm ++ "[i,j,k] = " ++ escQ rhs ++ "\""]
-      IVec nm els -> return [ "\"  " ++ nm ++ suf ++ "[i,j,k] = " ++ escQ el ++ "\""
-                            | (suf, el) <- zip ["x", "y", "z"] els ]
-      ISym nm els -> return [ "\"  " ++ nm ++ suf ++ "[i,j,k] = " ++ escQ el ++ "\""
-                            | (suf, el) <- zip ["xx", "yy", "zz", "xy", "xz", "yz"] els ]
-      ITensor2 nm els -> return [ "\"  " ++ nm ++ suf ++ "[i,j,k] = " ++ escQ el ++ "\""
-                                | (suf, el) <- zip ["xx", "xy", "xz", "yx", "yy", "yz", "zx", "zy", "zz"] els ]
+      IRaw nm rhs -> return ["\"  " ++ firstComponentStorageName m nm
+                             ++ "[i,j,k] = " ++ escQ rhs ++ "\""]
+      IVec nm els -> return [ "\"  " ++ lhs ++ "[i,j,k] = " ++ escQ el ++ "\""
+                            | (lhs, el) <- zip (componentStorageNamesOf m nm) els ]
+      ISym nm els -> return [ "\"  " ++ lhs ++ "[i,j,k] = " ++ escQ el ++ "\""
+                            | (lhs, el) <- zip (componentStorageNamesOf m nm) els ]
+      ITensor2 nm els -> return [ "\"  " ++ lhs ++ "[i,j,k] = " ++ escQ el ++ "\""
+                                | (lhs, el) <- zip (componentStorageNamesOf m nm) els ]
       ICas nm ex -> do
         e <- rewriteScalar m lets ex
         return ["fmrInit \"" ++ nm ++ "\" (" ++ e ++ ")"]

@@ -87,20 +87,15 @@ def offsetSuffix (o: MathValue) : String :=
     | _ -> S.concat ["+(", show o, ")"]
 def gridIndex (a: Integer) (arg: MathValue) : String :=
   S.append (axisName a) (offsetSuffix ((arg - coords_a) / hsteps_a))
-def axisLetter (s: String) : String :=
-  match s as string with
-    | #"1" -> "x"
-    | #"2" -> "y"
-    | #"3" -> "z"
-    | _ -> ""
 def fmrFieldName (nm: String) : String :=
-  let ps := S.split "_" nm
-   in if length ps >= 2 && all (\p -> not (axisLetter p = "")) (tail ps)
-        then let letters := S.concat (map axisLetter (tail ps))
-              in match S.split "'" (head ps) as list string with
-                   | [$b, #""] -> S.concat [b, letters, "'"]
-                   | _ -> S.concat [head ps, letters]
-        else nm
+  match nm as string with
+    | #"E'_1" -> "E_1'"
+    | #"E'_2" -> "E_2'"
+    | #"E'_3" -> "E_3'"
+    | #"B'_1" -> "B_1'"
+    | #"B'_2" -> "B_2'"
+    | #"B'_3" -> "B_3'"
+    | _ -> nm
 def gridRef (g: MathValue) (args: [MathValue]) : String :=
   S.concat
     [fmrFieldName (show g), "[",
@@ -148,44 +143,34 @@ def fmrEq (lhs: String) (rhs: MathValue) : String :=
 def feGridPoint : String := S.intercalate "," (map axisName feAxisIds)
 def fmrInit (lhs: String) (rhs: MathValue) : String :=
   S.concat ["  ", lhs, "[", feGridPoint, "] = ", showFmr rhs]
-def compSuffixes (k: Integer) : [String] :=
-  if k = 0 then [""]
-    else if k = 1 then ["x", "y", "z"]
-    else if k = 2 then ["xx", "yy", "zz", "xy", "xz", "yz"]
-    else ["xx", "xy", "xz", "yx", "yy", "yz", "zx", "zy", "zz"]
-def compNames (f: (String, Integer)) : [String] :=
-  let (nm, k) := f
-   in map (\s -> S.append nm s) (compSuffixes k)
-def allComps (flds: [(String, Integer)]) : [String] :=
-  foldl (\acc f -> acc ++ compNames f) [] flds
-def vecEqs (nm: String) (c1: MathValue) (c2: MathValue) (c3: MathValue) : [String] :=
-  [ fmrEq (S.concat [nm, "x'"]) c1
-  , fmrEq (S.concat [nm, "y'"]) c2
-  , fmrEq (S.concat [nm, "z'"]) c3
+def vecEqs (names: [String]) (c1: MathValue) (c2: MathValue) (c3: MathValue) : [String] :=
+  [ fmrEq (S.append (nth 1 names) "'") c1
+  , fmrEq (S.append (nth 2 names) "'") c2
+  , fmrEq (S.append (nth 3 names) "'") c3
   ]
 def scalarEq (nm: String) (c: MathValue) : [String] := [fmrEq (S.append nm "'") c]
-def symEqs (nm: String) (cxx: MathValue) (cyy: MathValue) (czz: MathValue)
+def symEqs (names: [String]) (cxx: MathValue) (cyy: MathValue) (czz: MathValue)
            (cxy: MathValue) (cxz: MathValue) (cyz: MathValue) : [String] :=
-  [ fmrEq (S.concat [nm, "xx'"]) cxx
-  , fmrEq (S.concat [nm, "yy'"]) cyy
-  , fmrEq (S.concat [nm, "zz'"]) czz
-  , fmrEq (S.concat [nm, "xy'"]) cxy
-  , fmrEq (S.concat [nm, "xz'"]) cxz
-  , fmrEq (S.concat [nm, "yz'"]) cyz
+  [ fmrEq (S.append (nth 1 names) "'") cxx
+  , fmrEq (S.append (nth 2 names) "'") cyy
+  , fmrEq (S.append (nth 3 names) "'") czz
+  , fmrEq (S.append (nth 4 names) "'") cxy
+  , fmrEq (S.append (nth 5 names) "'") cxz
+  , fmrEq (S.append (nth 6 names) "'") cyz
   ]
-def tensor2Eqs (nm: String)
+def tensor2Eqs (names: [String])
                (cxx: MathValue) (cxy: MathValue) (cxz: MathValue)
                (cyx: MathValue) (cyy: MathValue) (cyz: MathValue)
                (czx: MathValue) (czy: MathValue) (czz: MathValue) : [String] :=
-  [ fmrEq (S.concat [nm, "xx'"]) cxx
-  , fmrEq (S.concat [nm, "xy'"]) cxy
-  , fmrEq (S.concat [nm, "xz'"]) cxz
-  , fmrEq (S.concat [nm, "yx'"]) cyx
-  , fmrEq (S.concat [nm, "yy'"]) cyy
-  , fmrEq (S.concat [nm, "yz'"]) cyz
-  , fmrEq (S.concat [nm, "zx'"]) czx
-  , fmrEq (S.concat [nm, "zy'"]) czy
-  , fmrEq (S.concat [nm, "zz'"]) czz
+  [ fmrEq (S.append (nth 1 names) "'") cxx
+  , fmrEq (S.append (nth 2 names) "'") cxy
+  , fmrEq (S.append (nth 3 names) "'") cxz
+  , fmrEq (S.append (nth 4 names) "'") cyx
+  , fmrEq (S.append (nth 5 names) "'") cyy
+  , fmrEq (S.append (nth 6 names) "'") cyz
+  , fmrEq (S.append (nth 7 names) "'") czx
+  , fmrEq (S.append (nth 8 names) "'") czy
+  , fmrEq (S.append (nth 9 names) "'") czz
   ]
 def tupleOf (xs: [String]) : String :=
   if length xs = 1
@@ -193,10 +178,9 @@ def tupleOf (xs: [String]) : String :=
     else S.concat ["(", S.intercalate "," xs, ")"]
 def emitModelOn (dim: Integer) (axes: [String])
                 (params: [(String, String)]) (helpers: [String])
-                (flds: [(String, Integer)]) (initLines: [String])
+                (comps: [String]) (initLines: [String])
                 (stepLines: [String]) : String :=
-  let comps := allComps flds
-   in let compsP := map (\c -> S.append c "'") comps
+  let compsP := map (\c -> S.append c "'") comps
    in S.intercalate "\n"
         ([ S.append "dimension :: " (show dim)
          , S.append "axes :: " (S.intercalate "," axes)
@@ -236,16 +220,16 @@ def feHelpers :=
   [ "extern function :: exp"
   , "gauss1 = fun(x) exp(-((x-(total_grid_x*dx/2))/(8*dx))**2)"
   ]
-def feFlds : [(String, Integer)] := [("E", 1), ("B", 1)]
+def feComps : [String] := ["E_1", "E_2", "E_3", "B_1", "B_2", "B_3"]
 def feInits :=
-  [ "  Ex[i,j,k] = 0"
-  , "  Ey[i,j,k] = gauss1(i*dx)"
-  , "  Ez[i,j,k] = 0"
-  , "  Bx[i,j,k] = 0"
-  , "  By[i,j,k] = 0"
-  , "  Bz[i,j,k] = gauss1((i+0.5)*dx)"
+  [ "  E_1[i,j,k] = 0"
+  , "  E_2[i,j,k] = gauss1(i*dx)"
+  , "  E_3[i,j,k] = 0"
+  , "  B_1[i,j,k] = 0"
+  , "  B_2[i,j,k] = 0"
+  , "  B_3[i,j,k] = gauss1((i+0.5)*dx)"
   ]
-def feSteps := vecEqs "E" (E_1 + dt * nth 1 (formComps (codiff Bf))) (E_2 + dt * nth 2 (formComps (codiff Bf))) (E_3 + dt * nth 3 (formComps (codiff Bf))) ++ vecEqs "B" (B_1 - dt * nth 1 (formComps (dForm EfN))) (B_2 - dt * nth 2 (formComps (dForm EfN))) (B_3 - dt * nth 3 (formComps (dForm EfN)))
+def feSteps := vecEqs ["E_1", "E_2", "E_3"] (E_1 + dt * nth 1 (formComps (codiff Bf))) (E_2 + dt * nth 2 (formComps (codiff Bf))) (E_3 + dt * nth 3 (formComps (codiff Bf))) ++ vecEqs ["B_1", "B_2", "B_3"] (B_1 - dt * nth 1 (formComps (dForm EfN))) (B_2 - dt * nth 2 (formComps (dForm EfN))) (B_3 - dt * nth 3 (formComps (dForm EfN)))
 
 def main (args: [String]) : IO () :=
-  if feDD = 0 then (print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feFlds feInits feSteps)) else print "# ERROR: d . d /= 0 on this grid -- refusing to generate"
+  if feDD = 0 then (print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feComps feInits feSteps)) else print "# ERROR: d . d /= 0 on this grid -- refusing to generate"
