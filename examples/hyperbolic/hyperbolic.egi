@@ -151,7 +151,8 @@ def fmrInit (lhs: String) (rhs: MathValue) : String :=
 def compSuffixes (k: Integer) : [String] :=
   if k = 0 then [""]
     else if k = 1 then ["x", "y", "z"]
-    else ["xx", "yy", "zz", "xy", "xz", "yz"]
+    else if k = 2 then ["xx", "yy", "zz", "xy", "xz", "yz"]
+    else ["xx", "xy", "xz", "yx", "yy", "yz", "zx", "zy", "zz"]
 def compNames (f: (String, Integer)) : [String] :=
   let (nm, k) := f
    in map (\s -> S.append nm s) (compSuffixes k)
@@ -171,6 +172,20 @@ def symEqs (nm: String) (cxx: MathValue) (cyy: MathValue) (czz: MathValue)
   , fmrEq (S.concat [nm, "xy'"]) cxy
   , fmrEq (S.concat [nm, "xz'"]) cxz
   , fmrEq (S.concat [nm, "yz'"]) cyz
+  ]
+def tensor2Eqs (nm: String)
+               (cxx: MathValue) (cxy: MathValue) (cxz: MathValue)
+               (cyx: MathValue) (cyy: MathValue) (cyz: MathValue)
+               (czx: MathValue) (czy: MathValue) (czz: MathValue) : [String] :=
+  [ fmrEq (S.concat [nm, "xx'"]) cxx
+  , fmrEq (S.concat [nm, "xy'"]) cxy
+  , fmrEq (S.concat [nm, "xz'"]) cxz
+  , fmrEq (S.concat [nm, "yx'"]) cyx
+  , fmrEq (S.concat [nm, "yy'"]) cyy
+  , fmrEq (S.concat [nm, "yz'"]) cyz
+  , fmrEq (S.concat [nm, "zx'"]) czx
+  , fmrEq (S.concat [nm, "zy'"]) czy
+  , fmrEq (S.concat [nm, "zz'"]) czz
   ]
 def tupleOf (xs: [String]) : String :=
   if length xs = 1

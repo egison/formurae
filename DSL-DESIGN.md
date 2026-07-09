@@ -76,8 +76,19 @@ step 式で `~i` を `_i` に正規化する処理をやめ、添字展開器が
 `metric δ` がない場合、`δ~i_j` は mixed identity とし、`δ_i_j` は
 計量ではなくエラーに寄せる。さらに
 vector/form/symmetric など添字付き場と `let NAME_i` の一時テンソルについても、
-上下パターンごとの `FormuraeInternalTensor...Up/Down...` 束縛を生成する。
-既存例の `.fmr` はバイト一致。
+	上下パターンごとの `FormuraeInternalTensor...Up/Down...` 束縛を生成する。
+	既存例の `.fmr` はバイト一致。
+
+**v1.20(2026-07-09): 添字仕様から field layout を推論し、strict Einstein 検査へ** —
+添字方程式に参加する field は `field v~i @ staggered`、
+`field s{~i~j} @ staggered` のように宣言する。新構文では
+`: vector`、`: tensor`、`: symmetric` を書かず、rank・上下・対称性・
+Formura 出力 layout を添字仕様から推論する。`{...}` は対称、`[...]` は
+反対称(Egison/type-tensor-paper と同じ)。添字方程式の各項は生成前に
+strict 検査され、自由添字は LHS と上下まで一致し、ダミー添字は上1・下1
+だけを許す。添字の上げ下げは自動化せず、常に `g_i_j * v~j` のように
+metric を明示する。`elastic3d.fe` は `metric δ` と対称反変応力
+`s{~i~j}` を使う記法へ移行し、P/S 波速検証は green。
 
 **v1.8(2026-07-08): Unicode と基本演算子** — ギリシャ文字識別子(θ, φ, …
 → fec が ASCII へ字訳)・∂=d・δ=codiff・−=-・Δ=幾何のラプラシアン
@@ -211,13 +222,15 @@ step:
 添字記法の例(弾性波):
 
 ```
-field v     : vector
-field sigma : symmetric @ staggered    -- 配置は添字から導出(Virieux)
+metric δ
+field v~i @ staggered
+field sigma{~i~j} @ staggered    -- 配置は添字から導出(Virieux)
 
 step:
-  v'~i        = v~i + (dt/rho) * ∂_j sigma~i_j
-  sigma'~i_j  = sigma~i_j + dt * (la * δ~i_j * ∂_k v'~k
-                                  + mu * (∂_i v'~j + ∂_j v'~i))
+  v'~i        = v~i + (dt/rho) * ∂_j sigma~i~j
+  sigma'~i~j  = sigma~i~j + dt * (la * δ~i~j * ∂_k v'~k
+                                  + mu * (δ~i~k * ∂_k v'~j
+                                        + δ~j~k * ∂_k v'~i))
 ```
 
 曲面(直交計量)の例:
@@ -299,14 +312,14 @@ step:
 5. ✅ v1.7(2026-07-10): **数式演算子と Einstein 添字記法** — レビュー指摘
    「dC2 のような関数でなく数式どおりに」を受け、.fe の座標軸微分は
    `∂x` 形式だけを許す(dC/dC2/dTaylor は .fe から撤去、lap4 追加)。
-   `field v : vector @ staggered`・`field s : symmetric @ staggered` を宣言すると
-   **テンソル添字方程式**が書ける:
-   `v'~i = v~i + (dt/rho0) * ∂_j s~i_j` /
-   `s'~i_j = s~i_j + dt * (la * δ~i_j * ∂_k v'~k + mu * (∂_i v'~j + ∂_j v'~i))`。
+   現在は `field v~i @ staggered`・`field s{~i~j} @ staggered` のように
+   添字仕様から field layout を推論し、**テンソル添字方程式**が書ける:
+   `v'~i = v~i + (dt/rho0) * ∂_j s~i~j` /
+   `s'~i~j = s~i~j + dt * (la * δ~i~j * ∂_k v'~k + mu * (δ~i~k * ∂_k v'~j + δ~j~k * ∂_k v'~i))`。
    繰り返し添字は「それを含む最小の項」で総和(Einstein;括弧は独立領域)、
-   δ~i_j は Kronecker、∂_a は対象成分の配置にアンカーされた半セル差分
+   `metric δ` 下の δ~i~j は Euclidean 計量、∂_a は対象成分の配置にアンカーされた半セル差分
    (dYee)に落ち、対称成分は正準化(s_2_1 = s_1_2)。elastic3d.fe の生成
-   .fmr は v0 テンソル版と**バイト一致**。
+   .fmr は P/S 波速検証で green。
 6. v2: 2D/1D、変数別境界条件、多段時間積分スキーム、Christoffel 一般計量
    (Egison 側の sqrt(完全平方多項式) 簡約が前提; チップ発行済)。
 
@@ -326,11 +339,10 @@ step:
    - `def stress_i_j v = ...`
 
    のように、添字を持つ引数・返り値・演算子本体を `.fe` 側で定義できるようにする。
-   `~i` は上添字、`_i` は下添字として保持する。現行の格子場 lowering は既存互換のため
-   vector/symmetric の上下を同じ格子成分へ写すが、`metric g` 宣言後の
+   `~i` は上添字、`_i` は下添字として保持する。現行の添字 field は宣言時の
+   上下と参照時の上下を strict に照合し、`metric g` 宣言後の
    `g~i~j`/`g_i_j` などの計量参照はすでに上下で別の内部テンソルへ下ろす。
-   また添字付き場と `let NAME_i` の一時テンソルにも上下パターンごとの内部 tensor alias を生成する。次の段階では、反変/共変成分、
-   計量による上げ下げ、接続係数の扱いをより一般のテンソル演算へ広げる。
+   添字の上げ下げは自動化せず、必要な場所で metric を明示する。次の段階では、接続係数の扱いをより一般のテンソル演算へ広げる。
    現行の `def NAME ARG = EXPR` は一引数のテキスト的β展開に近いので、これを
    Egison の添字付き関数定義へ接続する。
 
@@ -348,8 +360,8 @@ step:
    一方、テンソル積・添字縮約を伴う積は `.`/`contractWith` で書く。
    例えば `epsilon~i~j~k . ∂_j X_k` のように、異なる添字構造を結合して
    自由添字と縮約添字を決める操作はテンソル演算として扱う。
-   `vector`・`symmetric`・`k-form` などは Egison の型そのものではなく、
-   Formurae 側で成分展開・格子配置・出力名を決めるための場の kind として扱う。
+   `vector`・`symmetric` などは新しい添字 field 構文では表層 kind としては書かず、
+   Formurae 側で添字仕様から成分展開・格子配置・出力名の layout を推論する。
    長期的には λ⊗ 型システムに接続し、階数を型で固定するのではなく、
    スカラー/テンソル関数の使い分けと添字整合性を生成前に検査する。
 
