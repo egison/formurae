@@ -44,6 +44,8 @@ examples/diffusion1d/diffusion1d.c
 examples/diffusion1d/diffusion1d.h
 examples/diffusion2d/diffusion2d.c
 examples/diffusion2d/diffusion2d.h
+examples/divergence2d/divergence2d.c
+examples/divergence2d/divergence2d.h
 examples/highorder4/highorder4.c
 examples/highorder4/highorder4.h
 examples/dirichlet_diffusion/dirichlet_diffusion.c

@@ -16,6 +16,13 @@ Formura のラテン語風複数形で *formulae*(数式)への掛詞 — 「数
 `∂x (∂x u)` の融合、`δ (d u)` のスカラー Laplacian 降下、
 `∇×`/`∇·`/`∇²` の alias は撤去した。
 
+**v1.25(2026-07-09): 生成文脈の `lap` 削除と 2D `divg` 検証** —
+平坦格子の Laplacian は `def Δ u = ∂2x u + ...` と `.fe` 側で定義する方針に
+合わせ、生成 `.egi` の座標文脈から未使用の `lap` 定義を外した。
+`dGrad`/`divg` はすでに `feDim` を使って任意の 1D/2D/3D 文脈で生成されるため、
+`examples/divergence2d` を追加し、`use vector-calculus { divg }` が 2D で
+中心差分の離散記号と一致することを check driver で検証した。
+
 **v1.13(2026-07-09): 座標文脈つき `use` 宣言の導入** —
 `extern` は Formura/C 側のスカラー関数、`use` は Formurae が座標文脈から
 生成する数学演算子、という役割に分け始めた。第一段階として
@@ -402,7 +409,7 @@ step:
    添字和で yee/acoustic、ユーザ定義ヘルパ(def)で MHD。
 5. ✅ v1.7(2026-07-10): **数式演算子と Einstein 添字記法** — レビュー指摘
    「dC2 のような関数でなく数式どおりに」を受け、.fe の座標軸微分は
-   `∂x` 形式だけを許す(dC/dC2/dTaylor は .fe から撤去、lap4 追加)。
+   `∂x`/`∂2x`/`∂m,rx` 形式だけを許す(dC/dC2/dTaylor は .fe から撤去)。
    現在は `field v~i @ staggered`・`field σ{~i~j} @ staggered` のように
    添字仕様から field layout を推論し、**テンソル添字方程式**が書ける:
    `v'~i = v~i + (dt/rho0) * ∂_j σ~i~j` /

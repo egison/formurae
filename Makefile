@@ -28,7 +28,7 @@ EGISON_RUN = cd $(EGISON_DIR) && cabal run -v0 egison --
 # (staggered families / indexed families / custom helpers pending
 # .fe support).
 
-FE_EXAMPLES  := diffusion1d diffusion2d diffusion3d maxwell3d maxwell_dec kleingordon ks3d \
+FE_EXAMPLES  := diffusion1d diffusion2d divergence2d diffusion3d maxwell3d maxwell_dec kleingordon ks3d \
                 burgers3d pearson3d cahnhilliard3d tdgl3d shallowwater \
                 euler_sod highorder4 dirichlet_diffusion elastic3d \
                 metric_torus metric_sphere hyperbolic polar2d spherical3d
@@ -36,6 +36,7 @@ EGI_EXAMPLES := maxwell3d_yee mhd_ot lbm_d3q19 acoustic3d
 
 CHECK_diffusion1d         := diffusion1d_check.c
 CHECK_diffusion2d         := diffusion2d_check.c
+CHECK_divergence2d        := divergence2d_check.c
 CHECK_diffusion3d         := main_check.c
 CHECK_maxwell3d           := maxwell_check.c
 CHECK_maxwell_dec         := dec_check.c

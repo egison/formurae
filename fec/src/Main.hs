@@ -1571,16 +1571,23 @@ emit m = do
             , "  (shift a 1 u - 2 * u + shift a (-1) u) / ((feHsteps_a) ^ 2)"
             , "def dF (a: Integer) (u: MathValue) : MathValue := (shift a 1 u - u) / feHsteps_a"
             , "def dB (a: Integer) (u: MathValue) : MathValue := (u - shift a (-1) u) / feHsteps_a"
-            , "def lap (u: MathValue) : MathValue := sum (map (\\a -> dC2 a u) feAxisIds)"
             , "def dTaylor (m: Integer) (ks: [MathValue]) (a: Integer) (u: MathValue) : MathValue :="
             , "  sum (map (\\(c, k) -> c * shift a k u) (zip (taylorStencil m ks) ks)) / (feHsteps_a ^ m)"
             ]
       vectorContextDecls =
+            dGradDecls
+            ++ (if hasUse m "vector-calculus" "curl" then curlDecls else [])
+            ++ (if hasUse m "vector-calculus" "divg" then divgDecls else [])
+      dGradDecls =
             [ "def dGrad (X: Vector MathValue) : Matrix MathValue :="
             , "  generateTensor (\\[a, b] -> dC a X_b) [feDim, feDim]"
-            , "def curl (X: Vector MathValue) : Vector MathValue :="
+            ]
+      curlDecls =
+            [ "def curl (X: Vector MathValue) : Vector MathValue :="
             , "  withSymbols [i, j, k] (\949 3)~i~j~k . (dGrad X)_j_k"
-            , "def divg (X: Vector MathValue) : MathValue := trace (dGrad X)"
+            ]
+      divgDecls =
+            [ "def divg (X: Vector MathValue) : MathValue := trace (dGrad X)"
             ]
       yeeContextDecls =
             [ "def feIndexPairs : [(Integer, Integer)] := " ++ axisPairList

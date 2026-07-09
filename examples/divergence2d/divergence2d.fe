@@ -1,0 +1,22 @@
+-- 2D divergence smoke test for use vector-calculus { divg }.
+
+dimension 2
+axes x, y
+
+param dt = 1.0
+
+extern sin
+use vector-calculus { divg }
+raw sx = fun(x) sin(6.283185307179586*x/(total_grid_x*dx))
+raw sy = fun(y) sin(6.283185307179586*y/(total_grid_y*dy))
+
+field V : vector
+field q : scalar
+
+init:
+  V = [| sx(i*dx), sy(j*dy) |]
+  q = 0.0
+
+step:
+  V' = V
+  q' = divg V

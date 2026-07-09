@@ -1,0 +1,21 @@
+dimension :: 2
+axes :: x,y
+
+double :: dt = 1.0
+
+extern function :: sin
+sx = fun(x) sin(6.283185307179586*x/(total_grid_x*dx))
+sy = fun(y) sin(6.283185307179586*y/(total_grid_y*dy))
+
+begin function (V_1,V_2,q) = init()
+  double [] :: V_1, V_2, q
+  V_1[i,j] = sx(i*dx)
+  V_2[i,j] = sy(j*dy)
+  q[i,j] = 0.0
+end function
+
+begin function (V_1',V_2',q') = step(V_1,V_2,q)
+  V_1' = V_1[i,j]
+  V_2' = V_2[i,j]
+  q' = (-1)*V_2[i,j-1]/(2*dy) + V_2[i,j+1]/(2*dy) + (-1)*V_1[i-1,j]/(2*dx) + V_1[i+1,j]/(2*dx)
+end function

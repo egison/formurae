@@ -4,6 +4,11 @@ Date: 2026-07-09
 
 ## 実装状況
 
+- 2026-07-09: `use exterior-calculus { Δ }` はその後撤去し、
+  `Δ`/`Δ4` は `.fe` 側の通常の `def` で書く方針へ移行済み。
+  平坦格子用の生成 `.egi` 文脈からも `lap` は外し、
+  `∂2x`/`∂m,rx` と `dTaylor` を低水準プリミティブとして使う。
+  `use vector-calculus { divg }` については 2D 例 `examples/divergence2d` で検証済み。
 - 2026-07-09: `use exterior-calculus { Δ }` を実装済み。
   `Δ` は暗黙 prelude ではなく `use` で有効化される。
 - 2026-07-09: `use vector-calculus { curl, divg }` の第一段階を実装済み。
@@ -18,7 +23,7 @@ Date: 2026-07-09
   `feCoords_a` を参照し、計量係数場の半セル評価も `feCoords_a`/`feHsteps_a`
   を参照する。
 - 2026-07-09: 生成 `.egi` に座標文脈つき数学プリミティブを出す段階まで実装。
-  `shift`、`dC`、`dC2`、`lap` は `feCoords`/`feHsteps` を参照する。
+  `shift`、`dC`、`dC2`、`dTaylor` は `feCoords`/`feHsteps` を参照する。
   `use vector-calculus` で `dGrad`、`curl`、`divg` を生成し、
   `use exterior-calculus { d, δ }` や `assert-dd-zero` では
   `dYee`、`curlYee`、`sigmaC`、`hodge`、`dForm`、`codiff` を生成する。

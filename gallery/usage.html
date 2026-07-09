@@ -41,7 +41,7 @@
      <code>epsilon~i~j~k . ∂_j X_k</code> のような添字縮約、<code>sin</code>/<code>exp</code> などのスカラー関数を
      数式に近い形で書けます。言語名は Formura の複数形= <i>formulae</i>(数式)への掛詞で、
      設計者・村主崇行氏の Formura の名を継いでいます。
-     実例は <a href="dsl/index.html">Formurae ギャラリー(21例)</a>と<a href="index.html">総合ギャラリー(25例)</a>へ。</p>
+     実例は <a href="dsl/index.html">Formurae ギャラリー(22例)</a>と<a href="index.html">総合ギャラリー(26例)</a>へ。</p>
 </header>
 <main>
 
@@ -76,7 +76,7 @@ model.c/.h  MPI 通信・temporal blocking つき C ライブラリ
 <span class="c"># 前提: GHC 9.6 系+stack(Formura 用)、cabal、../egison に Egison 開発ツリー</span>
 make setup     <span class="c"># Formura 2.3.2 を clone + GHC 9.6 パッチ + ビルド → bin/formura</span>
 cabal build    <span class="c"># Formurae コンパイラ fec をビルド(依存は base のみ)</span>
-make all       <span class="c"># 全25例を生成→実行→検証(数分)</span>
+make all       <span class="c"># 全26例を生成→実行→検証(数分)</span>
 </pre>
 <p class="note">Egison はインストール済みバイナリでなく開発ツリー(<code>EGISON_DIR</code>、既定 <code>../egison</code>)を
 使います — 同梱の数学ライブラリが新しい必要があるためです。MPI は不要(1ランク用スタブ同梱)。</p>
@@ -172,7 +172,7 @@ make diffusion3d
 <tr><td><code>fec</code> 組み込み変換</td><td><code>∂_i X~i</code>, <code>δ~i_j</code>, <code>epsilon~i~j~k</code>, <code>g_i_j</code>, <code>.</code></td><td>添字方程式を成分ごとの式へ展開する。<code>g</code> は上下パターンごとの計量テンソル、metric 名でない <code>δ~i_j</code> は mixed identity、<code>.</code> は添字縮約、<code>*</code> は点ごとのスカラー積として扱う</td></tr>
 <tr><td><code>fec</code> 組み込み変換</td><td><code>d ω</code>, <code>δ ω</code> / <code>delta ω</code> / <code>codiff ω</code></td><td><code>field E : 1-form</code> などの形式場では、<code>use exterior-calculus</code> で有効化されたときに生成 Egison の <code>dForm</code>/<code>codiff</code> 呼び出しへ下ろす</td></tr>
 <tr><td>Formura/extern 組み込み</td><td><code>sin</code>, <code>cos</code>, <code>exp</code>, <code>sqrt</code>, <code>fabs</code> など</td><td>スカラー関数。テンソル成分に適用されると成分ごとへ lift され、不足する <code>extern function :: ...</code> は <code>fec</code> が自動で出す</td></tr>
-<tr><td>生成 .egi の座標文脈定義</td><td><code>lap</code>, <code>dGrad</code>, <code>curl</code>, <code>divg</code>, <code>dForm</code>, <code>codiff</code>, <code>dTaylor</code>, <code>showFmr</code>, <code>emitModelOn</code></td><td><code>.fe</code> の prelude ではなく、<code>fec</code> が <code>dimension</code>/<code>axes</code>/<code>metric</code> から生成する定義</td></tr>
+<tr><td>生成 .egi の座標文脈定義</td><td><code>dGrad</code>, <code>curl</code>, <code>divg</code>, <code>dForm</code>, <code>codiff</code>, <code>dTaylor</code>, <code>showFmr</code>, <code>emitModelOn</code></td><td><code>.fe</code> の prelude ではなく、<code>fec</code> が <code>dimension</code>/<code>axes</code>/<code>metric</code> から生成する定義</td></tr>
 <tr><td>生成先 Egison ライブラリ</td><td><code>taylorStencil</code>, <code>unquoteAll</code>, <code>formComps</code>, <code>scaleForm</code></td><td>座標非依存の小さな core として <code>lib/fmrgen.egi</code> に残る</td></tr>
 </table>
 
@@ -199,9 +199,6 @@ def symName (v: String) : String :=
     | #"y" -&gt; "(j*dphi)"
     | #"z" -&gt; "(k*dz)"
     | _ -&gt; v
-
-def lap (u: MathValue) : MathValue :=
-  sum (map (\a -&gt; dC2 a u) feAxisIds)
 
 def dGrad (X: Vector MathValue) : Matrix MathValue :=
   generateTensor (\[a, b] -&gt; dC a X_b) [feDim, feDim]
@@ -255,7 +252,6 @@ def δ := codiff
 <tr><td><code>∂2,2x e</code></td><td><code>fec</code> 組み込み</td><td>x 方向の2階微分を半径2の5点 stencil <code>[-2,-1,0,1,2]</code> で近似する。係数は <code>taylorStencil</code> が導出する</td></tr>
 <tr><td><code>∂_i X~i</code></td><td><code>fec</code> 組み込み</td><td>添字微分。<code>axes</code> で宣言した座標方向について展開し、繰り返し添字は上1・下1の Einstein 総和になる</td></tr>
 <tr><td><code>Δ e</code></td><td>ユーザ定義</td><td>平坦格子なら <code>def Δ u = ∂2x u + ∂2y u + ∂2z u</code>、計量下なら <code>def Δ u = lb u</code> のように定義して使う</td></tr>
-<tr><td><code>lap e</code></td><td>生成 .egi の座標文脈定義</td><td>平坦格子の 2階中心差分和。<code>feAxisIds</code> 上で和を取る</td></tr>
 <tr><td><code>lb e</code></td><td><code>fec</code> 組み込み生成</td><td>計量宣言下の Laplace–Beltrami。hodge 因子の係数場生成・半セル CAS 評価・保存流束まで自動</td></tr>
 <tr><td><code>Δ4 e</code></td><td>ユーザ定義</td><td><code>def Δ4 u = ∂2,2x u + ∂2,2y u + ∂2,2z u</code>。4階微分ではなく、4次精度の2階微分和</td></tr>
 <tr><td><code>curl X</code></td><td><code>use vector-calculus { curl }</code></td><td>回転。表層呼び出しを <code>fec</code> がベクトル式へ展開し、生成 .egi では <code>withSymbols [i,j,k] (ε 3)~i~j~k . (dGrad X)_j_k</code>。<code>use</code> なしの <code>curl</code> はエラー</td></tr>
@@ -353,8 +349,8 @@ python3 gallery/tools/embed_src.py<span class="c"># カードに .fe / .egi / .f
 <li>数式的な恒等式は<b>生成時に CAS が検査</b>する(DEC の d∘d=0、埋め込みの直交性)。</li>
 </ul>
 
-<p style="margin-top:40px"><a href="index.html">→ 総合ギャラリー(25例)</a> /
-   <a href="dsl/index.html">→ DSL ギャラリー(21例)</a></p>
+<p style="margin-top:40px"><a href="index.html">→ 総合ギャラリー(26例)</a> /
+   <a href="dsl/index.html">→ DSL ギャラリー(22例)</a></p>
 </main>
 </body>
 </html>
