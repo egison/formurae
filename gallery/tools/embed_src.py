@@ -31,10 +31,12 @@ def egi(m):
 
 def fe(m):
     rel = m.group('rel')
+    attrs = m.group('attrs') or ''
+    state = ' data-closed' if 'data-closed' in attrs else ' open'
     body, n = load(rel, r'(?m)^(--.*)$')
-    return ('<details class="codebox" data-fe="%s" open><summary>Formurae ソース全文'
+    return ('<details class="codebox" data-fe="%s"%s><summary>Formurae ソース全文'
             '(%s・%d 行)</summary>\n<pre>%s</pre></details>'
-            % (rel, os.path.basename(rel), n, body))
+            % (rel, state, os.path.basename(rel), n, body))
 
 def fmr(m):
     rel = m.group('rel')
@@ -47,7 +49,7 @@ for page in [INDEX, os.path.join(GALLERY, 'dsl', 'index.html')]:
     if not os.path.exists(page):
         continue
     s = io.open(page, encoding='utf-8').read()
-    s, n0 = re.subn(r'<details class="codebox" data-fe="(?P<rel>[^"]+)"[^>]*>.*?</details>', fe, s, flags=re.S)
+    s, n0 = re.subn(r'<details class="codebox" data-fe="(?P<rel>[^"]+)"(?P<attrs>[^>]*)>.*?</details>', fe, s, flags=re.S)
     s, n1 = re.subn(r'<details class="codebox" data-egi="(?P<rel>[^"]+)">.*?</details>', egi, s, flags=re.S)
     s, n2 = re.subn(r'<details class="codebox" data-fmr="(?P<rel>[^"]+)">.*?</details>', fmr, s, flags=re.S)
     io.open(page, 'w', encoding='utf-8').write(s)

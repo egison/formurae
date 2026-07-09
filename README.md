@@ -68,7 +68,9 @@ u' = u + dt * Δ u
 `dtheta`、`dphi`、`space_interval_theta` のように宣言した軸名に追随する。
 基本演算子だけでも書ける: `∂x u` は1階中心差分、`∂ 2 1 x u` は2階中心差分、
 `∂ 2 2 x u` は半径2の5点 stencil で導出される2階差分になる。
-平坦格子の Laplacian は、例えば `def Δ u = ∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u` と書く。
+平坦格子の Laplacian は、例えば `metric g` を宣言して
+`def lap u = g~i~j * ∂_i ∂_j u` と
+添字縮約で書ける。これは生成時に `∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u` へ下りる。
 
 `dimension` は 1、2、3 を指定できる。スカラー、ベクトル、添字付き rank-1、
 対称/反対称/full rank-2 field、微分形式 `k-form` は宣言次元に応じた成分数で
@@ -125,7 +127,7 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
 | `examples/diffusion1d/` | 1D 拡散方程式。`def Δ u = ∂ 2 1 x u` と書き、check driver が質量保存とピーク減衰を検査 |
 | `examples/diffusion2d/` | 2D 拡散方程式。`dimension 2` と `axes x, y` に応じて Formura/C の配列・Navi・Laplacian が2次元化される |
 | `examples/divergence2d/` | 2D 発散演算子の smoke test。`use vector-calculus { divg }` で生成される `dGrad`/`divg` が `dimension 2` 文脈で動くことを、中心差分の離散記号と比較して検査 |
-| `examples/diffusion3d/` | 3D 拡散方程式(`def Δ u = ∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u` で Laplacian を定義し、物理は `u' = u + dt * κ * Δ u` の1行) |
+| `examples/diffusion3d/` | 3D 拡散方程式(`metric g` と `def lap u = g~i~j * ∂_i ∂_j u` で Laplacian を定義し、物理は `u' = u + dt * κ * lap u` の1行) |
 | `examples/maxwell3d/` | Maxwell 方程式(**E・B がベクトル場**。`use vector-calculus { curl }` で回転を有効化し、全ベクトル更新2本から ε 縮約 curl の collocated 格子コードを生成) |
 | `examples/maxwell3d_yee/` | **Yee-FDTD**(E=辺・B=面のスタガード格子+leapfrog。場ごとの配置オフセット宣言から教科書どおりの FDTD を生成) |
 | `examples/maxwell_dec/` | **Maxwell(微分形式/DEC)**(`use exterior-calculus { d, δ }` で外微分・余微分を有効化。E=1-form・B=2-form の**次数宣言だけ**で Yee 配置を導出。B の storage は `B_1_2,B_1_3,B_2_3` の幾何基底名。d∘d=0 を CAS が生成時に検査し、check driver がエネルギー・伝播・divB を検証) |
@@ -134,7 +136,7 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
 | `examples/cahnhilliard3d/` | **Cahn–Hilliard**(4階微分を中間場 μ の2段構成で。質量は `reduces` 経由で監視) |
 | `examples/tdgl3d/` | **TDGL 超伝導**(\|ψ\|⁴ 理論。量子化渦の自発形成) |
 | `examples/mhd_ot/` | **理想 MHD: Orszag–Tang 渦**(保存形+Rusanov 流束を中間流束場19本で生成。8保存量を `reduces` で監視) |
-| `examples/elastic3d/` | **弾性波(Virieux)**(.fe の **Einstein 添字記法2行**: `field v~i @ staggered`、`field σ{~i~j} @ staggered` と宣言し、`v'~i = v~i + (dt/ρ0) * ∂_j σ~i~j`、`σ'~i~j = … λ * δ~i~j … δ~i~k * ∂_k v'~j …` と書く。繰り返し添字は上1・下1だけを総和し、上げ下げは metric を明示する。`@ staggered` 宣言で ∂_a が対象配置アンカーの半セル差分に = Virieux 格子を導出。P/S 両波速を1回で実測) |
+| `examples/elastic3d/` | **弾性波(Virieux)**(.fe の **Einstein 添字記法2行**: `field v~i @ staggered`、`field σ{~i~j} @ staggered` と宣言し、`v'~i = v~i + (dt/ρ0) * ∂_j σ~i~j`、`σ'~i~j = … λ * g~i~j … g~i~k * ∂_k v'~j …` と書く。繰り返し添字は上1・下1だけを総和し、上げ下げは metric を明示する。`@ staggered` 宣言で ∂_a が対象配置アンカーの半セル差分に = Virieux 格子を導出。P/S 両波速を1回で実測) |
 | `examples/metric_torus/` | **計量つき拡散(トーラス上の Laplace–Beltrami)**(.fe の `embedding [...]`(座標系の埋め込み)だけから CAS が計量 g_ab=∂X·∂X を導出・**直交性を記号検査**・h_a=√g_aa → hodge 因子の係数場・半セル評価・保存流束まで自動。`def Δ u = lb u` と定義し、物理は `u' = u + dt * Δ u` の1行。`metric scale` 直接指定も可) |
 | `examples/kleingordon/` | **非線形 Klein–Gordon(φ⁴ キンク)**(leapfrog 2場。ブーストした kink–antikink 対で速度と相対論的エネルギーを実測) |
 | `examples/shallowwater/` | **浅水方程式**(保存形+人工粘性。重力波速 √(gh) を実測、質量は流束形式で厳密保存) |
@@ -192,15 +194,18 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
   添字つき field は `field v~i @ staggered` や `field σ{~i~j} @ staggered` のように宣言し、
   rank・上下・対称性・Formura 出力 layout は添字仕様から推論する。
   初期値も `v~i = [| ... |]~i` や `σ~i~j = [| ... |]~i~j` のように同じ添字を明示する。
-  記号式で初期化したい場合は `σ~i~j := δ~i~j * exp(x)` のような indexed CAS initializer も使える。
+  記号式で初期化したい場合は `σ~i~j := g~i~j * exp(x)` のような indexed CAS initializer も使える。
   反対称 rank-2 field は `field A[_i_j] @ staggered` と宣言し、storage は独立な
   上三角 off-diagonal 成分だけを持つ(2D なら1成分、3D なら3成分)。参照時には
   `A_j_i = -A_i_j`、`A_i_i = 0` に正準化する。
   上付き `~i` と下付き `_i` は strict に区別し、`metric g` で宣言した計量名は
   `g~i~j`/`g~i_j`/`g_i~j`/`g_i_j` の上下パターンごとに生成 `.egi` の
-  内部計量テンソルへ下ろす(Euclidean では単位行列)。`metric δ` と宣言すれば
-  `δ_i_j` も計量として使える。添字の上げ下げは自動化せず、必要なら
-  `g_i_j * v~j` のように metric を明示する。metric 名と同じ `param`/`field` 名はエラー。
+  内部計量テンソルへ下ろす(Euclidean では単位行列)。`δ` は Kronecker delta
+  として `δ~i_j` の mixed identity だけに使う。添字の上げ下げは自動化せず、必要なら
+  `g_i_j * v~j` のように metric を明示する。metric 名と同じ `param`/`field` 名は warning。
+  ユーザ定義演算子も添字を持てる。`def grad u_i = ∂_i u` は
+  `w'_i = grad u_i` の各成分へ、`def div X = ∂_i X~i` は scalar 式へ、
+  `def lap u = g~i~j * ∂_i ∂_j u` は二階中心差分の和へ展開される。
 
 ## 検証結果(Apple Silicon Mac、1コア)
 

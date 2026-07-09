@@ -88,12 +88,13 @@ make all       <span class="c"># 全26例を生成→実行→検証(数分)</sp
 
 dimension 3
 axes x, y, z
+metric g
 
 param κ = 1.0
 param dt = 0.1*dx*dx
 
 extern exp
-def Δ u = ∂2x u + ∂2y u + ∂2z u
+def lap u = g~i~j * ∂_i ∂_j u
 raw gauss = fun(x,y,z) exp(-((x-(total_grid_x*dx/2))/(5*dx))**2 - ...)
 
 field u : scalar
@@ -102,7 +103,7 @@ init:
   u = gauss(i*dx,j*dy,k*dz)
 
 step:
-  u' = u + dt * κ * Δ u
+  u' = u + dt * κ * lap u
 </pre>
 <p>物理は最後の1行だけです。格子・分割は同じディレクトリの yaml(§5)に書きます。実行:</p>
 <pre>
@@ -121,9 +122,10 @@ make diffusion3d
 <tr><td><code>dimension 1</code> / <code>dimension 2</code> / <code>dimension 3</code></td><td>次元(<b>必須</b>)。scalar/vector/rank-2 field と <code>k-form</code> は 1D/2D/3D に対応。<code>curl</code> と <code>epsilon~i~j~k</code> は3次元専用として検査する</td></tr>
 <tr><td><code>use exterior-calculus { d, δ }</code></td><td><b>外微分・余微分</b>を有効化する。形式場では生成 .egi の座標文脈つき <code>dForm</code>/<code>codiff</code> へ接続する</td></tr>
 <tr><td><code>use vector-calculus { curl, divg }</code></td><td><b>ベクトル解析演算子</b>を有効化する。生成 .egi に座標文脈つき <code>curl</code>/<code>divg</code> を出す。<code>curl</code> は3次元専用として検査する</td></tr>
-<tr><td><code>def Δ u = ∂2x u + ∂2y u + ∂2z u</code></td><td><b>ユーザ定義演算子</b>(ファイルスコープ・使用箇所で展開。本文は先に定義された演算子のみ参照可、再帰不可)。平坦格子の Laplacian はこのように .fe 側で定義する</td></tr>
+<tr><td><code>metric g</code> + <code>def lap u = g~i~j * ∂_i ∂_j u</code></td><td><b>ユーザ定義演算子</b>(ファイルスコープ・使用箇所で展開。本文は先に定義された演算子のみ参照可、再帰不可)。平坦格子の Laplacian は添字縮約で定義でき、生成時に <code>∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u</code> へ下りる</td></tr>
 <tr><td><code>def Δ u = lb u</code></td><td>計量宣言下の Laplace-Beltrami を <code>Δ</code> として使う例。<code>lb</code> は計量係数場を生成する低水準プリミティブ</td></tr>
-<tr><td><code>def NAME ARG = EXPR</code></td><td><code>def</code> は scalar/stencil の表層置換に限定する。<code>def curl X~i = ...</code> のような rank-changing 添字演算子は Formurae 側では定義せず、<code>use</code> に応じて生成 .egi の Egison 定義として出す</td></tr>
+<tr><td><code>def grad u_i = ∂_i u</code></td><td>結果添字を持つ <code>def</code> はテンソル演算子として展開する。呼び出し側は <code>w'_i = grad u_i</code> のように結果添字を明示する</td></tr>
+<tr><td><code>def div X = ∂_i X~i</code></td><td>結果添字を持たない <code>def</code> の本文にも Einstein 添字を書ける。<code>q' = div V</code> は成分発散の和へ展開される</td></tr>
 <tr><td><code>axes r, θ, φ</code></td><td>軸名(<b>必須</b>)。<code>∂θ</code> の解決や添字文字の走る範囲=座標系を確定させる宣言。生成 Formura の <code>axes ::</code>、格子幅 <code>dr</code>/<code>dtheta</code>、C ドライバの <code>space_interval_r</code>/<code>lower_theta</code> まで宣言名を使う。CAS 内部だけは正規座標 <code>x,y,z</code> に写像する</td></tr>
 <tr><td><code>param dt = 0.5*dx</code></td><td>Formura パラメタ(<code>double :: dt = …</code>)。値は Formura 式</td></tr>
 <tr><td><code>extern exp</code></td><td><code>extern function :: exp</code>。<code>sin</code>, <code>cos</code>, <code>exp</code>, <code>sqrt</code>, <code>fabs</code> など Formura が扱えるスカラー関数は、式や raw ヘルパで使われたら不足分を自動 extern する。明示 <code>extern</code> も従来通り可</td></tr>
@@ -134,7 +136,7 @@ make diffusion3d
 <tr><td><code>field v~i @ staggered</code></td><td>スタガード rank-1 tensor。添字の上下は宣言時に固定され、v_i と参照するとエラー</td></tr>
 <tr><td><code>field σ{~i~j} @ staggered</code></td><td>対称 rank-2 tensor。<code>{...}</code> は対称、σ^ij は辺i⊕辺j — Virieux 配置が導出される</td></tr>
 <tr><td><code>field A[_i_j] @ staggered</code></td><td>反対称 rank-2 tensor。<code>[...]</code> は反対称。独立 storage は上三角 off-diagonal 成分のみ(2D なら1成分、3D なら3成分)で、<code>A_j_i</code> は <code>-A_i_j</code>、<code>A_i_i</code> は 0 に下りる</td></tr>
-<tr><td><code>metric g</code> / <code>metric δ</code></td><td>計量テンソルとして使う表層名を宣言する。宣言後は <code>g~i~j</code>/<code>g_i_j</code> や <code>δ_i_j</code> などを書ける。宣言した名前を <code>param</code>/<code>field</code> にも使うとエラー</td></tr>
+<tr><td><code>metric g</code></td><td>計量テンソルとして使う表層名を宣言する。宣言後は <code>g~i~j</code>/<code>g_i_j</code> などを書ける。宣言した名前を <code>param</code>/<code>field</code> にも使うと warning を出し、添字なし <code>g</code> は param/field、添字つき <code>g_i_j</code> は metric として扱う</td></tr>
 <tr><td><code>metric scale [1, 2 + cos theta, 1]</code></td><td>直交計量を Lamé スケール因子で直接指定 → <code>lb</code> が使える</td></tr>
 <tr><td><code>embedding [`(1+r) * cos phi, …]</code></td><td>座標系の埋め込みから計量を CAS が<b>自動導出</b>(直交性は記号検査で強制)。バッククォートで因子を原子に保つと √ が閉じる</td></tr>
 <tr><td><code>g~i~j</code> / <code>g~i_j</code> / <code>g_i~j</code> / <code>g_i_j</code></td><td><code>metric g</code> で宣言した計量テンソル。上下添字の形ごとに反変・混合・共変の内部テンソルへ下りる。Euclidean でも単位行列として扱う</td></tr>
@@ -146,7 +148,7 @@ make diffusion3d
 <tr><th>構文</th><th>意味</th></tr>
 <tr><td><code>u = gauss(i*dx,j*dy,k*dz)</code></td><td>スカラー場の生の Formura 初期化式</td></tr>
 <tr><td><code>E = [| 0, gauss1(i*dx), 0 |]</code></td><td>ベクトル/形式の成分一括指定(要素は Formura 式)</td></tr>
-<tr><td><code>σ~i~j := δ~i~j * exp(x)</code></td><td><b>添字付き CAS 初期化</b>: strict Einstein 検査後に成分展開し、field の配置に合わせて半セル substitute して init に焼き込む</td></tr>
+<tr><td><code>σ~i~j := g~i~j * exp(x)</code></td><td><b>添字付き CAS 初期化</b>: strict Einstein 検査後に成分展開し、field の配置に合わせて半セル substitute して init に焼き込む</td></tr>
 <tr><td><code>A_i_j = [| [| a12,a13 |], [| a23 |] |]_i_j</code></td><td>反対称 rank-2 field の上三角 off-diagonal 初期化。宣言次元の full 反対称行列も受け付ける</td></tr>
 <tr><td><code>u := exp (cos theta - 1)</code></td><td><b>CAS 初期化</b>: 記号式を評価して init に焼き込む(座標は軸名で書く)</td></tr>
 </table>
@@ -158,7 +160,7 @@ make diffusion3d
 <tr><td><code>E' = E + dt * curl B</code></td><td>ベクトル方程式(成分・添字なし)。<code>curl</code> には <code>use vector-calculus { curl }</code> が必要</td></tr>
 <tr><td><code>B' = B - dt * d E'</code></td><td>形式方程式(d は次数で解決)。<code>d</code>/<code>δ</code> には <code>use exterior-calculus { d, δ }</code> が必要</td></tr>
 <tr><td><code>v'~i = v~i + (dt/ρ0) * ∂_j σ~i~j</code></td><td><b>テンソル添字方程式</b>(staggered 場)。各項は strict 検査され、自由添字は LHS と上下まで一致、ダミー添字は上1・下1で総和。<code>∂_a</code> は対象成分の配置にアンカーされた半セル差分</td></tr>
-<tr><td><code>local w = ∂2x u</code></td><td>中間<b>格子場</b>(.fmr に1行として出る — 4階微分の2段化などに)</td></tr>
+<tr><td><code>local w = ∂ 2 1 x u</code></td><td>中間<b>格子場</b>(.fmr に1行として出る — 4階微分の2段化などに)</td></tr>
 <tr><td><code>let En_i = …</code></td><td>名前つき式(インライン展開される。格子場にはならない)</td></tr>
 </table>
 
@@ -167,8 +169,8 @@ make diffusion3d
 <tr><th>分類</th><th>演算子</th><th>説明</th></tr>
 <tr><td><code>use exterior-calculus</code></td><td><code>d ω</code>, <code>δ ω</code></td><td><code>use exterior-calculus { d, δ }</code> で有効化される。形式場では生成 .egi の座標文脈つき <code>dForm</code>/<code>codiff</code> へ下ろす</td></tr>
 <tr><td><code>use vector-calculus</code></td><td><code>curl X</code>, <code>divg X</code></td><td><code>use vector-calculus { curl }</code> / <code>{ divg }</code> で有効化される。<code>fec</code> は生成 .egi に座標文脈つき Egison 定義を出し、Formurae 側では vector 値の成分取り出しだけを行う</td></tr>
-<tr><td><code>fec</code> 組み込み変換</td><td><code>∂x e</code>, <code>∂2x e</code>, <code>∂2,2x e</code></td><td>軸名を見て中心差分または Taylor 条件から導出する stencil へ下ろす。<code>∂_x</code> と <code>d_x</code> は座標微分としては許可しない</td></tr>
-<tr><td><code>fec</code> 組み込み変換</td><td><code>∂_i X~i</code>, <code>δ~i_j</code>, <code>epsilon~i~j~k</code>, <code>g_i_j</code>, <code>.</code></td><td>添字方程式を成分ごとの式へ展開する。<code>g</code> は上下パターンごとの計量テンソル、metric 名でない <code>δ~i_j</code> は mixed identity、<code>.</code> は添字縮約、<code>*</code> は点ごとのスカラー積として扱う</td></tr>
+<tr><td><code>fec</code> 組み込み変換</td><td><code>∂x e</code>, <code>∂ 2 1 x e</code>, <code>∂ 2 2 x e</code></td><td>軸名を見て中心差分または Taylor 条件から導出する stencil へ下ろす。<code>∂x</code> は1階だけの短縮形で、<code>∂_x</code> と <code>d_x</code> は座標微分としては許可しない</td></tr>
+<tr><td><code>fec</code> 組み込み変換</td><td><code>∂_i X~i</code>, <code>δ~i_j</code>, <code>epsilon~i~j~k</code>, <code>g_i_j</code>, <code>.</code></td><td>添字方程式を成分ごとの式へ展開する。<code>g</code> は上下パターンごとの計量テンソル、metric 名でない <code>δ~i_j</code> は Kronecker identity、<code>.</code> は添字縮約、<code>*</code> は点ごとのスカラー積として扱う</td></tr>
 <tr><td><code>fec</code> 組み込み変換</td><td><code>d ω</code>, <code>δ ω</code> / <code>delta ω</code> / <code>codiff ω</code></td><td><code>field E : 1-form</code> などの形式場では、<code>use exterior-calculus</code> で有効化されたときに生成 Egison の <code>dForm</code>/<code>codiff</code> 呼び出しへ下ろす</td></tr>
 <tr><td>Formura/extern 組み込み</td><td><code>sin</code>, <code>cos</code>, <code>exp</code>, <code>sqrt</code>, <code>fabs</code> など</td><td>スカラー関数。テンソル成分に適用されると成分ごとへ lift され、不足する <code>extern function :: ...</code> は <code>fec</code> が自動で出す</td></tr>
 <tr><td>生成 .egi の座標文脈定義</td><td><code>dGrad</code>, <code>curl</code>, <code>divg</code>, <code>dForm</code>, <code>codiff</code>, <code>dTaylor</code>, <code>showFmr</code>, <code>emitModelOn</code></td><td><code>.fe</code> の prelude ではなく、<code>fec</code> が <code>dimension</code>/<code>axes</code>/<code>metric</code> から生成する定義</td></tr>
@@ -178,8 +180,8 @@ make diffusion3d
 <h3>ユーザ定義演算子</h3>
 <p><code>Δ</code> や <code>Δ4</code> は組み込みではなく、必要に応じて .fe 側で定義します。</p>
 <pre>
-def Δ u = ∂2x u + ∂2y u + ∂2z u
-def Δ4 u = ∂2,2x u + ∂2,2y u + ∂2,2z u
+def Δ u = ∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u
+def Δ4 u = ∂ 2 2 x u + ∂ 2 2 y u + ∂ 2 2 z u
 </pre>
 <p><b><code>use</code></b> や計量宣言を持つモデルでは、<code>fec</code> が次のような <b>座標文脈つき Egison 定義</b>を生成 .egi の先頭に出します。以下は <code>.fe</code> prelude ではなく、<code>dimension</code>/<code>axes</code> から生成されるライブラリ片です。CAS 内部の座標シンボルは <code>x,y,z</code> に正規化し、Formura へ出すときに <code>axes</code> の名前へ戻します。</p>
 <pre>
@@ -246,20 +248,20 @@ def δ := codiff
 <h3>演算子リファレンス(数式のまま書く)</h3>
 <table>
 <tr><th>演算子</th><th>由来</th><th>意味</th></tr>
-<tr><td><code>∂x e</code></td><td><code>fec</code> 組み込み</td><td>1階中心差分(軸名で: <code>∂r</code>, <code>∂θ</code>, <code>∂φ</code> …)。座標微分はこの形だけを許可する</td></tr>
-<tr><td><code>∂2x e</code></td><td><code>fec</code> 組み込み</td><td>x 方向の2階中心差分。<code>∂2θ</code> のように任意の宣言軸名で書ける</td></tr>
-<tr><td><code>∂2,2x e</code></td><td><code>fec</code> 組み込み</td><td>x 方向の2階微分を半径2の5点 stencil <code>[-2,-1,0,1,2]</code> で近似する。係数は <code>taylorStencil</code> が導出する</td></tr>
+<tr><td><code>∂x e</code></td><td><code>fec</code> 組み込み</td><td>1階中心差分(軸名で: <code>∂r</code>, <code>∂θ</code>, <code>∂φ</code> …)。これは <code>∂ 1 1 x e</code> の短縮形</td></tr>
+<tr><td><code>∂ 2 1 x e</code></td><td><code>fec</code> 組み込み</td><td>x 方向の2階中心差分。<code>∂ 2 1 θ</code> のように任意の宣言軸名で書ける</td></tr>
+<tr><td><code>∂ 2 2 x e</code></td><td><code>fec</code> 組み込み</td><td>x 方向の2階微分を半径2の5点 stencil <code>[-2,-1,0,1,2]</code> で近似する。係数は <code>taylorStencil</code> が導出する</td></tr>
 <tr><td><code>∂_i X~i</code></td><td><code>fec</code> 組み込み</td><td>添字微分。<code>axes</code> で宣言した座標方向について展開し、繰り返し添字は上1・下1の Einstein 総和になる</td></tr>
-<tr><td><code>Δ e</code></td><td>ユーザ定義</td><td>平坦格子なら <code>def Δ u = ∂2x u + ∂2y u + ∂2z u</code>、計量下なら <code>def Δ u = lb u</code> のように定義して使う</td></tr>
+<tr><td><code>lap e</code> / <code>Δ e</code></td><td>ユーザ定義</td><td>平坦格子なら <code>metric g</code> と <code>def lap u = g~i~j * ∂_i ∂_j u</code>、または <code>def Δ u = ∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u</code>、計量下なら <code>def Δ u = lb u</code> のように定義して使う</td></tr>
 <tr><td><code>lb e</code></td><td><code>fec</code> 組み込み生成</td><td>計量宣言下の Laplace–Beltrami。hodge 因子の係数場生成・半セル CAS 評価・保存流束まで自動</td></tr>
-<tr><td><code>Δ4 e</code></td><td>ユーザ定義</td><td><code>def Δ4 u = ∂2,2x u + ∂2,2y u + ∂2,2z u</code>。4階微分ではなく、4次精度の2階微分和</td></tr>
+<tr><td><code>Δ4 e</code></td><td>ユーザ定義</td><td><code>def Δ4 u = ∂ 2 2 x u + ∂ 2 2 y u + ∂ 2 2 z u</code>。4階微分ではなく、4次精度の2階微分和</td></tr>
 <tr><td><code>curl X</code></td><td><code>use vector-calculus { curl }</code></td><td>回転。生成 .egi の Egison 定義 <code>withSymbols [i,j,k] (ε 3)~i~j~k . (dGrad X)_j_k</code> に任せる。<code>E' = E + dt * curl B</code> のような添字なし vector equation で使う。<code>use</code> なしの <code>curl</code> はエラー</td></tr>
 <tr><td><code>divg X</code></td><td><code>use vector-calculus { divg }</code></td><td>発散。生成 .egi の Egison 定義 <code>trace (dGrad X)</code> に任せる。<code>use</code> なしの <code>divg</code> はエラー</td></tr>
 <tr><td><code>d ω</code></td><td><code>use exterior-calculus { d }</code></td><td>離散外微分(k-form → (k+1)-form)。形式場では <code>dForm</code> 呼び出しになる。<code>use</code> なしの <code>d</code> はエラー</td></tr>
 <tr><td><code>delta ω</code>(= <code>codiff</code>/<code>δ</code>)</td><td><code>use exterior-calculus { δ }</code></td><td>余微分 (−1)^{n(k+1)+1} ⋆d⋆。形式場では <code>codiff</code> 呼び出しになる。<code>use</code> なしの <code>δ</code> はエラー</td></tr>
 </table>
 
-<p><b>添字</b>: 添字方程式では上付き <code>~i</code> と下付き <code>_i</code> を常に区別します。添字つき field は <code>field v~i @ staggered</code>、<code>field σ{~i~j} @ staggered</code>、<code>field A[_i_j] @ staggered</code> のように宣言し、rank・上下・対称性・Formura 出力 layout は添字仕様から推論します。初期値も <code>v~i = [| ... |]~i</code>、<code>σ~i~j = [| ... |]~i~j</code>、<code>σ~i~j := δ~i~j * exp(x)</code> のように同じ添字 suffix を明示します。<code>{...}</code> は対称、<code>[...]</code> は反対称です。反対称 field は <code>A_j_i = -A_i_j</code>、<code>A_i_i = 0</code> に正準化されます。右辺の各項は strict 検査され、自由添字は LHS と上下まで一致し、ダミー添字は上1・下1だけを許します。添字の上げ下げは自動化しないため、必要なら <code>g_i_j * v~j</code> のように metric を明示します。<code>metric g</code> で宣言した計量名は <code>g~i~j</code>/<code>g~i_j</code>/<code>g_i~j</code>/<code>g_i_j</code> を別々の計量テンソルとして展開します。<code>metric δ</code> と宣言すれば、Euclidean 計量を <code>δ_i_j</code> や <code>δ~i~j</code> と書けます。Kronecker delta は metric 名でない場合の mixed identity <code>δ~i_j</code>(1添字1マーク; 融合形 <code>delta_ij</code> は不可)です。例(弾性波):
+<p><b>添字</b>: 添字方程式では上付き <code>~i</code> と下付き <code>_i</code> を常に区別します。添字つき field は <code>field v~i @ staggered</code>、<code>field σ{~i~j} @ staggered</code>、<code>field A[_i_j] @ staggered</code> のように宣言し、rank・上下・対称性・Formura 出力 layout は添字仕様から推論します。初期値も <code>v~i = [| ... |]~i</code>、<code>σ~i~j = [| ... |]~i~j</code>、<code>σ~i~j := g~i~j * exp(x)</code> のように同じ添字 suffix を明示します。<code>{...}</code> は対称、<code>[...]</code> は反対称です。反対称 field は <code>A_j_i = -A_i_j</code>、<code>A_i_i = 0</code> に正準化されます。右辺の各項は strict 検査され、自由添字は LHS と上下まで一致し、ダミー添字は上1・下1だけを許します。添字の上げ下げは自動化しないため、必要なら <code>g_i_j * v~j</code> のように metric を明示します。<code>metric g</code> で宣言した計量名は <code>g~i~j</code>/<code>g~i_j</code>/<code>g_i~j</code>/<code>g_i_j</code> を別々の計量テンソルとして展開します。Kronecker delta は <code>δ~i_j</code> のような mixed identity としてだけ書けます(融合形 <code>delta_ij</code> は不可)。例(弾性波):
 <code>v'~i = v~i + (dt / ρ0) * ∂_j σ~i~j</code></p>
 
 <p><b>内部名</b>: <code>metric g</code> の <code>g</code> は生成 Egison で <code>FormuraeInternalMetricContra</code>、<code>FormuraeInternalMetricMixedUpDown</code>、<code>FormuraeInternalMetricMixedDownUp</code>、<code>FormuraeInternalMetricCov</code> に下ります。添字付き field と <code>let A_i</code> のような一時テンソルについても <code>FormuraeInternalTensor...Up/Down...</code> という内部束縛を生成します。<code>FormuraeInternal</code> prefix は予約済みで、ユーザ定義名には使えません。</p>

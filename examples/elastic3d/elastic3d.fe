@@ -7,7 +7,7 @@
 --
 -- Repeated dummy index letters are summed only as one upper and one lower
 -- index. Superscripts and subscripts are kept distinct; on this Euclidean
--- grid metric δ is the identity, so δ~i~j raises derivative indices.
+-- grid metric g is the identity, so g~i~j raises derivative indices.
 -- v' refers to the updated velocity (symplectic).
 -- The fields are declared staggered, so every d_a becomes a half-cell
 -- difference anchored at the placement of the target component --
@@ -17,7 +17,7 @@
 
 dimension 3
 axes x, y, z
-metric δ
+metric g
 
 param λ = 2.0
 param μ = 1.0
@@ -39,4 +39,4 @@ init:
 
 step:
   v'~i = v~i + (dt / ρ0) * ∂_j σ~i~j
-  σ'~i~j = σ~i~j + dt * (λ * δ~i~j * ∂_k v'~k + μ * (δ~i~k * ∂_k v'~j + δ~j~k * ∂_k v'~i))
+  σ'~i~j = σ~i~j + dt * (λ * g~i~j * ∂_k v'~k + μ * (g~i~k * ∂_k v'~j + g~j~k * ∂_k v'~i))

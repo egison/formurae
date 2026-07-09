@@ -45,12 +45,11 @@
 --                                    library-level operators such as
 --                                    exterior-calculus { d, delta } and
 --                                    vector-calculus { curl, divg }.
---   def NAME ARG = EXPR             user-defined scalar/stencil operator,
---                                    expanded at use sites (file scope; a
---                                    body may use only operators defined
---                                    before it).  Indexed/rank-changing
---                                    tensor operators live in generated
---                                    Egison definitions selected by `use`.
+--   def NAME ARG = EXPR             user-defined scalar operator, expanded
+--                                    at use sites (file scope; a body may use
+--                                    only operators defined before it).
+--   def NAME ARG_i = EXPR           user-defined tensor operator whose result
+--                                    indices are supplied at each call site.
 --   param NAME = RAW                Formura parameter (double :: NAME = RAW)
 --   extern NAME                     extern function :: NAME
 --                                   (core scalar intrinsics such as sin,
@@ -85,13 +84,14 @@
 -- phi, ...); coordinate derivatives are written as ∂ order radius axis expr
 -- in Formurae (with ∂x expr kept as the first-derivative shorthand) and
 -- lower to the generated Egison operator ∂ order radius axis expr.  The
--- indexed derivative ∂_i remains distinct.  The small delta is the
--- codifferential, and the minus sign is '-'.  Higher mathematical
+-- indexed derivative ∂_i remains distinct.  A bare small delta is the
+-- codifferential, indexed delta is Kronecker's delta, and the minus sign is
+-- '-'.  Higher mathematical
 -- operators such as Δ or Δ4 are ordinary user definitions over these
 -- derivative primitives rather than built-in aliases.
 -- In index equations superscripts (~i) and subscripts (_i) are kept
--- distinct.  Kronecker's delta is the mixed identity (delta~i_j, or
--- with the small delta sign), while the metric tensor name declared by
+-- distinct.  Kronecker's delta is the mixed identity (delta~i_j, or with
+-- the small delta sign), while the metric tensor name declared by
 -- `metric NAME` lowers to generated tensors according to variance:
 -- NAME~i~j, NAME~i_j, NAME_i~j, NAME_i_j.  The fused delta_ij is rejected.
 --
@@ -104,6 +104,7 @@
 import Data.Char (isAlpha, isAlphaNum, isDigit, isSpace)
 import Data.List (dropWhileEnd, intercalate, permutations, sort, nub, stripPrefix)
 import System.Environment (getArgs)
+import System.IO (hPutStrLn, stderr)
 
 import Formurae.Common
 import Formurae.Index
@@ -152,6 +153,7 @@ modelExprTexts m =
   ++ concatMap initExpr (mInits m)
   ++ map sEx (mSteps m)
   ++ maybe [] id (mMetric m)
+  ++ map tdBody (mTensorDefs m)
   ++ map (snd . snd) (mDefs m)
   where
     helperExprs = filter isExprHelper
@@ -183,19 +185,27 @@ usesFunctionName nm = go . tokenize
 
 -- ------------------------------------------------------------- utilities
 
-metricNameConflicts :: Model -> [String]
+metricNameConflicts :: Model -> [(String, String)]
 metricNameConflicts m =
-  map fst (mParams m)
-  ++ map fst (mFlds m)
+  [("param", nm) | (nm, _) <- mParams m]
+  ++ [("field", nm) | (nm, _) <- mFlds m]
 
 validateMetricName :: Model -> IO ()
 validateMetricName m =
   case mMetricName m of
     Nothing -> return ()
-    Just nm ->
-      case [x | x <- metricNameConflicts m, x == nm] of
-        _:_ -> fatal ("metric name conflicts with a param or field declaration: " ++ nm)
+    Just "delta" ->
+      fatal "metric δ is reserved for Kronecker delta; use metric g for the metric tensor"
+    Just nm -> do
+      let conflicts = nub [kind | (kind, x) <- metricNameConflicts m, x == nm]
+      case conflicts of
         [] -> return ()
+        _ ->
+          hPutStrLn stderr
+            ("fec: warning: metric name '" ++ nm ++ "' also appears as "
+             ++ intercalate "/" conflicts
+             ++ "; bare " ++ nm ++ " keeps that meaning, two-index "
+             ++ nm ++ "_i_j/" ++ nm ++ "~i~j is treated as the metric")
 
 kindFromFieldDecl :: FieldDecl -> Kind
 kindFromFieldDecl = fdKind
@@ -265,28 +275,26 @@ eqForm marker s = do
     headDef _ (c:_) = c
 
 -- def NAME PARAM = BODY
--- User definitions are scalar/stencil substitutions in the Formurae layer.
--- Rank-changing indexed tensor operators are intentionally not parsed here;
--- they should be generated as Egison definitions through `use`.
-defForm :: String -> Maybe (String, String, String)
+-- def NAME PARAM_i = BODY
+--
+-- The suffix on PARAM is the result index structure, not an indexed
+-- parameter.  Thus `def grad u_i = d_i u` defines a rank-1 operator over a
+-- scalar argument u, while `def div X = d_i X~i` remains a scalar operator.
+defForm :: String -> Maybe (String, String, [IxPart], String)
 defForm r = do
   (nm, r1) <- identU (strip r)
-  (p, r2) <- identParam (dropWhile isSpace r1)
+  (p0, r2) <- identParam (dropWhile isSpace r1)
+  let (p, resultIx) = parseIndexedIdent p0
   r3 <- stripPrefix "=" (dropWhile isSpace r2)
   let body = strip r3
-  if null body then Nothing else Just (nm, p, body)
+  if null body || null p then Nothing else Just (nm, p, resultIx, body)
   where
     identU (c:cs) | isAlpha c = let (a, b) = span isW cs in Just (c : a, b)
     identU _ = Nothing
     identParam (c:cs) | isAlpha c =
-      let (a, b) = span isAlphaNum cs in Just (c : a, b)
+      let (a, b) = span (\ch -> isAlphaNum ch || ch == '_' || ch == '~') cs
+      in Just (c : a, b)
     identParam _ = Nothing
-
-defHasIndexedParam :: String -> Bool
-defHasIndexedParam r =
-  case words r of
-    (_:param:_) -> any (`elem` ("_~" :: String)) param
-    _ -> False
 
 -- NAME'(~a|_a)(~b|_b)? = EXPR   (a, b single index letters)
 primeEqForm :: String -> Maybe (String, [IxPart], String)
@@ -400,7 +408,7 @@ missingUse m s = go (tokenize s)
     orElse Nothing y = y
 
 parseFe :: String -> String -> IO Model
-parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing Nothing Nothing [])
+parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing Nothing Nothing [] [])
                       (zip [1 :: Int ..] (lines txt))
   where
     -- dimension and axes are required: they fix the coordinate frame
@@ -421,6 +429,9 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
           mapM_ (\(_, (_, body)) ->
                     checkUserSurface mUse "in def" body)
                 (mDefs mUse)
+          mapM_ (\td ->
+                    checkUserSurface mUse ("in def " ++ tdName td) (tdBody td))
+                (mTensorDefs mUse)
           mapM_ (\st ->
                     checkUserSurface mUse ("in step expression: " ++ sEx st) (sEx st))
                 (mSteps mUse)
@@ -428,20 +439,25 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
           -- resolve user-defined operators (definition order; a body may
           -- use only operators defined before it) and expand all uses
           defs <- resolveDefs (reverse (mDefs mUse))
+          tensorDefs <- resolveTensorDefs defs (reverse (mTensorDefs mUse))
+          let mDef = mUse { mDefs = defs, mTensorDefs = tensorDefs }
           steps' <- mapM (\st -> do ex <- applyDefs defs (sEx st)
                                     return st { sEx = ex })
                          (reverse (mSteps mUse))
           inits' <- mapM (expandInit defs) (reverse (mInits mUse))
           mapM_ (\(nm, (_, body)) ->
-                    checkGeneratedSurface mUse ("in def " ++ nm) body)
+                    checkGeneratedSurface mDef ("in def " ++ nm) body)
                 defs
+          mapM_ (\td ->
+                    checkGeneratedSurface mDef ("in def " ++ tdName td) (tdBody td))
+                tensorDefs
           mapM_ (\st ->
-                    checkGeneratedSurface mUse ("in step expression: " ++ sEx st) (sEx st))
+                    checkGeneratedSurface mDef ("in step expression: " ++ sEx st) (sEx st))
                 steps'
-          return mUse { mParams = reverse (mParams mUse), mHelp = reverse (mHelp mUse)
-                   , mFlds = reverse (mFlds mUse)
-                   , mFieldDecls = reverse (mFieldDecls mUse), mInits = inits'
-                   , mSteps = steps', mDefs = defs }
+          return mDef { mParams = reverse (mParams mDef), mHelp = reverse (mHelp mDef)
+                   , mFlds = reverse (mFlds mDef)
+                   , mFieldDecls = reverse (mFieldDecls mDef), mInits = inits'
+                   , mSteps = steps' }
 
     go sec m ((ln, raw):rest) = do
       let code = rstrip (stripComment raw)
@@ -478,6 +494,12 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
                             ++ " which is not defined before it")
             [] -> goD ((nm, (p, body')) : acc) more
 
+    resolveTensorDefs defs = mapM resolveOne
+      where
+        resolveOne td = do
+          body' <- applyDefs defs (tdBody td)
+          return td { tdBody = body' }
+
     -- expand operator applications: NAME ARG with ARG an identifier or
     -- a parenthesized expression.  Bodies are def-free after
     -- resolveDefs, so one pass suffices; arguments are expanded first.
@@ -500,7 +522,10 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
               fmap ((TC '(' : bodyT ++ [TC ')']) ++) (goE rest')
         goE (t : ts) = fmap (t :) (goE ts)
         substP p argS (TId w pr)
-          | w == p = tokenize (argS ++ (if pr then "'" else ""))
+          | base == p =
+              tokenize (argS ++ concatMap ixSuffix parts ++ (if pr then "'" else ""))
+          where
+            (base, parts) = parseIndexedIdent w
         substP _ _ t = [t]
 
     expandInit defs it = case it of
@@ -540,14 +565,13 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
     top ln s m
       | Just r <- stripPrefix "def " s =
           case defForm r of
-            Just (nm, p, body) -> do
+            Just (nm, p, resultIx, body) -> do
               rejectReservedName ln nm
               rejectReservedName ln p
-              return m { mDefs = (nm, (p, body)) : mDefs m }
-            Nothing | defHasIndexedParam r ->
-              fatal ("indexed def parameters are not supported in Formurae def"
-                     ++ " (line " ++ show ln
-                     ++ "); put rank-changing tensor operators in generated Egison via use")
+              if null resultIx
+                then return m { mDefs = (nm, (p, body)) : mDefs m }
+                else validateTensorDefResult ln nm resultIx
+                     >> return m { mTensorDefs = TensorDef nm p resultIx body : mTensorDefs m }
             Nothing -> fatal ("bad def (line " ++ show ln
                               ++ "): def NAME ARG = EXPR")
       | Just r <- stripPrefix "param " s =
@@ -617,6 +641,13 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
                       then Nothing
                       else Just (modName, names)
                _ -> Nothing
+        validateTensorDefResult ln' nm parts
+          | all isSingleAlphaIx parts
+          , let names = map ixName parts
+          , length names == length (nub names) = return ()
+          | otherwise =
+              fatal ("bad tensor def result indices in " ++ nm ++ showIxParts parts
+                     ++ " (line " ++ show ln' ++ ")")
 
     ini ln s m
       | Just (nm, ix, ex) <- casForm s = do
@@ -995,7 +1026,10 @@ strictEinstein m lets lhs expr = do
           (base, _) = fieldBaseOf base0
       in case () of
            _
-             | Just metricNm <- mMetricName m, base == metricNm ->
+             | Just metricNm <- mMetricName m
+             , base == metricNm
+             , length parts == 2
+             , all indexedMetricPart parts ->
                  metricOccurrences metricNm parts w
              | base == "epsilon", not (null parts) ->
                  if mDim m /= 3
@@ -1012,6 +1046,10 @@ strictEinstein m lets lhs expr = do
                  return parts
              | base `elem` lets && not (null parts) ->
                  return parts
+             | Just metricNm <- mMetricName m
+             , base == metricNm
+             , not (null parts) ->
+                 metricOccurrences metricNm parts w
              | otherwise ->
                  return []
 
@@ -1024,7 +1062,7 @@ strictEinstein m lets lhs expr = do
       | all isSingleAlphaIx [p, q] =
           if isMixedPair p q
             then return [p, q]
-            else fatal ("Kronecker delta must be mixed, e.g. delta~i_j; use a declared metric tensor for covariant/contravariant components: " ++ w)
+            else fatal ("Kronecker delta indices must be mixed, e.g. delta~i_j; use metric g and g~i~j/g_i_j for metric components: " ++ w)
     kroneckerOccurrences _ w =
       fatal ("Kronecker delta takes two single marked indices, e.g. delta~i_j: " ++ w)
 
@@ -1097,36 +1135,75 @@ validateFieldRefParts m lets w =
 indexDefs :: Model -> [String] -> Step -> IO [String]
 indexDefs m lets st = do
   validateFieldRefParts m lets (sNm st ++ concatMap ixSuffix (sIdx st))
-  strictEinstein m lets (sIdx st) (sEx st)
+  ex <- expandTensorDefs m (sEx st)
+  strictEinstein m lets (sIdx st) ex
   case (kindOf m (sNm st), sIdx st) of
     (Just (Vector staggered), [fi]) ->
-      mapM (\a -> comp [(ixName fi, a)]
-                         (if staggered then placeV m a else zeroPlaceM m)
+      mapM (\a -> comp ex [(ixName fi, a)]
+                         (if staggered then placeVB m a else zeroPlaceB m)
                          (base ++ show a)) (axisRange m)
     (Just SymM, [fi, fj]) ->
-      mapM (\(a, b) -> comp [(ixName fi, a), (ixName fj, b)] (placeS m a b) (base ++ show a ++ show b))
+      mapM (\(a, b) -> comp ex [(ixName fi, a), (ixName fj, b)] (placeSB m a b) (base ++ show a ++ show b))
            (rank2Pairs (symComponentIndices (mDim m)))
     (Just AntiM, [fi, fj]) ->
-      mapM (\(a, b) -> comp [(ixName fi, a), (ixName fj, b)] (placeS m a b) (base ++ show a ++ show b))
+      mapM (\(a, b) -> comp ex [(ixName fi, a), (ixName fj, b)] (placeSB m a b) (base ++ show a ++ show b))
            (rank2Pairs (antiComponentIndices (mDim m)))
     (Just (Tensor2 staggered), [fi, fj]) ->
-      mapM (\(a, b) -> comp [(ixName fi, a), (ixName fj, b)]
-                              (if staggered then placeS m a b else zeroPlaceM m)
+      mapM (\(a, b) -> comp ex [(ixName fi, a), (ixName fj, b)]
+                              (if staggered then placeSB m a b else zeroPlaceB m)
                               (base ++ show a ++ show b))
            (rank2Pairs (componentIndices (mDim m) (Tensor2 staggered)))
     _ -> fatal ("index equation has wrong indices for its field kind: " ++ sNm st)
   where
     base = "feq" ++ sNm st
-    comp env anchor defnm = do
-      e <- ixExpand m lets env anchor (sEx st)
+    comp ex' env anchor defnm = do
+      e <- ixExpand m lets env anchor ex'
       return ("def " ++ defnm ++ " := " ++ e)
+
+type Placement = [Bool]
+
+zeroPlaceB :: Model -> Placement
+zeroPlaceB m = replicate (mDim m) False
+
+placeVB :: Model -> Int -> Placement
+placeVB m a = [c == a | c <- axisRange m]
+
+placeSB :: Model -> Int -> Int -> Placement
+placeSB m a b
+  | a == b = zeroPlaceB m
+  | otherwise = [c == a || c == b | c <- axisRange m]
+
+togglePlace :: Int -> Placement -> Placement
+togglePlace a =
+  zipWith (\idx bit -> if idx == a then not bit else bit) [1 :: Int ..]
+
+placeText :: Placement -> String
+placeText = plOf
 
 -- expand one component: parens are independent regions, a repeated
 -- index letter is summed over the smallest term containing it, then
 -- names and derivatives are resolved
-ixExpand :: Model -> [String] -> [(String, Int)] -> String -> String -> IO String
+ixExpand :: Model -> [String] -> [(String, Int)] -> Placement -> String -> IO String
 ixExpand m lets env anchor expr = expandRegion env (itok (indexContractionDots expr))
   where
+    euclideanDeclaredMetric =
+      mMetricName m /= Nothing && mMetric m == Nothing && mEmbed m == Nothing
+
+    metricIdent (base, parts) =
+      case mMetricName m of
+        Just metricNm | base == metricNm -> Just (metricNm, parts)
+        _ -> Nothing
+
+    isMixedPair (IxPart VUp _) (IxPart VDown _) = True
+    isMixedPair (IxPart VDown _) (IxPart VUp _) = True
+    isMixedPair _ _ = False
+
+    indexedMetricPart (IxPart _ nm) = all isAlphaNum nm && not (null nm)
+
+    metricRef (IxPart v1 _) (IxPart v2 _) a b
+      | euclideanDeclaredMetric = if a == b then "1" else "0"
+      | otherwise = metricInternalBase v1 v2 ++ "_" ++ show a ++ "_" ++ show b
+
     -- a region is a +/- separated list of terms
     expandRegion env' ts = goR env' (0 :: Int) [] ts
     goR env' _ cur [] = expandTerm env' (reverse cur)
@@ -1136,7 +1213,7 @@ ixExpand m lets env anchor expr = expandRegion env (itok (indexContractionDots e
       | d == 0 && c `elem` "+-" = do
           e1 <- expandTerm env' (reverse cur)
           e2 <- goR env' 0 [] rest
-          return (e1 ++ [c] ++ e2)
+          return (joinAdd c e1 e2)
     goR env' d cur (t : rest) = goR env' d (t : cur) rest
 
     -- one term: sum its own (depth-0) dummies, then resolve
@@ -1144,8 +1221,56 @@ ixExpand m lets env anchor expr = expandRegion env (itok (indexContractionDots e
       case levelDummies env' ts of
         (k:_) -> do
           parts <- mapM (\n -> expandTerm ((k, n) : env') ts) (axisRange m)
-          return ("(" ++ intercalate " + " parts ++ ")")
-        [] -> resolve env' ts
+          return (sumText parts)
+        [] | zeroByIdentityTensor env' ts -> return "0"
+           | otherwise -> resolve env' ts
+
+    sumText parts =
+      case filter (/= "0") (map dropOneFactor parts) of
+        [] -> "0"
+        [p] -> p
+        ps -> "(" ++ intercalate " + " ps ++ ")"
+
+    joinAdd op e1 e2
+      | null (strip e1) = [op] ++ e2
+      | op == '+' && isZeroText e1 = e2
+      | op == '+' && isZeroText e2 = e1
+      | op == '-' && isZeroText e2 = e1
+      | otherwise = e1 ++ [op] ++ e2
+
+    isZeroText s = strip s == "0"
+
+    dropOneFactor s =
+      case stripPrefix "1 * " s of
+        Just rest -> rest
+        Nothing -> s
+
+    zeroByIdentityTensor env' = go (0 :: Int)
+      where
+        go _ [] = False
+        go d (IC c : rest)
+          | c `elem` "([" = go (d + 1) rest
+          | c `elem` ")]" = go (d - 1) rest
+          | otherwise = go d rest
+        go 0 (II w : rest) = isZero w || go 0 rest
+        go d (_ : rest) = go d rest
+
+        resolvedDifferent p q =
+          case (resolveIx env' (ixName p), resolveIx env' (ixName q)) of
+            (Just pv, Just qv) -> pv /= qv
+            _ -> False
+        isZero w =
+          case parseIndexedIdent w of
+            ("delta", [p, q])
+              | all isSingleAlphaIx [p, q], isMixedPair p q ->
+                  resolvedDifferent p q
+            (base, [p, q])
+              | euclideanDeclaredMetric
+              , Just _ <- metricIdent (base, [p, q])
+              , indexedMetricPart p
+              , indexedMetricPart q ->
+                  resolvedDifferent p q
+            _ -> False
 
     levelDummies env' ts = nub (go2 (0 :: Int) ts)
       where
@@ -1174,19 +1299,14 @@ ixExpand m lets env anchor expr = expandRegion env (itok (indexContractionDots e
       fmap (("(" ++ e ++ ")") ++) (resolve env' rest')
     resolve env' (IC c : rest) = fmap ([c] ++) (resolve env' rest)
     resolve env' (II w : rest)
-      -- Kronecker delta, one index per mark: delta~i_j / \948~i_j
-      -- The variance is intentionally kept: delta is the mixed identity,
-      -- while the declared metric name (for example g_i_j / g~i~j when
-      -- `metric g` is present) denotes metric tensors.
+      -- Kronecker delta, one index per mark: delta~i_j / \948~i_j.
+      -- Same-variance metric components are written with the declared metric
+      -- name, for example g_i_j / g~i~j when `metric g` is present.
       | Just (_, [p, q]) <- metricIdent splitIdentW
       , indexedMetricPart p, indexedMetricPart q = do
           pv <- need env' (ixName p)
           qv <- need env' (ixName q)
           fmap ((metricRef p q pv qv) ++) (resolve env' rest)
-      | Just (metricNm, _ : _) <- metricIdent splitIdentW =
-          fatal ("metric tensor " ++ metricNm ++ " needs exactly two marked indices: " ++ w
-                 ++ " (examples: " ++ metricNm ++ "~i~j, " ++ metricNm ++ "~i_j, "
-                 ++ metricNm ++ "_i~j, " ++ metricNm ++ "_i_j)")
       | ("epsilon", [p, q, r]) <- splitIdentW
       , all isSingleAlphaIx [p, q, r] = do
           if mDim m /= 3
@@ -1197,7 +1317,7 @@ ixExpand m lets env anchor expr = expandRegion env (itok (indexContractionDots e
       | ("delta", [p, q]) <- splitIdentW
       , all isSingleAlphaIx [p, q] = do
           if not (isMixedPair p q)
-            then fatal ("Kronecker delta must be mixed, e.g. delta~i_j; use a declared metric tensor for covariant/contravariant components: " ++ w)
+            then fatal ("Kronecker delta indices must be mixed, e.g. delta~i_j; use metric g and g~i~j/g_i_j for metric components: " ++ w)
             else return ()
           pv <- need env' (ixName p)
           qv <- need env' (ixName q)
@@ -1207,16 +1327,18 @@ ixExpand m lets env anchor expr = expandRegion env (itok (indexContractionDots e
       | ("epsilon", _ : _) <- splitIdentW =
           fatal ("epsilon takes three single marked indices, e.g. epsilon~i~j~k: " ++ w)
       | ("d", [k]) <- splitIdentW = do
-          n <- need env' (ixName k)
-          let rest1 = dropWhile isSp rest
-          case rest1 of
-            (II opw : rest2) -> do
-              ref <- fieldRef env' opw
-              fmap (deriv n ref ++) (resolve env' rest2)
-            _ -> fatal ("d_" ++ ixName k ++ " needs a field operand: " ++ expr)
+          (ks, opw, rest2) <- derivativeOperand [k] rest
+          ns <- mapM (need env' . ixName) ks
+          ref <- fieldRef env' opw
+          let (e, _) = deriveChain ns anchor ref
+          fmap (e ++) (resolve env' rest2)
       | isField = do
           ref <- fieldRef env' w
           fmap (fst ref ++) (resolve env' rest)
+      | Just (metricNm, _ : _) <- metricIdent splitIdentW =
+          fatal ("metric tensor " ++ metricNm ++ " needs exactly two marked indices: " ++ w
+                 ++ " (examples: " ++ metricNm ++ "~i~j, " ++ metricNm ++ "~i_j, "
+                 ++ metricNm ++ "_i~j, " ++ metricNm ++ "_i_j)")
       | not (null (snd splitIdentW)) =
           fatal ("unknown indexed tensor: " ++ w
                  ++ " (declare metric " ++ fst splitIdentW
@@ -1227,17 +1349,6 @@ ixExpand m lets env anchor expr = expandRegion env (itok (indexContractionDots e
         isField = (kindOf m (fst (fieldBaseOf (fst splitIdentW))) /= Nothing
                    || fst (fieldBaseOf (fst splitIdentW)) `elem` lets)
                   && not (null (snd splitIdentW))
-        metricIdent (base, parts) =
-          case mMetricName m of
-            Just metricNm | base == metricNm -> Just (metricNm, parts)
-            _ -> Nothing
-        isMixedPair (IxPart VUp _) (IxPart VDown _) = True
-        isMixedPair (IxPart VDown _) (IxPart VUp _) = True
-        isMixedPair _ _ = False
-        indexedMetricPart (IxPart _ nm) = all isAlphaNum nm && not (null nm)
-        metricRef (IxPart v1 _) (IxPart v2 _) a b =
-          metricInternalBase v1 v2 ++ "_" ++ show a ++ "_" ++ show b
-
     matchParen d acc (IC ')' : rest)
       | d == 0 = (reverse acc, rest)
       | otherwise = matchParen (d - 1) (IC ')' : acc) rest
@@ -1260,32 +1371,70 @@ ixExpand m lets env anchor expr = expandRegion env (itok (indexContractionDots e
       case (kindOf m fname, ns) of
         (Just (Vector staggered), [a]) ->
           return (fname ++ replicate primes '\'' ++ "_" ++ show a,
-                  if staggered then placeV m a else zeroPlaceM m)
+                  if staggered then placeVB m a else zeroPlaceB m)
         (Just (Form _), [a]) ->
           return (fname ++ replicate primes '\'' ++ "_" ++ show a,
-                  zeroPlaceM m)
+                  zeroPlaceB m)
         (Just SymM, [a, b2]) ->
           let (lo, hi) = (min a b2, max a b2)
           in return (fname ++ replicate primes '\'' ++ "_" ++ show lo ++ "_" ++ show hi,
-                     placeS m a b2)
+                     placeSB m a b2)
         (Just AntiM, [a, b2]) ->
           let (lo, hi) = (min a b2, max a b2)
               comp = fname ++ replicate primes '\'' ++ "_" ++ show lo ++ "_" ++ show hi
               signed | a == b2 = "0"
                      | a < b2 = comp
                      | otherwise = "(0 - " ++ comp ++ ")"
-          in return (signed, placeS m a b2)
+          in return (signed, placeSB m a b2)
         (Just (Tensor2 staggered), [a, b2]) ->
           return (fname ++ replicate primes '\'' ++ "_" ++ show a ++ "_" ++ show b2,
-                  if staggered then placeS m a b2 else zeroPlaceM m)
+                  if staggered then placeSB m a b2 else zeroPlaceB m)
         (Just Scalar, []) ->
-          return (fname ++ replicate primes '\'', zeroPlaceM m)
+          return (fname ++ replicate primes '\'', zeroPlaceB m)
         (Nothing, [a]) | fname `elem` lets, primes == 0 ->
-          return (fname ++ "_" ++ show a, zeroPlaceM m)
+          return (fname ++ "_" ++ show a, zeroPlaceB m)
         _ -> fatal ("bad field reference in index equation: " ++ w)
 
-    deriv n (comp, place) =
-      "dYee " ++ show n ++ " " ++ anchor ++ " (" ++ comp ++ ", " ++ place ++ ")"
+    derivativeOperand ks rest =
+      case dropWhile isSp rest of
+        II w2 : rest2
+          | ("d", [k2]) <- parseIndexedIdent w2 ->
+              derivativeOperand (ks ++ [k2]) rest2
+          | otherwise -> return (ks, w2, rest2)
+        _ ->
+          let label =
+                case ks of
+                  k0:_ -> "d_" ++ ixName k0
+                  [] -> "indexed derivative"
+          in fatal (label ++ " needs a field operand: " ++ expr)
+
+    deriveChain [] _ _ = error "empty derivative chain"
+    deriveChain [n1, n2] target ref@(_, src)
+      | n1 == n2 && target == src =
+          ("∂ 2 1 " ++ axisSymbol n1 ++ " " ++ operandExpr (fst ref), target)
+    deriveChain [n] target ref =
+      let e = derivAt n target ref
+      in (e, target)
+    deriveChain (n:ns) target ref =
+      let innerTarget = naturalPlace ns (snd ref)
+          innerRef = deriveChain ns innerTarget ref
+          e = derivAt n target innerRef
+      in (e, target)
+
+    naturalPlace ns src = foldl (flip togglePlace) src ns
+
+    derivAt n target (comp, place) =
+      "dYee " ++ show n ++ " " ++ placeText target
+      ++ " (" ++ comp ++ ", " ++ placeText place ++ ")"
+
+    axisSymbol n =
+      case drop (n - 1) (internalCoordNames m) of
+        a:_ -> a
+        [] -> "x"
+
+    operandExpr e
+      | all (\c -> isAlphaNum c || c == '_' || c == '\'') e = e
+      | otherwise = "(" ++ e ++ ")"
 
 -- names X whose updated value X' is referenced in some step RHS
 primedRefs :: Model -> [String]
@@ -1411,10 +1560,70 @@ closeParenT n (TC ')' : ts) acc
   | otherwise = closeParenT (n - 1) ts (TC ')' : acc)
 closeParenT n (t : ts) acc = closeParenT n ts (t : acc)
 
-rewrite :: Model -> [String] -> Maybe String -> String -> IO String
-rewrite m lets mk expr = fmap concat (mapM render (attach elems))
+expandTensorDefs :: Model -> String -> IO String
+expandTensorDefs m = go . itok
   where
-    elems = lbPass (opPass m lets (tokenize (stepPre m expr)))
+    go [] = return ""
+    go (II nm : rest)
+      | Just td <- lookupTensorDef nm = do
+          let (_, rest1) = span isSpaceI rest
+          case rest1 of
+            II argTok : rest2 -> do
+              body <- instantiate td argTok
+              body' <- expandTensorDefs m body
+              tail' <- go rest2
+              return ("(" ++ body' ++ ")" ++ tail')
+            _ -> fatal ("tensor operator " ++ nm ++ " needs an indexed result argument")
+      | otherwise = fmap (nm ++) (go rest)
+    go (IC c : rest) = fmap (c :) (go rest)
+
+    lookupTensorDef nm =
+      case [td | td <- mTensorDefs m, tdName td == nm] of
+        td:_ -> Just td
+        [] -> Nothing
+
+    instantiate td argTok = do
+      let (argBase, callIx) = parseIndexedIdent argTok
+          resultIx = tdResultIx td
+      if null argBase
+        then fatal ("bad argument to tensor operator " ++ tdName td ++ ": " ++ argTok)
+        else return ()
+      if length callIx /= length resultIx
+        then fatal ("tensor operator " ++ tdName td ++ " expects result suffix "
+                    ++ showIxParts resultIx ++ " but got " ++ argTok)
+        else return ()
+      mapM_ (uncurry sameVariance) (zip resultIx callIx)
+      let env = zip (map ixName resultIx) callIx
+      return (concatMap (substTok td argBase env) (itok (tdBody td)))
+
+    sameVariance (IxPart v1 _) (IxPart v2 _)
+      | v1 == v2 = return ()
+      | otherwise = fatal "tensor operator result index variance mismatch"
+
+    substTok _ _ _ (IC c) = [c]
+    substTok td argBase env (II w) =
+      let (base, parts) = parseIndexedIdent w
+          (fname, primes) = fieldBaseOf base
+          base' = if fname == tdParam td
+                    then argBase ++ replicate primes '\''
+                    else base
+          parts' = map (substIx env) parts
+      in base' ++ concatMap ixSuffix parts'
+
+    substIx env (IxPart v nm) =
+      case lookup nm env of
+        Just (IxPart _ nm') -> IxPart v nm'
+        Nothing -> IxPart v nm
+
+    isSpaceI (IC c) = isSpace c
+    isSpaceI _ = False
+
+rewrite :: Model -> [String] -> Maybe String -> String -> IO String
+rewrite m lets mk expr = do
+  exprT <- expandTensorDefs m expr
+  fmap concat (mapM render (attach (elems exprT)))
+  where
+    elems exprT = lbPass (opPass m lets (tokenize (stepPre m exprT)))
     lbPass [] = []
     lbPass (EId "lb" False : rest0) =
       case dropWhile isSp rest0 of
@@ -1465,12 +1674,13 @@ rewrite m lets mk expr = fmap concat (mapM render (attach elems))
         _ -> nm ++ (if pr then "'" else "") ++ "_" ++ k
 
 rewriteScalar :: Model -> [String] -> String -> IO String
-rewriteScalar m lets expr =
-  let pre = stepPre m expr
-  in if hasIndexSyntax m pre
-       then strictEinstein m lets [] pre
-            >> ixExpand m lets [] (zeroPlaceM m) pre
-       else rewrite m lets Nothing expr
+rewriteScalar m lets expr = do
+  exprT <- expandTensorDefs m expr
+  let pre = stepPre m exprT
+  if hasIndexSyntax m pre
+    then strictEinstein m lets [] pre
+         >> ixExpand m lets [] (zeroPlaceB m) pre
+    else rewrite m lets Nothing exprT
 
 hasIndexSyntax :: Model -> String -> Bool
 hasIndexSyntax m = any indexedTok . itok
@@ -1552,7 +1762,9 @@ emit m = do
       needsFormContext = hasExt ["d", "delta", "codiff", "dForm", "hodge"] || mDd m /= Nothing
       needsStaggeredContext =
         any (\(_, k) -> k == Vector True || k == SymM || k == AntiM || k == Tensor2 True) (mFlds m)
+      needsIndexedDerivativeContext = any usesIndexedDerivative (modelExprTexts m)
       needsYeeContext = mtx /= Nothing || needsFormContext || needsStaggeredContext
+                        || needsIndexedDerivativeContext
       symbolCase sym repl = "    | #\"" ++ sym ++ "\" -> \"" ++ repl ++ "\""
       contextDecls =
             [ symbolDecl
@@ -1571,6 +1783,13 @@ emit m = do
             ++ [ symbolCase c ("(" ++ ix ++ "*" ++ g ++ ")")
                | (c, ix, g) <- zip3 internalCoords internalIndexVars internalGridSteps ]
             ++ [ "    | _ -> v" ]
+      usesIndexedDerivative s =
+        any isIndexedDerivative (itok s)
+      isIndexedDerivative (II w) =
+        case parseIndexedIdent w of
+          ("d", [_]) -> True
+          _ -> False
+      isIndexedDerivative _ = False
       contextMathDecls = scalarContextDecls
                          ++ (if needsVectorContext then vectorContextDecls else [])
                          ++ (if needsYeeContext then yeeContextDecls else [])
@@ -2036,7 +2255,13 @@ emit m = do
             in return (Just ("componentEqs " ++ names ++ " "
                              ++ egiMathList ["feq" ++ nm ++ show a ++ show b
                                             | (a, b) <- rank2Pairs (componentIndices (mDim m) (Tensor2 False))]))
-        | not (null (sIdx st)) || kindOf m (sNm st) == Just (Vector False) ->
+        | not (null (sIdx st)) ->
+            let nm = sNm st
+                names = egiStringList (componentStorageNamesOf m nm)
+            in return (Just ("componentEqs " ++ names ++ " "
+                             ++ egiMathList ["feq" ++ nm ++ show a
+                                            | a <- axisRange m]))
+        | kindOf m (sNm st) == Just (Vector False) ->
             let nm = sNm st
                 names = egiStringList (componentStorageNamesOf m nm)
             in return (Just ("componentEqs " ++ names ++ " "
@@ -2067,35 +2292,36 @@ emit m = do
       ICasIndex nm lhsIx ex -> indexedInitLines lets nm lhsIx ex
 
     indexedInitLines lets nm lhsIx ex = do
+      exT <- expandTensorDefs m ex
+      let pre = stepPre m exT
       strictEinstein m lets lhsIx pre
       case (kindOf m nm, lhsIx) of
         (Just (Vector staggered), [fi]) ->
-          mapM (\a -> comp [a] [(ixName fi, a)]
-                       (if staggered then placeV m a else zeroPlaceM m))
+          mapM (\a -> comp pre [a] [(ixName fi, a)]
+                       (if staggered then placeVB m a else zeroPlaceB m))
                (axisRange m)
         (Just SymM, [fi, fj]) ->
-          mapM (\(a, b) -> comp [a, b] [(ixName fi, a), (ixName fj, b)] (placeS m a b))
+          mapM (\(a, b) -> comp pre [a, b] [(ixName fi, a), (ixName fj, b)] (placeSB m a b))
                (rank2Pairs (symComponentIndices (mDim m)))
         (Just AntiM, [fi, fj]) ->
-          mapM (\(a, b) -> comp [a, b] [(ixName fi, a), (ixName fj, b)] (placeS m a b))
+          mapM (\(a, b) -> comp pre [a, b] [(ixName fi, a), (ixName fj, b)] (placeSB m a b))
                (rank2Pairs (antiComponentIndices (mDim m)))
         (Just (Tensor2 staggered), [fi, fj]) ->
-          mapM (\(a, b) -> comp [a, b] [(ixName fi, a), (ixName fj, b)]
-                       (if staggered then placeS m a b else zeroPlaceM m))
+          mapM (\(a, b) -> comp pre [a, b] [(ixName fi, a), (ixName fj, b)]
+                       (if staggered then placeSB m a b else zeroPlaceB m))
                (rank2Pairs (componentIndices (mDim m) (Tensor2 staggered)))
         _ -> fatal ("indexed CAS initializer has wrong indices for its field kind: " ++ nm)
       where
-        pre = stepPre m ex
         kind = case kindOf m nm of
                  Just k -> k
                  Nothing -> Scalar
-        comp inds env anchor = do
-          e <- ixExpand m lets env anchor pre
+        comp pre' inds env anchor = do
+          e <- ixExpand m lets env anchor pre'
           let lhs = componentStorageName m nm kind inds
           return ("fmrInit \"" ++ lhs ++ "\" (" ++ shiftTo anchor e ++ ")")
         shiftTo anchor e =
           "substitute (map (\\a -> (feCoords_a, feCoords_a + nth a "
-          ++ anchor ++ " * feHsteps_a)) feAxisIds) (" ++ e ++ ")"
+          ++ placeText anchor ++ " * feHsteps_a)) feAxisIds) (" ++ e ++ ")"
     rawGridPoint = "[" ++ intercalate "," (internalIndexNames m) ++ "]"
 
 -- Unicode input: Greek letters transliterate to their ASCII names.  A
