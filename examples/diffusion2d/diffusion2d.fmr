@@ -1,0 +1,17 @@
+dimension :: 2
+axes :: x,y
+
+double :: kappa = 1.0
+double :: dt = 0.1*dx*dx
+
+extern function :: exp
+gauss = fun(x,y) exp(-((x-(total_grid_x*dx/2))/(5*dx))**2 - ((y-(total_grid_y*dy/2))/(5*dy))**2)
+
+begin function u = init()
+  double [] :: u
+  u[i,j] = gauss(i*dx,j*dy)
+end function
+
+begin function u' = step(u)
+  u' = u[i,j] + (-2)*dt*kappa*u[i,j]/(dy**2) + dt*kappa*u[i,j-1]/(dy**2) + dt*kappa*u[i,j+1]/(dy**2) + (-2)*dt*kappa*u[i,j]/(dx**2) + dt*kappa*u[i-1,j]/(dx**2) + dt*kappa*u[i+1,j]/(dx**2)
+end function

@@ -142,8 +142,24 @@ Formura の step 行を出す形にした。`metric scale`/`embedding` 由来の
 Laplace-Beltrami 係数場も次元数ぶんだけ生成する(1D なら `ca,sg`、
 2D なら `ca,cb,sg`、3D なら従来どおり `ca,cb,cc,sg`)。
 既存 3D 例の `.fmr` はバイト一致し、1D/2D の smoke test で `.fmr` 生成を確認。
-一方、`curl`、`epsilon~i~j~k`、DEC の `1-form`/`2-form` と
-`d`/`delta`/`codiff`/`dForm`/`hodge` は引き続き 3D 専用として早期エラーにする。
+この時点では `curl`、`epsilon~i~j~k`、DEC の `1-form`/`2-form` と
+`d`/`delta`/`codiff`/`dForm`/`hodge` は 3D 専用として早期エラーにしていた。
+
+**v1.24(2026-07-09): DEC/微分形式の一般次元化と diffusion1d/2d** —
+`field A : k-form` を表層で受け付け、`0 <= k <= dimension` を検査するようにした。
+形式成分は昇順の軸組で列挙する(`dimension 2` の 2-form は `B_1_2`、
+`dimension 3` の 2-form は `B_1_2,B_1_3,B_2_3`)。
+生成 `.egi` の DEC 文脈は、3D 固定の `sigma0/sigma1/sigma2/sigma3` と
+`curlYee` 分岐をやめ、`formBasis k`、`basisSign`、`complementBasis`、
+`hodge`、`dForm` を `dimension` から生成する形にした。これにより
+`dForm : k-form -> (k+1)-form`、`codiff = (-1)^(n(k+1)+1) * hodge d hodge`
+が 1D/2D/3D で同じ構造になる。`assert-dd-zero` も全成分の二乗和を検査する。
+
+正式例として `examples/diffusion1d` と `examples/diffusion2d` を追加し、
+`Δ` が宣言次元の Laplacian へ下りることを check driver で確認した。
+`maxwell_dec` は B の storage を幾何基底名 `B_1_2,B_1_3,B_2_3` に変更し、
+エネルギー・伝播・divB 検査を更新した。
+`curl` と `epsilon~i~j~k` は引き続き 3D 専用である。
 
 **v1.8(2026-07-08): Unicode と基本演算子** — ギリシャ文字識別子(θ, φ, …
 → fec が ASCII へ字訳)・∂=d・δ=codiff・−=-・Δ=幾何のラプラシアン
@@ -384,7 +400,7 @@ step:
    (dYee)に落ち、対称成分は正準化(sigma_2_1 = sigma_1_2)。elastic3d.fe の生成
    .fmr は P/S 波速検証で green。
 6. v2: 変数別境界条件、多段時間積分スキーム、Christoffel 一般計量、
-   DEC/微分形式の一般次元化
+   2D curl、4D 以上の Formura backend
    (Egison 側の sqrt(完全平方多項式) 簡約が前提; チップ発行済)。
 
 ## 6. 次の開発目標: Egison の強みを表層仕様へ開放する

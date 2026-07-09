@@ -18,7 +18,7 @@ field B : 2-form
 
 init:
   E = [| 0, gauss1(i*dx), 0 |]
-  B = [| 0, 0, gauss1((i+0.5)*dx) |]
+  B = [| gauss1((i+0.5)*dx), 0, 0 |]
 
 step:
   E' = E + dt * δ B

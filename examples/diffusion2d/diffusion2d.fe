@@ -1,0 +1,19 @@
+-- The 2D diffusion equation: du/dt = kappa * laplacian(u)
+
+dimension 2
+axes x, y
+
+param κ = 1.0
+param dt = 0.1*dx*dx
+
+extern exp
+use exterior-calculus { Δ }
+raw gauss = fun(x,y) exp(-((x-(total_grid_x*dx/2))/(5*dx))**2 - ((y-(total_grid_y*dy/2))/(5*dy))**2)
+
+field u : scalar
+
+init:
+  u = gauss(i*dx,j*dy)
+
+step:
+  u' = u + dt * κ * Δ u

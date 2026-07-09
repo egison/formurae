@@ -48,26 +48,42 @@ def dYee (a: Integer) (sT: [MathValue]) (fld: (MathValue, [MathValue])) : MathVa
 def curlYee (i1: Integer) (sT: [MathValue]) (flds: [(MathValue, [MathValue])]) : MathValue :=
   sum (map (\(j1, k1) -> (ε 3)_i1_j1_k1 * dYee j1 sT (nth k1 flds))
            feIndexPairs)
-def sigma0 : [MathValue] := [0, 0, 0]
-def sigma1 (a: Integer) : [MathValue] := unit3 a (1 / 2)
-def sigma2 (a: Integer) : [MathValue] :=
-  map (\(p, q) -> p - q) (zip [1 / 2, 1 / 2, 1 / 2] (sigma1 a))
-def sigma3 : [MathValue] := [1 / 2, 1 / 2, 1 / 2]
-def sigmaC (c: Integer) (k: Integer) (a: Integer) : [MathValue] :=
-  let kp := if c = 0 then k else feDim - k
-   in if kp = 0 then sigma0
-        else if kp = 1 then sigma1 a
-        else if kp = 2 then sigma2 a
-        else sigma3
+def formBasis (k: Integer) : [[Integer]] := if k = 0 then [[]] else if k = 1 then [[1], [2], [3]] else if k = 2 then [[1, 2], [1, 3], [2, 3]] else if k = 3 then [[1, 2, 3]] else []
+def basisSign (xs: [Integer]) : MathValue := if xs = [] then 1 else if xs = [1] then 1 else if xs = [2] then 1 else if xs = [3] then 1 else if xs = [1, 2] then 1 else if xs = [2, 1] then -1 else if xs = [1, 3] then 1 else if xs = [3, 1] then -1 else if xs = [2, 3] then 1 else if xs = [3, 2] then -1 else if xs = [1, 2, 3] then 1 else if xs = [2, 1, 3] then -1 else if xs = [3, 2, 1] then -1 else if xs = [2, 3, 1] then 1 else if xs = [3, 1, 2] then 1 else if xs = [1, 3, 2] then -1 else 0
+def basisContains (a: Integer) (basis: [Integer]) : Bool :=
+  any (\b -> a = b) basis
+def basisRemove (a: Integer) (basis: [Integer]) : [Integer] :=
+  filter (\b -> not (a = b)) basis
+def complementBasis (basis: [Integer]) : [Integer] :=
+  filter (\a -> not (basisContains a basis)) feAxisIds
+def formIndex (basis: [Integer]) : Integer :=
+  head (map (\(_, idx) -> idx)
+            (filter (\(b, _) -> b = basis)
+                    (zip (formBasis (length basis)) (between 1 (length (formBasis (length basis)))))))
+def formComponent (basis: [Integer]) (cs: [MathValue]) : MathValue :=
+  nth (formIndex basis) cs
+def sigmaOf (basis: [Integer]) : [MathValue] :=
+  map (\a -> if basisContains a basis then 1 / 2 else 0) feAxisIds
+def sigmaC (c: Integer) (basis: [Integer]) : [MathValue] :=
+  if c = 0 then sigmaOf basis else sigmaOf (complementBasis basis)
 def hodge (f: (Integer, Integer, [MathValue])) : (Integer, Integer, [MathValue]) :=
-  let (c, k, cs) := f in (1 - c, feDim - k, cs)
+  let (c, k, cs) := f
+   in let kd := feDim - k
+   in (1 - c, kd,
+       map (\basis ->
+              let src := complementBasis basis
+               in basisSign (src ++ basis) * formComponent src cs)
+           (formBasis kd))
 def dForm (f: (Integer, Integer, [MathValue])) : (Integer, Integer, [MathValue]) :=
   let (c, k, cs) := f
-   in if k = 0
-        then (c, 1, map (\a -> dYee a (sigmaC c 1 a) (nth 1 cs, sigmaC c 0 1)) feAxisIds)
-        else if k = 1
-          then (c, 2, map (\a -> curlYee a (sigmaC c 2 a) (zip cs (map (sigmaC c 1) feAxisIds))) feAxisIds)
-          else (c, feDim, [sum (map (\a -> dYee a (sigmaC c feDim 1) (nth a cs, sigmaC c (feDim - 1) a)) feAxisIds)])
+   in let kp := k + 1
+   in (c, kp,
+       map (\basis ->
+              foldl (\acc a ->
+                       let src := basisRemove a basis
+                        in acc + basisSign ([a] ++ src) * dYee a (sigmaC c basis) (formComponent src cs, sigmaC c src))
+                    0 basis)
+           (formBasis kp))
 def codiff (f: (Integer, Integer, [MathValue])) : (Integer, Integer, [MathValue]) :=
   scaleForm ((-1) ^ (feDim * (formDeg f + 1) + 1)) (hodge (dForm (hodge f)))
 def δ := codiff
@@ -92,9 +108,9 @@ def fmrFieldName (nm: String) : String :=
     | #"E'_1" -> "E_1'"
     | #"E'_2" -> "E_2'"
     | #"E'_3" -> "E_3'"
-    | #"B'_1" -> "B_1'"
-    | #"B'_2" -> "B_2'"
-    | #"B'_3" -> "B_3'"
+    | #"B'_1_2" -> "B_1_2'"
+    | #"B'_1_3" -> "B_1_3'"
+    | #"B'_2_3" -> "B_2_3'"
     | _ -> nm
 def gridRef (g: MathValue) (args: [MathValue]) : String :=
   S.concat
@@ -176,34 +192,28 @@ def emitModelOn (dim: Integer) (axes: [String])
 
 def E_i := generateTensor (\[i] -> function (x, y, z)) [3]
 def Ef : (Integer, Integer, [MathValue]) := (0, 1, [E_1, E_2, E_3])
-def B_i := generateTensor (\[i] -> function (x, y, z)) [3]
-def Bf : (Integer, Integer, [MathValue]) := (0, 2, [B_1, B_2, B_3])
+def B_i_j := generateTensor (\[i, j] -> function (x, y, z)) [3, 3]
+def Bf : (Integer, Integer, [MathValue]) := (0, 2, [B_1_2, B_1_3, B_2_3])
 def E'_i := generateTensor (\[i] -> function (x, y, z)) [3]
 def EfN : (Integer, Integer, [MathValue]) := (0, 1, [E'_1, E'_2, E'_3])
-def FormuraeInternalTensorEUp_i := E_i
-def FormuraeInternalTensorEDown_i := E_i
-def FormuraeInternalTensorBUp_i := B_i
-def FormuraeInternalTensorBDown_i := B_i
-def FormuraeInternalTensorEUp'_i := E'_i
-def FormuraeInternalTensorEDown'_i := E'_i
 
-def feDD := nth 1 (formComps (dForm (dForm EfN)))
+def feDD := foldl (\acc x -> acc + x ^ 2) 0 (formComps (dForm (dForm EfN)))
 
 def feParams := [("dt", "0.5*dx")]
 def feHelpers :=
   [ "extern function :: exp"
   , "gauss1 = fun(x) exp(-((x-(total_grid_x*dx/2))/(8*dx))**2)"
   ]
-def feComps : [String] := ["E_1", "E_2", "E_3", "B_1", "B_2", "B_3"]
+def feComps : [String] := ["E_1", "E_2", "E_3", "B_1_2", "B_1_3", "B_2_3"]
 def feInits :=
   [ "  E_1[i,j,k] = 0"
   , "  E_2[i,j,k] = gauss1(i*dx)"
   , "  E_3[i,j,k] = 0"
-  , "  B_1[i,j,k] = 0"
-  , "  B_2[i,j,k] = 0"
-  , "  B_3[i,j,k] = gauss1((i+0.5)*dx)"
+  , "  B_1_2[i,j,k] = gauss1((i+0.5)*dx)"
+  , "  B_1_3[i,j,k] = 0"
+  , "  B_2_3[i,j,k] = 0"
   ]
-def feSteps := componentEqs ["E_1", "E_2", "E_3"] [(E_1 + dt * nth 1 (formComps (codiff Bf))), (E_2 + dt * nth 2 (formComps (codiff Bf))), (E_3 + dt * nth 3 (formComps (codiff Bf)))] ++ componentEqs ["B_1", "B_2", "B_3"] [(B_1 - dt * nth 1 (formComps (dForm EfN))), (B_2 - dt * nth 2 (formComps (dForm EfN))), (B_3 - dt * nth 3 (formComps (dForm EfN)))]
+def feSteps := componentEqs ["E_1", "E_2", "E_3"] [(E_1 + dt * nth 1 (formComps (codiff Bf))), (E_2 + dt * nth 2 (formComps (codiff Bf))), (E_3 + dt * nth 3 (formComps (codiff Bf)))] ++ componentEqs ["B_1_2", "B_1_3", "B_2_3"] [(B_1_2 - dt * nth 1 (formComps (dForm EfN))), (B_1_3 - dt * nth 2 (formComps (dForm EfN))), (B_2_3 - dt * nth 3 (formComps (dForm EfN)))]
 
 def main (args: [String]) : IO () :=
   if feDD = 0 then (print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feComps feInits feSteps)) else print "# ERROR: d . d /= 0 on this grid -- refusing to generate"

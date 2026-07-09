@@ -59,7 +59,7 @@
 --   raw LINE                        verbatim Formura helper line
 --   field NAME : scalar             one grid field
 --   field NAME : vector             dimension components (NAME_1,NAME_2,...)
---   field NAME : 1-form | 2-form    3D DEC forms (currently dimension 3 only)
+--   field NAME : k-form              DEC differential forms (0 <= k <= dimension)
 --   init:
 --     COMP = RAW                    raw Formura initializer (component)
 --     NAME = [| e1, e2, e3 |]       legacy vector/form initializer
@@ -107,7 +107,7 @@
 -- array), so B' = B - dt * curl E' is the symplectic pair.
 
 import Data.Char (isAlpha, isAlphaNum, isDigit, isSpace)
-import Data.List (dropWhileEnd, intercalate, isPrefixOf, sort, nub, stripPrefix)
+import Data.List (dropWhileEnd, intercalate, isPrefixOf, permutations, sort, nub, stripPrefix)
 import System.Environment (getArgs)
 import System.Exit (exitFailure)
 import System.IO (hPutStrLn, stderr)
@@ -293,6 +293,20 @@ egiStringList xs = "[" ++ intercalate ", " (map show xs) ++ "]"
 egiMathList :: [String] -> String
 egiMathList xs = "[" ++ intercalate ", " xs ++ "]"
 
+egiIntList :: [Int] -> String
+egiIntList xs = "[" ++ intercalate ", " (map show xs) ++ "]"
+
+egiIntLists :: [[Int]] -> String
+egiIntLists xs = "[" ++ intercalate ", " (map egiIntList xs) ++ "]"
+
+permSign :: [Int] -> Int
+permSign xs =
+  if even (length [(a, b) | (i, a) <- zip [0 :: Int ..] xs
+                          , (j, b) <- zip [0 :: Int ..] xs
+                          , i < j, a > b])
+    then 1
+    else -1
+
 validateMetricName :: Model -> IO ()
 validateMetricName m =
   case mMetricName m of
@@ -321,8 +335,8 @@ parseFieldDecl ln r =
             "vector" -> return (FieldDecl nm Nothing Rank1Layout False (Vector False))
             "vector @ staggered" -> return (FieldDecl nm Nothing Rank1Layout True (Vector True))
             "symmetric @ staggered" -> return (FieldDecl nm Nothing SymRank2Layout True SymM)
-            "1-form" -> return (FieldDecl nm Nothing Rank1Layout False (Form 1))
-            "2-form" -> return (FieldDecl nm Nothing Rank1Layout False (Form 2))
+            _ | Just deg <- formKind k ->
+                  return (FieldDecl nm Nothing Rank1Layout False (Form deg))
             _ -> fatal ("bad field kind: " ++ k ++ " (line " ++ show ln ++ ")")
     indexed =
       case words (strip r) of
@@ -342,6 +356,10 @@ parseFieldDecl ln r =
     kindFor SymRank2Layout _ = SymM
     kindFor AntiRank2Layout _ = AntiM
     kindFor FullRank2Layout staggered = Tensor2 staggered
+    formKind t =
+      case fmap reverse (stripPrefix (reverse "-form") (reverse t)) of
+        Just ds | all isDigit ds && not (null ds) -> Just (read ds)
+        _ -> Nothing
 
 parseFieldSpec :: String -> Maybe (String, Maybe FieldIndex)
 parseFieldSpec spec = do
@@ -556,24 +574,18 @@ validateUses m = mapM_ validateModule (mUses m)
 
 validateDimensionFeatures :: Model -> IO ()
 validateDimensionFeatures m
-  | mDim m == 3 = return ()
   | any isAntiField (mFlds m) && mDim m < 2 =
       fatal "antisymmetric rank-2 fields require dimension at least 2"
-  | any isFormField (mFlds m) =
-      fatal "1-form and 2-form fields currently require dimension 3"
-  | mDd m /= Nothing =
-      fatal "assert-dd-zero currently requires dimension 3"
-  | any explicitExterior3D (mUses m) =
-      fatal "exterior-calculus operators d, delta, codiff, dForm, and hodge currently require dimension 3"
+  | Just k <- firstBadFormDegree =
+      fatal (show k ++ "-form fields require dimension at least " ++ show k)
   | otherwise = return ()
   where
     isAntiField (_, AntiM) = True
     isAntiField _ = False
-    isFormField (_, Form _) = True
-    isFormField _ = False
-    explicitExterior3D ("exterior-calculus", names) =
-      any (`elem` ["d", "delta", "codiff", "dForm", "hodge"]) names
-    explicitExterior3D _ = False
+    firstBadFormDegree =
+      case [k | (_, Form k) <- mFlds m, k < 0 || k > mDim m] of
+        k:_ -> Just k
+        [] -> Nothing
 
 usePreludeDefs :: Model -> [(String, (String, String))]
 usePreludeDefs m =
@@ -917,8 +929,8 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
               if not ok
                 then fatal ("[| ... |] initializer needs a vector/form/tensor field: "
                             ++ nm ++ " (line " ++ show ln ++ ")")
-                else if length elems /= mDim m
-                  then fatal ("[| ... |] initializer needs " ++ show (mDim m)
+                else if length elems /= componentCount k
+                  then fatal ("[| ... |] initializer needs " ++ show (componentCount k)
                               ++ " components (line "
                               ++ show ln ++ ")")
                   else return m { mInits = IVec nm elems : mInits m }
@@ -1054,6 +1066,8 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
           and [isZeroExpr (matrixAt rows a a) | a <- axisRange m]
           && and [negatesExpr (matrixAt rows b a) (matrixAt rows a b)
                  | a <- axisRange m, b <- axisRange m, a < b]
+        componentCount (Just kind) = length (componentIndices (mDim m) kind)
+        componentCount Nothing = mDim m
 
     -- Step equations keep superscripts (~i) and subscripts (_i)
     -- distinct.  The current component expander still lowers existing
@@ -1272,10 +1286,17 @@ fieldIndexParts fd =
 componentRank :: Kind -> Int
 componentRank Scalar = 0
 componentRank (Vector _) = 1
-componentRank (Form _) = 1
+componentRank (Form k) = k
 componentRank SymM = 2
 componentRank AntiM = 2
 componentRank (Tensor2 _) = 2
+
+choose :: Int -> [a] -> [[a]]
+choose 0 _ = [[]]
+choose _ [] = []
+choose k (x:xs)
+  | k < 0 = []
+  | otherwise = map (x :) (choose (k - 1) xs) ++ choose k xs
 
 symComponentIndices :: Int -> [[Int]]
 symComponentIndices dim =
@@ -1288,7 +1309,7 @@ antiComponentIndices dim =
 componentIndices :: Int -> Kind -> [[Int]]
 componentIndices _ Scalar = [[]]
 componentIndices dim (Vector _) = [[a] | a <- [1 .. dim]]
-componentIndices dim (Form _) = [[a] | a <- [1 .. dim]]
+componentIndices dim (Form k) = choose k [1 .. dim]
 componentIndices dim SymM = symComponentIndices dim
 componentIndices dim AntiM = antiComponentIndices dim
 componentIndices dim (Tensor2 _) = [[a, b] | a <- [1 .. dim], b <- [1 .. dim]]
@@ -1857,7 +1878,10 @@ rewrite m lets mk expr = fmap concat (mapM render (attach elems))
     nextC _ = Nothing
     render (EId nm pr, nxt) =
       case mk of
-        Just k | (nm `elem` forms || nm `elem` vecs || nm `elem` lets)
+        Just k | nm `elem` forms
+                 && nxt /= Just '(' ->
+          return (componentByOrdinal nm pr k)
+        Just k | (nm `elem` vecs || nm `elem` lets)
                  && nxt /= Just '(' ->
           return (nm ++ (if pr then "'" else "") ++ "_" ++ k)
         _ -> return (nm ++ (if pr then "'" else ""))
@@ -1872,6 +1896,19 @@ rewrite m lets mk expr = fmap concat (mapM render (attach elems))
         Just "i" -> fatal ("forms cannot appear in an unindexed vector equation: " ++ expr)
         Just k -> return ("nth " ++ k ++ " (" ++ t ++ ")")
         Nothing -> return ("(" ++ t ++ ")")
+    componentByOrdinal nm pr k =
+      case reads k of
+        [(idx, "")] ->
+          case kindOf m nm of
+            Just kind ->
+              case drop (idx - 1) (componentIndices (mDim m) kind) of
+                inds:_ -> nm ++ (if pr then "'" else "") ++ concatMap (('_' :) . show) inds
+                [] -> nm ++ (if pr then "'" else "") ++ "_" ++ k
+            Nothing ->
+              case drop (idx - 1) (componentStorageNamesOf m nm) of
+                comp:_ -> comp ++ (if pr then "'" else "")
+                [] -> nm ++ (if pr then "'" else "") ++ "_" ++ k
+        _ -> nm ++ (if pr then "'" else "") ++ "_" ++ k
 
 rewriteScalar :: Model -> [String] -> String -> IO String
 rewriteScalar m lets expr =
@@ -1940,8 +1977,21 @@ emit m = do
       axisPairList =
         "[" ++ intercalate ", " [ "(" ++ show a ++ ", " ++ show b ++ ")"
                                 | a <- axisIds, b <- axisIds ] ++ "]"
-      zeroPlace = "[" ++ intercalate ", " (replicate (mDim m) "0") ++ "]"
-      halfPlace = "[" ++ intercalate ", " (replicate (mDim m) "1 / 2") ++ "]"
+      ifChain cases fallback =
+        foldr (\(cond, value) rest -> "if " ++ cond ++ " then " ++ value ++ " else " ++ rest)
+              fallback cases
+      formBasisExpr =
+        ifChain [("k = " ++ show k, egiIntLists (componentIndices (mDim m) (Form k)))
+                | k <- [0 .. mDim m]]
+                "[]"
+      basisSignInputs =
+        nub (concat [permutations basis
+                    | k <- [0 .. mDim m]
+                    , basis <- componentIndices (mDim m) (Form k)])
+      basisSignExpr =
+        ifChain [("xs = " ++ egiIntList xs, show (permSign xs))
+                | xs <- basisSignInputs]
+                "0"
       hasExt names = any (hasUse m "exterior-calculus") names
       hasVec names = any (hasUse m "vector-calculus") names
       needsVectorContext = hasVec ["dGrad", "curl", "divg"]
@@ -2009,26 +2059,42 @@ emit m = do
             , "           feIndexPairs)"
             ]
       formContextDecls =
-            [ "def sigma0 : [MathValue] := " ++ zeroPlace
-            , "def sigma1 (a: Integer) : [MathValue] := unit3 a (1 / 2)"
-            , "def sigma2 (a: Integer) : [MathValue] :="
-            , "  map (\\(p, q) -> p - q) (zip " ++ halfPlace ++ " (sigma1 a))"
-            , "def sigma3 : [MathValue] := " ++ halfPlace
-            , "def sigmaC (c: Integer) (k: Integer) (a: Integer) : [MathValue] :="
-            , "  let kp := if c = 0 then k else feDim - k"
-            , "   in if kp = 0 then sigma0"
-            , "        else if kp = 1 then sigma1 a"
-            , "        else if kp = 2 then sigma2 a"
-            , "        else sigma3"
+            [ "def formBasis (k: Integer) : [[Integer]] := " ++ formBasisExpr
+            , "def basisSign (xs: [Integer]) : MathValue := " ++ basisSignExpr
+            , "def basisContains (a: Integer) (basis: [Integer]) : Bool :="
+            , "  any (\\b -> a = b) basis"
+            , "def basisRemove (a: Integer) (basis: [Integer]) : [Integer] :="
+            , "  filter (\\b -> not (a = b)) basis"
+            , "def complementBasis (basis: [Integer]) : [Integer] :="
+            , "  filter (\\a -> not (basisContains a basis)) feAxisIds"
+            , "def formIndex (basis: [Integer]) : Integer :="
+            , "  head (map (\\(_, idx) -> idx)"
+            , "            (filter (\\(b, _) -> b = basis)"
+            , "                    (zip (formBasis (length basis)) (between 1 (length (formBasis (length basis)))))))"
+            , "def formComponent (basis: [Integer]) (cs: [MathValue]) : MathValue :="
+            , "  nth (formIndex basis) cs"
+            , "def sigmaOf (basis: [Integer]) : [MathValue] :="
+            , "  map (\\a -> if basisContains a basis then 1 / 2 else 0) feAxisIds"
+            , "def sigmaC (c: Integer) (basis: [Integer]) : [MathValue] :="
+            , "  if c = 0 then sigmaOf basis else sigmaOf (complementBasis basis)"
             , "def hodge (f: (Integer, Integer, [MathValue])) : (Integer, Integer, [MathValue]) :="
-            , "  let (c, k, cs) := f in (1 - c, feDim - k, cs)"
+            , "  let (c, k, cs) := f"
+            , "   in let kd := feDim - k"
+            , "   in (1 - c, kd,"
+            , "       map (\\basis ->"
+            , "              let src := complementBasis basis"
+            , "               in basisSign (src ++ basis) * formComponent src cs)"
+            , "           (formBasis kd))"
             , "def dForm (f: (Integer, Integer, [MathValue])) : (Integer, Integer, [MathValue]) :="
             , "  let (c, k, cs) := f"
-            , "   in if k = 0"
-            , "        then (c, 1, map (\\a -> dYee a (sigmaC c 1 a) (nth 1 cs, sigmaC c 0 1)) feAxisIds)"
-            , "        else if k = 1"
-            , "          then (c, 2, map (\\a -> curlYee a (sigmaC c 2 a) (zip cs (map (sigmaC c 1) feAxisIds))) feAxisIds)"
-            , "          else (c, feDim, [sum (map (\\a -> dYee a (sigmaC c feDim 1) (nth a cs, sigmaC c (feDim - 1) a)) feAxisIds)])"
+            , "   in let kp := k + 1"
+            , "   in (c, kp,"
+            , "       map (\\basis ->"
+            , "              foldl (\\acc a ->"
+            , "                       let src := basisRemove a basis"
+            , "                        in acc + basisSign ([a] ++ src) * dYee a (sigmaC c basis) (formComponent src cs, sigmaC c src))"
+            , "                    0 basis)"
+            , "           (formBasis kp))"
             , "def codiff (f: (Integer, Integer, [MathValue])) : (Integer, Integer, [MathValue]) :="
             , "  scaleForm ((-1) ^ (feDim * (formDeg f + 1) + 1)) (hodge (dForm (hodge f)))"
             , "def \948 := codiff"
@@ -2232,7 +2298,7 @@ emit m = do
                    | st <- mSteps m, sk st == KLocal ] ++ embDefs ++ mtDecls
       ddDef = case mDd m of
         Nothing -> []
-        Just g -> ["def feDD := nth 1 (formComps (dForm (dForm "
+        Just g -> ["def feDD := foldl (\\acc x -> acc + x ^ 2) 0 (formComps (dForm (dForm "
                    ++ dropWhileEnd (== '\'') g ++ "fN)))"]
       feParams = "def feParams := ["
                  ++ intercalate ", " [ "(\"" ++ n ++ "\", \"" ++ v ++ "\")"
@@ -2276,8 +2342,13 @@ emit m = do
     fieldCoordArgs = intercalate ", " (internalCoordNames m)
     shape1 = "[" ++ show (mDim m) ++ "]"
     shape2 = "[" ++ show (mDim m) ++ ", " ++ show (mDim m) ++ "]"
-    formComponentList nm primes =
-      "[" ++ intercalate ", " [nm ++ primes ++ "_" ++ show a | a <- axisRange m] ++ "]"
+    shapeK k = "[" ++ intercalate ", " (replicate k (show (mDim m))) ++ "]"
+    tensorIndexVars k = take k (internalIndexNames m)
+    formComponentNames nm primes k =
+      [nm ++ primes ++ concatMap (('_' :) . show) inds
+      | inds <- componentIndices (mDim m) (Form k)]
+    formComponentList nm primes k =
+      "[" ++ intercalate ", " (formComponentNames nm primes k) ++ "]"
     fdecl (nm, Scalar) = ["def " ++ nm ++ " := function (" ++ fieldCoordArgs ++ ")"]
     fdecl (nm, Vector _) =
       ["def " ++ nm ++ "_i := generateTensor (\\[i] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape1]
@@ -2288,9 +2359,9 @@ emit m = do
     fdecl (nm, Tensor2 _) =
       ["def " ++ nm ++ "_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2]
     fdecl (nm, Form k) =
-      [ "def " ++ nm ++ "_i := generateTensor (\\[i] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape1
-      , "def " ++ nm ++ "f : (Integer, Integer, [MathValue]) := (0, " ++ show k
-        ++ ", " ++ formComponentList nm "" ++ ")" ]
+      formFamilyDecl nm "" k
+      ++ [ "def " ++ nm ++ "f : (Integer, Integer, [MathValue]) := (0, " ++ show k
+           ++ ", " ++ formComponentList nm "" k ++ ")" ]
     pdecl nm = case kindOf m nm of
       Just Scalar -> ["def " ++ nm ++ "' := function (" ++ fieldCoordArgs ++ ")"]
       Just (Vector _) ->
@@ -2302,14 +2373,24 @@ emit m = do
       Just (Tensor2 _) ->
         ["def " ++ nm ++ "'_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2]
       Just (Form k) ->
-        [ "def " ++ nm ++ "'_i := generateTensor (\\[i] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape1
-        , "def " ++ nm ++ "fN : (Integer, Integer, [MathValue]) := (0, " ++ show k
-          ++ ", " ++ formComponentList nm "'" ++ ")" ]
+        formFamilyDecl nm "'" k
+        ++ [ "def " ++ nm ++ "fN : (Integer, Integer, [MathValue]) := (0, " ++ show k
+             ++ ", " ++ formComponentList nm "'" k ++ ")" ]
       Nothing -> []
+    formFamilyDecl nm primes k
+      | k == 0 =
+          ["def " ++ nm ++ primes ++ " := function (" ++ fieldCoordArgs ++ ")"]
+      | k > 0 =
+          let vars = tensorIndexVars k
+          in ["def " ++ nm ++ primes ++ concatMap ('_' :) vars
+              ++ " := generateTensor (\\[" ++ intercalate ", " vars
+              ++ "] -> function (" ++ fieldCoordArgs ++ ")) " ++ shapeK k]
+      | otherwise =
+          error ("unsupported form degree in field declaration: " ++ nm)
     tensorAliases nm primes kind = case kind of
       Scalar -> []
       Vector _ -> rank1Aliases nm primes
-      Form _ -> rank1Aliases nm primes
+      Form _ -> []
       SymM -> symRank2Aliases nm primes
       AntiM -> antiRank2Aliases nm primes
       Tensor2 _ -> fullRank2Aliases nm primes
@@ -2389,8 +2470,9 @@ emit m = do
                              ++ egiMathList ["feq" ++ nm ++ "_" ++ show a
                                             | a <- axisRange m]))
         | Just (Form _) <- kindOf m (sNm st) -> do
-            cs <- mapM (\k -> rewrite m lets (Just (show k)) (sEx st)) (axisRange m)
-            return (Just ("componentEqs " ++ egiStringList (componentStorageNamesOf m (sNm st)) ++ " "
+            let names = componentStorageNamesOf m (sNm st)
+            cs <- mapM (\k -> rewrite m lets (Just (show k)) (sEx st)) [1 .. length names]
+            return (Just ("componentEqs " ++ egiStringList names ++ " "
                           ++ egiMathList ["(" ++ c ++ ")" | c <- cs]))
         | otherwise -> do
             e <- rewriteScalar m lets (sEx st)

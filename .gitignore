@@ -40,6 +40,10 @@ examples/euler_sod/euler_sod.c
 examples/euler_sod/euler_sod.h
 examples/ks3d/ks3d.c
 examples/ks3d/ks3d.h
+examples/diffusion1d/diffusion1d.c
+examples/diffusion1d/diffusion1d.h
+examples/diffusion2d/diffusion2d.c
+examples/diffusion2d/diffusion2d.h
 examples/highorder4/highorder4.c
 examples/highorder4/highorder4.h
 examples/dirichlet_diffusion/dirichlet_diffusion.c

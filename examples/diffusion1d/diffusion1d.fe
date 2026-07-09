@@ -1,0 +1,19 @@
+-- The 1D diffusion equation: du/dt = kappa * laplacian(u)
+
+dimension 1
+axes x
+
+param κ = 1.0
+param dt = 0.1*dx*dx
+
+extern exp
+use exterior-calculus { Δ }
+raw gauss = fun(x) exp(-((x-(total_grid_x*dx/2))/(5*dx))**2)
+
+field u : scalar
+
+init:
+  u = gauss(i*dx)
+
+step:
+  u' = u + dt * κ * Δ u
