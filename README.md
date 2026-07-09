@@ -70,6 +70,11 @@ u' = u + dt * Δ u
 `u' = u - dt * δ (d u)` は −δd 形の熱方程式 — いずれも生成コードは
 名前つき演算子版とバイト一致。
 
+`dimension` は 1、2、3 を指定できる。スカラー、ベクトル、添字付き rank-1、
+対称/反対称/full rank-2 field は宣言次元に応じた成分数で Formura storage へ展開される。
+ただし `curl`、`epsilon~i~j~k`、DEC の `1-form`/`2-form` と
+`d`/`δ`/`codiff`/`dForm`/`hodge` は現在 3D 専用として検査する。
+
 Maxwell 方程式の場合、Egison 側の物理記述はこれだけ:
 
 ```egison
@@ -184,7 +189,8 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
   初期値も `v~i = [| ... |]~i` や `σ~i~j = [| ... |]~i~j` のように同じ添字を明示する。
   記号式で初期化したい場合は `σ~i~j := δ~i~j * exp(x)` のような indexed CAS initializer も使える。
   反対称 rank-2 field は `field A[_i_j] @ staggered` と宣言し、storage は独立な
-  上三角 off-diagonal 3成分だけを持つ。参照時には `A_j_i = -A_i_j`、`A_i_i = 0` に正準化する。
+  上三角 off-diagonal 成分だけを持つ(2D なら1成分、3D なら3成分)。参照時には
+  `A_j_i = -A_i_j`、`A_i_i = 0` に正準化する。
   上付き `~i` と下付き `_i` は strict に区別し、`metric g` で宣言した計量名は
   `g~i~j`/`g~i_j`/`g_i~j`/`g_i_j` の上下パターンごとに生成 `.egi` の
   内部計量テンソルへ下ろす(Euclidean では単位行列)。`metric δ` と宣言すれば
@@ -276,7 +282,9 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
 2. **大域リダクションなし**: CFL による動的 dt などは書けない(固定 dt)。
 3. プリンタの対応範囲は「多項式 + 格子参照 + 記号」。extern 関数適用や if 式は未対応
    (現状 init はテンプレート文字列で記述)。
-4. **ドライバの注意**: Formura は `Formura_Forward` のたびに配列内でデータを平行移動させる
+4. **一般次元の残課題**: `.fe` 生成経路の scalar/vector/rank-2 は 1D/2D/3D 対応済み。
+   微分形式/DEC の一般次元化、2D curl の扱い、1D の反対称 rank-2 ゼロ storage は未実装。
+5. **ドライバの注意**: Formura は `Formura_Forward` のたびに配列内でデータを平行移動させる
    ことがある(仕様。特に非対称ステンシルで毎ステップずれる)。座標が要る計測・出力は
    必ず `to_pos_x/y/z` を使うこと。生の配列添字で位置を測ると伝播速度を誤る
    (maxwell_yee_check.c で実際に踏んだ罠)。

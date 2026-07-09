@@ -114,40 +114,9 @@ def fmrEq (lhs: String) (rhs: MathValue) : String :=
 def feGridPoint : String := S.intercalate "," (map axisName feAxisIds)
 def fmrInit (lhs: String) (rhs: MathValue) : String :=
   S.concat ["  ", lhs, "[", feGridPoint, "] = ", showFmr rhs]
-def vecEqs (names: [String]) (c1: MathValue) (c2: MathValue) (c3: MathValue) : [String] :=
-  [ fmrEq (S.append (nth 1 names) "'") c1
-  , fmrEq (S.append (nth 2 names) "'") c2
-  , fmrEq (S.append (nth 3 names) "'") c3
-  ]
+def componentEqs (names: [String]) (values: [MathValue]) : [String] :=
+  map (\(name, value) -> fmrEq (S.append name "'") value) (zip names values)
 def scalarEq (nm: String) (c: MathValue) : [String] := [fmrEq (S.append nm "'") c]
-def symEqs (names: [String]) (cxx: MathValue) (cyy: MathValue) (czz: MathValue)
-           (cxy: MathValue) (cxz: MathValue) (cyz: MathValue) : [String] :=
-  [ fmrEq (S.append (nth 1 names) "'") cxx
-  , fmrEq (S.append (nth 2 names) "'") cyy
-  , fmrEq (S.append (nth 3 names) "'") czz
-  , fmrEq (S.append (nth 4 names) "'") cxy
-  , fmrEq (S.append (nth 5 names) "'") cxz
-  , fmrEq (S.append (nth 6 names) "'") cyz
-  ]
-def antiEqs (names: [String]) (cxy: MathValue) (cxz: MathValue) (cyz: MathValue) : [String] :=
-  [ fmrEq (S.append (nth 1 names) "'") cxy
-  , fmrEq (S.append (nth 2 names) "'") cxz
-  , fmrEq (S.append (nth 3 names) "'") cyz
-  ]
-def tensor2Eqs (names: [String])
-               (cxx: MathValue) (cxy: MathValue) (cxz: MathValue)
-               (cyx: MathValue) (cyy: MathValue) (cyz: MathValue)
-               (czx: MathValue) (czy: MathValue) (czz: MathValue) : [String] :=
-  [ fmrEq (S.append (nth 1 names) "'") cxx
-  , fmrEq (S.append (nth 2 names) "'") cxy
-  , fmrEq (S.append (nth 3 names) "'") cxz
-  , fmrEq (S.append (nth 4 names) "'") cyx
-  , fmrEq (S.append (nth 5 names) "'") cyy
-  , fmrEq (S.append (nth 6 names) "'") cyz
-  , fmrEq (S.append (nth 7 names) "'") czx
-  , fmrEq (S.append (nth 8 names) "'") czy
-  , fmrEq (S.append (nth 9 names) "'") czz
-  ]
 def tupleOf (xs: [String]) : String :=
   if length xs = 1
     then head xs
@@ -214,4 +183,4 @@ def feInits :=
 def feSteps := [fmrEq "f1" (ca * dYee 1 [1 / 2, 0, 0] (u, [0, 0, 0]))] ++ [fmrEq "f2" (cb * dYee 2 [0, 1 / 2, 0] (u, [0, 0, 0]))] ++ [fmrEq "f3" (cc * dYee 3 [0, 0, 1 / 2] (u, [0, 0, 0]))] ++ scalarEq "u" (u + dt * (0 - ((0 - 1) * ((dYee 1 [0, 0, 0] (f1, [1 / 2, 0, 0]) + dYee 2 [0, 0, 0] (f2, [0, 1 / 2, 0]) + dYee 3 [0, 0, 0] (f3, [0, 0, 1 / 2])) / sg)))) ++ scalarEq "ca" (ca) ++ scalarEq "cb" (cb) ++ scalarEq "cc" (cc) ++ scalarEq "sg" (sg)
 
 def main (args: [String]) : IO () :=
-  if feGo 1 2 = 0 && feGo 1 3 = 0 && feGo 2 3 = 0 then (print (emitModelOn 3 ["r", "theta", "phi"] feParams feHelpers feComps feInits feSteps)) else print "# ERROR: the embedding is not orthogonal (g_12, g_13, g_23 must vanish symbolically); general metrics are not supported yet"
+  if feGo 1 2 = 0 && feGo 1 3 = 0 && feGo 2 3 = 0 then (print (emitModelOn 3 ["r", "theta", "phi"] feParams feHelpers feComps feInits feSteps)) else print "# ERROR: the embedding is not orthogonal (off-diagonal metric terms must vanish symbolically); general metrics are not supported yet"

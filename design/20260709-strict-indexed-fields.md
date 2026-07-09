@@ -211,8 +211,10 @@ F~i_j  error
 ```
 
 最初の実装では、対称 rank-2 field を既存の `SymM` lowering へ対応させた。
-その後、反対称 rank-2 field も上三角 off-diagonal の3成分 storage として
-backend 対応した。一般 rank-2 tensor は full 3x3 storage として扱う。
+その後、反対称 rank-2 field も上三角 off-diagonal storage として backend 対応した。
+2026-07-09 の次元可変化以降、独立成分数は `dimension` に従う
+(2D なら反対称1成分・対称3成分、3D なら反対称3成分・対称6成分)。
+一般 rank-2 tensor は full `dim x dim` storage として扱う。
 
 添字の上げ下げは自動では行わない。`v~i` と宣言された field を `v_i` と
 参照することは許さず、必要なら常に `g_i_j * v~j` のように metric を明示する。

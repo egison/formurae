@@ -127,6 +127,24 @@ raw initializer は上三角 off-diagonal rows
 対角 0・下三角が上三角の負である 3x3 行列の両方を受ける。
 `lib/fmrdsl.egi` にも手書き DSL 用の `antiEqs` を追加した。
 
+**v1.23(2026-07-09): Formurae 生成経路の 1D/2D/3D 対応** —
+`.fe` の `dimension` は 1、2、3 を受け付けるようになった。CAS 内部の
+正規座標は宣言次元ぶんだけ `x,y,z` から取り、Formura 出力の `axes ::`、
+格子参照、raw init の `[i]`/`[i,j]`/`[i,j,k]` も宣言次元へ追随する。
+スカラー、vector、staggered rank-1、対称/反対称/full rank-2 field は
+`mDim` から成分を列挙する。対称 tensor の独立成分は対角成分の後に
+上三角 off-diagonal、反対称 tensor は上三角 off-diagonal だけを storage に持つ。
+raw initializer も full matrix または上三角/上側非対角 rows を次元に応じて受ける。
+
+生成 `.egi` 側の `vecEqs`/`symEqs`/`antiEqs`/`tensor2Eqs` は
+`componentEqs names values` に統合し、field storage 名リストと式リストを zip して
+Formura の step 行を出す形にした。`metric scale`/`embedding` 由来の
+Laplace-Beltrami 係数場も次元数ぶんだけ生成する(1D なら `ca,sg`、
+2D なら `ca,cb,sg`、3D なら従来どおり `ca,cb,cc,sg`)。
+既存 3D 例の `.fmr` はバイト一致し、1D/2D の smoke test で `.fmr` 生成を確認。
+一方、`curl`、`epsilon~i~j~k`、DEC の `1-form`/`2-form` と
+`d`/`delta`/`codiff`/`dForm`/`hodge` は引き続き 3D 専用として早期エラーにする。
+
 **v1.8(2026-07-08): Unicode と基本演算子** — ギリシャ文字識別子(θ, φ, …
 → fec が ASCII へ字訳)・∂=d・δ=codiff・−=-・Δ=幾何のラプラシアン
 (平坦 lap/計量 lb)。`∂x (∂x u)` は compact 2階差分に融合、スカラーへの
@@ -334,7 +352,8 @@ step:
    **ベクトル方程式は添字なしで書ける**: `E' = E + dt * curl B` /
    `B' = B - dt * curl E'`(X' は更新済み配列への参照 = symplectic かつ袖幅1;
    fec が成分化して withSymbols [i] 形に変換)。dimension/axes は必須で、
-   現状の実行系は 3 次元のみ。CAS 内部の座標シンボルは `x,y,z` に正規化するが、
+   現在の `.fe` 生成経路は 1D/2D/3D を扱う。CAS 内部の座標シンボルは
+   宣言次元ぶんだけ `x,y,z` に正規化するが、
    Formura 出力の `axes ::` と `d<axis>`/`lower_<axis>` 系の名前は宣言軸を使う。
 4. ✅ v1.5/v1.6(2026-07-10): **計量サポート実装済** —
    `metric scale [h1, h2, h3]`(直接指定)と **`embedding [X1..Xm]`
@@ -345,7 +364,7 @@ step:
    (`` `(2+cos θ) ``)で因子を原子に保つと √ が閉じ、`expandAll` で
    quote を外してから半セル substitute(substitute は quote 非対応と判明;
    printer には quote ケースを追加)。宣言から hodge 因子 √g/hᵢ² の係数場
-   (ca/cb/cc/sg)生成・半セル CAS 評価・保存流束・`lb`(Laplace–Beltrami)
+   (1D: ca/sg、2D: ca/cb/sg、3D: ca/cb/cc/sg)生成・半セル CAS 評価・保存流束・`lb`(Laplace–Beltrami)
    まで自動。トーラスを R⁴ 埋め込みから生成すると **hand-written スケール
    因子版と .fmr が extern sqrt 1行差で一致**。√ が閉じない埋め込みでも
    extern sqrt 経由で init が数値評価するので動く。球座標 hs=[1,r,r sinθ] は
@@ -364,7 +383,8 @@ step:
    `metric δ` 下の δ~i~j は Euclidean 計量、∂_a は対象成分の配置にアンカーされた半セル差分
    (dYee)に落ち、対称成分は正準化(sigma_2_1 = sigma_1_2)。elastic3d.fe の生成
    .fmr は P/S 波速検証で green。
-6. v2: 2D/1D、変数別境界条件、多段時間積分スキーム、Christoffel 一般計量
+6. v2: 変数別境界条件、多段時間積分スキーム、Christoffel 一般計量、
+   DEC/微分形式の一般次元化
    (Egison 側の sqrt(完全平方多項式) 簡約が前提; チップ発行済)。
 
 ## 6. 次の開発目標: Egison の強みを表層仕様へ開放する

@@ -15,12 +15,13 @@
 --
 -- Formurae grammar (v1):
 --   -- comment                      (kept out of the output)
---   dimension 3                     (REQUIRED; v1 supports 3 only)
---   axes x, y, z                    (REQUIRED; fixes the coordinate frame
+--   dimension 1|2|3                 (REQUIRED; Formura grid dimension)
+--   axes x[, y[, z]]                (REQUIRED; fixes the coordinate frame
 --                                    the operators refer to.  The names map
---                                    to the internal coordinates x,y,z, so
---                                    axes r, theta, phi works in CAS exprs)
---   metric scale [h1, h2, h3]       Lame scale factors of an orthogonal
+--                                    to the internal coordinates x,y,z as
+--                                    needed, so axes r, theta, phi works
+--                                    in CAS exprs)
+--   metric scale [h1, ...]          Lame scale factors of an orthogonal
 --                                   metric, written in the axis names.
 --   metric NAME                     declare NAME as the metric tensor
 --                                   surface name; NAME~i~j, NAME~i_j,
@@ -57,8 +58,8 @@
 --                                    automatically when they are used)
 --   raw LINE                        verbatim Formura helper line
 --   field NAME : scalar             one grid field
---   field NAME : vector             3 components (NAME_1,NAME_2,NAME_3)
---   field NAME : 1-form | 2-form    3 components placed by form degree (DEC)
+--   field NAME : vector             dimension components (NAME_1,NAME_2,...)
+--   field NAME : 1-form | 2-form    3D DEC forms (currently dimension 3 only)
 --   init:
 --     COMP = RAW                    raw Formura initializer (component)
 --     NAME = [| e1, e2, e3 |]       legacy vector/form initializer
@@ -288,6 +289,9 @@ metricNameConflicts m =
 
 egiStringList :: [String] -> String
 egiStringList xs = "[" ++ intercalate ", " (map show xs) ++ "]"
+
+egiMathList :: [String] -> String
+egiMathList xs = "[" ++ intercalate ", " xs ++ "]"
 
 validateMetricName :: Model -> IO ()
 validateMetricName m =
@@ -550,6 +554,27 @@ validateUses m = mapM_ validateModule (mUses m)
           fatal "curl requires dimension 3"
       | otherwise = return ()
 
+validateDimensionFeatures :: Model -> IO ()
+validateDimensionFeatures m
+  | mDim m == 3 = return ()
+  | any isAntiField (mFlds m) && mDim m < 2 =
+      fatal "antisymmetric rank-2 fields require dimension at least 2"
+  | any isFormField (mFlds m) =
+      fatal "1-form and 2-form fields currently require dimension 3"
+  | mDd m /= Nothing =
+      fatal "assert-dd-zero currently requires dimension 3"
+  | any explicitExterior3D (mUses m) =
+      fatal "exterior-calculus operators d, delta, codiff, dForm, and hodge currently require dimension 3"
+  | otherwise = return ()
+  where
+    isAntiField (_, AntiM) = True
+    isAntiField _ = False
+    isFormField (_, Form _) = True
+    isFormField _ = False
+    explicitExterior3D ("exterior-calculus", names) =
+      any (`elem` ["d", "delta", "codiff", "dForm", "hodge"]) names
+    explicitExterior3D _ = False
+
 usePreludeDefs :: Model -> [(String, (String, String))]
 usePreludeDefs m =
   [ ("\916", ("u", "0 - delta (d u)"))
@@ -600,7 +625,7 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
     -- that gives the operators their meaning (which axis ∂theta is,
     -- what an index letter in ∂_j ranges over)
     go _ m []
-      | mDim m == 0 = fatal "dimension declaration is required (dimension 3)"
+      | mDim m == 0 = fatal "dimension declaration is required (dimension 1, 2, or 3)"
       | null (mAxes m) = fatal "axes declaration is required (e.g. axes x, y, z)"
       | length (mAxes m) /= mDim m =
           fatal ("axes declares " ++ show (length (mAxes m))
@@ -610,6 +635,7 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
               mUse = m { mUses = uses }
           validateMetricName mUse
           validateUses mUse
+          validateDimensionFeatures mUse
           mapM_ (\(_, (_, body)) ->
                     checkUserSurface mUse "in def" body)
                 (mDefs mUse)
@@ -766,9 +792,12 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
           case strip r of
             ('[':r1) | last r1 == ']' ->
               let es = splitTop ',' (init r1)
-              in if length es == 3
+              in if mDim m == 0
+                   then fatal ("dimension must be declared before metric scale (line " ++ show ln ++ ")")
+                   else if length es == mDim m
                    then return m { mMetric = Just es }
-                   else fatal ("metric scale needs 3 factors (line " ++ show ln ++ ")")
+                   else fatal ("metric scale needs " ++ show (mDim m)
+                               ++ " factors (line " ++ show ln ++ ")")
             _ -> fatal ("bad metric scale (line " ++ show ln ++ ")")
       | Just r <- stripPrefix "metric " s =
           let nm = strip r
@@ -787,8 +816,9 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
           return m { mFlds = (fdName fd, kindFromFieldDecl fd) : mFlds m
                    , mFieldDecls = fd : mFieldDecls m }
         dim r | all isDigit (strip r), n <- read (strip r) =
-                  if n /= (3 :: Int)
-                    then fatal ("v1 supports dimension 3 only (got " ++ show n ++ ")")
+                  if n < (1 :: Int) || n > 3
+                    then fatal ("Formurae currently supports dimension 1, 2, or 3 (got "
+                                ++ show n ++ ")")
                     else return m { mDim = n }
               | otherwise = fatal ("bad dimension (line " ++ show ln ++ ")")
         useForm r =
@@ -830,17 +860,17 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
                                                ++ showIxParts ix ++ " (line " ++ show ln ++ ")")
                         Nothing -> fatal ("symmetric initializer rows must be [| ... |] (line "
                                           ++ show ln ++ ")")) rows
-              comps <- case rows' of
-                -- full 3x3: must be symmetric; the upper triangle is used
-                [r1@[_, _, _], r2@[_, _, _], r3@[_, _, _]]
-                  | r1 !! 1 == r2 !! 0 && r1 !! 2 == r3 !! 0 && r2 !! 2 == r3 !! 1 ->
-                      return [r1 !! 0, r2 !! 1, r3 !! 2, r1 !! 1, r1 !! 2, r2 !! 2]
-                  | otherwise ->
-                      fatal ("symmetric initializer is not symmetric (line " ++ show ln ++ ")")
-                -- upper triangle by rows: [| xx,xy,xz |], [| yy,yz |], [| zz |]
-                [[xx, xy, xz], [yy, yz], [zz]] -> return [xx, yy, zz, xy, xz, yz]
-                _ -> fatal ("symmetric initializer needs 3x3 or upper-triangle rows (line "
-                            ++ show ln ++ ")")
+              comps <-
+                if fullMatrixRows rows'
+                  then if symmetricRows rows'
+                         then return [matrixAt rows' a b
+                                     | (a, b) <- rank2Pairs (symComponentIndices (mDim m))]
+                         else fatal ("symmetric initializer is not symmetric (line " ++ show ln ++ ")")
+                  else if upperSymRows rows'
+                         then return [upperSymAt rows' a b
+                                     | (a, b) <- rank2Pairs (symComponentIndices (mDim m))]
+                         else fatal ("symmetric initializer needs a full matrix or upper-triangle rows (line "
+                                     ++ show ln ++ ")")
               return m { mInits = ISym nm comps : mInits m }
             (Just AntiM, Just (rows, rhsIx)) -> do
               validateInitSuffix nm lhsIx rhsIx
@@ -850,22 +880,18 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
                                                ++ showIxParts ix ++ " (line " ++ show ln ++ ")")
                         Nothing -> fatal ("antisymmetric initializer rows must be [| ... |] (line "
                                           ++ show ln ++ ")")) rows
-              comps <- case rows' of
-                -- full 3x3: diagonal zero and lower triangle is the negative
-                -- of the upper triangle; the upper off-diagonal is stored.
-                [r1@[_, _, _], r2@[_, _, _], r3@[_, _, _]]
-                  | isZeroExpr (r1 !! 0) && isZeroExpr (r2 !! 1) && isZeroExpr (r3 !! 2)
-                  , negatesExpr (r2 !! 0) (r1 !! 1)
-                  , negatesExpr (r3 !! 0) (r1 !! 2)
-                  , negatesExpr (r3 !! 1) (r2 !! 2) ->
-                      return [r1 !! 1, r1 !! 2, r2 !! 2]
-                  | otherwise ->
-                      fatal ("antisymmetric initializer is not antisymmetric (line "
-                             ++ show ln ++ ")")
-                -- upper off-diagonal by rows: [| xy,xz |], [| yz |]
-                [[xy, xz], [yz]] -> return [xy, xz, yz]
-                _ -> fatal ("antisymmetric initializer needs 3x3 or upper-off-diagonal rows (line "
-                            ++ show ln ++ ")")
+              comps <-
+                if fullMatrixRows rows'
+                  then if antisymmetricRows rows'
+                         then return [matrixAt rows' a b
+                                     | (a, b) <- rank2Pairs (antiComponentIndices (mDim m))]
+                         else fatal ("antisymmetric initializer is not antisymmetric (line "
+                                     ++ show ln ++ ")")
+                  else if upperAntiRows rows'
+                         then return [upperAntiAt rows' a b
+                                     | (a, b) <- rank2Pairs (antiComponentIndices (mDim m))]
+                         else fatal ("antisymmetric initializer needs a full matrix or upper-off-diagonal rows (line "
+                                     ++ show ln ++ ")")
               return m { mInits = IAnti nm comps : mInits m }
             (Just (Tensor2 _), Just (rows, rhsIx)) -> do
               validateInitSuffix nm lhsIx rhsIx
@@ -875,13 +901,12 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
                                                ++ showIxParts ix ++ " (line " ++ show ln ++ ")")
                         Nothing -> fatal ("tensor initializer rows must be [| ... |] (line "
                                           ++ show ln ++ ")")) rows
-              comps <- case rows' of
-                [r1@[_, _, _], r2@[_, _, _], r3@[_, _, _]] ->
-                  return [ r1 !! 0, r1 !! 1, r1 !! 2
-                         , r2 !! 0, r2 !! 1, r2 !! 2
-                         , r3 !! 0, r3 !! 1, r3 !! 2 ]
-                _ -> fatal ("tensor initializer needs a full 3x3 matrix (line "
-                            ++ show ln ++ ")")
+              comps <-
+                if fullMatrixRows rows'
+                  then return [matrixAt rows' a b
+                              | (a, b) <- rank2Pairs (componentIndices (mDim m) (Tensor2 False))]
+                  else fatal ("tensor initializer needs a full matrix (line "
+                              ++ show ln ++ ")")
               return m { mInits = ITensor2 nm comps : mInits m }
             (k, Just (elems, rhsIx)) -> do
               validateInitSuffix nm lhsIx rhsIx
@@ -892,8 +917,9 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
               if not ok
                 then fatal ("[| ... |] initializer needs a vector/form/tensor field: "
                             ++ nm ++ " (line " ++ show ln ++ ")")
-                else if length elems /= 3
-                  then fatal ("[| ... |] initializer needs 3 components (line "
+                else if length elems /= mDim m
+                  then fatal ("[| ... |] initializer needs " ++ show (mDim m)
+                              ++ " components (line "
                               ++ show ln ++ ")")
                   else return m { mInits = IVec nm elems : mInits m }
             _
@@ -1004,6 +1030,30 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
              || l == "-" ++ u
              || l == "(-1)*" ++ u
              || l == "-1*" ++ u
+        rowLengthsMatch lens rows = map length rows == lens
+        fullMatrixRows rows =
+          length rows == mDim m && all ((== mDim m) . length) rows
+        matrixAt rows a b = rows !! (a - 1) !! (b - 1)
+        upperSymRows rows =
+          length rows == mDim m && rowLengthsMatch [mDim m, mDim m - 1 .. 1] rows
+        upperSymAt rows a b =
+          let lo = min a b
+              hi = max a b
+          in rows !! (lo - 1) !! (hi - lo)
+        upperAntiRows rows =
+          length rows == max 0 (mDim m - 1)
+          && rowLengthsMatch [mDim m - 1, mDim m - 2 .. 1] rows
+        upperAntiAt rows a b =
+          let lo = min a b
+              hi = max a b
+          in rows !! (lo - 1) !! (hi - lo - 1)
+        symmetricRows rows =
+          and [matrixAt rows a b == matrixAt rows b a
+              | a <- axisRange m, b <- axisRange m, a < b]
+        antisymmetricRows rows =
+          and [isZeroExpr (matrixAt rows a a) | a <- axisRange m]
+          && and [negatesExpr (matrixAt rows b a) (matrixAt rows a b)
+                 | a <- axisRange m, b <- axisRange m, a < b]
 
     -- Step equations keep superscripts (~i) and subscripts (_i)
     -- distinct.  The current component expander still lowers existing
@@ -1100,8 +1150,9 @@ lbTarget m = case concatMap scan (mSteps m) of
 -- s'~i_j = s~i_j + dt * (la * δ~i_j * ∂_k v'~k + mu * (∂_i v'~j + ∂_j v'~i))
 --
 -- Free indices come from the left-hand side; a repeated index letter
--- inside a term is summed over 1..3 (Einstein convention).  δ~i_j is
--- Kronecker's delta, and epsilon~i~j~k is the 3D Levi-Civita symbol.
+-- inside a term is summed over 1..dimension (Einstein convention).
+-- δ~i_j is Kronecker's delta, and epsilon~i~j~k is the 3D Levi-Civita
+-- symbol.
 -- ∂_a applied to a staggered field component is the
 -- half-cell difference anchored at the placement of the TARGET
 -- component (Virieux/Yee); symmetric components are canonicalized
@@ -1172,12 +1223,19 @@ splitOn ch = foldr step [[]]
 plOf :: [Bool] -> String
 plOf hs = "[" ++ intercalate ", " [if h then "1 / 2" else "0" | h <- hs] ++ "]"
 
-placeV :: Int -> String
-placeV a = plOf [a == 1, a == 2, a == 3]
+axisRange :: Model -> [Int]
+axisRange m = [1 .. mDim m]
 
-placeS :: Int -> Int -> String
-placeS a b | a == b = plOf [False, False, False]
-           | otherwise = plOf [c == a || c == b | c <- [1, 2, 3]]
+zeroPlaceM :: Model -> String
+zeroPlaceM m = plOf (replicate (mDim m) False)
+
+placeV :: Model -> Int -> String
+placeV m a = plOf [c == a | c <- axisRange m]
+
+placeS :: Model -> Int -> Int -> String
+placeS m a b
+  | a == b = zeroPlaceM m
+  | otherwise = plOf [c == a || c == b | c <- axisRange m]
 
 leviCivita3 :: [Int] -> Int
 leviCivita3 xs
@@ -1235,6 +1293,12 @@ componentIndices dim SymM = symComponentIndices dim
 componentIndices dim AntiM = antiComponentIndices dim
 componentIndices dim (Tensor2 _) = [[a, b] | a <- [1 .. dim], b <- [1 .. dim]]
 
+rank2Pairs :: [[Int]] -> [(Int, Int)]
+rank2Pairs = map pairOf
+  where
+    pairOf [a, b] = (a, b)
+    pairOf xs = error ("internal rank-2 component shape: " ++ show xs)
+
 componentVariances :: Model -> String -> Kind -> [Maybe Variance]
 componentVariances m nm kind =
   case fieldDeclOf m nm >>= fieldIndexParts of
@@ -1249,6 +1313,15 @@ storageIndexTag (Just VDown) a = "_down" ++ show a
 componentStorageName :: Model -> String -> Kind -> [Int] -> String
 componentStorageName m nm kind inds =
   nm ++ concat (zipWith storageIndexTag (componentVariances m nm kind) inds)
+
+internalCoordNames :: Model -> [String]
+internalCoordNames m = take (mDim m) ["x", "y", "z"]
+
+internalHstepNames :: Model -> [String]
+internalHstepNames m = take (mDim m) ["hx", "hy", "hz"]
+
+internalIndexNames :: Model -> [String]
+internalIndexNames m = take (mDim m) ["i", "j", "k"]
 
 componentStorageNames :: Model -> String -> Kind -> [String]
 componentStorageNames m nm kind =
@@ -1330,7 +1403,9 @@ strictEinstein m lets lhs expr = do
              | Just metricNm <- mMetricName m, base == metricNm ->
                  metricOccurrences metricNm parts w
              | base == "epsilon", not (null parts) ->
-                 if length parts == 3 && all isSingleAlphaIx parts
+                 if mDim m /= 3
+                   then fatal ("epsilon currently requires dimension 3: " ++ w)
+                   else if length parts == 3 && all isSingleAlphaIx parts
                    then return parts
                    else fatal ("epsilon takes three single marked indices, e.g. epsilon~i~j~k: " ++ w)
              | base == "delta", not (null parts) ->
@@ -1431,19 +1506,19 @@ indexDefs m lets st = do
   case (kindOf m (sNm st), sIdx st) of
     (Just (Vector staggered), [fi]) ->
       mapM (\a -> comp [(ixName fi, a)]
-                         (if staggered then placeV a else plOf [False, False, False])
-                         (base ++ show a)) [1, 2, 3]
+                         (if staggered then placeV m a else zeroPlaceM m)
+                         (base ++ show a)) (axisRange m)
     (Just SymM, [fi, fj]) ->
-      mapM (\(a, b) -> comp [(ixName fi, a), (ixName fj, b)] (placeS a b) (base ++ show a ++ show b))
-           ([(1,1),(2,2),(3,3),(1,2),(1,3),(2,3)] :: [(Int, Int)])
+      mapM (\(a, b) -> comp [(ixName fi, a), (ixName fj, b)] (placeS m a b) (base ++ show a ++ show b))
+           (rank2Pairs (symComponentIndices (mDim m)))
     (Just AntiM, [fi, fj]) ->
-      mapM (\(a, b) -> comp [(ixName fi, a), (ixName fj, b)] (placeS a b) (base ++ show a ++ show b))
-           ([(1,2),(1,3),(2,3)] :: [(Int, Int)])
+      mapM (\(a, b) -> comp [(ixName fi, a), (ixName fj, b)] (placeS m a b) (base ++ show a ++ show b))
+           (rank2Pairs (antiComponentIndices (mDim m)))
     (Just (Tensor2 staggered), [fi, fj]) ->
       mapM (\(a, b) -> comp [(ixName fi, a), (ixName fj, b)]
-                              (if staggered then placeS a b else plOf [False, False, False])
+                              (if staggered then placeS m a b else zeroPlaceM m)
                               (base ++ show a ++ show b))
-           ([(a, b) | a <- [1,2,3], b <- [1,2,3]] :: [(Int, Int)])
+           (rank2Pairs (componentIndices (mDim m) (Tensor2 staggered)))
     _ -> fatal ("index equation has wrong indices for its field kind: " ++ sNm st)
   where
     base = "feq" ++ sNm st
@@ -1473,7 +1548,7 @@ ixExpand m lets env anchor expr = expandRegion env (itok (indexContractionDots e
     expandTerm env' ts =
       case levelDummies env' ts of
         (k:_) -> do
-          parts <- mapM (\n -> expandTerm ((k, n) : env') ts) [1, 2, 3]
+          parts <- mapM (\n -> expandTerm ((k, n) : env') ts) (axisRange m)
           return ("(" ++ intercalate " + " parts ++ ")")
         [] -> resolve env' ts
 
@@ -1519,6 +1594,9 @@ ixExpand m lets env anchor expr = expandRegion env (itok (indexContractionDots e
                  ++ metricNm ++ "_i~j, " ++ metricNm ++ "_i_j)")
       | ("epsilon", [p, q, r]) <- splitIdentW
       , all isSingleAlphaIx [p, q, r] = do
+          if mDim m /= 3
+            then fatal ("epsilon currently requires dimension 3: " ++ w)
+            else return ()
           vals <- mapM (need env' . ixName) [p, q, r]
           fmap ((show (leviCivita3 vals)) ++) (resolve env' rest)
       | ("delta", [p, q]) <- splitIdentW
@@ -1587,28 +1665,28 @@ ixExpand m lets env anchor expr = expandRegion env (itok (indexContractionDots e
       case (kindOf m fname, ns) of
         (Just (Vector staggered), [a]) ->
           return (fname ++ replicate primes '\'' ++ "_" ++ show a,
-                  if staggered then placeV a else plOf [False, False, False])
+                  if staggered then placeV m a else zeroPlaceM m)
         (Just (Form _), [a]) ->
           return (fname ++ replicate primes '\'' ++ "_" ++ show a,
-                  plOf [False, False, False])
+                  zeroPlaceM m)
         (Just SymM, [a, b2]) ->
           let (lo, hi) = (min a b2, max a b2)
           in return (fname ++ replicate primes '\'' ++ "_" ++ show lo ++ "_" ++ show hi,
-                     placeS a b2)
+                     placeS m a b2)
         (Just AntiM, [a, b2]) ->
           let (lo, hi) = (min a b2, max a b2)
               comp = fname ++ replicate primes '\'' ++ "_" ++ show lo ++ "_" ++ show hi
               signed | a == b2 = "0"
                      | a < b2 = comp
                      | otherwise = "(0 - " ++ comp ++ ")"
-          in return (signed, placeS a b2)
+          in return (signed, placeS m a b2)
         (Just (Tensor2 staggered), [a, b2]) ->
           return (fname ++ replicate primes '\'' ++ "_" ++ show a ++ "_" ++ show b2,
-                  if staggered then placeS a b2 else plOf [False, False, False])
+                  if staggered then placeS m a b2 else zeroPlaceM m)
         (Just Scalar, []) ->
-          return (fname ++ replicate primes '\'', plOf [False, False, False])
+          return (fname ++ replicate primes '\'', zeroPlaceM m)
         (Nothing, [a]) | fname `elem` lets, primes == 0 ->
-          return (fname ++ "_" ++ show a, plOf [False, False, False])
+          return (fname ++ "_" ++ show a, zeroPlaceM m)
         _ -> fatal ("bad field reference in index equation: " ++ w)
 
     deriv n (comp, place) =
@@ -1654,26 +1732,31 @@ opPass m lets = go
     toElem (TId n p) = EId n p
     toElem (TC c) = EC c
 
--- rename user axis names to the internal coordinates x,y,z
+-- rename user axis names to the internal coordinates x,y,z as needed
 renameAxes :: Model -> String -> String
 renameAxes m = concatMap out . tokenize
   where
     out (TId nm pr) = subst nm ++ (if pr then "'" else "")
     out (TC c) = [c]
-    subst nm = case lookup nm (zip (mAxes m) ["x", "y", "z"]) of
+    subst nm = case lookup nm (zip (mAxes m) (internalCoordNames m)) of
                  Just v -> v
                  Nothing -> nm
 
 -- the Laplace-Beltrami stencil: flux divergence over the coefficient
 -- fields generated for the declared metric
-lbExpansion :: String
-lbExpansion = "((dYee 1 [0, 0, 0] (f1, [1 / 2, 0, 0]) + dYee 2 [0, 0, 0] (f2, [0, 1 / 2, 0]) + dYee 3 [0, 0, 0] (f3, [0, 0, 1 / 2])) / sg)"
+lbExpansion :: Model -> String
+lbExpansion m =
+  "((" ++ intercalate " + "
+    [ "dYee " ++ show a ++ " " ++ zeroPlaceM m
+      ++ " (f" ++ show a ++ ", " ++ placeV m a ++ ")"
+    | a <- axisRange m ]
+  ++ ") / sg)"
 
 -- mathematical derivative operators, resolved by axis name
 mathOps :: Model -> String -> String
 mathOps m = concatMap out . tokenize
   where
-    axmap = zip (mAxes m) ["1", "2", "3"]
+    axmap = zip (mAxes m) (map show (axisRange m))
     out (TId nm pr)
       | not pr, Just rest <- stripPrefix "pd2_" nm, Just n <- lookup rest axmap = "dC2 " ++ n
       | not pr, Just rest <- stripPrefix "pd_" nm, Just n <- lookup rest axmap = "dC " ++ n
@@ -1761,7 +1844,7 @@ rewrite m lets mk expr = fmap concat (mapM render (attach elems))
     lbPass (EId "lb" False : rest0) =
       case dropWhile isSp rest0 of
         (EId nm False : rest) | kindOf m nm == Just Scalar ->
-          ERaw lbExpansion : lbPass rest
+          ERaw (lbExpansion m) : lbPass rest
         _ -> EId "lb" False : lbPass rest0
       where isSp (EC c) = isSpace c
             isSp _ = False
@@ -1795,7 +1878,7 @@ rewriteScalar m lets expr =
   let pre = stepPre m expr
   in if hasIndexSyntax m pre
        then strictEinstein m lets [] pre
-            >> ixExpand m lets [] (plOf [False, False, False]) pre
+            >> ixExpand m lets [] (zeroPlaceM m) pre
        else rewrite m lets Nothing expr
 
 hasIndexSyntax :: Model -> String -> Bool
@@ -1841,12 +1924,13 @@ emit m = do
     (Just _, Nothing, Nothing) ->
       fatal "lb needs a 'metric scale [...]' or 'embedding [...]' declaration"
     (Just u, Just hs, _) -> return (Just (u, map (renameAxes m) hs))
-    (Just u, Nothing, Just _) -> return (Just (u, ["feH1", "feH2", "feH3"]))
+    (Just u, Nothing, Just _) ->
+      return (Just (u, ["feH" ++ show a | a <- axisRange m]))
     (Nothing, _, _) -> return Nothing
-  let internalCoords = take (mDim m) ["x", "y", "z"]
-      internalHsteps = take (mDim m) ["hx", "hy", "hz"]
+  let internalCoords = internalCoordNames m
+      internalHsteps = internalHstepNames m
       internalGridSteps = map ("d" ++) (mAxes m)
-      internalIndexVars = take (mDim m) ["i", "j", "k"]
+      internalIndexVars = internalIndexNames m
       coordVec = "[| " ++ intercalate ", " internalCoords ++ " |]"
       hstepVec = "[| " ++ intercalate ", " internalHsteps ++ " |]"
       coordArgs = intercalate ", " internalCoords
@@ -2047,40 +2131,9 @@ emit m = do
             , "def feGridPoint : String := S.intercalate \",\" (map axisName feAxisIds)"
             , "def fmrInit (lhs: String) (rhs: MathValue) : String :="
             , "  S.concat [\"  \", lhs, \"[\", feGridPoint, \"] = \", showFmr rhs]"
-            , "def vecEqs (names: [String]) (c1: MathValue) (c2: MathValue) (c3: MathValue) : [String] :="
-            , "  [ fmrEq (S.append (nth 1 names) \"'\") c1"
-            , "  , fmrEq (S.append (nth 2 names) \"'\") c2"
-            , "  , fmrEq (S.append (nth 3 names) \"'\") c3"
-            , "  ]"
+            , "def componentEqs (names: [String]) (values: [MathValue]) : [String] :="
+            , "  map (\\(name, value) -> fmrEq (S.append name \"'\") value) (zip names values)"
             , "def scalarEq (nm: String) (c: MathValue) : [String] := [fmrEq (S.append nm \"'\") c]"
-              , "def symEqs (names: [String]) (cxx: MathValue) (cyy: MathValue) (czz: MathValue)"
-              , "           (cxy: MathValue) (cxz: MathValue) (cyz: MathValue) : [String] :="
-              , "  [ fmrEq (S.append (nth 1 names) \"'\") cxx"
-            , "  , fmrEq (S.append (nth 2 names) \"'\") cyy"
-            , "  , fmrEq (S.append (nth 3 names) \"'\") czz"
-            , "  , fmrEq (S.append (nth 4 names) \"'\") cxy"
-            , "  , fmrEq (S.append (nth 5 names) \"'\") cxz"
-              , "  , fmrEq (S.append (nth 6 names) \"'\") cyz"
-              , "  ]"
-              , "def antiEqs (names: [String]) (cxy: MathValue) (cxz: MathValue) (cyz: MathValue) : [String] :="
-              , "  [ fmrEq (S.append (nth 1 names) \"'\") cxy"
-              , "  , fmrEq (S.append (nth 2 names) \"'\") cxz"
-              , "  , fmrEq (S.append (nth 3 names) \"'\") cyz"
-              , "  ]"
-              , "def tensor2Eqs (names: [String])"
-              , "               (cxx: MathValue) (cxy: MathValue) (cxz: MathValue)"
-              , "               (cyx: MathValue) (cyy: MathValue) (cyz: MathValue)"
-              , "               (czx: MathValue) (czy: MathValue) (czz: MathValue) : [String] :="
-              , "  [ fmrEq (S.append (nth 1 names) \"'\") cxx"
-              , "  , fmrEq (S.append (nth 2 names) \"'\") cxy"
-              , "  , fmrEq (S.append (nth 3 names) \"'\") cxz"
-              , "  , fmrEq (S.append (nth 4 names) \"'\") cyx"
-              , "  , fmrEq (S.append (nth 5 names) \"'\") cyy"
-              , "  , fmrEq (S.append (nth 6 names) \"'\") cyz"
-              , "  , fmrEq (S.append (nth 7 names) \"'\") czx"
-              , "  , fmrEq (S.append (nth 8 names) \"'\") czy"
-              , "  , fmrEq (S.append (nth 9 names) \"'\") czz"
-              , "  ]"
             , "def tupleOf (xs: [String]) : String :="
             , "  if length xs = 1"
             , "    then head xs"
@@ -2115,45 +2168,52 @@ emit m = do
           [ "def feX : [MathValue] := [" ++ intercalate ", " (map (renameAxes m) es) ++ "]"
           , "def feGd (a: Integer) : MathValue := sum (map (\\e -> (\8706/\8706 e feCoords_a) ^ 2) feX)"
           , "def feGo (a: Integer) (b: Integer) : MathValue := sum (map (\\e -> \8706/\8706 e feCoords_a * \8706/\8706 e feCoords_b) feX)"
-          , "def feH1 := unquoteAll (expandAll (sqrt (feGd 1)))"
-          , "def feH2 := unquoteAll (expandAll (sqrt (feGd 2)))"
-          , "def feH3 := unquoteAll (expandAll (sqrt (feGd 3)))"
           ]
+          ++ [ "def feH" ++ show a ++ " := unquoteAll (expandAll (sqrt (feGd "
+               ++ show a ++ ")))"
+             | a <- axisRange m ]
       orthoGate = case mEmbed m of
         Nothing -> []
-        Just _ -> [("feGo 1 2 = 0 && feGo 1 3 = 0 && feGo 2 3 = 0",
-                    "# ERROR: the embedding is not orthogonal (g_12, g_13, g_23 must vanish symbolically); general metrics are not supported yet")]
+        Just _ ->
+          let offDiag = [(a, b) | a <- axisRange m, b <- axisRange m, a < b]
+              cond = intercalate " && "
+                       ["feGo " ++ show a ++ " " ++ show b ++ " = 0"
+                       | (a, b) <- offDiag]
+              msg = "# ERROR: the embedding is not orthogonal (off-diagonal metric terms must vanish symbolically); general metrics are not supported yet"
+          in if null offDiag then [] else [(cond, msg)]
   body <- mapM (stepDefs lets) (mSteps m)
   items <- mapM (stepItem lets) (mSteps m)
   inits <- mapM (initLine lets) (mInits m)
-  let sqgOf [h1, h2, h3] = "(" ++ h1 ++ ") * (" ++ h2 ++ ") * (" ++ h3 ++ ")"
-      sqgOf _ = ""
+  let sqgOf hs = intercalate " * " ["(" ++ h ++ ")" | h <- hs]
+      metricCoeffNames = take (mDim m) ["ca", "cb", "cc"]
+      metricFluxNames = ["f" ++ show a | a <- axisRange m]
       mtDecls = case mtx of
         Nothing -> []
         Just _ -> [ "def " ++ n ++ " := function (" ++ coordArgs ++ ")"
-                  | n <- ["ca", "cb", "cc", "sg", "f1", "f2", "f3"] ]
+                  | n <- metricCoeffNames ++ ["sg"] ++ metricFluxNames ]
       mtInits = case mtx of
         Nothing -> []
         Just (_, hs) ->
           [ "fmrInit \"" ++ n ++ "\" (substitute [(feCoords_" ++ show a
             ++ ", feCoords_" ++ show a ++ " + feHsteps_" ++ show a
             ++ " / 2)] (" ++ sqgOf hs ++ " / ((" ++ h ++ ") ^ 2)))"
-          | (n, a, h) <- zip3 ["ca", "cb", "cc"] ([1, 2, 3] :: [Int]) hs ]
+          | (n, a, h) <- zip3 metricCoeffNames (axisRange m) hs ]
           ++ [ "fmrInit \"sg\" (" ++ sqgOf hs ++ ")" ]
       mtFlds = case mtx of
         Nothing -> []
-        Just _ -> [("ca", Scalar), ("cb", Scalar), ("cc", Scalar), ("sg", Scalar)]
+        Just _ -> [(n, Scalar) | n <- metricCoeffNames ++ ["sg"]]
       mtFlux = case mtx of
         Nothing -> []
         Just (u, _) ->
-          [ "[fmrEq \"f1\" (ca * dYee 1 [1 / 2, 0, 0] (" ++ u ++ ", [0, 0, 0]))]"
-          , "[fmrEq \"f2\" (cb * dYee 2 [0, 1 / 2, 0] (" ++ u ++ ", [0, 0, 0]))]"
-          , "[fmrEq \"f3\" (cc * dYee 3 [0, 0, 1 / 2] (" ++ u ++ ", [0, 0, 0]))]"
+          [ "[fmrEq \"f" ++ show a ++ "\" (" ++ coeff
+            ++ " * dYee " ++ show a ++ " " ++ placeV m a
+            ++ " (" ++ u ++ ", " ++ zeroPlaceM m ++ "))]"
+          | (a, coeff) <- zip (axisRange m) metricCoeffNames
           ]
       mtPass = case mtx of
         Nothing -> []
         Just _ -> [ "scalarEq \"" ++ n ++ "\" (" ++ n ++ ")"
-                  | n <- ["ca", "cb", "cc", "sg"] ]
+                  | n <- metricCoeffNames ++ ["sg"] ]
       stepItems = mtFlux ++ [it | Just it <- items] ++ mtPass
       header =
         [ "--"
@@ -2213,34 +2273,38 @@ emit m = do
                    ++ [feParams] ++ feHelpers ++ [feComps] ++ feInits
                    ++ [feSteps] ++ [""] ++ mainDef))
   where
-    fieldCoordArgs = intercalate ", " (take (mDim m) ["x", "y", "z"])
+    fieldCoordArgs = intercalate ", " (internalCoordNames m)
+    shape1 = "[" ++ show (mDim m) ++ "]"
+    shape2 = "[" ++ show (mDim m) ++ ", " ++ show (mDim m) ++ "]"
+    formComponentList nm primes =
+      "[" ++ intercalate ", " [nm ++ primes ++ "_" ++ show a | a <- axisRange m] ++ "]"
     fdecl (nm, Scalar) = ["def " ++ nm ++ " := function (" ++ fieldCoordArgs ++ ")"]
     fdecl (nm, Vector _) =
-      ["def " ++ nm ++ "_i := generateTensor (\\[i] -> function (" ++ fieldCoordArgs ++ ")) [3]"]
+      ["def " ++ nm ++ "_i := generateTensor (\\[i] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape1]
     fdecl (nm, SymM) =
-      ["def " ++ nm ++ "_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) [3, 3]"]
+      ["def " ++ nm ++ "_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2]
     fdecl (nm, AntiM) =
-      ["def " ++ nm ++ "_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) [3, 3]"]
+      ["def " ++ nm ++ "_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2]
     fdecl (nm, Tensor2 _) =
-      ["def " ++ nm ++ "_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) [3, 3]"]
+      ["def " ++ nm ++ "_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2]
     fdecl (nm, Form k) =
-      [ "def " ++ nm ++ "_i := generateTensor (\\[i] -> function (" ++ fieldCoordArgs ++ ")) [3]"
+      [ "def " ++ nm ++ "_i := generateTensor (\\[i] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape1
       , "def " ++ nm ++ "f : (Integer, Integer, [MathValue]) := (0, " ++ show k
-        ++ ", [" ++ nm ++ "_1, " ++ nm ++ "_2, " ++ nm ++ "_3])" ]
+        ++ ", " ++ formComponentList nm "" ++ ")" ]
     pdecl nm = case kindOf m nm of
       Just Scalar -> ["def " ++ nm ++ "' := function (" ++ fieldCoordArgs ++ ")"]
       Just (Vector _) ->
-        ["def " ++ nm ++ "'_i := generateTensor (\\[i] -> function (" ++ fieldCoordArgs ++ ")) [3]"]
+        ["def " ++ nm ++ "'_i := generateTensor (\\[i] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape1]
       Just SymM ->
-        ["def " ++ nm ++ "'_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) [3, 3]"]
+        ["def " ++ nm ++ "'_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2]
       Just AntiM ->
-        ["def " ++ nm ++ "'_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) [3, 3]"]
+        ["def " ++ nm ++ "'_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2]
       Just (Tensor2 _) ->
-        ["def " ++ nm ++ "'_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) [3, 3]"]
+        ["def " ++ nm ++ "'_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2]
       Just (Form k) ->
-        [ "def " ++ nm ++ "'_i := generateTensor (\\[i] -> function (" ++ fieldCoordArgs ++ ")) [3]"
+        [ "def " ++ nm ++ "'_i := generateTensor (\\[i] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape1
         , "def " ++ nm ++ "fN : (Integer, Integer, [MathValue]) := (0, " ++ show k
-          ++ ", [" ++ nm ++ "'_1, " ++ nm ++ "'_2, " ++ nm ++ "'_3])" ]
+          ++ ", " ++ formComponentList nm "'" ++ ")" ]
       Nothing -> []
     tensorAliases nm primes kind = case kind of
       Scalar -> []
@@ -2297,48 +2361,50 @@ emit m = do
         | Just (Vector True) <- kindOf m (sNm st) ->
             let nm = sNm st
                 names = egiStringList (componentStorageNamesOf m nm)
-            in return (Just ("vecEqs " ++ names ++ " feq" ++ nm ++ "1 feq"
-                             ++ nm ++ "2 feq" ++ nm ++ "3"))
+            in return (Just ("componentEqs " ++ names ++ " "
+                             ++ egiMathList ["feq" ++ nm ++ show a
+                                            | a <- axisRange m]))
           | Just SymM <- kindOf m (sNm st) ->
               let nm = sNm st
                   names = egiStringList (componentStorageNamesOf m nm)
-              in return (Just ("symEqs " ++ names ++ " "
-                               ++ unwords ["feq" ++ nm ++ show a ++ show b
-                                          | (a, b) <- [(1,1),(2,2),(3,3),(1,2),(1,3),(2,3)] :: [(Int,Int)]]))
+              in return (Just ("componentEqs " ++ names ++ " "
+                               ++ egiMathList ["feq" ++ nm ++ show a ++ show b
+                                              | (a, b) <- rank2Pairs (symComponentIndices (mDim m))]))
         | Just AntiM <- kindOf m (sNm st) ->
             let nm = sNm st
                 names = egiStringList (componentStorageNamesOf m nm)
-            in return (Just ("antiEqs " ++ names ++ " "
-                             ++ unwords ["feq" ++ nm ++ show a ++ show b
-                                        | (a, b) <- [(1,2),(1,3),(2,3)] :: [(Int,Int)]]))
+            in return (Just ("componentEqs " ++ names ++ " "
+                             ++ egiMathList ["feq" ++ nm ++ show a ++ show b
+                                            | (a, b) <- rank2Pairs (antiComponentIndices (mDim m))]))
         | Just (Tensor2 _) <- kindOf m (sNm st) ->
             let nm = sNm st
                 names = egiStringList (componentStorageNamesOf m nm)
-            in return (Just ("tensor2Eqs " ++ names ++ " "
-                             ++ unwords ["feq" ++ nm ++ show a ++ show b
-                                        | (a, b) <- [(x, y) | x <- [1,2,3], y <- [1,2,3]] :: [(Int,Int)]]))
+            in return (Just ("componentEqs " ++ names ++ " "
+                             ++ egiMathList ["feq" ++ nm ++ show a ++ show b
+                                            | (a, b) <- rank2Pairs (componentIndices (mDim m) (Tensor2 False))]))
         | not (null (sIdx st)) || kindOf m (sNm st) == Just (Vector False) ->
             let nm = sNm st
                 names = egiStringList (componentStorageNamesOf m nm)
-            in return (Just ("vecEqs " ++ names ++ " feq" ++ nm ++ "_1 feq"
-                             ++ nm ++ "_2 feq" ++ nm ++ "_3"))
+            in return (Just ("componentEqs " ++ names ++ " "
+                             ++ egiMathList ["feq" ++ nm ++ "_" ++ show a
+                                            | a <- axisRange m]))
         | Just (Form _) <- kindOf m (sNm st) -> do
-            cs <- mapM (\k -> rewrite m lets (Just (show (k :: Int))) (sEx st)) [1, 2, 3]
-            return (Just ("vecEqs " ++ egiStringList (componentStorageNamesOf m (sNm st)) ++ " "
-                          ++ unwords ["(" ++ c ++ ")" | c <- cs]))
+            cs <- mapM (\k -> rewrite m lets (Just (show k)) (sEx st)) (axisRange m)
+            return (Just ("componentEqs " ++ egiStringList (componentStorageNamesOf m (sNm st)) ++ " "
+                          ++ egiMathList ["(" ++ c ++ ")" | c <- cs]))
         | otherwise -> do
             e <- rewriteScalar m lets (sEx st)
             return (Just ("scalarEq \"" ++ sNm st ++ "\" (" ++ e ++ ")"))
     initLine lets it = case it of
       IRaw nm rhs -> return ["\"  " ++ firstComponentStorageName m nm
-                             ++ "[i,j,k] = " ++ escQ rhs ++ "\""]
-      IVec nm els -> return [ "\"  " ++ lhs ++ "[i,j,k] = " ++ escQ el ++ "\""
+                             ++ rawGridPoint ++ " = " ++ escQ rhs ++ "\""]
+      IVec nm els -> return [ "\"  " ++ lhs ++ rawGridPoint ++ " = " ++ escQ el ++ "\""
                             | (lhs, el) <- zip (componentStorageNamesOf m nm) els ]
-      ISym nm els -> return [ "\"  " ++ lhs ++ "[i,j,k] = " ++ escQ el ++ "\""
+      ISym nm els -> return [ "\"  " ++ lhs ++ rawGridPoint ++ " = " ++ escQ el ++ "\""
                             | (lhs, el) <- zip (componentStorageNamesOf m nm) els ]
-      IAnti nm els -> return [ "\"  " ++ lhs ++ "[i,j,k] = " ++ escQ el ++ "\""
+      IAnti nm els -> return [ "\"  " ++ lhs ++ rawGridPoint ++ " = " ++ escQ el ++ "\""
                              | (lhs, el) <- zip (componentStorageNamesOf m nm) els ]
-      ITensor2 nm els -> return [ "\"  " ++ lhs ++ "[i,j,k] = " ++ escQ el ++ "\""
+      ITensor2 nm els -> return [ "\"  " ++ lhs ++ rawGridPoint ++ " = " ++ escQ el ++ "\""
                                 | (lhs, el) <- zip (componentStorageNamesOf m nm) els ]
       ICas nm ex -> do
         e <- rewriteScalar m lets ex
@@ -2350,18 +2416,18 @@ emit m = do
       case (kindOf m nm, lhsIx) of
         (Just (Vector staggered), [fi]) ->
           mapM (\a -> comp [a] [(ixName fi, a)]
-                       (if staggered then placeV a else plOf [False, False, False]))
-               [1, 2, 3]
+                       (if staggered then placeV m a else zeroPlaceM m))
+               (axisRange m)
         (Just SymM, [fi, fj]) ->
-          mapM (\(a, b) -> comp [a, b] [(ixName fi, a), (ixName fj, b)] (placeS a b))
-               (map pairOf (symComponentIndices (mDim m)))
+          mapM (\(a, b) -> comp [a, b] [(ixName fi, a), (ixName fj, b)] (placeS m a b))
+               (rank2Pairs (symComponentIndices (mDim m)))
         (Just AntiM, [fi, fj]) ->
-          mapM (\(a, b) -> comp [a, b] [(ixName fi, a), (ixName fj, b)] (placeS a b))
-               (map pairOf (antiComponentIndices (mDim m)))
+          mapM (\(a, b) -> comp [a, b] [(ixName fi, a), (ixName fj, b)] (placeS m a b))
+               (rank2Pairs (antiComponentIndices (mDim m)))
         (Just (Tensor2 staggered), [fi, fj]) ->
           mapM (\(a, b) -> comp [a, b] [(ixName fi, a), (ixName fj, b)]
-                       (if staggered then placeS a b else plOf [False, False, False]))
-               (map pairOf (componentIndices (mDim m) (Tensor2 staggered)))
+                       (if staggered then placeS m a b else zeroPlaceM m))
+               (rank2Pairs (componentIndices (mDim m) (Tensor2 staggered)))
         _ -> fatal ("indexed CAS initializer has wrong indices for its field kind: " ++ nm)
       where
         pre = stepPre m ex
@@ -2375,8 +2441,7 @@ emit m = do
         shiftTo anchor e =
           "substitute (map (\\a -> (feCoords_a, feCoords_a + nth a "
           ++ anchor ++ " * feHsteps_a)) feAxisIds) (" ++ e ++ ")"
-        pairOf [a, b] = (a, b)
-        pairOf xs = error ("internal rank-2 component shape: " ++ show xs)
+    rawGridPoint = "[" ++ intercalate "," (internalIndexNames m) ++ "]"
 
 -- Unicode input: Greek letters transliterate to their ASCII names.  A
 -- partial-derivative sign followed immediately by an identifier is the

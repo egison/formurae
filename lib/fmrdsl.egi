@@ -8,20 +8,37 @@
 -- a declarative description, so a model file contains no Formura
 -- boilerplate strings beyond its init expressions.
 --
--- Field kinds: 0 = scalar, 1 = vector / 1-form / 2-form (3 components
--- named _1,_2,_3), 2 = symmetric matrix (6 upper-triangle components),
--- 3 = full rank-2 tensor (9 components), 4 = antisymmetric rank-2 tensor
--- (3 upper off-diagonal components).  The .fe compiler now emits the
--- component-name list directly; these helpers are kept for hand-written DSL
--- files and use axis-independent numeric names.
+-- Field kinds: 0 = scalar, 1 = vector-like rank-1 field, 2 = symmetric
+-- rank-2 tensor, 3 = full rank-2 tensor, 4 = antisymmetric rank-2 tensor.
+-- The .fe compiler now emits the component-name list directly; these
+-- helpers are kept for hand-written DSL files and use axis-independent
+-- numeric names.  The old compSuffixes/emitModel defaults remain 3D.
 --
 
-def compSuffixes (k: Integer) : [String] :=
+def axisIdsOn (dim: Integer) : [Integer] := between 1 dim
+
+def rank2PairsOn (dim: Integer) : [(Integer, Integer)] :=
+  concat (map (\a -> map (\b -> (a, b)) (axisIdsOn dim)) (axisIdsOn dim))
+
+def symPairsOn (dim: Integer) : [(Integer, Integer)] :=
+  map (\a -> (a, a)) (axisIdsOn dim)
+  ++ filter (\(a, b) -> a < b) (rank2PairsOn dim)
+
+def antiPairsOn (dim: Integer) : [(Integer, Integer)] :=
+  filter (\(a, b) -> a < b) (rank2PairsOn dim)
+
+def pairSuffix (p: (Integer, Integer)) : String :=
+  let (a, b) := p in S.concat ["_", show a, "_", show b]
+
+def compSuffixesOn (dim: Integer) (k: Integer) : [String] :=
   if k = 0 then [""]
-    else if k = 1 then ["_1", "_2", "_3"]
-    else if k = 2 then ["_1_1", "_2_2", "_3_3", "_1_2", "_1_3", "_2_3"]
-    else if k = 4 then ["_1_2", "_1_3", "_2_3"]
-    else ["_1_1", "_1_2", "_1_3", "_2_1", "_2_2", "_2_3", "_3_1", "_3_2", "_3_3"]
+    else if k = 1 then map (\a -> S.append "_" (show a)) (axisIdsOn dim)
+    else if k = 2 then map pairSuffix (symPairsOn dim)
+    else if k = 4 then map pairSuffix (antiPairsOn dim)
+    else map pairSuffix (rank2PairsOn dim)
+
+def compSuffixes (k: Integer) : [String] :=
+  compSuffixesOn 3 k
 
 def compNames (f: (String, Integer)) : [String] :=
   let (nm, k) := f
@@ -31,46 +48,28 @@ def allComps (flds: [(String, Integer)]) : [String] :=
   foldl (\acc f -> acc ++ compNames f) [] flds
 
 -- step lines for a vector field: names are the storage component names
+def componentEqs (names: [String]) (values: [MathValue]) : [String] :=
+  map (\(name, value) -> fmrEq (S.append name "'") value) (zip names values)
+
 def vecEqs (names: [String]) (c1: MathValue) (c2: MathValue) (c3: MathValue) : [String] :=
-  [ fmrEq (S.append (nth 1 names) "'") c1
-  , fmrEq (S.append (nth 2 names) "'") c2
-  , fmrEq (S.append (nth 3 names) "'") c3
-  ]
+  componentEqs names [c1, c2, c3]
 
 def scalarEq (nm: String) (c: MathValue) : [String] := [fmrEq (S.append nm "'") c]
 
 -- step lines for a symmetric matrix field (upper-triangle components)
 def symEqs (names: [String]) (cxx: MathValue) (cyy: MathValue) (czz: MathValue)
            (cxy: MathValue) (cxz: MathValue) (cyz: MathValue) : [String] :=
-  [ fmrEq (S.append (nth 1 names) "'") cxx
-  , fmrEq (S.append (nth 2 names) "'") cyy
-  , fmrEq (S.append (nth 3 names) "'") czz
-  , fmrEq (S.append (nth 4 names) "'") cxy
-  , fmrEq (S.append (nth 5 names) "'") cxz
-  , fmrEq (S.append (nth 6 names) "'") cyz
-  ]
+  componentEqs names [cxx, cyy, czz, cxy, cxz, cyz]
 
 -- step lines for an antisymmetric rank-2 field (upper off-diagonal)
 def antiEqs (names: [String]) (cxy: MathValue) (cxz: MathValue) (cyz: MathValue) : [String] :=
-  [ fmrEq (S.append (nth 1 names) "'") cxy
-  , fmrEq (S.append (nth 2 names) "'") cxz
-  , fmrEq (S.append (nth 3 names) "'") cyz
-  ]
+  componentEqs names [cxy, cxz, cyz]
 
 def tensor2Eqs (names: [String])
                (cxx: MathValue) (cxy: MathValue) (cxz: MathValue)
                (cyx: MathValue) (cyy: MathValue) (cyz: MathValue)
                (czx: MathValue) (czy: MathValue) (czz: MathValue) : [String] :=
-  [ fmrEq (S.append (nth 1 names) "'") cxx
-  , fmrEq (S.append (nth 2 names) "'") cxy
-  , fmrEq (S.append (nth 3 names) "'") cxz
-  , fmrEq (S.append (nth 4 names) "'") cyx
-  , fmrEq (S.append (nth 5 names) "'") cyy
-  , fmrEq (S.append (nth 6 names) "'") cyz
-  , fmrEq (S.append (nth 7 names) "'") czx
-  , fmrEq (S.append (nth 8 names) "'") czy
-  , fmrEq (S.append (nth 9 names) "'") czz
-  ]
+  componentEqs names [cxx, cxy, cxz, cyx, cyy, cyz, czx, czy, czz]
 
 -- a single output needs no tuple parentheses in Formura
 def tupleOf (xs: [String]) : String :=
