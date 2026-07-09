@@ -177,6 +177,10 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
   Yee スキームの div B 厳密保存の構造的理由になる。
 - **テンソル**: `Vector MathValue` 等の型注釈でテンソルごと受け取り(λ⊗ のスカラー/テンソルパラメタ)、
   `ε`・`generateTensor`・添字縮約は Egison 標準ライブラリをそのまま使う。
+  上付き `~i` と下付き `_i` は保持し、`metric g` で宣言した計量名は
+  `g~i~j`/`g~i_j`/`g_i~j`/`g_i_j` の上下パターンごとに生成 `.egi` の
+  内部計量テンソルへ下ろす(Euclidean では単位行列)。`metric δ` と宣言すれば
+  `δ_i_j` も計量として使える。metric 名と同じ `param`/`field` 名はエラー。
 
 ## 検証結果(Apple Silicon Mac、1コア)
 

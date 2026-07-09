@@ -173,6 +173,12 @@ def emitModelOn (dim: Integer) (axes: [String])
 def E_i := generateTensor (\[i] -> function (x, y, z)) [3]
 def B_i := generateTensor (\[i] -> function (x, y, z)) [3]
 def E'_i := generateTensor (\[i] -> function (x, y, z)) [3]
+def FormuraeInternalTensorEUp_i := E_i
+def FormuraeInternalTensorEDown_i := E_i
+def FormuraeInternalTensorBUp_i := B_i
+def FormuraeInternalTensorBDown_i := B_i
+def FormuraeInternalTensorEUp'_i := E'_i
+def FormuraeInternalTensorEDown'_i := E'_i
 
 def feqE_i := withSymbols [i] E_i + dt * (curl B_#)_i
 def feqB_i := withSymbols [i] B_i - dt * (curl E'_#)_i

@@ -59,6 +59,26 @@ v1.17 で生成 `.egi` 側の座標文脈つき定義へ移した。
 まだ `.fe` 化していない手書き `.egi` 例だけは `lib/fmrlegacy3d.egi` の 3D 互換文脈を読む。
 全 `.fe` 例と手書き `.egi` 例で生成 `.fmr` はバイト一致。
 
+**v1.19(2026-07-09): 上下添字を保持し、`metric NAME` で計量名を宣言** —
+step 式で `~i` を `_i` に正規化する処理をやめ、添字展開器が `Up`/`Down` を
+保持するようにした。既存の staggered vector/symmetric field は互換性のため
+同じ格子成分へ下ろすが、`metric g` のように宣言された計量名は上下パターンで
+別の内部テンソルへ解決する:
+`g~i~j` → `FormuraeInternalMetricContra`、`g~i_j` →
+`FormuraeInternalMetricMixedUpDown`、`g_i~j` →
+`FormuraeInternalMetricMixedDownUp`、`g_i_j` →
+`FormuraeInternalMetricCov`。内部 base 名には `_` を使わず、
+`FormuraeInternal` prefix を予約した。Euclidean でも計量は単位行列として生成し、
+`metric scale`/`embedding` では直交計量から cov/contra を生成する。
+`metric NAME` は `NAME_i_j` のような2添字参照だけを計量として奪うので、
+`metric δ` として Euclidean 計量を `δ_i_j` と書ける。一方、`param NAME`
+や `field NAME` との同名宣言は表層名が曖昧になるためエラーにする。
+`metric δ` がない場合、`δ~i_j` は mixed identity とし、`δ_i_j` は
+計量ではなくエラーに寄せる。さらに
+vector/form/symmetric など添字付き場と `let NAME_i` の一時テンソルについても、
+上下パターンごとの `FormuraeInternalTensor...Up/Down...` 束縛を生成する。
+既存例の `.fmr` はバイト一致。
+
 **v1.8(2026-07-08): Unicode と基本演算子** — ギリシャ文字識別子(θ, φ, …
 → fec が ASCII へ字訳)・∂=d・δ=codiff・−=-・Δ=幾何のラプラシアン
 (平坦 lap/計量 lb)。`∂x (∂x u)` は compact 2階差分に融合、スカラーへの
@@ -192,17 +212,18 @@ step:
 
 ```
 field v     : vector
-field sigma : symmetric matrix    -- 配置は添字から導出(Virieux)
+field sigma : symmetric @ staggered    -- 配置は添字から導出(Virieux)
 
 step:
-  v'_i      = v_i + (dt/rho) * d_j sigma_i_j
-  sigma'_ij = sigma_ij + dt * (la * delta_ij * d_k v'_k
-                               + mu * (d_i v'_j + d_j v'_i))
+  v'~i        = v~i + (dt/rho) * ∂_j sigma~i_j
+  sigma'~i_j  = sigma~i_j + dt * (la * δ~i_j * ∂_k v'~k
+                                  + mu * (∂_i v'~j + ∂_j v'~i))
 ```
 
 曲面(直交計量)の例:
 
 ```
+metric g
 metric scale [1, 2 + cos x, 1]     -- Lamé 因子; sqrt(g), g^ii は導出
 field u : scalar
 step:
@@ -305,10 +326,11 @@ step:
    - `def stress_i_j v = ...`
 
    のように、添字を持つ引数・返り値・演算子本体を `.fe` 側で定義できるようにする。
-   ここでは `~i` を上添字、`_i` を下添字として区別する。現行 v1.7 はユークリッド格子を
-   前提に上付き/下付き添字を等価に正規化しているが、非ユークリッド座標・一般計量へ
-   進む開発目標では、反変/共変成分、計量による上げ下げ、接続係数の扱いを表層仕様に
-   残す必要がある。
+   `~i` は上添字、`_i` は下添字として保持する。現行の格子場 lowering は既存互換のため
+   vector/symmetric の上下を同じ格子成分へ写すが、`metric g` 宣言後の
+   `g~i~j`/`g_i_j` などの計量参照はすでに上下で別の内部テンソルへ下ろす。
+   また添字付き場と `let NAME_i` の一時テンソルにも上下パターンごとの内部 tensor alias を生成する。次の段階では、反変/共変成分、
+   計量による上げ下げ、接続係数の扱いをより一般のテンソル演算へ広げる。
    現行の `def NAME ARG = EXPR` は一引数のテキスト的β展開に近いので、これを
    Egison の添字付き関数定義へ接続する。
 

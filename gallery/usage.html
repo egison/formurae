@@ -134,8 +134,10 @@ make diffusion3d
 <tr><td><code>field E : 1-form / 2-form</code></td><td>微分形式(配置は次数から: 1-form=辺・2-form=面)</td></tr>
 <tr><td><code>field v : vector @ staggered</code></td><td>スタガードベクトル(v_i は軸 i の半セル位置)</td></tr>
 <tr><td><code>field s : symmetric @ staggered</code></td><td>対称テンソル(s_ij は辺i⊕辺j — Virieux 配置が導出される)</td></tr>
+<tr><td><code>metric g</code> / <code>metric δ</code></td><td>計量テンソルとして使う表層名を宣言する。宣言後は <code>g~i~j</code>/<code>g_i_j</code> や <code>δ_i_j</code> などを書ける。宣言した名前を <code>param</code>/<code>field</code> にも使うとエラー</td></tr>
 <tr><td><code>metric scale [1, 2 + cos theta, 1]</code></td><td>直交計量を Lamé スケール因子で直接指定 → <code>lb</code> が使える</td></tr>
 <tr><td><code>embedding [`(1+r) * cos phi, …]</code></td><td>座標系の埋め込みから計量を CAS が<b>自動導出</b>(直交性は記号検査で強制)。バッククォートで因子を原子に保つと √ が閉じる</td></tr>
+<tr><td><code>g~i~j</code> / <code>g~i_j</code> / <code>g_i~j</code> / <code>g_i_j</code></td><td><code>metric g</code> で宣言した計量テンソル。上下添字の形ごとに反変・混合・共変の内部テンソルへ下りる。Euclidean でも単位行列として扱う</td></tr>
 <tr><td><code>assert-dd-zero E'</code></td><td>d∘d(E′)=0 を CAS が確認できない限り生成を拒否</td></tr>
 </table>
 
@@ -165,7 +167,7 @@ make diffusion3d
 <tr><td><code>use exterior-calculus</code></td><td><code>d ω</code>, <code>δ ω</code></td><td><code>use exterior-calculus { d, δ }</code> で有効化される。形式場では生成 .egi の座標文脈つき <code>dForm</code>/<code>codiff</code> へ下ろす</td></tr>
 <tr><td><code>use vector-calculus</code></td><td><code>curl X</code>, <code>divg X</code></td><td><code>use vector-calculus { curl }</code> / <code>{ divg }</code> で有効化される。表層呼び出しを <code>fec</code> がベクトル式へ展開し、生成 .egi に座標文脈つき定義を出す</td></tr>
 <tr><td><code>fec</code> 組み込み変換</td><td><code>∂x e</code></td><td>軸名を見て <code>dC 1</code> などの中心差分へ下ろす。<code>∂x (∂x e)</code> は <code>dC2</code> へ融合する。<code>∂_x</code> と <code>d_x</code> は座標微分としては許可しない</td></tr>
-<tr><td><code>fec</code> 組み込み変換</td><td><code>∂_i X~i</code>, <code>δ~i_j</code>, <code>epsilon~i~j~k</code>, <code>.</code></td><td>添字方程式を成分ごとの式へ展開する。<code>.</code> は添字縮約、<code>*</code> は点ごとのスカラー積として扱う</td></tr>
+<tr><td><code>fec</code> 組み込み変換</td><td><code>∂_i X~i</code>, <code>δ~i_j</code>, <code>epsilon~i~j~k</code>, <code>g_i_j</code>, <code>.</code></td><td>添字方程式を成分ごとの式へ展開する。<code>g</code> は上下パターンごとの計量テンソル、<code>δ~i_j</code> は mixed identity、<code>.</code> は添字縮約、<code>*</code> は点ごとのスカラー積として扱う</td></tr>
 <tr><td><code>fec</code> 組み込み変換</td><td><code>d ω</code>, <code>δ ω</code> / <code>delta ω</code> / <code>codiff ω</code></td><td><code>field E : 1-form</code> などの形式場では、<code>use exterior-calculus</code> で有効化されたときに生成 Egison の <code>dForm</code>/<code>codiff</code> 呼び出しへ下ろす</td></tr>
 <tr><td><code>fec</code> 組み込み変換</td><td><code>δ (d u)</code></td><td>スカラー場では <code>-lap u</code>、計量付きモデルでは <code>-lb u</code> に下ろす。<code>use</code> で有効化された <code>Δ</code> はこの規則を使う</td></tr>
 <tr><td>Formura/extern 組み込み</td><td><code>sin</code>, <code>cos</code>, <code>exp</code>, <code>sqrt</code>, <code>fabs</code> など</td><td>スカラー関数。テンソル成分に適用されると成分ごとへ lift され、不足する <code>extern function :: ...</code> は <code>fec</code> が自動で出す</td></tr>
@@ -228,8 +230,10 @@ def δ := codiff
 <tr><td><code>delta ω</code>(= <code>codiff</code>/<code>δ</code>)</td><td><code>use exterior-calculus { δ }</code></td><td>余微分 (−1)^{n(k+1)+1} ⋆d⋆。形式場では <code>codiff</code> 呼び出しになる。<code>use</code> なしの <code>δ</code> はエラー</td></tr>
 </table>
 
-<p><b>添字</b>: 添字方程式では上付き <code>~i</code> と下付き <code>_i</code> を併用できます。現在のユークリッド/スタガード格子バックエンドでは生成時に互換な成分展開へ正規化しますが、記法上は将来の計量・上げ下げを見据えて区別します。繰返し文字は現状上下によらず総和します。Kronecker delta は <code>δ~i_j</code>(1添字1マーク; 融合形 <code>delta_ij</code> は不可)。例(弾性波):
+<p><b>添字</b>: 添字方程式では上付き <code>~i</code> と下付き <code>_i</code> を常に区別して保持します。現在の vector/symmetric field lowering は既存互換のため同じ格子成分へ写しますが、<code>metric g</code> で宣言した計量名は <code>g~i~j</code>/<code>g~i_j</code>/<code>g_i~j</code>/<code>g_i_j</code> を別々の計量テンソルとして展開します。<code>metric δ</code> と宣言すれば、Euclidean 計量を <code>δ_i_j</code> と書けます。繰返し文字は現状上下によらず総和します。Kronecker delta は mixed identity の <code>δ~i_j</code>(1添字1マーク; 融合形 <code>delta_ij</code> は不可)で、<code>metric δ</code> がない <code>δ_i_j</code> は計量ではありません。例(弾性波):
 <code>v'~i = v~i + (dt / ρ0) * ∂_j s~i~j</code></p>
+
+<p><b>内部名</b>: <code>metric g</code> の <code>g</code> は生成 Egison で <code>FormuraeInternalMetricContra</code>、<code>FormuraeInternalMetricMixedUpDown</code>、<code>FormuraeInternalMetricMixedDownUp</code>、<code>FormuraeInternalMetricCov</code> に下ります。添字付き field と <code>let A_i</code> のような一時テンソルについても <code>FormuraeInternalTensor...Up/Down...</code> という内部束縛を生成します。<code>FormuraeInternal</code> prefix は予約済みで、ユーザ定義名には使えません。</p>
 
 <p><b>Unicode</b>: ギリシャ文字(θ, φ, ρ, τ, κ, μ, λ, …)は識別子として使え、
 fec が Formura 向けに ASCII 名(theta, phi, …)へ字訳します。
@@ -242,7 +246,7 @@ fec が Formura 向けに ASCII 名(theta, phi, …)へ字訳します。
 (metric_torus.fe がこの形)。</p>
 
 <p class="note"><b>現在の実装範囲</b>: 添字付きユーザ定義演算子は、薄い変換器として既存の Egison 展開経路へ接続している段階です。
-上付き/下付きの完全な variance-aware 縮約、複数引数の一般テンソル関数、<code>grad</code>/<code>div</code>/<code>curl</code> の <code>use</code> ライブラリ化は後続作業です。</p>
+一般の variance-aware 縮約、複数引数の一般テンソル関数、<code>grad</code>/<code>div</code>/<code>curl</code> の <code>use</code> ライブラリ化は後続作業です。</p>
 
 <h2 id="yaml">5. yaml リファレンス(格子と実行構成)</h2>
 <pre>

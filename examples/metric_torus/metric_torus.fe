@@ -21,6 +21,7 @@ extern exp
 extern cos
 use exterior-calculus { Δ }
 
+metric g
 embedding [ `(2 + cos θ) * cos φ, `(2 + cos θ) * sin φ, sin θ, z ]
 
 field u : scalar

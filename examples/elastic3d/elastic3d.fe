@@ -1,12 +1,13 @@
 -- Linear elastic waves, velocity-stress formulation (Virieux), written
 -- exactly as the mathematics:
 --
---   rho dv^i/dt      = d_j sigma^ij
---   d sigma^ij / dt  = lambda delta^ij (div v') + mu (d^i v'^j + d^j v'^i)
+--   rho dv^i/dt      = d_j sigma^i_j
+--   d sigma^i_j / dt = lambda delta^i_j (div v') + mu (d_i v'^j + d_j v'^i)
 --
--- Repeated index letters are summed (Einstein convention; superscripts
--- and subscripts are interchangeable on the Euclidean grid); delta is
--- Kronecker's; v' refers to the updated velocity (symplectic).
+-- Repeated index letters are summed (Einstein convention). Superscripts
+-- and subscripts are kept distinct; on this Euclidean grid the metric is
+-- the identity, and delta~i_j is the mixed Kronecker identity.
+-- v' refers to the updated velocity (symplectic).
 -- The fields are declared staggered, so every d_a becomes a half-cell
 -- difference anchored at the placement of the target component --
 -- which puts v_i on edge i and s_ij at edge i (+) edge j: the Virieux

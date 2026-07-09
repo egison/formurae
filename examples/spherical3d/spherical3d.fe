@@ -17,6 +17,7 @@ extern cos
 extern sin
 use exterior-calculus { Δ }
 
+metric g
 embedding [ `(1 + r) * sin (1 + θ) * cos φ, `(1 + r) * sin (1 + θ) * sin φ, `(1 + r) * cos (1 + θ) ]
 
 field u : scalar

@@ -16,6 +16,7 @@ extern exp
 extern cos
 use exterior-calculus { d, δ }
 
+metric g
 metric scale [ 1 / (1 + y), 1 / (1 + y), 1 ]
 
 field u : scalar

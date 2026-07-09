@@ -181,6 +181,14 @@ def emitModelOn (dim: Integer) (axes: [String])
 def v_i := generateTensor (\[i] -> function (x, y, z)) [3]
 def s_i_j := generateTensor (\[i, j] -> function (x, y, z)) [3, 3]
 def v'_i := generateTensor (\[i] -> function (x, y, z)) [3]
+def FormuraeInternalTensorvUp_i := v_i
+def FormuraeInternalTensorvDown_i := v_i
+def FormuraeInternalTensorsUpUp_i_j := generateTensor (\[i, j] -> if i <= j then s_i_j else s_j_i) [feDim, feDim]
+def FormuraeInternalTensorsUpDown_i_j := generateTensor (\[i, j] -> if i <= j then s_i_j else s_j_i) [feDim, feDim]
+def FormuraeInternalTensorsDownUp_i_j := generateTensor (\[i, j] -> if i <= j then s_i_j else s_j_i) [feDim, feDim]
+def FormuraeInternalTensorsDownDown_i_j := generateTensor (\[i, j] -> if i <= j then s_i_j else s_j_i) [feDim, feDim]
+def FormuraeInternalTensorvUp'_i := v'_i
+def FormuraeInternalTensorvDown'_i := v'_i
 
 def feqv1 := v_1 +( (dt / rho0) * dYee 1 [1 / 2, 0, 0] (s_1_1, [0, 0, 0]) +  (dt / rho0) * dYee 2 [1 / 2, 0, 0] (s_1_2, [1 / 2, 1 / 2, 0]) +  (dt / rho0) * dYee 3 [1 / 2, 0, 0] (s_1_3, [1 / 2, 0, 1 / 2]))
 def feqv2 := v_2 +( (dt / rho0) * dYee 1 [0, 1 / 2, 0] (s_1_2, [1 / 2, 1 / 2, 0]) +  (dt / rho0) * dYee 2 [0, 1 / 2, 0] (s_2_2, [0, 0, 0]) +  (dt / rho0) * dYee 3 [0, 1 / 2, 0] (s_2_3, [0, 1 / 2, 1 / 2]))

@@ -209,6 +209,10 @@ def sg := function (x, y, z)
 def f1 := function (x, y, z)
 def f2 := function (x, y, z)
 def f3 := function (x, y, z)
+def FormuraeInternalMetricCov_i_j := generateTensor (\[i, j] -> if i = j then ((nth i [1 / (1 + y), 1 / (1 + y), 1])) ^ 2 else 0) [feDim, feDim]
+def FormuraeInternalMetricContra_i_j := generateTensor (\[i, j] -> if i = j then 1 / (((nth i [1 / (1 + y), 1 / (1 + y), 1])) ^ 2) else 0) [feDim, feDim]
+def FormuraeInternalMetricMixedUpDown_i_j := generateTensor (\[i, j] -> if i = j then 1 else 0) [feDim, feDim]
+def FormuraeInternalMetricMixedDownUp_i_j := generateTensor (\[i, j] -> if i = j then 1 else 0) [feDim, feDim]
 
 
 def feParams := [("dt", "0.00002")]

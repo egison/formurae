@@ -22,6 +22,10 @@
 --                                    axes r, theta, phi works in CAS exprs)
 --   metric scale [h1, h2, h3]       Lame scale factors of an orthogonal
 --                                   metric, written in the axis names.
+--   metric NAME                     declare NAME as the metric tensor
+--                                   surface name; NAME~i~j, NAME~i_j,
+--                                   NAME_i~j, NAME_i_j lower to generated
+--                                   metric tensors by variance.
 --   embedding [X1, X2, ..., Xm]     coordinate map into R^m: the metric
 --                                   g_ab = dX/dx_a . dX/dx_b is DERIVED
 --                                   by the CAS (orthogonality is checked
@@ -86,10 +90,11 @@
 -- generate byte-identical code to their named-operator forms.
 -- Nabla combinations work too: nabla-cross is curl, nabla-dot is divg,
 -- and nabla^2 (or with the superscript two) is the Laplacian.
--- In index equations superscripts (~i) and subscripts (_i) are
--- interchangeable (Euclidean grids; variance is documentation), and
--- Kronecker's delta carries one index per mark (delta~i_j, or with
--- the small delta sign; the fused delta_ij is rejected).
+-- In index equations superscripts (~i) and subscripts (_i) are kept
+-- distinct.  Kronecker's delta is the mixed identity (delta~i_j, or
+-- with the small delta sign), while the metric tensor name declared by
+-- `metric NAME` lowers to generated tensors according to variance:
+-- NAME~i~j, NAME~i_j, NAME_i~j, NAME_i_j.  The fused delta_ij is rejected.
 --
 -- A vector update may be written without indices (E' = E + dt * curl B);
 -- bare vector names combine elementwise and curl applies to the whole
@@ -97,7 +102,7 @@
 -- array), so B' = B - dt * curl E' is the symplectic pair.
 
 import Data.Char (isAlpha, isAlphaNum, isDigit, isSpace)
-import Data.List (dropWhileEnd, intercalate, sort, nub, stripPrefix)
+import Data.List (dropWhileEnd, intercalate, isPrefixOf, sort, nub, stripPrefix)
 import System.Environment (getArgs)
 import System.Exit (exitFailure)
 import System.IO (hPutStrLn, stderr)
@@ -137,6 +142,7 @@ data Model = Model
   { mName   :: String
   , mDim    :: Int
   , mAxes   :: [String]
+  , mMetricName :: Maybe String
   , mUses   :: [(String, [String])]
   , mParams :: [(String, String)]
   , mHelp   :: [String]
@@ -217,8 +223,36 @@ stripComment ('-':'-':_) = []
 stripComment (c:cs) = c : stripComment cs
 stripComment [] = []
 
-normalizeIndexMarks :: String -> String
-normalizeIndexMarks = map (\c -> if c == '~' then '_' else c)
+reservedInternalPrefix :: String
+reservedInternalPrefix = "FormuraeInternal"
+
+isReservedInternalName :: String -> Bool
+isReservedInternalName = isPrefixOf reservedInternalPrefix
+
+rejectReservedName :: Int -> String -> IO ()
+rejectReservedName ln nm =
+  if isReservedInternalName nm
+    then fatal ("identifier is reserved for generated code: " ++ nm
+                ++ " (line " ++ show ln ++ ")")
+    else return ()
+
+validSurfaceName :: String -> Bool
+validSurfaceName (c:cs) = isAlpha c && all isAlphaNum cs
+validSurfaceName [] = False
+
+metricNameConflicts :: Model -> [String]
+metricNameConflicts m =
+  map fst (mParams m)
+  ++ map fst (mFlds m)
+
+validateMetricName :: Model -> IO ()
+validateMetricName m =
+  case mMetricName m of
+    Nothing -> return ()
+    Just nm ->
+      case [x | x <- metricNameConflicts m, x == nm] of
+        _:_ -> fatal ("metric name conflicts with a param or field declaration: " ++ nm)
+        [] -> return ()
 
 -- split on a separator at paren/bracket depth 0
 splitTop :: Char -> String -> [String]
@@ -269,7 +303,7 @@ defForm r = do
     dropIdxSuffix ('_':c:rest) | isAlpha c = dropIdxSuffix rest
     dropIdxSuffix s = s
 
--- NAME'(_a)(_b)? = EXPR   (a, b single index letters)
+-- NAME'(~a|_a)(~b|_b)? = EXPR   (a, b single index letters)
 primeEqForm :: String -> Maybe (String, [String], String)
 primeEqForm s = do
   (nm, r1) <- ident s
@@ -281,7 +315,8 @@ primeEqForm s = do
   where
     ident (c:cs) | isAlpha c = let (a, b) = span isAlphaNum cs in Just (c : a, b)
     ident _ = Nothing
-    idxs ('_':c:rest) | isAlpha c, not (isAlphaNum (headDef ' ' rest)) =
+    idxs (mark:c:rest)
+      | mark `elem` "_~", isAlpha c, not (isAlphaNum (headDef ' ' rest)) =
       let (more, r) = idxs rest in ([c] : more, r)
     idxs r = ([], r)
     headDef d [] = d
@@ -335,32 +370,43 @@ usePreludeDefs m =
   ]
 
 missingUse :: Model -> String -> Maybe String
-missingUse m s = foldr (\t acc -> check t `orElse` acc) Nothing (tokenize s)
+missingUse m s = go (tokenize s)
   where
-    check (TId "d" _) | not (hasUse m "exterior-calculus" "d") =
+    go [] = Nothing
+    go (t:ts) = check t ts `orElse` go ts
+    check (TId "d" _) rest
+      | indexedAfter rest = Nothing
+      | not (hasUse m "exterior-calculus" "d") =
       Just "d requires use exterior-calculus { d }"
-    check (TId "delta" _) | not (hasUse m "exterior-calculus" "delta") =
+    check (TId "delta" _) rest
+      | indexedAfter rest = Nothing
+      | not (hasUse m "exterior-calculus" "delta") =
       Just "δ requires use exterior-calculus { δ }"
-    check (TId "codiff" _) | not (hasUse m "exterior-calculus" "codiff") =
+    check (TId "codiff" _) _ | not (hasUse m "exterior-calculus" "codiff") =
       Just "codiff requires use exterior-calculus { codiff }"
-    check (TId "dForm" _) | not (hasUse m "exterior-calculus" "dForm") =
+    check (TId "dForm" _) _ | not (hasUse m "exterior-calculus" "dForm") =
       Just "dForm requires use exterior-calculus { dForm }"
-    check (TId "hodge" _) | not (hasUse m "exterior-calculus" "hodge") =
+    check (TId "hodge" _) _ | not (hasUse m "exterior-calculus" "hodge") =
       Just "hodge requires use exterior-calculus { hodge }"
-    check (TId "\916" _) | not (hasUse m "exterior-calculus" "\916") =
+    check (TId "\916" _) _ | not (hasUse m "exterior-calculus" "\916") =
       Just "Δ requires use exterior-calculus { Δ }"
-    check (TId "curl" _) | not (hasUse m "vector-calculus" "curl") =
+    check (TId "curl" _) _ | not (hasUse m "vector-calculus" "curl") =
       Just "curl requires use vector-calculus { curl }"
-    check (TId "divg" _) | not (hasUse m "vector-calculus" "divg") =
+    check (TId "divg" _) _ | not (hasUse m "vector-calculus" "divg") =
       Just "divg requires use vector-calculus { divg }"
-    check (TId "dGrad" _) | not (hasUse m "vector-calculus" "dGrad") =
+    check (TId "dGrad" _) _ | not (hasUse m "vector-calculus" "dGrad") =
       Just "dGrad requires use vector-calculus { dGrad }"
-    check _ = Nothing
+    check _ _ = Nothing
+    indexedAfter rest =
+      case dropWhile isSpTok rest of
+        TC '~' : _ -> True
+        TC '_' : _ -> True
+        _ -> False
     orElse (Just x) _ = Just x
     orElse Nothing y = y
 
 parseFe :: String -> String -> IO Model
-parseFe name txt = go STop (Model name 0 [] [] [] [] [] [] [] Nothing Nothing Nothing [])
+parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] Nothing Nothing Nothing [])
                       (zip [1 :: Int ..] (lines txt))
   where
     -- dimension and axes are required: they fix the coordinate frame
@@ -375,6 +421,7 @@ parseFe name txt = go STop (Model name 0 [] [] [] [] [] [] [] Nothing Nothing No
       | otherwise = do
           let uses = normalizeUses (reverse (mUses m))
               mUse = m { mUses = uses }
+          validateMetricName mUse
           validateUses mUse
           mapM_ (\(_, (_, body)) ->
                     checkUserSurface mUse "in def" body)
@@ -494,13 +541,16 @@ parseFe name txt = go STop (Model name 0 [] [] [] [] [] [] [] Nothing Nothing No
     top ln s m
       | Just r <- stripPrefix "def " s =
           case defForm r of
-            Just (nm, p, body) ->
-              return m { mDefs = (nm, (p, normalizeIndexMarks body)) : mDefs m }
+            Just (nm, p, body) -> do
+              rejectReservedName ln nm
+              rejectReservedName ln p
+              return m { mDefs = (nm, (p, body)) : mDefs m }
             Nothing -> fatal ("bad def (line " ++ show ln
                               ++ "): def NAME ARG(~i|_i)* = EXPR")
       | Just r <- stripPrefix "param " s =
           case break (== '=') r of
-            (nm, '=':v) | not (null (strip nm)) && not (null (strip v)) ->
+            (nm, '=':v) | not (null (strip nm)) && not (null (strip v)) -> do
+              rejectReservedName ln (strip nm)
               return m { mParams = (strip nm, strip v) : mParams m }
             _ -> fatal ("bad param (line " ++ show ln ++ ")")
       | Just r <- stripPrefix "extern " s =
@@ -520,14 +570,16 @@ parseFe name txt = go STop (Model name 0 [] [] [] [] [] [] [] Nothing Nothing No
                   k = strip k0
               in if not (validName nm)
                    then fatal ("bad field name: " ++ nm ++ " (line " ++ show ln ++ ")")
-                   else case k of
-                     "scalar" -> add nm Scalar
-                     "vector" -> add nm (Vector False)
-                     "vector @ staggered" -> add nm (Vector True)
-                     "symmetric @ staggered" -> add nm SymM
-                     "1-form" -> add nm (Form 1)
-                     "2-form" -> add nm (Form 2)
-                     _ -> fatal ("bad field kind: " ++ k ++ " (line " ++ show ln ++ ")")
+                   else do
+                     rejectReservedName ln nm
+                     case k of
+                       "scalar" -> add nm Scalar
+                       "vector" -> add nm (Vector False)
+                       "vector @ staggered" -> add nm (Vector True)
+                       "symmetric @ staggered" -> add nm SymM
+                       "1-form" -> add nm (Form 1)
+                       "2-form" -> add nm (Form 2)
+                       _ -> fatal ("bad field kind: " ++ k ++ " (line " ++ show ln ++ ")")
             _ -> fatal ("bad field decl: " ++ s ++ " (line " ++ show ln ++ ")")
       | Just r <- stripPrefix "assert-dd-zero " s = return m { mDd = Just (strip r) }
       | Just r <- stripPrefix "embedding " s =
@@ -543,6 +595,13 @@ parseFe name txt = go STop (Model name 0 [] [] [] [] [] [] [] Nothing Nothing No
                    then return m { mMetric = Just es }
                    else fatal ("metric scale needs 3 factors (line " ++ show ln ++ ")")
             _ -> fatal ("bad metric scale (line " ++ show ln ++ ")")
+      | Just r <- stripPrefix "metric " s =
+          let nm = strip r
+          in if not (validSurfaceName nm)
+               then fatal ("bad metric name: " ++ nm ++ " (line " ++ show ln ++ ")")
+               else do
+                 rejectReservedName ln nm
+                 return m { mMetricName = Just nm }
       | Just r <- stripPrefix "dimension " s = dim r
       | Just r <- stripPrefix "dim " s = dim r
       | Just r <- stripPrefix "axes " s =
@@ -550,8 +609,7 @@ parseFe name txt = go STop (Model name 0 [] [] [] [] [] [] [] Nothing Nothing No
       | otherwise = fatal ("unrecognized: " ++ s ++ " (line " ++ show ln ++ ")")
       where
         add nm k = return m { mFlds = (nm, k) : mFlds m }
-        validName (c:cs) = isAlpha c && all isAlphaNum cs
-        validName [] = False
+        validName = validSurfaceName
         dim r | all isDigit (strip r), n <- read (strip r) =
                   if n /= (3 :: Int)
                     then fatal ("v1 supports dimension 3 only (got " ++ show n ++ ")")
@@ -569,8 +627,11 @@ parseFe name txt = go STop (Model name 0 [] [] [] [] [] [] [] Nothing Nothing No
                _ -> Nothing
 
     ini ln s m
-      | Just (nm, ex) <- casForm s = return m { mInits = ICas nm ex : mInits m }
-      | Just (nm, rhs) <- rawForm s =
+      | Just (nm, ex) <- casForm s = do
+          rejectReservedName ln (dropWhileEnd (== '\'') nm)
+          return m { mInits = ICas nm ex : mInits m }
+      | Just (nm, rhs) <- rawForm s = do
+          rejectReservedName ln nm
           case (kindOf m nm, vecLit rhs) of
             (Just SymM, Just rows) -> do
               rows' <- mapM (\r -> case vecLit (strip r) of
@@ -625,27 +686,35 @@ parseFe name txt = go STop (Model name 0 [] [] [] [] [] [] [] Nothing Nothing No
           r3 <- stripPrefix "]|" r2
           return (splitTop ',' (reverse r3))
 
-    -- superscripts (~i) and subscripts (_i) are interchangeable in step
-    -- equations (Euclidean grids; the variance is documentation), so
-    -- v'~i = ... + \8706_j s~i~j normalizes to the underscore form here
+    -- Step equations keep superscripts (~i) and subscripts (_i)
+    -- distinct.  The current component expander still lowers existing
+    -- Euclidean/Staggered fields to the same stored components, but
+    -- variance is preserved long enough for metric references such as
+    -- g~i_j and for future variance-aware contraction checks.
     stp ln s0 m
       | Just bad <- banned =
           fatal (bad ++ " (line " ++ show ln ++ ")")
-      | Just (nm, ix, ex) <- eqForm "let" s =
+      | Just (nm, ix, ex) <- eqForm "let" s = do
+          rejectReservedName ln nm
           return m { mSteps = Step KLet nm (if ix then ["i"] else []) ex : mSteps m }
-      | Just (nm, _, ex) <- eqForm "local" s =
+      | Just (nm, _, ex) <- eqForm "local" s = do
+          rejectReservedName ln nm
           return m { mSteps = Step KLocal nm [] ex : mSteps m }
-      | Just (nm, ixs, ex) <- primeEqForm s =
+      | Just (nm, ixs, ex) <- primeEqForm s = do
+          rejectReservedName ln nm
           return m { mSteps = Step KEq nm ixs ex : mSteps m }
       | otherwise = fatal ("bad step eq: " ++ s ++ " (line " ++ show ln ++ ")")
       where
-        s = normalizeIndexMarks s0
+        s = s0
         banned = surfaceBanned m s
 
 surfaceBanned :: Model -> String -> Maybe String
-surfaceBanned m s = foldr (\t acc -> check t `orElse` acc) Nothing (tokenize s)
+surfaceBanned m s =
+  foldr (\t acc -> checkTok t `orElse` acc) Nothing (tokenize s)
+  `orElse`
+  foldr (\t acc -> checkIndexTok t `orElse` acc) Nothing (itok s)
   where
-    check (TId nm _)
+    checkTok (TId nm _)
       | Just ax <- stripPrefix "d_" nm, ax `elem` mAxes m =
           Just ("coordinate derivative must be written ∂" ++ ax
                 ++ "; ∂_" ++ ax ++ " and d_" ++ ax ++ " are not part of Formurae")
@@ -656,7 +725,17 @@ surfaceBanned m s = foldr (\t acc -> check t `orElse` acc) Nothing (tokenize s)
           Just ("d2 is not an operator; write ∂a (∂a u) for the second difference: " ++ nm)
       | ("delta" : ps) <- splitOn '_' nm, any ((> 1) . length) ps =
           Just ("Kronecker delta takes one index per mark (delta~i_j): " ++ nm)
-    check _ = Nothing
+    checkTok _ = Nothing
+    checkIndexTok (II nm) =
+      case parseIndexedIdent nm of
+        ("delta", parts@(_:_))
+          | not (length parts == 2 && all isSingleAlphaIx parts) ->
+              Just ("Kronecker delta takes two single marked indices, e.g. delta~i_j: " ++ nm)
+        ("epsilon", parts@(_:_))
+          | not (length parts == 3 && all isSingleAlphaIx parts) ->
+              Just ("epsilon takes three single marked indices, e.g. epsilon~i~j~k: " ++ nm)
+        _ -> Nothing
+    checkIndexTok _ = Nothing
     orElse (Just x) _ = Just x
     orElse Nothing y = y
 
@@ -715,9 +794,48 @@ itok :: String -> [ITok]
 itok [] = []
 itok (c:cs)
   | isAlpha c =
-      let (a, b) = span (\ch -> isAlphaNum ch || ch == '_' || ch == '\'') cs
+      let (a, b) = span (\ch -> isAlphaNum ch || ch == '_' || ch == '~' || ch == '\'') cs
       in II (c : a) : itok b
   | otherwise = IC c : itok cs
+
+data Variance = VUp | VDown deriving (Eq, Show)
+data IxPart = IxPart Variance String deriving (Eq, Show)
+
+ixName :: IxPart -> String
+ixName (IxPart _ nm) = nm
+
+parseIndexedIdent :: String -> (String, [IxPart])
+parseIndexedIdent w =
+  let (base, rest) = break (`elem` "_~") w
+  in (base, marks rest)
+  where
+    marks [] = []
+    marks (m:c:rest)
+      | m == '~', isAlphaNum c =
+          let (nm, rest') = span isAlphaNum (c : rest)
+          in IxPart VUp nm : marks rest'
+      | m == '_', isAlphaNum c =
+          let (nm, rest') = span isAlphaNum (c : rest)
+          in IxPart VDown nm : marks rest'
+    marks rest = [IxPart VDown rest]
+
+isSingleAlphaIx :: IxPart -> Bool
+isSingleAlphaIx (IxPart _ [c]) = isAlpha c
+isSingleAlphaIx _ = False
+
+varianceWord :: Variance -> String
+varianceWord VUp = "Up"
+varianceWord VDown = "Down"
+
+tensorInternalBase :: String -> [Variance] -> String
+tensorInternalBase nm vars =
+  reservedInternalPrefix ++ "Tensor" ++ nm ++ concatMap varianceWord vars
+
+metricInternalBase :: Variance -> Variance -> String
+metricInternalBase VUp VUp = reservedInternalPrefix ++ "MetricContra"
+metricInternalBase VUp VDown = reservedInternalPrefix ++ "MetricMixedUpDown"
+metricInternalBase VDown VUp = reservedInternalPrefix ++ "MetricMixedDownUp"
+metricInternalBase VDown VDown = reservedInternalPrefix ++ "MetricCov"
 
 splitOn :: Char -> String -> [String]
 splitOn ch = foldr step [[]]
@@ -754,8 +872,8 @@ indexContractionDots = go Nothing
       = '*' : go (Just '*') cs
     go _ (c:cs) = c : go (Just c) cs
 
-indexDefs :: Model -> Step -> IO [String]
-indexDefs m st =
+indexDefs :: Model -> [String] -> Step -> IO [String]
+indexDefs m lets st =
   case (kindOf m (sNm st), sIdx st) of
     (Just (Vector True), [fi]) ->
       mapM (\a -> comp [(fi, a)] (placeV a) (base ++ show a)) [1, 2, 3]
@@ -766,14 +884,14 @@ indexDefs m st =
   where
     base = "feq" ++ sNm st
     comp env anchor defnm = do
-      e <- ixExpand m env anchor (sEx st)
+      e <- ixExpand m lets env anchor (sEx st)
       return ("def " ++ defnm ++ " := " ++ e)
 
 -- expand one component: parens are independent regions, a repeated
 -- index letter is summed over the smallest term containing it, then
 -- names and derivatives are resolved
-ixExpand :: Model -> [(String, Int)] -> String -> String -> IO String
-ixExpand m env anchor expr = expandRegion env (itok (indexContractionDots expr))
+ixExpand :: Model -> [String] -> [(String, Int)] -> String -> String -> IO String
+ixExpand m lets env anchor expr = expandRegion env (itok (indexContractionDots expr))
   where
     -- a region is a +/- separated list of terms
     expandRegion env' ts = goR env' (0 :: Int) [] ts
@@ -807,12 +925,8 @@ ixExpand m env anchor expr = expandRegion env (itok (indexContractionDots expr))
           | otherwise = go2 d rest
 
     idxLetters w =
-      let (_, parts) = splitIdent w
-      in [ pt | pt <- parts, length pt == 1, all isAlpha pt ]
-
-    splitIdent w = case splitOn '_' w of
-      (b : parts) -> (b, parts)
-      [] -> (w, [])
+      let (_, parts) = parseIndexedIdent w
+      in [ ixName pt | pt <- parts, isSingleAlphaIx pt ]
 
     fieldBase w = (takeWhile (/= '\'') w, length (filter (== '\'') w))
 
@@ -829,31 +943,65 @@ ixExpand m env anchor expr = expandRegion env (itok (indexContractionDots expr))
     resolve env' (IC c : rest) = fmap ([c] ++) (resolve env' rest)
     resolve env' (II w : rest)
       -- Kronecker delta, one index per mark: delta~i_j / \948~i_j
-      -- (normalized to delta_i_j).  The fused delta_ij is rejected at
-      -- parse time.
-      | ("epsilon", [p@[_], q@[_], r@[_]]) <- splitIdentW = do
-          vals <- mapM (need env') [p, q, r]
+      -- The variance is intentionally kept: delta is the mixed identity,
+      -- while the declared metric name (for example g_i_j / g~i~j when
+      -- `metric g` is present) denotes metric tensors.
+      | Just (_, [p, q]) <- metricIdent splitIdentW
+      , indexedMetricPart p, indexedMetricPart q = do
+          pv <- need env' (ixName p)
+          qv <- need env' (ixName q)
+          fmap ((metricRef p q pv qv) ++) (resolve env' rest)
+      | Just (metricNm, _ : _) <- metricIdent splitIdentW =
+          fatal ("metric tensor " ++ metricNm ++ " needs exactly two marked indices: " ++ w
+                 ++ " (examples: " ++ metricNm ++ "~i~j, " ++ metricNm ++ "~i_j, "
+                 ++ metricNm ++ "_i~j, " ++ metricNm ++ "_i_j)")
+      | ("epsilon", [p, q, r]) <- splitIdentW
+      , all isSingleAlphaIx [p, q, r] = do
+          vals <- mapM (need env' . ixName) [p, q, r]
           fmap ((show (leviCivita3 vals)) ++) (resolve env' rest)
-      | ("delta", [p@[_], q@[_]]) <- splitIdentW = do
-          pv <- need env' p
-          qv <- need env' q
+      | ("delta", [p, q]) <- splitIdentW
+      , all isSingleAlphaIx [p, q] = do
+          if not (isMixedPair p q)
+            then fatal ("Kronecker delta must be mixed, e.g. delta~i_j; use a declared metric tensor for covariant/contravariant components: " ++ w)
+            else return ()
+          pv <- need env' (ixName p)
+          qv <- need env' (ixName q)
           fmap ((if pv == qv then "1" else "0") ++) (resolve env' rest)
+      | ("delta", _ : _) <- splitIdentW =
+          fatal ("Kronecker delta takes two single marked indices, e.g. delta~i_j: " ++ w)
+      | ("epsilon", _ : _) <- splitIdentW =
+          fatal ("epsilon takes three single marked indices, e.g. epsilon~i~j~k: " ++ w)
       | ("d", [k]) <- splitIdentW = do
-          n <- need env' k
+          n <- need env' (ixName k)
           let rest1 = dropWhile isSp rest
           case rest1 of
             (II opw : rest2) -> do
               ref <- fieldRef env' opw
               fmap (deriv n ref ++) (resolve env' rest2)
-            _ -> fatal ("d_" ++ k ++ " needs a field operand: " ++ expr)
+            _ -> fatal ("d_" ++ ixName k ++ " needs a field operand: " ++ expr)
       | isField = do
           ref <- fieldRef env' w
           fmap (fst ref ++) (resolve env' rest)
+      | not (null (snd splitIdentW)) =
+          fatal ("unknown indexed tensor: " ++ w
+                 ++ " (declare metric " ++ fst splitIdentW
+                 ++ " to use it as the metric tensor)")
       | otherwise = fmap (w ++) (resolve env' rest)
       where
-        splitIdentW = splitIdent w
-        isField = kindOf m (fst (fieldBase (fst splitIdentW))) /= Nothing
-                    && not (null (snd splitIdentW))
+        splitIdentW = parseIndexedIdent w
+        isField = (kindOf m (fst (fieldBase (fst splitIdentW))) /= Nothing
+                   || fst (fieldBase (fst splitIdentW)) `elem` lets)
+                  && not (null (snd splitIdentW))
+        metricIdent (base, parts) =
+          case mMetricName m of
+            Just metricNm | base == metricNm -> Just (metricNm, parts)
+            _ -> Nothing
+        isMixedPair (IxPart VUp _) (IxPart VDown _) = True
+        isMixedPair (IxPart VDown _) (IxPart VUp _) = True
+        isMixedPair _ _ = False
+        indexedMetricPart (IxPart _ nm) = all isAlphaNum nm && not (null nm)
+        metricRef (IxPart v1 _) (IxPart v2 _) a b =
+          metricInternalBase v1 v2 ++ "_" ++ show a ++ "_" ++ show b
 
     matchParen d acc (IC ')' : rest)
       | d == 0 = (reverse acc, rest)
@@ -870,18 +1018,24 @@ ixExpand m env anchor expr = expandRegion env (itok (indexContractionDots expr))
       Nothing -> fatal ("unresolved index '" ++ l ++ "' in: " ++ expr)
 
     fieldRef env' w = do
-      let (b, parts) = splitIdent w
+      let (b, parts) = parseIndexedIdent w
           (fname, primes) = fieldBase b
-      ns <- mapM (need env') parts
+      ns <- mapM (need env' . ixName) parts
       case (kindOf m fname, ns) of
-        (Just (Vector True), [a]) ->
-          return (fname ++ replicate primes '\'' ++ "_" ++ show a, placeV a)
+        (Just (Vector staggered), [a]) ->
+          return (fname ++ replicate primes '\'' ++ "_" ++ show a,
+                  if staggered then placeV a else plOf [False, False, False])
+        (Just (Form _), [a]) ->
+          return (fname ++ replicate primes '\'' ++ "_" ++ show a,
+                  plOf [False, False, False])
         (Just SymM, [a, b2]) ->
           let (lo, hi) = (min a b2, max a b2)
           in return (fname ++ replicate primes '\'' ++ "_" ++ show lo ++ "_" ++ show hi,
                      placeS a b2)
         (Just Scalar, []) ->
           return (fname ++ replicate primes '\'', plOf [False, False, False])
+        (Nothing, [a]) | fname `elem` lets, primes == 0 ->
+          return (fname ++ "_" ++ show a, plOf [False, False, False])
         _ -> fatal ("bad field reference in index equation: " ++ w)
 
     deriv n (comp, place) =
@@ -1065,23 +1219,24 @@ rewriteScalar :: Model -> [String] -> String -> IO String
 rewriteScalar m lets expr =
   let pre = stepPre m expr
   in if hasIndexSyntax m pre
-       then ixExpand m [] (plOf [False, False, False]) pre
+       then ixExpand m lets [] (plOf [False, False, False]) pre
        else rewrite m lets Nothing expr
 
 hasIndexSyntax :: Model -> String -> Bool
-hasIndexSyntax m = any indexedTok . tokenize
+hasIndexSyntax m = any indexedTok . itok
   where
-    indexedTok (TId nm _) =
-      case splitOn '_' nm of
-        (_:parts@(_:_)) ->
+    indexedTok (II nm) =
+      case parseIndexedIdent nm of
+        (_, parts@(_:_)) ->
           all isIndexPart parts
           && not (isAxisDerivative nm parts)
         _ -> False
     indexedTok _ = False
-    isIndexPart [c] = isAlpha c
+    isIndexPart (IxPart _ [c]) = isAlpha c || isDigit c
     isIndexPart _ = False
     isAxisDerivative nm parts =
-      (take 2 nm == "d_" || take 3 nm == "d2_") && all (`elem` mAxes m) parts
+      (take 2 nm == "d_" || take 3 nm == "d2_")
+      && all (\p -> ixName p `elem` mAxes m) parts
 
 -- ---------------------------------------------------------------- emitter
 
@@ -1101,7 +1256,7 @@ emit m = do
     then fatal ("axes count (" ++ show (length (mAxes m))
                 ++ ") does not match dimension (" ++ show (mDim m) ++ ")")
     else return ()
-  let lets = [sNm st | st <- mSteps m, sk st == KLet]
+  let lets = [sNm st | st <- mSteps m, sk st == KLet, sIdx st == ["i"]]
       prims = primedRefs m
   if mMetric m /= Nothing && mEmbed m /= Nothing
     then fatal "declare either 'metric scale' or 'embedding', not both"
@@ -1218,6 +1373,29 @@ emit m = do
             , "  scaleForm ((-1) ^ (feDim * (formDeg f + 1) + 1)) (hodge (dForm (hodge f)))"
             , "def \948 := codiff"
             ]
+      metricContextDecls =
+            case mMetricName m of
+              Nothing -> []
+              Just _ ->
+                let identity = "if i = j then 1 else 0"
+                    gen nm expr =
+                      "def " ++ nm ++ "_i_j := generateTensor (\\[i, j] -> "
+                      ++ expr ++ ") [feDim, feDim]"
+                    (covExpr, contraExpr) = case (mMetric m, mEmbed m) of
+                      (Just hs0, _) ->
+                        let hs = "[" ++ intercalate ", " (map (renameAxes m) hs0) ++ "]"
+                            hI = "(nth i " ++ hs ++ ")"
+                        in ("if i = j then (" ++ hI ++ ") ^ 2 else 0",
+                            "if i = j then 1 / ((" ++ hI ++ ") ^ 2) else 0")
+                      (Nothing, Just _) ->
+                        ("if i = j then feGd i else feGo i j",
+                         "if i = j then 1 / (feGd i) else 0")
+                      (Nothing, Nothing) -> (identity, identity)
+                in [ gen (metricInternalBase VDown VDown) covExpr
+                   , gen (metricInternalBase VUp VUp) contraExpr
+                   , gen (metricInternalBase VUp VDown) identity
+                   , gen (metricInternalBase VDown VUp) identity
+                   ]
       printerContextDecls =
             [ "def offsetSuffix (o: MathValue) : String :="
             , "  match o as mathValue with"
@@ -1405,6 +1583,9 @@ emit m = do
          else [ "declare symbol " ++ intercalate ", " (map fst (mParams m)), "" ])
       fieldDecls = concatMap fdecl (mFlds m)
       primDecls = concatMap pdecl prims
+      tensorAliasDecls =
+        concatMap (\(nm, k) -> tensorAliases nm 0 k) (mFlds m)
+        ++ concatMap (\nm -> maybe [] (tensorAliases nm 1) (kindOf m nm)) prims
       localDecls = [ "def " ++ sNm st ++ " := function (" ++ coordArgs ++ ")"
                    | st <- mSteps m, sk st == KLocal ] ++ embDefs ++ mtDecls
       ddDef = case mDd m of
@@ -1451,7 +1632,8 @@ emit m = do
         | otherwise = [ "def main (args: [String]) : IO () :=", "  " ++ nest gates ]
   return (unlines (header ++ contextDecls ++ contextMathDecls ++ printerContextDecls
                    ++ (if null contextDecls then [] else [""])
-                   ++ fieldDecls ++ primDecls ++ localDecls ++ [""]
+                   ++ fieldDecls ++ primDecls ++ localDecls ++ tensorAliasDecls
+                   ++ metricContextDecls ++ [""]
                    ++ concat body ++ ddDef ++ [""]
                    ++ [feParams] ++ feHelpers ++ [feFlds] ++ feInits
                    ++ [feSteps] ++ [""] ++ mainDef))
@@ -1477,15 +1659,33 @@ emit m = do
         , "def " ++ nm ++ "fN : (Integer, Integer, [MathValue]) := (0, " ++ show k
           ++ ", [" ++ nm ++ "'_1, " ++ nm ++ "'_2, " ++ nm ++ "'_3])" ]
       Nothing -> []
+    tensorAliases nm primes kind = case kind of
+      Scalar -> []
+      Vector _ -> rank1Aliases nm primes
+      Form _ -> rank1Aliases nm primes
+      SymM -> rank2Aliases nm primes
+    primedBase nm primes = nm ++ replicate primes '\''
+    rank1Aliases nm primes =
+      [ "def " ++ tensorInternalBase nm [v] ++ replicate primes '\'' ++ "_i := "
+        ++ primedBase nm primes ++ "_i"
+      | v <- [VUp, VDown] ]
+    rank2Aliases nm primes =
+      [ "def " ++ tensorInternalBase nm vars ++ replicate primes '\'' ++ "_i_j := "
+        ++ "generateTensor (\\[i, j] -> if i <= j then "
+        ++ primedBase nm primes ++ "_i_j else "
+        ++ primedBase nm primes ++ "_j_i) [feDim, feDim]"
+      | vars <- [[VUp, VUp], [VUp, VDown], [VDown, VUp], [VDown, VDown]] ]
     stepDefs lets st = case sk st of
       KLet | sIdx st == ["i"] -> do
                e <- rewrite m lets Nothing (sEx st)
-               return ["def " ++ sNm st ++ "_i := withSymbols [i] " ++ e]
+               let nm = sNm st
+               return (("def " ++ nm ++ "_i := withSymbols [i] " ++ e)
+                       : tensorAliases nm 0 (Vector False))
            | otherwise -> do
                e <- rewriteScalar m lets (sEx st)
                return ["def " ++ sNm st ++ " := " ++ e]
       KEq
-        | isIndexKind (kindOf m (sNm st)) -> indexDefs m st
+        | isIndexKind (kindOf m (sNm st)) -> indexDefs m lets st
         | sIdx st == ["i"] -> do
             e <- rewrite m lets Nothing (sEx st)
             return ["def feq" ++ sNm st ++ "_i := withSymbols [i] " ++ e]
@@ -1526,7 +1726,7 @@ emit m = do
       ISym nm els -> return [ "\"  " ++ nm ++ suf ++ "[i,j,k] = " ++ escQ el ++ "\""
                             | (suf, el) <- zip ["xx", "yy", "zz", "xy", "xz", "yz"] els ]
       ICas nm ex -> do
-        e <- rewrite m lets Nothing ex
+        e <- rewriteScalar m lets ex
         return ["fmrInit \"" ++ nm ++ "\" (" ++ e ++ ")"]
 
 -- Unicode input: Greek letters transliterate to their ASCII names.  A

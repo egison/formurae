@@ -207,6 +207,12 @@ def B_i := generateTensor (\[i] -> function (x, y, z)) [3]
 def Bf : (Integer, Integer, [MathValue]) := (0, 2, [B_1, B_2, B_3])
 def E'_i := generateTensor (\[i] -> function (x, y, z)) [3]
 def EfN : (Integer, Integer, [MathValue]) := (0, 1, [E'_1, E'_2, E'_3])
+def FormuraeInternalTensorEUp_i := E_i
+def FormuraeInternalTensorEDown_i := E_i
+def FormuraeInternalTensorBUp_i := B_i
+def FormuraeInternalTensorBDown_i := B_i
+def FormuraeInternalTensorEUp'_i := E'_i
+def FormuraeInternalTensorEDown'_i := E'_i
 
 def feDD := nth 1 (formComps (dForm (dForm EfN)))
 

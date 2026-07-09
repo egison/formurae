@@ -60,9 +60,36 @@ X~i   -- 反変成分
 X_i   -- 共変成分
 ```
 
-当面のユークリッド格子バックエンドでは互換性のために上付き/下付き添字を
-正規化してよいが、parser と中間表現では区別を消さない。これにより、
-将来の計量、上げ下げ、接続係数へ進める。
+ユークリッド格子でも上付き/下付き添字を常に保持する。ユークリッド計量は
+単位行列なので、計量による上げ下げを特別扱いせず同じ仕組みで扱える。
+これにより、将来の計量、上げ下げ、接続係数へ進める。
+
+計量テンソルは `metric g` や `metric δ` のように表層名を宣言する。
+上下パターンは内部では
+compiler-private な base 名へ下ろす。内部 base 名には `_` を使わず、
+`FormuraeInternal` prefix を予約する。
+
+```text
+g~i~j  -> FormuraeInternalMetricContra_i_j
+g~i_j  -> FormuraeInternalMetricMixedUpDown_i_j
+g_i~j  -> FormuraeInternalMetricMixedDownUp_i_j
+g_i_j  -> FormuraeInternalMetricCov_i_j
+```
+
+ここで `_i_j` は Egison の添字アクセスであり、内部 base 名そのものには `_` を含めない。
+`metric g` がない場合、`g` は普通の変数名として扱われる。例えば `param g = 1.0` は
+重力加速度などに使える。一方で `g_i_j` のように添字付き計量として使うには
+`metric g` 宣言が必要である。`metric g` がある場合、同じ表層名の
+`param g` や `field g : ...` は曖昧なのでエラーにする。ただし、metric 名は
+2添字参照だけを奪うため、同名の `def` や `δ (d u)` のような演算子利用は
+別物として扱える。
+
+一般の添字付きテンソル変数についても、上下パターンごとの内部束縛を用意する。
+例えば `field v : vector` には `FormuraeInternalTensorvUp` と
+`FormuraeInternalTensorvDown` を生成し、`let A_i = ...` のような一時テンソルには
+`FormuraeInternalTensorAUp` と `FormuraeInternalTensorADown` を生成する。
+現行の格子場 lowering は互換性のためどちらも同じ成分へ写すが、将来の
+variance-aware な上げ下げに差し替えられる。
 
 ## 3. スカラー関数の自動 lift/map を実装する
 
