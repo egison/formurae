@@ -131,6 +131,11 @@ scalarIntrinsics =
   , "exp", "log", "sqrt", "pow", "fabs"
   ]
 
+standardDefs :: [Def]
+standardDefs =
+  [ Def "." ["A", "B"] "contractWith (+) (A * B)"
+  ]
+
 -- ---------------------------------------------------------------- model
 
 declaredExterns :: [String] -> [String]
@@ -452,8 +457,10 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
                 (mSteps mUse)
           mapM_ (checkInitUse mUse) (mInits mUse)
           -- resolve user-defined operators (definition order; a body may
-          -- use only operators defined before it) and expand all uses
-          defs <- resolveDefs (reverse (mDefs mUse))
+          -- use only operators defined before it) and expand all uses.
+          -- The tensor dot is a standard prelude operator, not a core
+          -- primitive; a user definition later in the file shadows it.
+          defs <- resolveDefs (standardDefs ++ reverse (mDefs mUse))
           tensorDefs <- resolveTensorDefs defs (reverse (mTensorDefs mUse))
           let mDef = mUse { mDefs = defs, mTensorDefs = tensorDefs }
           steps' <- mapM (\st -> do ex <- applyDefs defs (sEx st)
@@ -523,6 +530,11 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
     applyDefs defs s = fmap untok (goE (tokenize s))
       where
         goE ts
+          | Just (lhs, op, rhs) <- splitTopAddT ts = do
+              lhs' <- goE lhs
+              rhs' <- goE rhs
+              return (lhs' ++ [TC ' ', TC op, TC ' '] ++ rhs')
+        goE ts
           | Just dotDef <- lookupDef "." defs
           , Just parts <- splitTopDotT ts =
               fmap tokenize (expandDot dotDef parts)
@@ -539,6 +551,25 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
           case [df | df <- defs', defName df == nm] of
             df:_ -> Just df
             [] -> Nothing
+
+        splitTopAddT ts = goA (0 :: Int) [] ts
+          where
+            goA _ _ [] = Nothing
+            goA d acc (t@(TC c) : rest)
+              | c `elem` "([" = goA (d + 1) (t : acc) rest
+              | c `elem` ")]" = goA (d - 1) (t : acc) rest
+              | d == 0
+              , c `elem` "+-"
+              , binaryAddOp acc =
+                  Just (trimTok (reverse acc), c, trimTok rest)
+            goA d acc (t : rest) = goA d (t : acc) rest
+
+        binaryAddOp acc =
+          case dropWhile isSpTok acc of
+            [] -> False
+            TC p : _ | p `elem` "([,+-*/^=" -> False
+            TId e False : _ | e == "e" || e == "E" -> False
+            _ -> True
 
         expandDot _ [] = return ""
         expandDot dotDef (p:ps) = do
@@ -636,6 +667,8 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
           | otherwise = "(" ++ arg ++ ")" ++ replicate primes '\''
 
         argWithParts (arg, simple, base, primes0, _) primes parts
+          | Just body <- reindexWithSymbols arg parts =
+              if primes == 0 then body else "(" ++ body ++ ")" ++ replicate primes '\''
           | simple = base ++ replicate (primes0 + primes) '\'' ++ concatMap ixSuffix parts
           | otherwise = "(" ++ arg ++ ")" ++ concatMap ixSuffix parts
 
@@ -654,6 +687,74 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
                   in (parts ++ more, rest')
                 _ -> ([], IC m : II nm : rest)
         indexedSuffixI ts = ([], ts)
+
+        reindexWithSymbols arg parts = do
+          (names, body) <- parseWithSymbolsArg (stripOuterParensI (itok arg))
+          if length names == length parts
+            then Just (untokI (map (renameLocalIx (zip names parts)) body))
+            else Nothing
+
+        parseWithSymbolsArg ts =
+          case dropWhile isSpaceI ts of
+            II "withSymbols" : rest -> parseSymbolListI (dropWhile isSpaceI rest)
+            _ -> Nothing
+
+        parseSymbolListI (IC '[' : rest) =
+          let (inside, rest1) = breakSymbolListI (0 :: Int) [] rest
+          in Just (symbolNamesI inside, dropWhile isSpaceI rest1)
+        parseSymbolListI _ = Nothing
+
+        breakSymbolListI _ acc [] = (reverse acc, [])
+        breakSymbolListI d acc (IC ']' : rest)
+          | d == 0 = (reverse acc, rest)
+          | otherwise = breakSymbolListI (d - 1) (IC ']' : acc) rest
+        breakSymbolListI d acc (IC '[' : rest) =
+          breakSymbolListI (d + 1) (IC '[' : acc) rest
+        breakSymbolListI d acc (t : rest) = breakSymbolListI d (t : acc) rest
+
+        symbolNamesI = collectSymbolNames
+          where
+            collectSymbolNames [] = []
+            collectSymbolNames (II nm : rest)
+              | validSurfaceName nm = nm : collectSymbolNames rest
+            collectSymbolNames (_ : rest) = collectSymbolNames rest
+
+        renameLocalIx aliases (II w) =
+          let (base0, parts0) = parseIndexedIdent w
+              parts1 = map renamePart parts0
+          in II (base0 ++ concatMap ixSuffix parts1)
+          where
+            renamePart p@(IxPart _ nm) =
+              case lookup nm aliases of
+                Just p' -> p'
+                Nothing -> p
+        renameLocalIx _ tok = tok
+
+        stripOuterParensI ts =
+          case trimIToksLocal ts of
+            IC '(' : rest ->
+              case closeOuterI (0 :: Int) [] rest of
+                Just (inner, rest') | all isSpaceI rest' -> stripOuterParensI inner
+                _ -> trimIToksLocal ts
+            trimmed -> trimmed
+
+        closeOuterI _ _ [] = Nothing
+        closeOuterI d acc (IC ')' : rest)
+          | d == 0 = Just (reverse acc, rest)
+          | otherwise = closeOuterI (d - 1) (IC ')' : acc) rest
+        closeOuterI d acc (IC '(' : rest) =
+          closeOuterI (d + 1) (IC '(' : acc) rest
+        closeOuterI d acc (t : rest) = closeOuterI d (t : acc) rest
+
+        trimIToksLocal = dropWhile isSpaceI . reverse . dropWhile isSpaceI . reverse . dropWhile isSpaceI
+
+        untokI = concatMap outI
+          where
+            outI (II w) = w
+            outI (IC c) = [c]
+
+        isSpaceI (IC c) = isSpace c
+        isSpaceI _ = False
 
     expandInit defs it = case it of
       ICas nm ex -> do ex' <- applyDefs defs ex
@@ -1245,11 +1346,9 @@ strictEinstein m lets lhs expr = do
     kroneckerOccurrences _ w =
       fatal ("Kronecker delta takes two single marked indices, e.g. delta~i_j: " ++ w)
 
-    derivativeOccurrences [p@(IxPart VDown _)] _ = return [p]
-    derivativeOccurrences [_] w =
-      fatal ("indexed derivative must use a lower index, e.g. d_i or ∂_i: " ++ w)
+    derivativeOccurrences [p] _ = return [p]
     derivativeOccurrences _ w =
-      fatal ("indexed derivative takes one lower index, e.g. d_i or ∂_i: " ++ w)
+      fatal ("indexed derivative takes one marked index, e.g. d_i or d~i: " ++ w)
 
     indexedMetricPart (IxPart _ nm) = all isAlphaNum nm && not (null nm)
     isMixedPair (IxPart VUp _) (IxPart VDown _) = True
@@ -1482,8 +1581,13 @@ ixExpand m lets env anchor expr = expandRegion env (itok expr)
           in Just (reducer, body, rest2)
         _ -> Nothing
 
-    parseReducerWithRest (IC '(' : IC op : IC ')' : rest)
-      | op `elem` "+*" = Just ([op], rest)
+    parseReducerWithRest (IC '(' : rest0) =
+      case dropWhile isSpaceI rest0 of
+        IC op : rest1 | op `elem` "+*" ->
+          case dropWhile isSpaceI rest1 of
+            IC ')' : rest2 -> Just ([op], rest2)
+            _ -> Nothing
+        _ -> Nothing
     parseReducerWithRest (II nm : rest)
       | validSurfaceName nm = Just (nm, rest)
     parseReducerWithRest _ = Nothing
@@ -2694,8 +2798,8 @@ emit m = do
 -- Unicode input: Greek letters transliterate to their ASCII names.  A
 -- partial-derivative sign followed by `order radius axis` is a coordinate
 -- derivative: `∂ 2 1 x u`, `∂ 2 2 x u`.  The compact spelling `∂x` is
--- kept as the first-derivative shorthand.  A subscripted partial (`∂_i`)
--- is the indexed derivative.  `∂_x` is therefore rejected when x is a
+-- kept as the first-derivative shorthand.  A marked partial (`∂_i` or
+-- `∂~i`) is the indexed derivative.  `∂_x` is therefore rejected when x is a
 -- declared axis.  A bare partial sign still becomes d.  The small delta
 -- becomes the codifferential, and the minus sign becomes '-'.
 transliterate :: String -> String

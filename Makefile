@@ -4,6 +4,7 @@
 #   cabal build       : build the Formurae compiler (fec)
 #   make <example>    : .fe -> fec -> Egison -> Formura -> cc -> check
 #   make all          : every example (each check exits nonzero on failure)
+#   make fec-tensor-tests : compiler regression tests for indexed tensor exprs
 #
 # The Egison interpreter must be the development tree (the installed
 # binary ships an older math library); set EGISON_DIR accordingly.
@@ -96,10 +97,13 @@ $(foreach e,$(FE_EXAMPLES),$(eval $(call FE_RULE,$(e))))
 $(foreach e,$(EGI_EXAMPLES),$(eval $(call EGI_RULE,$(e))))
 $(foreach a,$(ALIASES),$(eval $(word 1,$(subst :, ,$(a))): $(word 2,$(subst :, ,$(a)))))
 
-.PHONY: all setup clean $(FE_EXAMPLES) $(EGI_EXAMPLES) \
+.PHONY: all setup clean fec-tensor-tests $(FE_EXAMPLES) $(EGI_EXAMPLES) \
         $(foreach a,$(ALIASES),$(word 1,$(subst :, ,$(a))))
 
 all: $(FE_EXAMPLES) $(EGI_EXAMPLES)
+
+fec-tensor-tests:
+	sh tests/fec_tensor_expr.sh
 
 setup:
 	./setup.sh
