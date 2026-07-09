@@ -2,6 +2,12 @@
 
 Date: 2026-07-09
 
+Follow-up: このメモは「Formurae に一般的な添字補完器を実装しない」という
+保守的な境界を記録したものだが、その後の方針として、Egison と同じ
+`.` / `contractWith` を Formurae の AST に持たせ、添字つき `def` を
+prelude 的な数式定義へ広げる方向を採る。詳細は
+`design/20260709-dot-contractwith-tensor-operators.md` を参照する。
+
 ## 目的
 
 Formurae は、Formura へ落とすための物理 DSL / 座標文脈 DSL として薄く保つ。
