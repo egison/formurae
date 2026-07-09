@@ -898,10 +898,33 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
 
 surfaceBanned :: Model -> String -> Maybe String
 surfaceBanned m s =
+  bareIndexedField (tokenize s)
+  `orElse`
   foldr (\t acc -> checkTok t `orElse` acc) Nothing (tokenize s)
   `orElse`
   foldr (\t acc -> checkIndexTok t `orElse` acc) Nothing (itok s)
   where
+    bareIndexedField [] = Nothing
+    bareIndexedField (TId nm _ : rest)
+      | isBareIndexedFieldName nm
+      , not (indexedAfter rest) =
+          Just ("indexed tensor field " ++ nm
+                ++ " must be referenced with indices")
+    bareIndexedField (_ : rest) = bareIndexedField rest
+
+    isBareIndexedFieldName nm =
+      case parseIndexedIdent nm of
+        (base0, []) ->
+          let (base, _) = fieldBaseOf base0
+          in case fieldDeclOf m base of
+               Just fd -> fdIndex fd /= Nothing
+               Nothing -> False
+        _ -> False
+
+    indexedAfter (TC '~' : _) = True
+    indexedAfter (TC '_' : _) = True
+    indexedAfter _ = False
+
     checkTok (TId nm _)
       | Just msg <- invalidDerivativeOp m nm =
           Just msg
@@ -978,7 +1001,7 @@ lbTarget m = case concatMap scan (mSteps m) of
 
 strictEinstein :: Model -> [String] -> [IxPart] -> String -> IO ()
 strictEinstein m lets lhs expr = do
-  alts <- regionOccurrences (itok (indexContractionDots expr))
+  alts <- regionOccurrences (itok expr)
   mapM_ checkTerm alts
   where
     regionOccurrences ts = fmap concat (mapM termOccurrences (splitTerms ts))
@@ -1117,7 +1140,9 @@ validateFieldRefParts m lets w =
         (Nothing, []) -> return ()
         (Nothing, _ : _) ->
           fatal ("field " ++ fdName fd ++ " has no declared index variance; use the indexed field syntax in its declaration")
-        (Just _, []) -> return ()
+        (Just _, []) ->
+          fatal ("indexed tensor field " ++ fdName fd
+                 ++ " must be referenced with indices")
         (Just (FieldIndex [Plain decl]), _) ->
           if sameVarianceList decl parts
             then return ()
@@ -1184,7 +1209,7 @@ placeText = plOf
 -- index letter is summed over the smallest term containing it, then
 -- names and derivatives are resolved
 ixExpand :: Model -> [String] -> [(String, Int)] -> Placement -> String -> IO String
-ixExpand m lets env anchor expr = expandRegion env (itok (indexContractionDots expr))
+ixExpand m lets env anchor expr = expandRegion env (itok expr)
   where
     euclideanDeclaredMetric =
       mMetricName m /= Nothing && mMetric m == Nothing && mEmbed m == Nothing
@@ -1218,18 +1243,117 @@ ixExpand m lets env anchor expr = expandRegion env (itok (indexContractionDots e
 
     -- one term: sum its own (depth-0) dummies, then resolve
     expandTerm env' ts =
+      case parseContractWith ts of
+        Just (reducer, body) -> expandContract env' reducer body
+        Nothing ->
+          case dotProduct ts of
+            Just body -> expandContract env' "+" body
+            Nothing -> expandImplicit env' ts
+
+    expandImplicit env' ts =
       case levelDummies env' ts of
         (k:_) -> do
-          parts <- mapM (\n -> expandTerm ((k, n) : env') ts) (axisRange m)
+          parts <- mapM (\n -> expandImplicit ((k, n) : env') ts) (axisRange m)
           return (sumText parts)
         [] | zeroByIdentityTensor env' ts -> return "0"
            | otherwise -> resolve env' ts
+
+    expandContract env' reducer body =
+      let body' = stripOuterGroups body
+      in case levelDummies env' body' of
+        (k:_) -> do
+          parts <- mapM (\n -> expandContract ((k, n) : env') reducer body') (axisRange m)
+          return (foldReducerText reducer parts)
+        [] | zeroByIdentityTensor env' body' -> return "0"
+           | otherwise -> resolve env' body'
+
+    parseContractWith ts =
+      case dropWhile isSpaceI ts of
+        II "contractWith" : rest -> parseReducer (dropWhile isSpaceI rest)
+        _ -> Nothing
+
+    parseReducer (IC '(' : IC op : IC ')' : rest)
+      | op `elem` "+*" =
+          Just ([op], dropWhile isSpaceI rest)
+    parseReducer (II nm : rest)
+      | validSurfaceName nm =
+          Just (nm, dropWhile isSpaceI rest)
+    parseReducer _ = Nothing
+
+    isSpaceI (IC c) = isSpace c
+    isSpaceI _ = False
+
+    dotProduct ts =
+      case splitTopDots ts of
+        [_] -> Nothing
+        parts -> Just (joinMulToks parts)
+
+    splitTopDots ts = go (0 :: Int) [] ts
+      where
+        go _ acc [] = [trimIToks (reverse acc)]
+        go d acc (t@(IC c) : rest)
+          | c `elem` "([" = go (d + 1) (t : acc) rest
+          | c `elem` ")]" = go (d - 1) (t : acc) rest
+          | d == 0
+          , c == '.'
+          , leftSpace acc
+          , rightSpace rest =
+              trimIToks (reverse acc) : go d [] rest
+        go d acc (t : rest) = go d (t : acc) rest
+
+    leftSpace (IC c : _) = isSpace c
+    leftSpace _ = False
+
+    rightSpace (IC c : _) = isSpace c
+    rightSpace _ = False
+
+    joinMulToks [] = []
+    joinMulToks [p] = p
+    joinMulToks (p:ps) = p ++ [IC ' ', IC '*', IC ' '] ++ joinMulToks ps
+
+    trimIToks = dropWhile isSpaceI . reverse . dropWhile isSpaceI . reverse . dropWhile isSpaceI
+
+    stripOuterGroups ts =
+      case dropWhile isSpaceI (reverse (dropWhile isSpaceI (reverse (dropWhile isSpaceI ts)))) of
+        IC '(' : rest ->
+          case closeGroup ')' rest [] of
+            Just (inner, rest') | all isSpaceI rest' -> stripOuterGroups inner
+            _ -> ts
+        _ -> ts
+
+    closeGroup close = goG (0 :: Int)
+      where
+        goG _ _ [] = Nothing
+        goG d acc (IC c : rest)
+          | c == close && d == 0 = Just (reverse acc, rest)
+          | c == close = goG (d - 1) (IC c : acc) rest
+          | (close == ')' && c == '(') || (close == ']' && c == '[') =
+              goG (d + 1) (IC c : acc) rest
+        goG d acc (t : rest) = goG d (t : acc) rest
 
     sumText parts =
       case filter (/= "0") (map dropOneFactor parts) of
         [] -> "0"
         [p] -> p
         ps -> "(" ++ intercalate " + " ps ++ ")"
+
+    foldReducerText reducer parts =
+      case reducer of
+        "+" -> sumText parts
+        "*" -> productText parts
+        _ -> foldFunctionText reducer parts
+
+    productText parts =
+      case parts of
+        [] -> "1"
+        [p] -> p
+        ps -> "(" ++ intercalate " * " ps ++ ")"
+
+    foldFunctionText reducer parts =
+      case parts of
+        [] -> reducer ++ "()"
+        [p] -> p
+        p:ps -> foldl (\acc q -> reducer ++ "(" ++ acc ++ ", " ++ q ++ ")") p ps
 
     joinAdd op e1 e2
       | null (strip e1) = [op] ++ e2
@@ -1539,7 +1663,7 @@ invalidDerivativeOp m nm =
 -- shared step-expression preprocessing: rename axes, then resolve the
 -- small coordinate derivative primitives.
 stepPre :: Model -> String -> String
-stepPre m = mathOps m . renameAxes m
+stepPre m = mathOps m . rewriteCompose . renameAxes m
 
 isSpTok :: Tok -> Bool
 isSpTok (TC c) = isSpace c
@@ -1550,6 +1674,22 @@ untok = concatMap out
   where
     out (TId nm pr) = nm ++ (if pr then "'" else "")
     out (TC c) = [c]
+
+rewriteCompose :: String -> String
+rewriteCompose = untok . go . tokenize
+  where
+    go [] = []
+    go (TId "compose" False : rest) =
+      let (_, rest1) = span isSpTok rest
+      in case rest1 of
+           TId f fp : restF ->
+             let (_, rest2) = span isSpTok restF
+             in case rest2 of
+                  TId g gp : restG ->
+                    TC '(' : TId f fp : TC '.' : TId g gp : TC ')' : go restG
+                  _ -> TId "compose" False : go rest
+           _ -> TId "compose" False : go rest
+    go (t : rest) = t : go rest
 
 -- collect tokens up to the ')' closing an already-consumed '('
 closeParenT :: Int -> [Tok] -> [Tok] -> Maybe ([Tok], [Tok])
