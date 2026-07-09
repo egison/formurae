@@ -1,0 +1,725 @@
+module Formurae.TensorExpr
+  ( Placement
+  , zeroPlaceB
+  , placeVB
+  , placeSB
+  , placeText
+  , ixExpand
+  , expandTensorDefs
+  , strictEinstein
+  , validateFieldRefParts
+  ) where
+
+import Data.Char (isAlphaNum, isDigit, isSpace)
+import Data.List (intercalate, nub, stripPrefix)
+
+import Formurae.Common (fatal, strip, validSurfaceName)
+import Formurae.Index
+import Formurae.Syntax
+
+type Placement = [Bool]
+
+zeroPlaceB :: Model -> Placement
+zeroPlaceB m = replicate (mDim m) False
+
+placeVB :: Model -> Int -> Placement
+placeVB m a = [c == a | c <- axisRange m]
+
+placeSB :: Model -> Int -> Int -> Placement
+placeSB m a b
+  | a == b = zeroPlaceB m
+  | otherwise = [c == a || c == b | c <- axisRange m]
+
+togglePlace :: Int -> Placement -> Placement
+togglePlace a =
+  zipWith (\idx bit -> if idx == a then not bit else bit) [1 :: Int ..]
+
+placeText :: Placement -> String
+placeText = plOf
+
+-- Free indices come from the left-hand side.  Repeated upper/lower index
+-- letters form diagonal axes; only contractWith, or `.` via contractWith,
+-- folds those axes.
+-- delta~i_j is Kronecker's delta, and epsilon~i~j~k is the 3D Levi-Civita
+-- symbol.
+strictEinstein :: Model -> [String] -> [IxPart] -> String -> IO ()
+strictEinstein m lets lhs expr = do
+  alts <- regionOccurrences [] (itok expr)
+  mapM_ checkTerm alts
+  where
+    regionOccurrences aliases ts =
+      fmap concat (mapM (termOccurrences aliases) (splitTerms ts))
+
+    splitTerms = go (0 :: Int) []
+      where
+        go _ cur [] = [reverse cur | not (null cur)]
+        go d cur (t@(IC c) : rest)
+          | c `elem` "([" = go (d + 1) (t : cur) rest
+          | c `elem` ")]" = go (d - 1) (t : cur) rest
+          | d == 0 && c `elem` "+-" =
+              if null cur
+                then go d cur rest
+                else reverse cur : go d [] rest
+        go d cur (t : rest) = go d (t : cur) rest
+
+    termOccurrences aliases ts = go [[]] ts
+      where
+        go acc [] = return acc
+        go acc (II "withSymbols" : rest) =
+          case parseWithSymbolsBody rest of
+            Just (names, body) -> do
+              let aliases' = zip names (map ixName lhs) ++ aliases
+              innerAlts <- regionOccurrences aliases' body
+              return [a ++ b | a <- acc, b <- innerAlts]
+            Nothing -> go acc rest
+        go acc (II w : rest) = do
+          occ <- identOccurrences w
+          go (map (++ map (renameIx aliases) occ) acc) rest
+        go acc (IC '(' : rest) = do
+          let (inner, rest') = matchGroup ')' rest
+          innerAlts <- regionOccurrences aliases inner
+          go [a ++ b | a <- acc, b <- innerAlts] rest'
+        go acc (IC '[' : rest) = do
+          let (inner, rest') = matchGroup ']' rest
+          innerAlts <- regionOccurrences aliases inner
+          go [a ++ b | a <- acc, b <- innerAlts] rest'
+        go acc (_ : rest) = go acc rest
+
+    renameIx aliases (IxPart v nm) =
+      case lookup nm aliases of
+        Just nm' -> IxPart v nm'
+        Nothing -> IxPart v nm
+
+    parseWithSymbolsBody rest =
+      case dropWhile isSpaceI rest of
+        IC '[' : rest1 ->
+          let (inside, body) = breakSymbolList (0 :: Int) [] rest1
+          in Just (symbolNames inside, dropWhile isSpaceI body)
+        _ -> Nothing
+
+    breakSymbolList _ acc [] = (reverse acc, [])
+    breakSymbolList d acc (IC ']' : rest)
+      | d == 0 = (reverse acc, rest)
+      | otherwise = breakSymbolList (d - 1) (IC ']' : acc) rest
+    breakSymbolList d acc (IC '[' : rest) =
+      breakSymbolList (d + 1) (IC '[' : acc) rest
+    breakSymbolList d acc (t : rest) = breakSymbolList d (t : acc) rest
+
+    symbolNames = go
+      where
+        go [] = []
+        go (II nm : rest) | validSurfaceName nm = nm : go rest
+        go (_ : rest) = go rest
+
+    isSpaceI (IC c) = isSpace c
+    isSpaceI _ = False
+
+    matchGroup close = goG (0 :: Int) []
+      where
+        goG _ acc [] = (reverse acc, [])
+        goG d acc (IC c : rest)
+          | c == close && d == 0 = (reverse acc, rest)
+          | c == close = goG (d - 1) (IC c : acc) rest
+          | (close == ')' && c == '(') || (close == ']' && c == '[') =
+              goG (d + 1) (IC c : acc) rest
+        goG d acc (t : rest) = goG d (t : acc) rest
+
+    identOccurrences w =
+      let (base0, parts) = parseIndexedIdent w
+          (base, _) = fieldBaseOf base0
+      in case () of
+           _
+             | Just metricNm <- mMetricName m
+             , base == metricNm
+             , length parts == 2
+             , all indexedMetricPart parts ->
+                 metricOccurrences metricNm parts w
+             | base == "epsilon", not (null parts) ->
+                 if mDim m /= 3
+                   then fatal ("epsilon currently requires dimension 3: " ++ w)
+                   else if length parts == 3 && all isSingleAlphaIx parts
+                   then return parts
+                   else fatal ("epsilon takes three single marked indices, e.g. epsilon~i~j~k: " ++ w)
+             | base == "delta", not (null parts) ->
+                 kroneckerOccurrences parts w
+             | base == "d", not (null parts) ->
+                 derivativeOccurrences parts w
+             | fieldDeclOf m base /= Nothing && not (null parts) -> do
+                 validateFieldRefParts m lets w
+                 return parts
+             | base `elem` lets && not (null parts) ->
+                 return parts
+             | Just metricNm <- mMetricName m
+             , base == metricNm
+             , not (null parts) ->
+                 metricOccurrences metricNm parts w
+             | otherwise ->
+                 return []
+
+    metricOccurrences metricNm parts w =
+      if length parts == 2 && all indexedMetricPart parts
+        then return parts
+        else fatal ("metric tensor " ++ metricNm ++ " needs exactly two marked indices: " ++ w)
+
+    kroneckerOccurrences [p, q] w
+      | all isSingleAlphaIx [p, q] =
+          if isMixedPair p q
+            then return [p, q]
+            else fatal ("Kronecker delta indices must be mixed, e.g. delta~i_j; use metric g and g~i~j/g_i_j for metric components: " ++ w)
+    kroneckerOccurrences _ w =
+      fatal ("Kronecker delta takes two single marked indices, e.g. delta~i_j: " ++ w)
+
+    derivativeOccurrences [p] _ = return [p]
+    derivativeOccurrences _ w =
+      fatal ("indexed derivative takes one marked index, e.g. d_i or d~i: " ++ w)
+
+    indexedMetricPart (IxPart _ nm) = all isAlphaNum nm && not (null nm)
+    isMixedPair (IxPart VUp _) (IxPart VDown _) = True
+    isMixedPair (IxPart VDown _) (IxPart VUp _) = True
+    isMixedPair _ _ = False
+
+    checkTerm occs = do
+      mapM_ checkFree lhs
+      mapM_ checkDummy dummyNames
+      where
+        names = nub (map ixName occs ++ map ixName lhs)
+        lhsNames = map ixName lhs
+        dummyNames = [nm | nm <- names, nm `notElem` lhsNames]
+        sameName nm (IxPart _ nm') = nm == nm'
+        checkFree lp@(IxPart lv ln) =
+          case filter (sameName ln) occs of
+            [IxPart rv _] | rv == lv -> return ()
+            [] -> fatal ("free index " ++ showIx lp ++ " is missing in term: " ++ expr)
+            [_] -> fatal ("free index " ++ showIx lp ++ " has wrong variance in term: " ++ expr)
+            _ -> fatal ("free index " ++ ixName lp ++ " appears more than once in term: " ++ expr)
+        checkDummy nm =
+          case filter (sameName nm) occs of
+            [IxPart VUp _, IxPart VDown _] -> return ()
+            [IxPart VDown _, IxPart VUp _] -> return ()
+            [_] -> fatal ("index " ++ nm ++ " is free but not on the left-hand side in term: " ++ expr)
+            [_, _] -> fatal ("dummy index " ++ nm ++ " must appear once up and once down in term: " ++ expr)
+            [] -> return ()
+            _ -> fatal ("index " ++ nm ++ " appears more than twice in term: " ++ expr)
+
+    showIx (IxPart VUp nm) = "~" ++ nm
+    showIx (IxPart VDown nm) = "_" ++ nm
+
+validateFieldRefParts :: Model -> [String] -> String -> IO ()
+validateFieldRefParts m lets w =
+  let (base0, parts) = parseIndexedIdent w
+      (fname, _) = fieldBaseOf base0
+  in case fieldDeclOf m fname of
+       Just fd -> validateDecl fd parts
+       Nothing | fname `elem` lets -> return ()
+       _ -> return ()
+  where
+    validateDecl fd parts =
+      case (fdIndex fd, parts) of
+        (Nothing, []) -> return ()
+        (Nothing, _ : _) ->
+          fatal ("field " ++ fdName fd ++ " has no declared index variance; use the indexed field syntax in its declaration")
+        (Just _, []) ->
+          fatal ("indexed tensor field " ++ fdName fd
+                 ++ " must be referenced with indices")
+        (Just (FieldIndex [Plain decl]), _) ->
+          if sameVarianceList decl parts
+            then return ()
+            else fatal ("field " ++ fdName fd ++ " is referenced with incompatible index variance: " ++ w)
+        (Just (FieldIndex [Symmetric decl]), _) ->
+          if sameVarianceList decl parts || sameVarianceList (reverse decl) parts
+            then return ()
+            else fatal ("symmetric field " ++ fdName fd ++ " is referenced with incompatible index variance: " ++ w)
+        (Just (FieldIndex [Antisymmetric decl]), _) ->
+          if sameVarianceList decl parts || sameVarianceList (reverse decl) parts
+            then return ()
+            else fatal ("antisymmetric field " ++ fdName fd ++ " is referenced with incompatible index variance: " ++ w)
+        _ -> fatal ("unsupported field index declaration for " ++ fdName fd)
+
+-- Expand one component.  Indexed derivatives applied to staggered field
+-- components use half-cell differences anchored at the target component
+-- placement (Virieux/Yee); symmetric components are canonicalized.
+ixExpand :: Model -> [String] -> [(String, Int)] -> Placement -> String -> IO String
+ixExpand m lets env anchor expr = expandRegion env (itok expr)
+  where
+    euclideanDeclaredMetric =
+      mMetricName m /= Nothing && mMetric m == Nothing && mEmbed m == Nothing
+
+    metricIdent (base, parts) =
+      case mMetricName m of
+        Just metricNm | base == metricNm -> Just (metricNm, parts)
+        _ -> Nothing
+
+    isMixedPair (IxPart VUp _) (IxPart VDown _) = True
+    isMixedPair (IxPart VDown _) (IxPart VUp _) = True
+    isMixedPair _ _ = False
+
+    indexedMetricPart (IxPart _ nm) = all isAlphaNum nm && not (null nm)
+
+    metricRef (IxPart v1 _) (IxPart v2 _) a b
+      | euclideanDeclaredMetric = if a == b then "1" else "0"
+      | otherwise = metricInternalBase v1 v2 ++ "_" ++ show a ++ "_" ++ show b
+
+    -- a region is a +/- separated list of terms
+    expandRegion env' ts = goR env' (0 :: Int) [] ts
+    goR env' _ cur [] = expandTerm env' (reverse cur)
+    goR env' d cur (t@(IC c) : rest)
+      | c `elem` "([" = goR env' (d + 1) (t : cur) rest
+      | c `elem` ")]" = goR env' (d - 1) (t : cur) rest
+      | d == 0 && c `elem` "+-" = do
+          e1 <- expandTerm env' (reverse cur)
+          e2 <- goR env' 0 [] rest
+          return (joinAdd c e1 e2)
+    goR env' d cur (t : rest) = goR env' d (t : cur) rest
+
+    -- one term: explicit contraction is handled by contractWith or `.`;
+    -- otherwise unresolved diagonal axes are an error.
+    expandTerm env' ts =
+      case parseWithSymbols ts of
+        Just (names, body) -> expandWithSymbols env' names body
+        Nothing ->
+          case parseContractWith ts of
+            Just (reducer, body) -> expandContract env' reducer body
+            Nothing ->
+              case dotProduct ts of
+                Just body -> expandContract env' "+" body
+                Nothing -> expandImplicit env' ts
+
+    expandWithSymbols env' names body =
+      let vals = map snd env'
+          localEnv = zip names vals
+          envNoShadow = [(k, v) | (k, v) <- env', k `notElem` names]
+      in expandRegion (localEnv ++ envNoShadow) body
+
+    expandImplicit env' ts =
+      case levelDummies env' ts of
+        (k:_) ->
+          fatal ("index " ++ k ++ " is diagonal but not contracted; use contractWith or . in: " ++ expr)
+        [] | zeroByIdentityTensor env' ts -> return "0"
+           | otherwise -> resolve env' ts
+
+    expandContract env' reducer body =
+      let body' = stripOuterGroups body
+      in case levelDummies env' body' of
+        (k:_) -> do
+          parts <- mapM (\n -> expandContract ((k, n) : env') reducer body') (axisRange m)
+          return (foldReducerText reducer parts)
+        [] | zeroByIdentityTensor env' body' -> return "0"
+           | otherwise -> resolve env' body'
+
+    parseContractWith ts =
+      case dropWhile isSpaceI ts of
+        II "contractWith" : rest ->
+          case parseContractWithCall rest of
+            Just (reducer, body, rest2)
+              | all isSpaceI rest2 -> Just (reducer, body)
+            _ ->
+              case parseReducerWithRest (dropWhile isSpaceI rest) of
+                Just (_, IC '(' : _) -> Nothing
+                Just (reducer, body) -> Just (reducer, dropWhile isSpaceI body)
+                Nothing -> Nothing
+        _ -> Nothing
+
+    isSpaceI (IC c) = isSpace c
+    isSpaceI _ = False
+
+    parseWithSymbols ts =
+      case dropWhile isSpaceI ts of
+        II "withSymbols" : rest -> do
+          (names, body) <- parseSymbolList (dropWhile isSpaceI rest)
+          Just (names, dropWhile isSpaceI body)
+        _ -> Nothing
+
+    parseSymbolList (IC '[' : rest) =
+      let (inside, rest1) = breakSymbolList (0 :: Int) [] rest
+      in Just (symbolNames inside, rest1)
+    parseSymbolList _ = Nothing
+
+    breakSymbolList _ acc [] = (reverse acc, [])
+    breakSymbolList d acc (IC ']' : rest)
+      | d == 0 = (reverse acc, rest)
+      | otherwise = breakSymbolList (d - 1) (IC ']' : acc) rest
+    breakSymbolList d acc (IC '[' : rest) =
+      breakSymbolList (d + 1) (IC '[' : acc) rest
+    breakSymbolList d acc (t : rest) = breakSymbolList d (t : acc) rest
+
+    symbolNames = go
+      where
+        go [] = []
+        go (II nm : rest) | validSurfaceName nm = nm : go rest
+        go (_ : rest) = go rest
+
+    parseContractWithCall rest = do
+      (reducer, rest1) <- parseReducerWithRest (dropWhile isSpaceI rest)
+      case dropWhile isSpaceI rest1 of
+        IC '(' : bodyRest ->
+          let (body, rest2) = matchParen (0 :: Int) [] bodyRest
+          in Just (reducer, body, rest2)
+        _ -> Nothing
+
+    parseReducerWithRest (IC '(' : rest0) =
+      case dropWhile isSpaceI rest0 of
+        IC op : rest1 | op `elem` "+*" ->
+          case dropWhile isSpaceI rest1 of
+            IC ')' : rest2 -> Just ([op], rest2)
+            _ -> Nothing
+        _ -> Nothing
+    parseReducerWithRest (II nm : rest)
+      | validSurfaceName nm = Just (nm, rest)
+    parseReducerWithRest _ = Nothing
+
+    dotProduct ts =
+      case splitTopDots ts of
+        [_] -> Nothing
+        parts -> Just (joinMulToks parts)
+
+    splitTopDots ts = go (0 :: Int) [] ts
+      where
+        go _ acc [] = [trimIToks (reverse acc)]
+        go d acc (t@(IC c) : rest)
+          | c `elem` "([" = go (d + 1) (t : acc) rest
+          | c `elem` ")]" = go (d - 1) (t : acc) rest
+          | d == 0
+          , c == '.'
+          , leftSpace acc
+          , rightSpace rest =
+              trimIToks (reverse acc) : go d [] rest
+        go d acc (t : rest) = go d (t : acc) rest
+
+    leftSpace (IC c : _) = isSpace c
+    leftSpace _ = False
+
+    rightSpace (IC c : _) = isSpace c
+    rightSpace _ = False
+
+    joinMulToks [] = []
+    joinMulToks [p] = p
+    joinMulToks (p:ps) = p ++ [IC ' ', IC '*', IC ' '] ++ joinMulToks ps
+
+    trimIToks = dropWhile isSpaceI . reverse . dropWhile isSpaceI . reverse . dropWhile isSpaceI
+
+    stripOuterGroups ts =
+      case dropWhile isSpaceI (reverse (dropWhile isSpaceI (reverse (dropWhile isSpaceI ts)))) of
+        IC '(' : rest ->
+          case closeGroup ')' rest [] of
+            Just (inner, rest') | all isSpaceI rest' -> stripOuterGroups inner
+            _ -> ts
+        _ -> ts
+
+    closeGroup close = goG (0 :: Int)
+      where
+        goG _ _ [] = Nothing
+        goG d acc (IC c : rest)
+          | c == close && d == 0 = Just (reverse acc, rest)
+          | c == close = goG (d - 1) (IC c : acc) rest
+          | (close == ')' && c == '(') || (close == ']' && c == '[') =
+              goG (d + 1) (IC c : acc) rest
+        goG d acc (t : rest) = goG d (t : acc) rest
+
+    sumText parts =
+      case filter (/= "0") (map dropOneFactor parts) of
+        [] -> "0"
+        [p] -> p
+        ps -> "(" ++ intercalate " + " ps ++ ")"
+
+    foldReducerText reducer parts =
+      case reducer of
+        "+" -> sumText parts
+        "*" -> productText parts
+        _ -> foldFunctionText reducer parts
+
+    productText parts =
+      case parts of
+        [] -> "1"
+        [p] -> p
+        ps -> "(" ++ intercalate " * " ps ++ ")"
+
+    foldFunctionText reducer parts =
+      case parts of
+        [] -> reducer ++ "()"
+        [p] -> p
+        p:ps -> foldl (\acc q -> reducer ++ "(" ++ acc ++ ", " ++ q ++ ")") p ps
+
+    joinAdd op e1 e2
+      | null (strip e1) = [op] ++ e2
+      | op == '+' && isZeroText e1 = e2
+      | op == '+' && isZeroText e2 = e1
+      | op == '-' && isZeroText e2 = e1
+      | otherwise = e1 ++ [op] ++ e2
+
+    isZeroText s = strip s == "0"
+
+    dropOneFactor s =
+      case stripPrefix "1 * " s of
+        Just rest -> rest
+        Nothing -> s
+
+    zeroByIdentityTensor env' = go (0 :: Int)
+      where
+        go _ [] = False
+        go d (IC c : rest)
+          | c `elem` "([" = go (d + 1) rest
+          | c `elem` ")]" = go (d - 1) rest
+          | otherwise = go d rest
+        go 0 (II w : rest) = isZero w || go 0 rest
+        go d (_ : rest) = go d rest
+
+        resolvedDifferent p q =
+          case (resolveIx env' (ixName p), resolveIx env' (ixName q)) of
+            (Just pv, Just qv) -> pv /= qv
+            _ -> False
+        isZero w =
+          case parseIndexedIdent w of
+            ("delta", [p, q])
+              | all isSingleAlphaIx [p, q], isMixedPair p q ->
+                  resolvedDifferent p q
+            (base, [p, q])
+              | euclideanDeclaredMetric
+              , Just _ <- metricIdent (base, [p, q])
+              , indexedMetricPart p
+              , indexedMetricPart q ->
+                  resolvedDifferent p q
+            _ -> False
+
+    levelDummies env' ts = nub (go2 (0 :: Int) ts)
+      where
+        go2 _ [] = []
+        go2 d (IC c : rest)
+          | c `elem` "([" = go2 (d + 1) rest
+          | c `elem` ")]" = go2 (d - 1) rest
+          | otherwise = go2 d rest
+        go2 0 (II "withSymbols" : rest) =
+          case parseSymbolList (dropWhile isSpaceI rest) of
+            Just (_, rest2) -> go2 0 rest2
+            Nothing -> []
+        go2 0 (II "contractWith" : rest) =
+          case parseContractWithCall rest of
+            Just (_, _, rest2) -> go2 0 rest2
+            Nothing -> []
+        go2 d (II w : rest)
+          | d == 0 = [l | l <- idxLetters w, lookup l env' == Nothing] ++ go2 d rest
+          | otherwise = go2 d rest
+
+    idxLetters w =
+      let (_, parts) = parseIndexedIdent w
+      in [ ixName pt | pt <- parts, isSingleAlphaIx pt ]
+
+    resolveIx env' pt
+      | all isDigit pt = Just (read pt)
+      | otherwise = lookup pt env'
+
+    -- resolve a dummy-free term; parens recurse as fresh regions
+    resolve _ [] = return ""
+    resolve env' (IC '(' : rest) = do
+      let (inner, rest') = matchParen (0 :: Int) [] rest
+      e <- expandRegion env' inner
+      fmap (("(" ++ e ++ ")") ++) (resolve env' rest')
+    resolve env' (IC c : rest) = fmap ([c] ++) (resolve env' rest)
+    resolve env' (II "contractWith" : rest) =
+      case parseContractWithCall rest of
+        Just (reducer, body, rest2) -> do
+          e <- expandContract env' reducer body
+          fmap (e ++) (resolve env' rest2)
+        Nothing ->
+          fatal ("contractWith needs a reducer and parenthesized body: " ++ expr)
+    resolve env' (II "withSymbols" : rest) =
+      case parseSymbolList (dropWhile isSpaceI rest) of
+        Just (names, body) -> do
+          e <- expandWithSymbols env' names body
+          return e
+        Nothing ->
+          fatal ("withSymbols needs a bracketed symbol list: " ++ expr)
+    resolve env' (II w : rest)
+      -- Kronecker delta, one index per mark: delta~i_j / \948~i_j.
+      -- Same-variance metric components are written with the declared metric
+      -- name, for example g_i_j / g~i~j when `metric g` is present.
+      | Just (_, [p, q]) <- metricIdent splitIdentW
+      , indexedMetricPart p, indexedMetricPart q = do
+          pv <- need env' (ixName p)
+          qv <- need env' (ixName q)
+          fmap ((metricRef p q pv qv) ++) (resolve env' rest)
+      | ("epsilon", [p, q, r]) <- splitIdentW
+      , all isSingleAlphaIx [p, q, r] = do
+          if mDim m /= 3
+            then fatal ("epsilon currently requires dimension 3: " ++ w)
+            else return ()
+          vals <- mapM (need env' . ixName) [p, q, r]
+          fmap ((show (leviCivita3 vals)) ++) (resolve env' rest)
+      | ("delta", [p, q]) <- splitIdentW
+      , all isSingleAlphaIx [p, q] = do
+          if not (isMixedPair p q)
+            then fatal ("Kronecker delta indices must be mixed, e.g. delta~i_j; use metric g and g~i~j/g_i_j for metric components: " ++ w)
+            else return ()
+          pv <- need env' (ixName p)
+          qv <- need env' (ixName q)
+          fmap ((if pv == qv then "1" else "0") ++) (resolve env' rest)
+      | ("delta", _ : _) <- splitIdentW =
+          fatal ("Kronecker delta takes two single marked indices, e.g. delta~i_j: " ++ w)
+      | ("epsilon", _ : _) <- splitIdentW =
+          fatal ("epsilon takes three single marked indices, e.g. epsilon~i~j~k: " ++ w)
+      | ("d", [k]) <- splitIdentW = do
+          (ks, opw, rest2) <- derivativeOperand [k] rest
+          ns <- mapM (need env' . ixName) ks
+          ref <- fieldRef env' opw
+          let (e, _) = deriveChain ns anchor ref
+          fmap (e ++) (resolve env' rest2)
+      | isField = do
+          ref <- fieldRef env' w
+          fmap (fst ref ++) (resolve env' rest)
+      | Just (metricNm, _ : _) <- metricIdent splitIdentW =
+          fatal ("metric tensor " ++ metricNm ++ " needs exactly two marked indices: " ++ w
+                 ++ " (examples: " ++ metricNm ++ "~i~j, " ++ metricNm ++ "~i_j, "
+                 ++ metricNm ++ "_i~j, " ++ metricNm ++ "_i_j)")
+      | not (null (snd splitIdentW)) =
+          fatal ("unknown indexed tensor: " ++ w
+                 ++ " (declare metric " ++ fst splitIdentW
+                 ++ " to use it as the metric tensor)")
+      | otherwise = fmap (w ++) (resolve env' rest)
+      where
+        splitIdentW = parseIndexedIdent w
+        isField = (kindOf m (fst (fieldBaseOf (fst splitIdentW))) /= Nothing
+                   || fst (fieldBaseOf (fst splitIdentW)) `elem` lets)
+                  && not (null (snd splitIdentW))
+    matchParen d acc (IC ')' : rest)
+      | d == 0 = (reverse acc, rest)
+      | otherwise = matchParen (d - 1) (IC ')' : acc) rest
+    matchParen d acc (t@(IC '(') : rest) = matchParen (d + 1) (t : acc) rest
+    matchParen d acc (t : rest) = matchParen d (t : acc) rest
+    matchParen _ acc [] = (reverse acc, [])
+
+    isSp (IC c) = isSpace c
+    isSp _ = False
+
+    need env' l = case resolveIx env' l of
+      Just n -> return n
+      Nothing -> fatal ("unresolved index '" ++ l ++ "' in: " ++ expr)
+
+    fieldRef env' w = do
+      let (b, parts) = parseIndexedIdent w
+          (fname, primes) = fieldBaseOf b
+      validateFieldRefParts m lets w
+      ns <- mapM (need env' . ixName) parts
+      case (kindOf m fname, ns) of
+        (Just (Vector staggered), [a]) ->
+          return (fname ++ replicate primes '\'' ++ "_" ++ show a,
+                  if staggered then placeVB m a else zeroPlaceB m)
+        (Just (Form _), [a]) ->
+          return (fname ++ replicate primes '\'' ++ "_" ++ show a,
+                  zeroPlaceB m)
+        (Just SymM, [a, b2]) ->
+          let (lo, hi) = (min a b2, max a b2)
+          in return (fname ++ replicate primes '\'' ++ "_" ++ show lo ++ "_" ++ show hi,
+                     placeSB m a b2)
+        (Just AntiM, [a, b2]) ->
+          let (lo, hi) = (min a b2, max a b2)
+              comp = fname ++ replicate primes '\'' ++ "_" ++ show lo ++ "_" ++ show hi
+              signed | a == b2 = "0"
+                     | a < b2 = comp
+                     | otherwise = "(0 - " ++ comp ++ ")"
+          in return (signed, placeSB m a b2)
+        (Just (Tensor2 staggered), [a, b2]) ->
+          return (fname ++ replicate primes '\'' ++ "_" ++ show a ++ "_" ++ show b2,
+                  if staggered then placeSB m a b2 else zeroPlaceB m)
+        (Just Scalar, []) ->
+          return (fname ++ replicate primes '\'', zeroPlaceB m)
+        (Nothing, [a]) | fname `elem` lets, primes == 0 ->
+          return (fname ++ "_" ++ show a, zeroPlaceB m)
+        _ -> fatal ("bad field reference in index equation: " ++ w)
+
+    derivativeOperand ks rest =
+      case dropWhile isSp rest of
+        II w2 : rest2
+          | ("d", [k2]) <- parseIndexedIdent w2 ->
+              derivativeOperand (ks ++ [k2]) rest2
+          | otherwise -> return (ks, w2, rest2)
+        _ ->
+          let label =
+                case ks of
+                  k0:_ -> "d_" ++ ixName k0
+                  [] -> "indexed derivative"
+          in fatal (label ++ " needs a field operand: " ++ expr)
+
+    deriveChain [] _ _ = error "empty derivative chain"
+    deriveChain [n1, n2] target ref@(_, src)
+      | n1 == n2 && target == src =
+          ("∂ 2 1 " ++ axisSymbol n1 ++ " " ++ operandExpr (fst ref), target)
+    deriveChain [n] target ref =
+      let e = derivAt n target ref
+      in (e, target)
+    deriveChain (n:ns) target ref =
+      let innerTarget = naturalPlace ns (snd ref)
+          innerRef = deriveChain ns innerTarget ref
+          e = derivAt n target innerRef
+      in (e, target)
+
+    naturalPlace ns src = foldl (flip togglePlace) src ns
+
+    derivAt n target (comp, place) =
+      "dYee " ++ show n ++ " " ++ placeText target
+      ++ " (" ++ comp ++ ", " ++ placeText place ++ ")"
+
+    axisSymbol n =
+      case drop (n - 1) (internalCoordNames m) of
+        a:_ -> a
+        [] -> "x"
+
+    operandExpr e
+      | all (\c -> isAlphaNum c || c == '_' || c == '\'') e = e
+      | otherwise = "(" ++ e ++ ")"
+
+expandTensorDefs :: Model -> String -> IO String
+expandTensorDefs m = go . itok
+  where
+    go [] = return ""
+    go (II nm : rest)
+      | Just td <- lookupTensorDef nm = do
+          let (_, rest1) = span isSpaceI rest
+          case rest1 of
+            II argTok : rest2 -> do
+              body <- instantiate td argTok
+              body' <- expandTensorDefs m body
+              tail' <- go rest2
+              return ("(" ++ body' ++ ")" ++ tail')
+            _ -> fatal ("tensor operator " ++ nm ++ " needs an indexed result argument")
+      | otherwise = fmap (nm ++) (go rest)
+    go (IC c : rest) = fmap (c :) (go rest)
+
+    lookupTensorDef nm =
+      case [td | td <- mTensorDefs m, tdName td == nm] of
+        td:_ -> Just td
+        [] -> Nothing
+
+    instantiate td argTok = do
+      let (argBase, callIx) = parseIndexedIdent argTok
+          resultIx = tdResultIx td
+      if null argBase
+        then fatal ("bad argument to tensor operator " ++ tdName td ++ ": " ++ argTok)
+        else return ()
+      if length callIx /= length resultIx
+        then fatal ("tensor operator " ++ tdName td ++ " expects result suffix "
+                    ++ showIxParts resultIx ++ " but got " ++ argTok)
+        else return ()
+      mapM_ (uncurry sameVariance) (zip resultIx callIx)
+      let env = zip (map ixName resultIx) callIx
+      return (concatMap (substTok td argBase env) (itok (tdBody td)))
+
+    sameVariance (IxPart v1 _) (IxPart v2 _)
+      | v1 == v2 = return ()
+      | otherwise = fatal "tensor operator result index variance mismatch"
+
+    substTok _ _ _ (IC c) = [c]
+    substTok td argBase env (II w) =
+      let (base, parts) = parseIndexedIdent w
+          (fname, primes) = fieldBaseOf base
+          base' = if fname == tdParam td
+                    then argBase ++ replicate primes '\''
+                    else base
+          parts' = map (substIx env) parts
+      in base' ++ concatMap ixSuffix parts'
+
+    substIx env (IxPart v nm) =
+      case lookup nm env of
+        Just (IxPart _ nm') -> IxPart v nm'
+        Nothing -> IxPart v nm
+
+    isSpaceI (IC c) = isSpace c
+    isSpaceI _ = False

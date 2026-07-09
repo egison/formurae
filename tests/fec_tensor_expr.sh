@@ -62,6 +62,21 @@ assert_contains "$out" '∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u' 'raised indexed
 
 f=$(tmp_fe)
 write_case "$f" \
+  'dimension 3' \
+  'axes x,y,z' \
+  'metric g' \
+  'field u : scalar' \
+  'def Δ u = g~i~j . ∂_i ∂_j u' \
+  'init:' \
+  '  u = 0.0' \
+  'step:' \
+  "  u' = Δ u"
+out=$(compile_fe "$f")
+rm -f "$f"
+assert_contains "$out" '∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u' 'metric dot laplacian'
+
+f=$(tmp_fe)
+write_case "$f" \
   'dimension 2' \
   'axes x,y' \
   'field A~i_j' \
@@ -129,6 +144,25 @@ out=$(compile_fe "$f")
 rm -f "$f"
 assert_contains "$out" 'A_1_1 * A_2_2' 'contractWith product reducer'
 assert_contains "$out" 'max(A_1_1, A_2_2)' 'contractWith function reducer'
+
+f=$(tmp_fe)
+write_case "$f" \
+  'dimension 2' \
+  'axes x,y' \
+  'field v~i' \
+  'field p : scalar' \
+  'step:' \
+  "  p' = v"
+set +e
+out=$(compile_fe "$f" 2>&1)
+status=$?
+set -e
+rm -f "$f"
+if [ "$status" -eq 0 ]; then
+  printf 'bare indexed tensor field unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_contains "$out" 'must be referenced with indices' 'bare indexed tensor field error'
 
 f=$(tmp_fe)
 write_case "$f" \
