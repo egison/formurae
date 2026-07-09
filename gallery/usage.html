@@ -94,7 +94,7 @@ param κ = 1.0
 param dt = 0.1*dx*dx
 
 extern exp
-def lap u = g~i~j * ∂_i ∂_j u
+def Δ u = g~i~j * ∂_i ∂_j u
 raw gauss = fun(x,y,z) exp(-((x-(total_grid_x*dx/2))/(5*dx))**2 - ...)
 
 field u : scalar
@@ -103,7 +103,7 @@ init:
   u = gauss(i*dx,j*dy,k*dz)
 
 step:
-  u' = u + dt * κ * lap u
+  u' = u + dt * κ * Δ u
 </pre>
 <p>物理は最後の1行だけです。格子・分割は同じディレクトリの yaml(§5)に書きます。実行:</p>
 <pre>
@@ -122,7 +122,7 @@ make diffusion3d
 <tr><td><code>dimension 1</code> / <code>dimension 2</code> / <code>dimension 3</code></td><td>次元(<b>必須</b>)。scalar/vector/rank-2 field と <code>k-form</code> は 1D/2D/3D に対応。<code>curl</code> と <code>epsilon~i~j~k</code> は3次元専用として検査する</td></tr>
 <tr><td><code>use exterior-calculus { d, δ }</code></td><td><b>外微分・余微分</b>を有効化する。形式場では生成 .egi の座標文脈つき <code>dForm</code>/<code>codiff</code> へ接続する</td></tr>
 <tr><td><code>use vector-calculus { curl, divg }</code></td><td><b>ベクトル解析演算子</b>を有効化する。生成 .egi に座標文脈つき <code>curl</code>/<code>divg</code> を出す。<code>curl</code> は3次元専用として検査する</td></tr>
-<tr><td><code>metric g</code> + <code>def lap u = g~i~j * ∂_i ∂_j u</code></td><td><b>ユーザ定義演算子</b>(ファイルスコープ・使用箇所で展開。本文は先に定義された演算子のみ参照可、再帰不可)。平坦格子の Laplacian は添字縮約で定義でき、生成時に <code>∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u</code> へ下りる</td></tr>
+<tr><td><code>metric g</code> + <code>def Δ u = g~i~j * ∂_i ∂_j u</code></td><td><b>ユーザ定義演算子</b>(ファイルスコープ・使用箇所で展開。本文は先に定義された演算子のみ参照可、再帰不可)。平坦格子の Laplacian は添字縮約で定義でき、生成時に <code>∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u</code> へ下りる</td></tr>
 <tr><td><code>def Δ u = lb u</code></td><td>計量宣言下の Laplace-Beltrami を <code>Δ</code> として使う例。<code>lb</code> は計量係数場を生成する低水準プリミティブ</td></tr>
 <tr><td><code>def grad u_i = ∂_i u</code></td><td>結果添字を持つ <code>def</code> はテンソル演算子として展開する。呼び出し側は <code>w'_i = grad u_i</code> のように結果添字を明示する</td></tr>
 <tr><td><code>def div X = ∂_i X~i</code></td><td>結果添字を持たない <code>def</code> の本文にも Einstein 添字を書ける。<code>q' = div V</code> は成分発散の和へ展開される</td></tr>
@@ -252,7 +252,7 @@ def δ := codiff
 <tr><td><code>∂ 2 1 x e</code></td><td><code>fec</code> 組み込み</td><td>x 方向の2階中心差分。<code>∂ 2 1 θ</code> のように任意の宣言軸名で書ける</td></tr>
 <tr><td><code>∂ 2 2 x e</code></td><td><code>fec</code> 組み込み</td><td>x 方向の2階微分を半径2の5点 stencil <code>[-2,-1,0,1,2]</code> で近似する。係数は <code>taylorStencil</code> が導出する</td></tr>
 <tr><td><code>∂_i X~i</code></td><td><code>fec</code> 組み込み</td><td>添字微分。<code>axes</code> で宣言した座標方向について展開し、繰り返し添字は上1・下1の Einstein 総和になる</td></tr>
-<tr><td><code>lap e</code> / <code>Δ e</code></td><td>ユーザ定義</td><td>平坦格子なら <code>metric g</code> と <code>def lap u = g~i~j * ∂_i ∂_j u</code>、または <code>def Δ u = ∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u</code>、計量下なら <code>def Δ u = lb u</code> のように定義して使う</td></tr>
+<tr><td><code>Δ e</code></td><td>ユーザ定義</td><td>平坦格子なら <code>metric g</code> と <code>def Δ u = g~i~j * ∂_i ∂_j u</code>、または <code>def Δ u = ∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u</code>、計量下なら <code>def Δ u = lb u</code> のように定義して使う</td></tr>
 <tr><td><code>lb e</code></td><td><code>fec</code> 組み込み生成</td><td>計量宣言下の Laplace–Beltrami。hodge 因子の係数場生成・半セル CAS 評価・保存流束まで自動</td></tr>
 <tr><td><code>Δ4 e</code></td><td>ユーザ定義</td><td><code>def Δ4 u = ∂ 2 2 x u + ∂ 2 2 y u + ∂ 2 2 z u</code>。4階微分ではなく、4次精度の2階微分和</td></tr>
 <tr><td><code>curl X</code></td><td><code>use vector-calculus { curl }</code></td><td>回転。生成 .egi の Egison 定義 <code>withSymbols [i,j,k] (ε 3)~i~j~k . (dGrad X)_j_k</code> に任せる。<code>E' = E + dt * curl B</code> のような添字なし vector equation で使う。<code>use</code> なしの <code>curl</code> はエラー</td></tr>

@@ -69,7 +69,7 @@ u' = u + dt * Δ u
 基本演算子だけでも書ける: `∂x u` は1階中心差分、`∂ 2 1 x u` は2階中心差分、
 `∂ 2 2 x u` は半径2の5点 stencil で導出される2階差分になる。
 平坦格子の Laplacian は、例えば `metric g` を宣言して
-`def lap u = g~i~j * ∂_i ∂_j u` と
+`def Δ u = g~i~j * ∂_i ∂_j u` と
 添字縮約で書ける。これは生成時に `∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u` へ下りる。
 
 `dimension` は 1、2、3 を指定できる。スカラー、ベクトル、添字付き rank-1、
@@ -127,7 +127,7 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
 | `examples/diffusion1d/` | 1D 拡散方程式。`def Δ u = ∂ 2 1 x u` と書き、check driver が質量保存とピーク減衰を検査 |
 | `examples/diffusion2d/` | 2D 拡散方程式。`dimension 2` と `axes x, y` に応じて Formura/C の配列・Navi・Laplacian が2次元化される |
 | `examples/divergence2d/` | 2D 発散演算子の smoke test。`use vector-calculus { divg }` で生成される `dGrad`/`divg` が `dimension 2` 文脈で動くことを、中心差分の離散記号と比較して検査 |
-| `examples/diffusion3d/` | 3D 拡散方程式(`metric g` と `def lap u = g~i~j * ∂_i ∂_j u` で Laplacian を定義し、物理は `u' = u + dt * κ * lap u` の1行) |
+| `examples/diffusion3d/` | 3D 拡散方程式(`metric g` と `def Δ u = g~i~j * ∂_i ∂_j u` で Laplacian を定義し、物理は `u' = u + dt * κ * Δ u` の1行) |
 | `examples/maxwell3d/` | Maxwell 方程式(**E・B がベクトル場**。`use vector-calculus { curl }` で回転を有効化し、全ベクトル更新2本から ε 縮約 curl の collocated 格子コードを生成) |
 | `examples/maxwell3d_yee/` | **Yee-FDTD**(E=辺・B=面のスタガード格子+leapfrog。場ごとの配置オフセット宣言から教科書どおりの FDTD を生成) |
 | `examples/maxwell_dec/` | **Maxwell(微分形式/DEC)**(`use exterior-calculus { d, δ }` で外微分・余微分を有効化。E=1-form・B=2-form の**次数宣言だけ**で Yee 配置を導出。B の storage は `B_1_2,B_1_3,B_2_3` の幾何基底名。d∘d=0 を CAS が生成時に検査し、check driver がエネルギー・伝播・divB を検証) |
@@ -205,7 +205,7 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
   `g_i_j * v~j` のように metric を明示する。metric 名と同じ `param`/`field` 名は warning。
   ユーザ定義演算子も添字を持てる。`def grad u_i = ∂_i u` は
   `w'_i = grad u_i` の各成分へ、`def div X = ∂_i X~i` は scalar 式へ、
-  `def lap u = g~i~j * ∂_i ∂_j u` は二階中心差分の和へ展開される。
+  `def Δ u = g~i~j * ∂_i ∂_j u` は二階中心差分の和へ展開される。
 
 ## 検証結果(Apple Silicon Mac、1コア)
 
