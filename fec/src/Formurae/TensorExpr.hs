@@ -878,13 +878,202 @@ ixExpand m lets env anchor expr = expandAst env parsedExpr
           e1 <- expandAst env' lhs
           e2 <- expandAst env' rhs
           return (joinAddPretty '-' e1 e2)
+        TEBinary "*" lhs rhs
+          | zeroByIdentityAst env' lhs || zeroByIdentityAst env' rhs ->
+              return "0"
+          | otherwise -> do
+              e1 <- expandAst env' lhs
+              e2 <- expandAst env' rhs
+              return (e1 ++ " * " ++ e2)
+        TEBinary "/" lhs rhs -> do
+          e1 <- expandAst env' lhs
+          e2 <- expandAst env' rhs
+          return (e1 ++ " / " ++ e2)
+        TEBinary op lhs rhs -> do
+          e1 <- expandAst env' lhs
+          e2 <- expandAst env' rhs
+          return (e1 ++ " " ++ op ++ " " ++ e2)
         TEWithSymbols names body ->
-          expandWithSymbols env' names (itok (renderTensorExpr body))
+          expandWithSymbolsAst env' names body
         TEContractWith reducer body ->
-          expandContract env' reducer (itok (renderTensorExpr body))
+          expandContractAst env' reducer body
         TEDot parts ->
-          expandContract env' "+" (itok (intercalate " * " (map renderTensorExpr parts)))
-        _ -> expandRegion env' (itok (renderTensorExpr ast))
+          expandContractAst env' "+" (dotAsProduct parts)
+        TEDerivative parts body ->
+          expandDerivativeAst env' parts body
+        TEIdent base parts ->
+          resolveIdentAst env' base parts
+        TEAppendIndexed e parts ->
+          expandAst env' (appendIndexedAst e parts)
+        TEGroup e -> do
+          body <- expandAst env' e
+          return ("(" ++ body ++ ")")
+        TERaw raw ->
+          expandRegion env' (itok raw)
+
+    dotAsProduct [] = TERaw "1"
+    dotAsProduct [p] = p
+    dotAsProduct (p:ps) = foldl (TEBinary "*") p ps
+
+    appendIndexedAst (TEIdent base parts0) parts =
+      TEIdent base (parts0 ++ parts)
+    appendIndexedAst (TEGroup e) parts =
+      appendIndexedAst e parts
+    appendIndexedAst e parts =
+      TEAppendIndexed e parts
+
+    expandWithSymbolsAst env' names body =
+      let vals = map snd env'
+          localEnv = zip names vals
+          envNoShadow = [(k, v) | (k, v) <- env', k `notElem` names]
+      in expandAst (localEnv ++ envNoShadow) body
+
+    expandContractAst env' reducer body0 = do
+      let body = stripGroupAst body0
+      dummies <- contractDummyNames env' body
+      case dummies of
+        k:_ -> do
+          parts <- mapM (\n -> expandContractAst ((k, n) : env') reducer body) (axisRange m)
+          return (foldReducerText reducer parts)
+        [] | zeroByIdentityAst env' body -> return "0"
+           | otherwise -> expandAst env' body
+
+    stripGroupAst (TEGroup e) = stripGroupAst e
+    stripGroupAst e = e
+
+    contractDummyNames env' body = do
+      ete <- elaborateTensorExpr m lets [] body
+      return (nub [diagName d | d <- tiDiagIx (eteInfo ete)
+                              , lookup (diagName d) env' == Nothing])
+
+    expandDerivativeAst env' parts body = do
+      let (parts', body') = flattenDerivative parts body
+          label =
+            case parts' of
+              k0:_ -> "d_" ++ ixName k0
+              [] -> "indexed derivative"
+      ns <- mapM (need env' . ixName) parts'
+      ref <- derivativeOperandAst env' label body'
+      let (e, _) = deriveChain ns anchor ref
+      return e
+
+    derivativeOperandAst env' _ (TEIdent base parts) =
+      fieldRefParts env' base parts
+    derivativeOperandAst env' label (TEGroup e) =
+      derivativeOperandAst env' label e
+    derivativeOperandAst env' label (TEAppendIndexed e parts) =
+      derivativeOperandAst env' label (appendIndexedAst e parts)
+    derivativeOperandAst _ label _ =
+      fatal (label ++ " needs a field operand: " ++ expr)
+
+    resolveIdentAst env' base0 parts =
+      let w = base0 ++ concatMap ixSuffix parts
+          splitIdentW = (base0, parts)
+      in case () of
+           _
+             | Just (_, [p, q]) <- metricIdent splitIdentW
+             , indexedMetricPart p, indexedMetricPart q -> do
+                 pv <- need env' (ixName p)
+                 qv <- need env' (ixName q)
+                 return (metricRef p q pv qv)
+             | ("epsilon", [p, q, r]) <- splitIdentW
+             , all isSingleAlphaIx [p, q, r] -> do
+                 if mDim m /= 3
+                   then fatal ("epsilon currently requires dimension 3: " ++ w)
+                   else return ()
+                 vals <- mapM (need env' . ixName) [p, q, r]
+                 return (show (leviCivita3 vals))
+             | ("delta", [p, q]) <- splitIdentW
+             , all isSingleAlphaIx [p, q] -> do
+                 if not (isMixedPair p q)
+                   then fatal ("Kronecker delta indices must be mixed, e.g. delta~i_j; use metric g and g~i~j/g_i_j for metric components: " ++ w)
+                   else return ()
+                 pv <- need env' (ixName p)
+                 qv <- need env' (ixName q)
+                 return (if pv == qv then "1" else "0")
+             | ("delta", _ : _) <- splitIdentW ->
+                 fatal ("Kronecker delta takes two single marked indices, e.g. delta~i_j: " ++ w)
+             | ("epsilon", _ : _) <- splitIdentW ->
+                 fatal ("epsilon takes three single marked indices, e.g. epsilon~i~j~k: " ++ w)
+             | ("d", _ : _) <- splitIdentW ->
+                 fatal ("indexed derivative needs a field operand: " ++ expr)
+             | isFieldRef splitIdentW -> do
+                 ref <- fieldRefParts env' base0 parts
+                 return (fst ref)
+             | Just (metricNm, _ : _) <- metricIdent splitIdentW ->
+                 fatal ("metric tensor " ++ metricNm ++ " needs exactly two marked indices: " ++ w
+                        ++ " (examples: " ++ metricNm ++ "~i~j, " ++ metricNm ++ "~i_j, "
+                        ++ metricNm ++ "_i~j, " ++ metricNm ++ "_i_j)")
+             | not (null parts) ->
+                 fatal ("unknown indexed tensor: " ++ w
+                        ++ " (declare metric " ++ base0
+                        ++ " to use it as the metric tensor)")
+             | otherwise ->
+                 return w
+
+    isFieldRef (base0, parts) =
+      (kindOf m (fst (fieldBaseOf base0)) /= Nothing
+       || fst (fieldBaseOf base0) `elem` lets)
+      && not (null parts)
+
+    fieldRefParts env' base0 parts = do
+      let w = base0 ++ concatMap ixSuffix parts
+          (fname, primes) = fieldBaseOf base0
+      validateFieldRefParts m lets w
+      ns <- mapM (need env' . ixName) parts
+      case (kindOf m fname, ns) of
+        (Just (Vector staggered), [a]) ->
+          return (fname ++ replicate primes '\'' ++ "_" ++ show a,
+                  if staggered then placeVB m a else zeroPlaceB m)
+        (Just (Form _), [a]) ->
+          return (fname ++ replicate primes '\'' ++ "_" ++ show a,
+                  zeroPlaceB m)
+        (Just SymM, [a, b2]) ->
+          let (lo, hi) = (min a b2, max a b2)
+          in return (fname ++ replicate primes '\'' ++ "_" ++ show lo ++ "_" ++ show hi,
+                     placeSB m a b2)
+        (Just AntiM, [a, b2]) ->
+          let (lo, hi) = (min a b2, max a b2)
+              comp = fname ++ replicate primes '\'' ++ "_" ++ show lo ++ "_" ++ show hi
+              signed | a == b2 = "0"
+                     | a < b2 = comp
+                     | otherwise = "(0 - " ++ comp ++ ")"
+          in return (signed, placeSB m a b2)
+        (Just (Tensor2 staggered), [a, b2]) ->
+          return (fname ++ replicate primes '\'' ++ "_" ++ show a ++ "_" ++ show b2,
+                  if staggered then placeSB m a b2 else zeroPlaceB m)
+        (Just Scalar, []) ->
+          return (fname ++ replicate primes '\'', zeroPlaceB m)
+        (Nothing, [a]) | fname `elem` lets, primes == 0 ->
+          return (fname ++ "_" ++ show a, zeroPlaceB m)
+        _ -> fatal ("bad field reference in index equation: " ++ w)
+
+    zeroByIdentityAst env' ast =
+      case ast of
+        TEIdent base parts -> zeroIdent base parts
+        TEAppendIndexed e parts -> zeroByIdentityAst env' (appendIndexedAst e parts)
+        TEBinary "*" lhs rhs ->
+          zeroByIdentityAst env' lhs || zeroByIdentityAst env' rhs
+        TEGroup e -> zeroByIdentityAst env' e
+        _ -> False
+      where
+        resolvedDifferent p q =
+          case (resolveIx env' (ixName p), resolveIx env' (ixName q)) of
+            (Just pv, Just qv) -> pv /= qv
+            _ -> False
+        zeroIdent base parts =
+          case (base, parts) of
+            ("delta", [p, q])
+              | all isSingleAlphaIx [p, q], isMixedPair p q ->
+                  resolvedDifferent p q
+            _
+              | euclideanDeclaredMetric
+              , Just _ <- metricIdent (base, parts)
+              , [p, q] <- parts
+              , indexedMetricPart p
+              , indexedMetricPart q ->
+                  resolvedDifferent p q
+              | otherwise -> False
 
     -- one term: explicit contraction is handled by contractWith or `.`;
     -- otherwise unresolved diagonal axes are an error.
