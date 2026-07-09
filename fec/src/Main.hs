@@ -107,7 +107,6 @@
 
 import Data.Char (isAlpha, isAlphaNum, isDigit, isSpace)
 import Data.List (dropWhileEnd, intercalate, permutations, sort, nub, stripPrefix)
-import Control.Monad (foldM)
 import System.Environment (getArgs)
 import System.IO (hPutStrLn, stderr)
 
@@ -115,7 +114,8 @@ import Formurae.Common
 import Formurae.Index
 import Formurae.Syntax
 import Formurae.TensorExpr
-  ( expandTensorDefs
+  ( expandDefs
+  , expandTensorDefs
   , ixExpand
   , placeSB
   , placeText
@@ -473,7 +473,7 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
           defs <- resolveDefs (standardDefs ++ reverse (mDefs mUse))
           tensorDefs <- resolveTensorDefs defs (reverse (mTensorDefs mUse))
           let mDef = mUse { mDefs = defs, mTensorDefs = tensorDefs }
-          steps' <- mapM (\st -> do ex <- applyDefs defs (sEx st)
+          steps' <- mapM (\st -> do ex <- expandDefs defs (sEx st)
                                     return st { sEx = ex })
                          (reverse (mSteps mUse))
           inits' <- mapM (expandInit defs) (reverse (mInits mUse))
@@ -523,7 +523,7 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
         allNames = map defName ds
         goD acc [] = return acc
         goD acc (df : more) = do
-          body' <- applyDefs acc (defBody df)
+          body' <- expandDefs acc (defBody df)
           case [w | TId w _ <- tokenize body', w `elem` allNames] of
             (w:_) -> fatal ("def " ++ defName df ++ " uses " ++ w
                             ++ " which is not defined before it")
@@ -532,244 +532,13 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
     resolveTensorDefs defs = mapM resolveOne
       where
         resolveOne td = do
-          body' <- applyDefs defs (tdBody td)
+          body' <- expandDefs defs (tdBody td)
           return td { tdBody = body' }
 
-    -- expand operator applications.  Bodies are def-free after resolveDefs,
-    -- so one pass suffices; arguments are expanded first.
-    applyDefs defs s = fmap untok (goE (tokenize s))
-      where
-        goE ts
-          | Just (lhs, op, rhs) <- splitTopAddT ts = do
-              lhs' <- goE lhs
-              rhs' <- goE rhs
-              return (lhs' ++ [TC ' ', TC op, TC ' '] ++ rhs')
-        goE ts
-          | Just dotDef <- lookupDef "." defs
-          , Just parts <- splitTopDotT ts =
-              fmap tokenize (expandDot dotDef parts)
-        goE [] = return []
-        goE (TId nm False : ts)
-          | Just df <- lookupDef nm defs = do
-              (args, rest') <- parseArgs (length (defParams df)) ts
-              args' <- mapM (fmap untok . goE . tokenize) args
-              let bodyT = tokenize (substDef df args')
-              fmap ((TC '(' : bodyT ++ [TC ')']) ++) (goE rest')
-        goE (t : ts) = fmap (t :) (goE ts)
-
-        lookupDef nm defs' =
-          case [df | df <- defs', defName df == nm] of
-            df:_ -> Just df
-            [] -> Nothing
-
-        splitTopAddT ts = goA (0 :: Int) [] ts
-          where
-            goA _ _ [] = Nothing
-            goA d acc (t@(TC c) : rest)
-              | c `elem` "([" = goA (d + 1) (t : acc) rest
-              | c `elem` ")]" = goA (d - 1) (t : acc) rest
-              | d == 0
-              , c `elem` "+-"
-              , binaryAddOp acc =
-                  Just (trimTok (reverse acc), c, trimTok rest)
-            goA d acc (t : rest) = goA d (t : acc) rest
-
-        binaryAddOp acc =
-          case dropWhile isSpTok acc of
-            [] -> False
-            TC p : _ | p `elem` "([,+-*/^=" -> False
-            TId e False : _ | e == "e" || e == "E" -> False
-            _ -> True
-
-        expandDot _ [] = return ""
-        expandDot dotDef (p:ps) = do
-          first <- fmap untok (goE p)
-          foldM (dotApply dotDef) first ps
-
-        dotApply dotDef lhs rhsT = do
-          rhs <- fmap untok (goE rhsT)
-          return ("(" ++ substDef dotDef [lhs, rhs] ++ ")")
-
-        splitTopDotT ts =
-          case goD (0 :: Int) [] ts of
-            [_] -> Nothing
-            parts -> Just parts
-          where
-            goD _ acc [] = [trimTok (reverse acc)]
-            goD d acc (t@(TC c) : rest)
-              | c `elem` "([" = goD (d + 1) (t : acc) rest
-              | c `elem` ")]" = goD (d - 1) (t : acc) rest
-              | d == 0
-              , c == '.'
-              , leftSpaceT acc
-              , rightSpaceT rest =
-                  trimTok (reverse acc) : goD d [] rest
-            goD d acc (t : rest) = goD d (t : acc) rest
-
-        leftSpaceT (TC c : _) = isSpace c
-        leftSpaceT _ = False
-
-        rightSpaceT (TC c : _) = isSpace c
-        rightSpaceT _ = False
-
-        trimTok = dropWhile isSpTok . reverse . dropWhile isSpTok . reverse . dropWhile isSpTok
-
-        parseArgs 0 ts = return ([], ts)
-        parseArgs n ts = do
-          let rest = dropWhile isSpTok ts
-          (arg, rest') <- parseArg rest
-          (args, rest'') <- parseArgs (n - 1) rest'
-          return (arg : args, rest'')
-
-        parseArg (TC '(' : r) =
-          case closeParenT 1 r [] of
-            Just (inner, r') ->
-              let (suffix, r'') = indexedSuffixT r'
-              in return ("(" ++ untok inner ++ ")" ++ suffix, r'')
-            Nothing -> fatal "unbalanced argument to operator"
-        parseArg (TId a pr : r) =
-          let (suffix, r') = indexedSuffixT r
-          in return (a ++ (if pr then "'" else "") ++ suffix, r')
-        parseArg _ = fatal "operator application needs an argument"
-
-        indexedSuffixT (TC m : TId ix False : rest)
-          | m == '~' || m == '_' =
-              let (more, rest') = indexedSuffixT rest
-              in (m : ix ++ more, rest')
-        indexedSuffixT ts = ("", ts)
-
-        substDef df args =
-          let env = zip (defParams df) (map parseArgInfo args)
-          in substIToks env (itok (defBody df))
-
-        substIToks _ [] = []
-        substIToks env (II w : IC '.' : IC '.' : IC '.' : rest) =
-          let (appendParts, rest') = indexedSuffixI rest
-              (base0, parts) = parseIndexedIdent w
-              (base, primes) = fieldBaseOf base0
-              headText =
-                case lookup base env of
-                  Just arg -> argWithAppendParts arg primes parts appendParts
-                  Nothing -> w ++ "..." ++ concatMap ixSuffix appendParts
-          in headText ++ substIToks env rest'
-        substIToks env (tok : rest) =
-          substITok env tok ++ substIToks env rest
-
-        substITok _ (IC c) = [c]
-        substITok env (II w) =
-          let (base0, parts) = parseIndexedIdent w
-              (base, primes) = fieldBaseOf base0
-          in case lookup base env of
-               Just arg | null parts -> argWithPrimes arg primes
-                        | otherwise -> argWithParts arg primes parts
-               Nothing -> w
-
-        parseArgInfo arg =
-          let sArg = strip arg
-              simple = all (\c -> isAlphaNum c || c `elem` "_~'") sArg
-              (base0, parts) = parseIndexedIdent sArg
-              (base, primes) = fieldBaseOf base0
-          in (sArg, simple, base, primes, parts)
-
-        argWithPrimes (arg, simple, base, primes0, parts) primes
-          | simple = base ++ replicate (primes0 + primes) '\'' ++ concatMap ixSuffix parts
-          | primes == 0 = arg
-          | otherwise = "(" ++ arg ++ ")" ++ replicate primes '\''
-
-        argWithParts (arg, simple, base, primes0, _) primes parts
-          | Just body <- reindexWithSymbols arg parts =
-              if primes == 0 then body else "(" ++ body ++ ")" ++ replicate primes '\''
-          | simple = base ++ replicate (primes0 + primes) '\'' ++ concatMap ixSuffix parts
-          | otherwise = "(" ++ arg ++ ")" ++ concatMap ixSuffix parts
-
-        argWithAppendParts (arg, simple, base, primes0, argParts) primes parts appendParts =
-          let keptParts = if null parts then argParts else parts
-          in if simple
-               then base ++ replicate (primes0 + primes) '\''
-                    ++ concatMap ixSuffix (keptParts ++ appendParts)
-               else "(" ++ arg ++ ")" ++ concatMap ixSuffix (keptParts ++ appendParts)
-
-        indexedSuffixI (IC m : II nm : rest)
-          | m == '~' || m == '_' =
-              case parseMarkedPrefix (m : nm) of
-                Just (parts, suffixRest) | null suffixRest ->
-                  let (more, rest') = indexedSuffixI rest
-                  in (parts ++ more, rest')
-                _ -> ([], IC m : II nm : rest)
-        indexedSuffixI ts = ([], ts)
-
-        reindexWithSymbols arg parts = do
-          (names, body) <- parseWithSymbolsArg (stripOuterParensI (itok arg))
-          if length names == length parts
-            then Just (untokI (map (renameLocalIx (zip names parts)) body))
-            else Nothing
-
-        parseWithSymbolsArg ts =
-          case dropWhile isSpaceI ts of
-            II "withSymbols" : rest -> parseSymbolListI (dropWhile isSpaceI rest)
-            _ -> Nothing
-
-        parseSymbolListI (IC '[' : rest) =
-          let (inside, rest1) = breakSymbolListI (0 :: Int) [] rest
-          in Just (symbolNamesI inside, dropWhile isSpaceI rest1)
-        parseSymbolListI _ = Nothing
-
-        breakSymbolListI _ acc [] = (reverse acc, [])
-        breakSymbolListI d acc (IC ']' : rest)
-          | d == 0 = (reverse acc, rest)
-          | otherwise = breakSymbolListI (d - 1) (IC ']' : acc) rest
-        breakSymbolListI d acc (IC '[' : rest) =
-          breakSymbolListI (d + 1) (IC '[' : acc) rest
-        breakSymbolListI d acc (t : rest) = breakSymbolListI d (t : acc) rest
-
-        symbolNamesI = collectSymbolNames
-          where
-            collectSymbolNames [] = []
-            collectSymbolNames (II nm : rest)
-              | validSurfaceName nm = nm : collectSymbolNames rest
-            collectSymbolNames (_ : rest) = collectSymbolNames rest
-
-        renameLocalIx aliases (II w) =
-          let (base0, parts0) = parseIndexedIdent w
-              parts1 = map renamePart parts0
-          in II (base0 ++ concatMap ixSuffix parts1)
-          where
-            renamePart p@(IxPart _ nm) =
-              case lookup nm aliases of
-                Just p' -> p'
-                Nothing -> p
-        renameLocalIx _ tok = tok
-
-        stripOuterParensI ts =
-          case trimIToksLocal ts of
-            IC '(' : rest ->
-              case closeOuterI (0 :: Int) [] rest of
-                Just (inner, rest') | all isSpaceI rest' -> stripOuterParensI inner
-                _ -> trimIToksLocal ts
-            trimmed -> trimmed
-
-        closeOuterI _ _ [] = Nothing
-        closeOuterI d acc (IC ')' : rest)
-          | d == 0 = Just (reverse acc, rest)
-          | otherwise = closeOuterI (d - 1) (IC ')' : acc) rest
-        closeOuterI d acc (IC '(' : rest) =
-          closeOuterI (d + 1) (IC '(' : acc) rest
-        closeOuterI d acc (t : rest) = closeOuterI d (t : acc) rest
-
-        trimIToksLocal = dropWhile isSpaceI . reverse . dropWhile isSpaceI . reverse . dropWhile isSpaceI
-
-        untokI = concatMap outI
-          where
-            outI (II w) = w
-            outI (IC c) = [c]
-
-        isSpaceI (IC c) = isSpace c
-        isSpaceI _ = False
-
     expandInit defs it = case it of
-      ICas nm ex -> do ex' <- applyDefs defs ex
+      ICas nm ex -> do ex' <- expandDefs defs ex
                        return (ICas nm ex')
-      ICasIndex nm ix ex -> do ex' <- applyDefs defs ex
+      ICasIndex nm ix ex -> do ex' <- expandDefs defs ex
                                return (ICasIndex nm ix ex')
       _ -> return it
 
@@ -1183,18 +952,6 @@ surfaceBanned m locals s =
     orElse (Just x) _ = Just x
     orElse Nothing y = y
 
--- --------------------------------------------------- expression rewriting
-
-tokenize :: String -> [Tok]
-tokenize [] = []
-tokenize (c:cs)
-  | isAlpha c =
-      let (a, b) = span isW cs
-      in case b of
-           ('\'':b') -> TId (c : a) True : tokenize b'
-           _ -> TId (c : a) False : tokenize b
-  | otherwise = TC c : tokenize cs
-
 -- the field to which lb is applied, if any (scans the same
 -- preprocessed form the rewriter uses, so a user-defined Δ can expand
 -- to lb u before this pass)
@@ -1350,16 +1107,6 @@ invalidDerivativeOp m nm =
 stepPre :: Model -> String -> String
 stepPre m = mathOps m . rewriteCompose . renameAxes m
 
-isSpTok :: Tok -> Bool
-isSpTok (TC c) = isSpace c
-isSpTok _ = False
-
-untok :: [Tok] -> String
-untok = concatMap out
-  where
-    out (TId nm pr) = nm ++ (if pr then "'" else "")
-    out (TC c) = [c]
-
 rewriteCompose :: String -> String
 rewriteCompose = untok . go . tokenize
   where
@@ -1375,15 +1122,6 @@ rewriteCompose = untok . go . tokenize
                   _ -> TId "compose" False : go rest
            _ -> TId "compose" False : go rest
     go (t : rest) = t : go rest
-
--- collect tokens up to the ')' closing an already-consumed '('
-closeParenT :: Int -> [Tok] -> [Tok] -> Maybe ([Tok], [Tok])
-closeParenT _ [] _ = Nothing
-closeParenT n (TC '(' : ts) acc = closeParenT (n + 1) ts (TC '(' : acc)
-closeParenT n (TC ')' : ts) acc
-  | n == 1 = Just (reverse acc, ts)
-  | otherwise = closeParenT (n - 1) ts (TC ')' : acc)
-closeParenT n (t : ts) acc = closeParenT n ts (t : acc)
 
 rewrite :: Model -> [String] -> Maybe String -> String -> IO String
 rewrite m lets mk expr = do

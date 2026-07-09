@@ -1,5 +1,7 @@
 module Formurae.Syntax where
 
+import Data.Char (isAlpha, isAlphaNum, isSpace)
+
 data Kind = Scalar | Vector Bool | Form Int | SymM | AntiM | Tensor2 Bool
   deriving (Eq, Show)
 
@@ -75,6 +77,37 @@ data Model = Model
   }
 
 data Tok = TId String Bool | TC Char
+
+tokenize :: String -> [Tok]
+tokenize [] = []
+tokenize (c:cs)
+  | isAlpha c =
+      let (a, b) = span isWordChar cs
+      in case b of
+           ('\'':b') -> TId (c : a) True : tokenize b'
+           _ -> TId (c : a) False : tokenize b
+  | otherwise = TC c : tokenize cs
+  where
+    isWordChar ch = isAlphaNum ch || ch == '_'
+
+untok :: [Tok] -> String
+untok = concatMap out
+  where
+    out (TId nm pr) = nm ++ (if pr then "'" else "")
+    out (TC c) = [c]
+
+isSpTok :: Tok -> Bool
+isSpTok (TC c) = isSpace c
+isSpTok _ = False
+
+-- collect tokens up to the ')' closing an already-consumed '('
+closeParenT :: Int -> [Tok] -> [Tok] -> Maybe ([Tok], [Tok])
+closeParenT _ [] _ = Nothing
+closeParenT n (TC '(' : ts) acc = closeParenT (n + 1) ts (TC '(' : acc)
+closeParenT n (TC ')' : ts) acc
+  | n == 1 = Just (reverse acc, ts)
+  | otherwise = closeParenT (n - 1) ts (TC ')' : acc)
+closeParenT n (t : ts) acc = closeParenT n ts (t : acc)
 
 data Elem = EId String Bool | EC Char | ERaw String
           | EMarkV String | EMarkL String
