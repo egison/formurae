@@ -113,35 +113,41 @@ tensorTermOccurrences m lets lhs aliases expr =
       lTerms <- tensorTermOccurrences m lets lhs aliases l
       rTerms <- tensorTermOccurrences m lets lhs aliases r
       return (lTerms ++ rTerms)
-    TEGroup e -> tensorTermOccurrences m lets lhs aliases e
-    _ -> fmap (: []) (tensorOccurrences m lets lhs aliases expr)
+    _ -> tensorOccurrenceAlternatives m lets lhs aliases expr
 
-tensorOccurrences :: Model -> [String] -> [IxPart] -> [(String, String)] -> TensorExpr -> IO [IxPart]
-tensorOccurrences m lets lhs aliases expr =
+tensorOccurrenceAlternatives :: Model -> [String] -> [IxPart] -> [(String, String)] -> TensorExpr -> IO [[IxPart]]
+tensorOccurrenceAlternatives m lets lhs aliases expr =
   case expr of
-    TERaw raw -> rawOccurrences m lets aliases raw
-    TEIdent base parts -> indexedIdentOccurrences m lets base parts (base ++ concatMap ixSuffix parts)
+    TERaw raw -> fmap (: []) (rawOccurrences m lets aliases raw)
+    TEIdent base parts -> fmap (: []) (indexedIdentOccurrences m lets base parts (base ++ concatMap ixSuffix parts))
     TEAppendIndexed e parts -> do
-      occ <- tensorOccurrences m lets lhs aliases e
-      return (occ ++ map (renameIxPart aliases) parts)
+      alts <- tensorOccurrenceAlternatives m lets lhs aliases e
+      return [occ ++ map (renameIxPart aliases) parts | occ <- alts]
     TEWithSymbols names body -> do
       let lhsNames = map ixName lhs
           aliases' = zip names lhsNames ++ aliases
-      tensorOccurrences m lets lhs aliases' body
+      tensorOccurrenceAlternatives m lets lhs aliases' body
     TEContractWith _ body -> do
-      occ <- concat <$> tensorTermOccurrences m lets lhs aliases body
-      return (removeContractedOccurrences occ)
+      bodyTerms <- tensorTermOccurrences m lets lhs aliases body
+      return (map removeContractedOccurrences bodyTerms)
     TEDerivative parts body -> do
-      occ <- tensorOccurrences m lets lhs aliases body
-      return (map (renameIxPart aliases) parts ++ occ)
+      bodyTerms <- tensorOccurrenceAlternatives m lets lhs aliases body
+      return [map (renameIxPart aliases) parts ++ occ | occ <- bodyTerms]
     TEDot parts -> do
-      occ <- concat <$> mapM (tensorOccurrences m lets lhs aliases) parts
-      return (removeContractedOccurrences occ)
-    TEBinary _ l r -> do
-      lo <- tensorOccurrences m lets lhs aliases l
-      ro <- tensorOccurrences m lets lhs aliases r
-      return (lo ++ ro)
-    TEGroup e -> tensorOccurrences m lets lhs aliases e
+      partAlts <- mapM (tensorOccurrenceAlternatives m lets lhs aliases) parts
+      return (map removeContractedOccurrences (cartesianConcat partAlts))
+    TEBinary op l r
+      | op == "+" || op == "-" -> tensorTermOccurrences m lets lhs aliases expr
+      | otherwise -> do
+          lAlts <- tensorOccurrenceAlternatives m lets lhs aliases l
+          rAlts <- tensorOccurrenceAlternatives m lets lhs aliases r
+          return [lo ++ ro | lo <- lAlts, ro <- rAlts]
+    TEGroup e -> tensorTermOccurrences m lets lhs aliases e
+
+cartesianConcat :: [[[IxPart]]] -> [[IxPart]]
+cartesianConcat [] = [[]]
+cartesianConcat (xs:xss) =
+  [x ++ rest | x <- xs, rest <- cartesianConcat xss]
 
 rawOccurrences :: Model -> [String] -> [(String, String)] -> String -> IO [IxPart]
 rawOccurrences m lets aliases raw =
@@ -427,7 +433,7 @@ stripOuterGroupI ts =
     _ -> Nothing
 
 closeGroupI :: Char -> [ITok] -> [ITok] -> Maybe ([ITok], [ITok])
-closeGroupI close = go (0 :: Int)
+closeGroupI close toks acc0 = go (0 :: Int) acc0 toks
   where
     go _ _ [] = Nothing
     go d acc (IC c : rest)
@@ -738,165 +744,32 @@ expandDefs defs s = fmap untok (goE (tokenize s))
 -- symbol.
 strictEinstein :: Model -> [String] -> [IxPart] -> String -> IO ()
 strictEinstein m lets lhs expr = do
-  alts <- regionOccurrences [] (itok expr)
-  mapM_ checkTerm alts
+  ete <- elaborateTensorExpr m lets lhs (parseTensorExpr expr)
+  mapM_ checkTermInfo (eteTermInfo ete)
   where
-    regionOccurrences aliases ts =
-      fmap concat (mapM (termOccurrences aliases) (splitTerms ts))
-
-    splitTerms = go (0 :: Int) []
-      where
-        go _ cur [] = [reverse cur | not (null cur)]
-        go d cur (t@(IC c) : rest)
-          | c `elem` "([" = go (d + 1) (t : cur) rest
-          | c `elem` ")]" = go (d - 1) (t : cur) rest
-          | d == 0 && c `elem` "+-" =
-              if null cur
-                then go d cur rest
-                else reverse cur : go d [] rest
-        go d cur (t : rest) = go d (t : cur) rest
-
-    termOccurrences aliases ts = go [[]] ts
-      where
-        go acc [] = return acc
-        go acc (II "withSymbols" : rest) =
-          case parseWithSymbolsBody rest of
-            Just (names, body) -> do
-              let aliases' = zip names (map ixName lhs) ++ aliases
-              innerAlts <- regionOccurrences aliases' body
-              return [a ++ b | a <- acc, b <- innerAlts]
-            Nothing -> go acc rest
-        go acc (II w : rest) = do
-          occ <- identOccurrences w
-          go (map (++ map (renameIx aliases) occ) acc) rest
-        go acc (IC '(' : rest) = do
-          let (inner, rest') = matchGroup ')' rest
-          innerAlts <- regionOccurrences aliases inner
-          go [a ++ b | a <- acc, b <- innerAlts] rest'
-        go acc (IC '[' : rest) = do
-          let (inner, rest') = matchGroup ']' rest
-          innerAlts <- regionOccurrences aliases inner
-          go [a ++ b | a <- acc, b <- innerAlts] rest'
-        go acc (_ : rest) = go acc rest
-
-    renameIx aliases (IxPart v nm) =
-      case lookup nm aliases of
-        Just nm' -> IxPart v nm'
-        Nothing -> IxPart v nm
-
-    parseWithSymbolsBody rest =
-      case dropWhile isSpaceI rest of
-        IC '[' : rest1 ->
-          let (inside, body) = breakSymbolList (0 :: Int) [] rest1
-          in Just (symbolNames inside, dropWhile isSpaceI body)
-        _ -> Nothing
-
-    breakSymbolList _ acc [] = (reverse acc, [])
-    breakSymbolList d acc (IC ']' : rest)
-      | d == 0 = (reverse acc, rest)
-      | otherwise = breakSymbolList (d - 1) (IC ']' : acc) rest
-    breakSymbolList d acc (IC '[' : rest) =
-      breakSymbolList (d + 1) (IC '[' : acc) rest
-    breakSymbolList d acc (t : rest) = breakSymbolList d (t : acc) rest
-
-    symbolNames = go
-      where
-        go [] = []
-        go (II nm : rest) | validSurfaceName nm = nm : go rest
-        go (_ : rest) = go rest
-
-    isSpaceI (IC c) = isSpace c
-    isSpaceI _ = False
-
-    matchGroup close = goG (0 :: Int) []
-      where
-        goG _ acc [] = (reverse acc, [])
-        goG d acc (IC c : rest)
-          | c == close && d == 0 = (reverse acc, rest)
-          | c == close = goG (d - 1) (IC c : acc) rest
-          | (close == ')' && c == '(') || (close == ']' && c == '[') =
-              goG (d + 1) (IC c : acc) rest
-        goG d acc (t : rest) = goG d (t : acc) rest
-
-    identOccurrences w =
-      let (base0, parts) = parseIndexedIdent w
-          (base, _) = fieldBaseOf base0
-      in case () of
-           _
-             | Just metricNm <- mMetricName m
-             , base == metricNm
-             , length parts == 2
-             , all indexedMetricPart parts ->
-                 metricOccurrences metricNm parts w
-             | base == "epsilon", not (null parts) ->
-                 if mDim m /= 3
-                   then fatal ("epsilon currently requires dimension 3: " ++ w)
-                   else if length parts == 3 && all isSingleAlphaIx parts
-                   then return parts
-                   else fatal ("epsilon takes three single marked indices, e.g. epsilon~i~j~k: " ++ w)
-             | base == "delta", not (null parts) ->
-                 kroneckerOccurrences parts w
-             | base == "d", not (null parts) ->
-                 derivativeOccurrences parts w
-             | fieldDeclOf m base /= Nothing && not (null parts) -> do
-                 validateFieldRefParts m lets w
-                 return parts
-             | base `elem` lets && not (null parts) ->
-                 return parts
-             | Just metricNm <- mMetricName m
-             , base == metricNm
-             , not (null parts) ->
-                 metricOccurrences metricNm parts w
-             | otherwise ->
-                 return []
-
-    metricOccurrences metricNm parts w =
-      if length parts == 2 && all indexedMetricPart parts
-        then return parts
-        else fatal ("metric tensor " ++ metricNm ++ " needs exactly two marked indices: " ++ w)
-
-    kroneckerOccurrences [p, q] w
-      | all isSingleAlphaIx [p, q] =
-          if isMixedPair p q
-            then return [p, q]
-            else fatal ("Kronecker delta indices must be mixed, e.g. delta~i_j; use metric g and g~i~j/g_i_j for metric components: " ++ w)
-    kroneckerOccurrences _ w =
-      fatal ("Kronecker delta takes two single marked indices, e.g. delta~i_j: " ++ w)
-
-    derivativeOccurrences [p] _ = return [p]
-    derivativeOccurrences _ w =
-      fatal ("indexed derivative takes one marked index, e.g. d_i or d~i: " ++ w)
-
-    indexedMetricPart (IxPart _ nm) = all isAlphaNum nm && not (null nm)
-    isMixedPair (IxPart VUp _) (IxPart VDown _) = True
-    isMixedPair (IxPart VDown _) (IxPart VUp _) = True
-    isMixedPair _ _ = False
-
-    checkTerm occs = do
+    checkTermInfo info = do
+      case tiDiagIx info of
+        d:_ -> fatal ("index " ++ diagName d ++ " is diagonal but not contracted; use contractWith or . in: " ++ expr)
+        [] -> return ()
       mapM_ checkFree lhs
-      mapM_ checkDummy dummyNames
+      mapM_ checkExtraFree extraFreeNames
       where
-        names = nub (map ixName occs ++ map ixName lhs)
+        frees = tiFreeIx info
         lhsNames = map ixName lhs
-        dummyNames = [nm | nm <- names, nm `notElem` lhsNames]
+        extraFreeNames = nub [nm | IxPart _ nm <- frees, nm `notElem` lhsNames]
         sameName nm (IxPart _ nm') = nm == nm'
         checkFree lp@(IxPart lv ln) =
-          case filter (sameName ln) occs of
+          case filter (sameName ln) frees of
             [IxPart rv _] | rv == lv -> return ()
             [] -> fatal ("free index " ++ showIx lp ++ " is missing in term: " ++ expr)
             [_] -> fatal ("free index " ++ showIx lp ++ " has wrong variance in term: " ++ expr)
             _ -> fatal ("free index " ++ ixName lp ++ " appears more than once in term: " ++ expr)
-        checkDummy nm =
-          case filter (sameName nm) occs of
-            [IxPart VUp _, IxPart VDown _] -> return ()
-            [IxPart VDown _, IxPart VUp _] -> return ()
-            [_] -> fatal ("index " ++ nm ++ " is free but not on the left-hand side in term: " ++ expr)
-            [_, _] -> fatal ("dummy index " ++ nm ++ " must appear once up and once down in term: " ++ expr)
-            [] -> return ()
-            _ -> fatal ("index " ++ nm ++ " appears more than twice in term: " ++ expr)
+        checkExtraFree nm =
+          fatal ("index " ++ nm ++ " is free but not on the left-hand side in term: " ++ expr)
 
-    showIx (IxPart VUp nm) = "~" ++ nm
-    showIx (IxPart VDown nm) = "_" ++ nm
+showIx :: IxPart -> String
+showIx (IxPart VUp nm) = "~" ++ nm
+showIx (IxPart VDown nm) = "_" ++ nm
 
 validateFieldRefParts :: Model -> [String] -> String -> IO ()
 validateFieldRefParts m lets w =
@@ -1167,7 +1040,11 @@ ixExpand m lets env anchor expr = expandAst env parsedExpr
       | op == '-' && isZeroText e2 = e1
       | otherwise = e1 ++ " " ++ [op] ++ " " ++ e2
 
-    isZeroText s = strip s == "0"
+    isZeroText s =
+      case strip s of
+        "0" -> True
+        "(0)" -> True
+        _ -> False
 
     dropOneFactor s =
       case stripPrefix "1 * " s of
