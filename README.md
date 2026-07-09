@@ -122,7 +122,6 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
 | `fec/` + `fec.cabal` | **Formurae コンパイラ**: 表層言語 Formurae(.fe;`field E : vector`・`E' = E + dt * curl B`・`B' = B - dt * d E'`)を埋め込み形 .egi に変換。Haskell(base のみ)、リポジトリ直下で `cabal build` / `cabal run -v0 fec -- model.fe`。意味論は Egison 側に一本化した薄い変換層 |
 | `lib/fmrgen.egi` | 生成コア: Taylor 条件から係数を導出する **`taylorStencil`**、quote cleanup、形式補助などの座標非依存基盤 |
 | `lib/fmrlegacy3d.egi` | まだ `.fe` 化していない手書き `.egi` 例のための 3D 互換文脈。`.fe` 由来の生成物では使わない |
-| `lib/fmrdsl.egi` | 旧 DSL v0 の宣言的モデル記述層。現在の `.fe` 生成物は必要な出力層を `.egi` 内に生成する |
 | `examples/diffusion1d/` | 1D 拡散方程式。`dimension 1` と `axes x` だけで `Δ` が 1軸 Laplacian に下り、check driver が質量保存とピーク減衰を検査 |
 | `examples/diffusion2d/` | 2D 拡散方程式。`dimension 2` と `axes x, y` に応じて Formura/C の配列・Navi・Laplacian が2次元化される |
 | `examples/diffusion3d/` | 3D 拡散方程式(`use exterior-calculus { Δ }` で Laplacian を有効化し、物理は `u' = u + dt * κ * Δ u` の1行) |

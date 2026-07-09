@@ -180,7 +180,7 @@ fec: error: curl requires dimension 3
 
 3. Formura 出力 DSL
    生成 .egi:
-   showFmr, fmrEq, fmrInit, scalarEq, vecEqs, symEqs, emitModelOn など
+   showFmr, fmrEq, fmrInit, scalarEq, componentEqs, emitModelOn など
 ```
 
 `.fe` から生成される `.egi` は `lib/fmrgen.egi` だけを読む。まだ `.fe` 化していない

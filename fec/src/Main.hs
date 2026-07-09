@@ -107,10 +107,12 @@
 -- array), so B' = B - dt * curl E' is the symplectic pair.
 
 import Data.Char (isAlpha, isAlphaNum, isDigit, isSpace)
-import Data.List (dropWhileEnd, intercalate, isPrefixOf, permutations, sort, nub, stripPrefix)
+import Data.List (dropWhileEnd, intercalate, permutations, sort, nub, stripPrefix)
 import System.Environment (getArgs)
-import System.Exit (exitFailure)
-import System.IO (hPutStrLn, stderr)
+
+import Formurae.Common
+import Formurae.Index
+import Formurae.Syntax
 
 vecOps, vecRet, deltaOps :: [String]
 vecOps = ["d", "delta", "codiff", "\948", "curl", "divg", "dGrad"]
@@ -128,74 +130,7 @@ scalarIntrinsics =
   , "exp", "log", "sqrt", "pow", "fabs"
   ]
 
-fatal :: String -> IO a
-fatal msg = hPutStrLn stderr ("fec: error: " ++ msg) >> exitFailure
-
 -- ---------------------------------------------------------------- model
-
-data Kind = Scalar | Vector Bool | Form Int | SymM | AntiM | Tensor2 Bool deriving (Eq, Show)
-
-data FieldLayout =
-    ScalarLayout
-  | Rank1Layout
-  | SymRank2Layout
-  | AntiRank2Layout
-  | FullRank2Layout
-  deriving (Eq, Show)
-
-data IndexGroup =
-    Plain [IxPart]
-  | Symmetric [IxPart]
-  | Antisymmetric [IxPart]
-  deriving (Eq, Show)
-
-data FieldIndex = FieldIndex { fiGroups :: [IndexGroup] } deriving (Eq, Show)
-
-data FieldDecl = FieldDecl
-  { fdName      :: String
-  , fdIndex     :: Maybe FieldIndex
-  , fdLayout    :: FieldLayout
-  , fdStaggered :: Bool
-  , fdKind      :: Kind
-  } deriving (Eq, Show)
-
-data Init = IRaw String String | IVec String [String]
-          | ISym String [String]   -- xx, yy, zz, xy, xz, yz
-          | IAnti String [String]  -- xy, xz, yz
-          | ITensor2 String [String] -- xx, xy, xz, yx, yy, yz, zx, zy, zz
-          | ICas String String
-          | ICasIndex String [IxPart] String
-
-data SK = KLet | KLocal | KEq deriving Eq
-
-data Step = Step { sk :: SK, sNm :: String, sIdx :: [IxPart], sEx :: String }
-
-data Model = Model
-  { mName   :: String
-  , mDim    :: Int
-  , mAxes   :: [String]
-  , mMetricName :: Maybe String
-  , mUses   :: [(String, [String])]
-  , mParams :: [(String, String)]
-  , mHelp   :: [String]
-  , mFlds   :: [(String, Kind)]
-  , mFieldDecls :: [FieldDecl]
-  , mInits  :: [Init]
-  , mSteps  :: [Step]
-  , mDd     :: Maybe String
-  , mMetric :: Maybe [String]
-  , mEmbed  :: Maybe [String]
-  , mDefs   :: [(String, (String, String))]  -- name -> (param, body); latest first
-  }
-
-kindOf :: Model -> String -> Maybe Kind
-kindOf m nm = lookup nm (mFlds m)
-
-fieldDeclOf :: Model -> String -> Maybe FieldDecl
-fieldDeclOf m nm =
-  case [fd | fd <- mFieldDecls m, fdName fd == nm] of
-    (fd:_) -> Just fd
-    [] -> Nothing
 
 declaredExterns :: [String] -> [String]
 declaredExterns = foldr collect []
@@ -253,59 +188,10 @@ usesFunctionName nm = go . tokenize
 
 -- ------------------------------------------------------------- utilities
 
-strip, rstrip :: String -> String
-rstrip = dropWhileEnd isSpace
-strip = dropWhile isSpace . rstrip
-
-isW :: Char -> Bool
-isW c = isAlphaNum c || c == '_'
-
-stripComment :: String -> String
-stripComment ('-':'-':_) = []
-stripComment (c:cs) = c : stripComment cs
-stripComment [] = []
-
-reservedInternalPrefix :: String
-reservedInternalPrefix = "FormuraeInternal"
-
-isReservedInternalName :: String -> Bool
-isReservedInternalName = isPrefixOf reservedInternalPrefix
-
-rejectReservedName :: Int -> String -> IO ()
-rejectReservedName ln nm =
-  if isReservedInternalName nm
-    then fatal ("identifier is reserved for generated code: " ++ nm
-                ++ " (line " ++ show ln ++ ")")
-    else return ()
-
-validSurfaceName :: String -> Bool
-validSurfaceName (c:cs) = isAlpha c && all isAlphaNum cs
-validSurfaceName [] = False
-
 metricNameConflicts :: Model -> [String]
 metricNameConflicts m =
   map fst (mParams m)
   ++ map fst (mFlds m)
-
-egiStringList :: [String] -> String
-egiStringList xs = "[" ++ intercalate ", " (map show xs) ++ "]"
-
-egiMathList :: [String] -> String
-egiMathList xs = "[" ++ intercalate ", " xs ++ "]"
-
-egiIntList :: [Int] -> String
-egiIntList xs = "[" ++ intercalate ", " (map show xs) ++ "]"
-
-egiIntLists :: [[Int]] -> String
-egiIntLists xs = "[" ++ intercalate ", " (map egiIntList xs) ++ "]"
-
-permSign :: [Int] -> Int
-permSign xs =
-  if even (length [(a, b) | (i, a) <- zip [0 :: Int ..] xs
-                          , (j, b) <- zip [0 :: Int ..] xs
-                          , i < j, a > b])
-    then 1
-    else -1
 
 validateMetricName :: Model -> IO ()
 validateMetricName m =
@@ -360,112 +246,6 @@ parseFieldDecl ln r =
       case fmap reverse (stripPrefix (reverse "-form") (reverse t)) of
         Just ds | all isDigit ds && not (null ds) -> Just (read ds)
         _ -> Nothing
-
-parseFieldSpec :: String -> Maybe (String, Maybe FieldIndex)
-parseFieldSpec spec = do
-  let (nm, rest) = span isAlphaNum spec
-  if not (validSurfaceName nm) then Nothing else
-    case rest of
-      "" -> Just (nm, Nothing)
-      c:_ | c == '~' || c == '_' -> do
-        parts <- parseMarkedSeq rest
-        Just (nm, Just (FieldIndex [Plain parts]))
-      '{':body | not (null body), last body == '}' -> do
-        parts <- parseMarkedSeq (init body)
-        Just (nm, Just (FieldIndex [Symmetric parts]))
-      '[':body | not (null body), last body == ']' ->
-        do parts <- parseMarkedSeq (init body)
-           Just (nm, Just (FieldIndex [Antisymmetric parts]))
-      _ -> Nothing
-
-parseMarkedSeq :: String -> Maybe [IxPart]
-parseMarkedSeq [] = Just []
-parseMarkedSeq (m:c:rest)
-  | m == '~', isAlphaNum c =
-      let (nm, rest') = span isAlphaNum (c : rest)
-      in fmap (IxPart VUp nm :) (parseMarkedSeq rest')
-  | m == '_', isAlphaNum c =
-      let (nm, rest') = span isAlphaNum (c : rest)
-      in fmap (IxPart VDown nm :) (parseMarkedSeq rest')
-parseMarkedSeq _ = Nothing
-
-parseMarkedPrefix :: String -> Maybe ([IxPart], String)
-parseMarkedPrefix = go []
-  where
-    go acc (m:c:rest)
-      | m == '~', isAlphaNum c =
-          let (nm, rest') = span isAlphaNum (c : rest)
-          in go (acc ++ [IxPart VUp nm]) rest'
-      | m == '_', isAlphaNum c =
-          let (nm, rest') = span isAlphaNum (c : rest)
-          in go (acc ++ [IxPart VDown nm]) rest'
-    go acc rest = Just (acc, rest)
-
-ixSuffix :: IxPart -> String
-ixSuffix (IxPart VUp nm) = "~" ++ nm
-ixSuffix (IxPart VDown nm) = "_" ++ nm
-
-showIxParts :: [IxPart] -> String
-showIxParts = concatMap ixSuffix
-
-sameVarianceParts :: [IxPart] -> Bool
-sameVarianceParts [] = True
-sameVarianceParts (IxPart v _ : xs) = all (\(IxPart v' _) -> v' == v) xs
-
-sameVarianceList :: [IxPart] -> [IxPart] -> Bool
-sameVarianceList xs ys =
-  length xs == length ys
-  && and [vx == vy | (IxPart vx _, IxPart vy _) <- zip xs ys]
-
-fieldDeclAcceptsParts :: FieldDecl -> [IxPart] -> Bool
-fieldDeclAcceptsParts fd parts =
-  case fdIndex fd of
-    Nothing -> null parts
-    Just (FieldIndex [Plain decl]) -> sameVarianceList decl parts
-    Just (FieldIndex [Symmetric decl]) ->
-      sameVarianceList decl parts || sameVarianceList (reverse decl) parts
-    Just (FieldIndex [Antisymmetric decl]) ->
-      sameVarianceList decl parts || sameVarianceList (reverse decl) parts
-    _ -> False
-
-fieldDeclIndexSuffix :: FieldDecl -> String
-fieldDeclIndexSuffix fd =
-  case fdIndex fd of
-    Just (FieldIndex [Plain parts]) -> showIxParts parts
-    Just (FieldIndex [Symmetric parts]) -> showIxParts parts
-    Just (FieldIndex [Antisymmetric parts]) -> showIxParts parts
-    _ -> ""
-
-inferFieldLayout :: Int -> String -> Maybe FieldIndex -> Bool -> IO FieldLayout
-inferFieldLayout ln spec Nothing staggered
-  | staggered = fatal ("scalar field cannot be staggered: " ++ spec ++ " (line " ++ show ln ++ ")")
-  | otherwise = return ScalarLayout
-inferFieldLayout ln spec (Just (FieldIndex [Plain parts])) _
-  | length parts == 1 = return Rank1Layout
-  | length parts == 2 = return FullRank2Layout
-  | otherwise = fatal ("unsupported field rank in " ++ spec ++ " (line " ++ show ln ++ ")")
-inferFieldLayout ln spec (Just (FieldIndex [Symmetric parts])) _
-  | length parts == 2 && sameVarianceParts parts = return SymRank2Layout
-  | length parts == 2 = fatal ("symmetric field needs same-variance indices: " ++ spec ++ " (line " ++ show ln ++ ")")
-  | otherwise = fatal ("symmetric field must have rank 2: " ++ spec ++ " (line " ++ show ln ++ ")")
-inferFieldLayout ln spec (Just (FieldIndex [Antisymmetric parts])) _
-  | length parts == 2 && sameVarianceParts parts = return AntiRank2Layout
-  | length parts == 2 = fatal ("antisymmetric field needs same-variance indices: " ++ spec ++ " (line " ++ show ln ++ ")")
-  | otherwise = fatal ("antisymmetric field must have rank 2: " ++ spec ++ " (line " ++ show ln ++ ")")
-inferFieldLayout ln spec _ _ =
-  fatal ("unsupported field spec: " ++ spec ++ " (line " ++ show ln ++ ")")
-
--- split on a separator at paren/bracket depth 0
-splitTop :: Char -> String -> [String]
-splitTop sep = go 0 []
-  where
-    go :: Int -> String -> String -> [String]
-    go _ acc [] = [strip (reverse acc)]
-    go d acc (c:cs)
-      | c `elem` "([" = go (d + 1) (c : acc) cs
-      | c `elem` ")]" = go (d - 1) (c : acc) cs
-      | c == sep && d == 0 = strip (reverse acc) : go 0 [] cs
-      | otherwise = go d (c : acc) cs
 
 -- NAME(~i|_i)? = EXPR   with NAME = [A-Za-z][A-Za-z0-9]*
 eqForm :: String -> String -> Maybe (String, [IxPart], String)
@@ -1124,9 +904,6 @@ surfaceBanned m s =
 
 -- --------------------------------------------------- expression rewriting
 
-data Tok = TId String Bool   -- identifier, followed-by-prime
-         | TC Char
-
 tokenize :: String -> [Tok]
 tokenize [] = []
 tokenize (c:cs)
@@ -1136,9 +913,6 @@ tokenize (c:cs)
            ('\'':b') -> TId (c : a) True : tokenize b'
            _ -> TId (c : a) False : tokenize b
   | otherwise = TC c : tokenize cs
-
-data Elem = EId String Bool | EC Char | ERaw String
-          | EMarkV String | EMarkL String
 
 -- the field to which lb is applied, if any (scans the same
 -- preprocessed form the rewriter uses, so Δ and delta (d u) count)
@@ -1171,205 +945,6 @@ lbTarget m = case concatMap scan (mSteps m) of
 -- half-cell difference anchored at the placement of the TARGET
 -- component (Virieux/Yee); symmetric components are canonicalized
 -- (s_2_1 means s_1_2).
-
-data ITok = II String | IC Char deriving Eq
-
-itok :: String -> [ITok]
-itok [] = []
-itok (c:cs)
-  | isAlpha c =
-      let (a, b) = span (\ch -> isAlphaNum ch || ch == '_' || ch == '~' || ch == '\'') cs
-      in II (c : a) : itok b
-  | otherwise = IC c : itok cs
-
-data Variance = VUp | VDown deriving (Eq, Show)
-data IxPart = IxPart Variance String deriving (Eq, Show)
-
-ixName :: IxPart -> String
-ixName (IxPart _ nm) = nm
-
-ixNames :: [IxPart] -> [String]
-ixNames = map ixName
-
-isIndexI :: [IxPart] -> Bool
-isIndexI parts = ixNames parts == ["i"]
-
-parseIndexedIdent :: String -> (String, [IxPart])
-parseIndexedIdent w =
-  let (base, rest) = break (`elem` "_~") w
-  in (base, marks rest)
-  where
-    marks [] = []
-    marks (m:c:rest)
-      | m == '~', isAlphaNum c =
-          let (nm, rest') = span isAlphaNum (c : rest)
-          in IxPart VUp nm : marks rest'
-      | m == '_', isAlphaNum c =
-          let (nm, rest') = span isAlphaNum (c : rest)
-          in IxPart VDown nm : marks rest'
-    marks rest = [IxPart VDown rest]
-
-isSingleAlphaIx :: IxPart -> Bool
-isSingleAlphaIx (IxPart _ [c]) = isAlpha c
-isSingleAlphaIx _ = False
-
-varianceWord :: Variance -> String
-varianceWord VUp = "Up"
-varianceWord VDown = "Down"
-
-tensorInternalBase :: String -> [Variance] -> String
-tensorInternalBase nm vars =
-  reservedInternalPrefix ++ "Tensor" ++ nm ++ concatMap varianceWord vars
-
-metricInternalBase :: Variance -> Variance -> String
-metricInternalBase VUp VUp = reservedInternalPrefix ++ "MetricContra"
-metricInternalBase VUp VDown = reservedInternalPrefix ++ "MetricMixedUpDown"
-metricInternalBase VDown VUp = reservedInternalPrefix ++ "MetricMixedDownUp"
-metricInternalBase VDown VDown = reservedInternalPrefix ++ "MetricCov"
-
-splitOn :: Char -> String -> [String]
-splitOn ch = foldr step [[]]
-  where
-    step c acc@(cur:rest) | c == ch = [] : acc
-                          | otherwise = (c : cur) : rest
-    step _ [] = [[]]
-
-plOf :: [Bool] -> String
-plOf hs = "[" ++ intercalate ", " [if h then "1 / 2" else "0" | h <- hs] ++ "]"
-
-axisRange :: Model -> [Int]
-axisRange m = [1 .. mDim m]
-
-zeroPlaceM :: Model -> String
-zeroPlaceM m = plOf (replicate (mDim m) False)
-
-placeV :: Model -> Int -> String
-placeV m a = plOf [c == a | c <- axisRange m]
-
-placeS :: Model -> Int -> Int -> String
-placeS m a b
-  | a == b = zeroPlaceM m
-  | otherwise = plOf [c == a || c == b | c <- axisRange m]
-
-leviCivita3 :: [Int] -> Int
-leviCivita3 xs
-  | sort xs /= [1, 2, 3] = 0
-  | xs `elem` [[1, 2, 3], [2, 3, 1], [3, 1, 2]] = 1
-  | otherwise = -1
-
-indexContractionDots :: String -> String
-indexContractionDots = go Nothing
-  where
-    go _ [] = []
-    go prev ('.':cs)
-      | maybe False isSpace prev
-      , case cs of
-          c:_ -> isSpace c
-          [] -> False
-      = '*' : go (Just '*') cs
-    go _ (c:cs) = c : go (Just c) cs
-
-fieldBaseOf :: String -> (String, Int)
-fieldBaseOf w = (takeWhile (/= '\'') w, length (filter (== '\'') w))
-
-ixVariance :: IxPart -> Variance
-ixVariance (IxPart v _) = v
-
-fieldIndexParts :: FieldDecl -> Maybe [IxPart]
-fieldIndexParts fd =
-  case fdIndex fd of
-    Just (FieldIndex [Plain parts]) -> Just parts
-    Just (FieldIndex [Symmetric parts]) -> Just parts
-    Just (FieldIndex [Antisymmetric parts]) -> Just parts
-    _ -> Nothing
-
-componentRank :: Kind -> Int
-componentRank Scalar = 0
-componentRank (Vector _) = 1
-componentRank (Form k) = k
-componentRank SymM = 2
-componentRank AntiM = 2
-componentRank (Tensor2 _) = 2
-
-choose :: Int -> [a] -> [[a]]
-choose 0 _ = [[]]
-choose _ [] = []
-choose k (x:xs)
-  | k < 0 = []
-  | otherwise = map (x :) (choose (k - 1) xs) ++ choose k xs
-
-symComponentIndices :: Int -> [[Int]]
-symComponentIndices dim =
-  [[a, a] | a <- [1 .. dim]] ++ [[a, b] | a <- [1 .. dim], b <- [a + 1 .. dim]]
-
-antiComponentIndices :: Int -> [[Int]]
-antiComponentIndices dim =
-  [[a, b] | a <- [1 .. dim], b <- [a + 1 .. dim]]
-
-componentIndices :: Int -> Kind -> [[Int]]
-componentIndices _ Scalar = [[]]
-componentIndices dim (Vector _) = [[a] | a <- [1 .. dim]]
-componentIndices dim (Form k) = choose k [1 .. dim]
-componentIndices dim SymM = symComponentIndices dim
-componentIndices dim AntiM = antiComponentIndices dim
-componentIndices dim (Tensor2 _) = [[a, b] | a <- [1 .. dim], b <- [1 .. dim]]
-
-rank2Pairs :: [[Int]] -> [(Int, Int)]
-rank2Pairs = map pairOf
-  where
-    pairOf [a, b] = (a, b)
-    pairOf xs = error ("internal rank-2 component shape: " ++ show xs)
-
-componentVariances :: Model -> String -> Kind -> [Maybe Variance]
-componentVariances m nm kind =
-  case fieldDeclOf m nm >>= fieldIndexParts of
-    Just parts | length parts == componentRank kind -> map (Just . ixVariance) parts
-    _ -> replicate (componentRank kind) Nothing
-
-storageIndexTag :: Maybe Variance -> Int -> String
-storageIndexTag Nothing a = "_" ++ show a
-storageIndexTag (Just VUp) a = "_up" ++ show a
-storageIndexTag (Just VDown) a = "_down" ++ show a
-
-componentStorageName :: Model -> String -> Kind -> [Int] -> String
-componentStorageName m nm kind inds =
-  nm ++ concat (zipWith storageIndexTag (componentVariances m nm kind) inds)
-
-internalCoordNames :: Model -> [String]
-internalCoordNames m = take (mDim m) ["x", "y", "z"]
-
-internalHstepNames :: Model -> [String]
-internalHstepNames m = take (mDim m) ["hx", "hy", "hz"]
-
-internalIndexNames :: Model -> [String]
-internalIndexNames m = take (mDim m) ["i", "j", "k"]
-
-componentStorageNames :: Model -> String -> Kind -> [String]
-componentStorageNames m nm kind =
-  [ componentStorageName m nm kind inds | inds <- componentIndices (mDim m) kind ]
-
-componentStorageNamesOf :: Model -> String -> [String]
-componentStorageNamesOf m nm =
-  case kindOf m nm of
-    Just kind -> componentStorageNames m nm kind
-    Nothing -> [nm]
-
-firstComponentStorageName :: Model -> String -> String
-firstComponentStorageName m nm =
-  case componentStorageNamesOf m nm of
-    x:_ -> x
-    [] -> nm
-
-egisonComponentName :: String -> Int -> [Int] -> String
-egisonComponentName nm primes inds =
-  nm ++ replicate primes '\'' ++ concatMap (('_' :) . show) inds
-
-fieldStorageMapEntries :: Model -> (String, Kind) -> [(String, String)]
-fieldStorageMapEntries m (nm, kind) =
-  [ (egisonComponentName nm primes inds, storage ++ replicate primes '\'')
-  | (inds, storage) <- zip (componentIndices (mDim m) kind) (componentStorageNames m nm kind)
-  , primes <- [0, 1]
-  ]
 
 strictEinstein :: Model -> [String] -> [IxPart] -> String -> IO ()
 strictEinstein m lets lhs expr = do
@@ -1712,13 +1287,6 @@ ixExpand m lets env anchor expr = expandRegion env (itok (indexContractionDots e
 
     deriv n (comp, place) =
       "dYee " ++ show n ++ " " ++ anchor ++ " (" ++ comp ++ ", " ++ place ++ ")"
-
-isIndexKind :: Maybe Kind -> Bool
-isIndexKind (Just (Vector _)) = True
-isIndexKind (Just SymM) = True
-isIndexKind (Just AntiM) = True
-isIndexKind (Just (Tensor2 _)) = True
-isIndexKind _ = False
 
 -- names X whose updated value X' is referenced in some step RHS
 primedRefs :: Model -> [String]
