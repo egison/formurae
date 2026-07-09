@@ -55,15 +55,17 @@
      名前は Formura のラテン語風複数形で <i>formulae</i>(数式)への掛詞 —
      設計者・村主崇行氏への敬意を込めて Formura の名を継いでいます。
      <code>field E : vector</code>・<code>field B : 2-form</code>・<code>field σ{~i~j} @ staggered</code> と宣言し、物理を添字方程式
-     (<code>v'~i = v~i + dt * ∂_j σ~i~j</code>)や微分形式(<code>B' = B - dt * d E'</code>)で書くと、
+     (<code>v'~i = v~i + dt * contractWith (+) (∂_j σ~i~j)</code>)や微分形式(<code>B' = B - dt * d E'</code>)で書くと、
      コンパイラ <code>fec</code>(Haskell、cabal build) が埋め込み形(.egi)へ変換し、Egison の CAS が展開して .fmr を生成、
      Formura が MPI+temporal blocking つき C に落とします。カードのコードは
      <b>.fe(既定で展開表示)→ 中間 .egi → 生成 .fmr</b> の3段。意味保存は .fmr 比較で検証済み
      (手書き版とバイト一致 or 整形差のみで同値検証)、全例 <code>make &lt;name&gt;</code> green。
-     現在は <code>∂x</code> 形式の座標微分、<code>epsilon~i~j~k . ∂_j X_k</code> のような ε 縮約、
-     <code>use vector-calculus { curl }</code> で生成される Egison 側のベクトル解析定義、<code>sin</code>/<code>exp</code> などのスカラー関数の
+     現在は <code>∂x</code> / <code>∂ 2 1 x</code> 形式の座標微分、<code>contractWith (+) A~i_i</code> や
+     <code>epsilon~i~j~k . ∂_j X_k</code> のような明示縮約、
+     <code>use vector-calculus { curl }</code> で生成される Egison 側のベクトル解析定義、<code>withSymbols</code> を使うユーザ定義テンソル演算子、<code>sin</code>/<code>exp</code> などのスカラー関数の
      自動 extern と成分ごとの lift をサポートしています。Yee/音響・LBM・MHD の一部は総合ギャラリーに直接 Egison 版として残っています。
-     書き方は<a href="../usage.html">使い方ガイド</a>、設計は <a href="../../DSL-DESIGN.md">DSL-DESIGN.md</a>、全26例は <a href="../index.html">総合ギャラリー</a>へ。</p>
+     書き方は<a href="../usage.html">使い方ガイド</a>、関連論文は <a href="../usage.html#papers">関連論文</a>、
+     設計は <a href="../../DSL-DESIGN.md">DSL-DESIGN.md</a>、全26例は <a href="../index.html">総合ギャラリー</a>へ。</p>
 </header>
 <main>
 
@@ -86,7 +88,7 @@ param κ = 1.0
 param dt = 0.1*dx*dx
 
 extern exp
-def Δ u = g~i~j * ∂_i ∂_j u
+def Δ u = g~i~j . ∂_i ∂_j u
 raw gauss = fun(x,y,z) exp(-((x-(total_grid_x*dx/2))/(5*dx))**2 - ((y-(total_grid_y*dy/2))/(5*dy))**2 - ((z-(total_grid_z*dz/2))/(5*dz))**2)
 
 field u : scalar
@@ -270,7 +272,7 @@ def feComps : [String] := ["u"]
 def feInits :=
   [ "  u[i,j,k] = gauss(i*dx,j*dy,k*dz)"
   ]
-def feSteps := scalarEq "u" (u + dt * kappa * ((∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u)))
+def feSteps := scalarEq "u" (u + dt * kappa * (((∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u))))
 
 def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feComps feInits feSteps)</pre></details>
   <details class="codebox" data-fmr="diffusion3d/diffusion3d.fmr"><summary>生成された Formura 全文(diffusion3d.fmr・17 行)</summary>
@@ -1893,10 +1895,10 @@ end function</pre></details>
   <h3>弾性波 — 添字記法とテンソル場</h3>
   <div class="math">ρ₀∂<sub>t</sub>v<sup>i</sup> = ∂<sub>j</sub>σ<sup>ij</sup>,&nbsp;&nbsp;
     ∂<sub>t</sub>σ<sup>ij</sup> = λg<sup>ij</sup>&thinsp;∂<sub>k</sub>v′<sup>k</sup> + μ(g<sup>ik</sup>∂<sub>k</sub>v′<sup>j</sup>+g<sup>jk</sup>∂<sub>k</sub>v′<sup>i</sup>)</div>
-  <div class="dslbox"><b>.fe</b>: 上の数式が字面どおりの2行 —
-    <code>v'~i = v~i + (dt / ρ0) * ∂_j σ~i~j</code> /
-    <code>σ'~i~j = σ~i~j + dt * (λ * g~i~j * ∂_k v'~k + μ * (g~i~k * ∂_k v'~j + g~j~k * ∂_k v'~i))</code>。
-    繰り返し添字は上1・下1だけを総和し、上げ下げは metric で明示する。
+  <div class="dslbox"><b>.fe</b>: 上の数式を明示縮約つきの2行で書く —
+    <code>v'~i = v~i + (dt / ρ0) * contractWith (+) (∂_j σ~i~j)</code> /
+    <code>σ'~i~j = σ~i~j + dt * (λ * g~i~j * contractWith (+) (∂_k v'~k) + μ * (g~i~k . ∂_k v'~j + g~j~k . ∂_k v'~i))</code>。
+    同じ上下添字が現れただけでは総和せず、<code>contractWith</code> または <code>.</code> で畳み込む。上げ下げは metric で明示する。
     <code>@ staggered</code> 宣言で各 ∂ が<b>対象成分の配置にアンカーされた半セル差分</b>になり、
     Virieux 格子が宣言から導出される。</div>
   <details class="codebox" data-fe="elastic3d/elastic3d.fe" open><summary>Formurae ソース全文(elastic3d.fe・42 行)</summary>
@@ -1907,8 +1909,8 @@ end function</pre></details>
 <span class="c">--   d sigma^ij / dt  = lambda delta^ij (div v')</span>
 <span class="c">--                      + mu (delta^ik d_k v'^j + delta^jk d_k v'^i)</span>
 <span class="c">--</span>
-<span class="c">-- Repeated dummy index letters are summed only as one upper and one lower</span>
-<span class="c">-- index. Superscripts and subscripts are kept distinct; on this Euclidean</span>
+<span class="c">-- Repeated dummy index letters are contracted explicitly with contractWith</span>
+<span class="c">-- or ".". Superscripts and subscripts are kept distinct; on this Euclidean</span>
 <span class="c">-- grid metric g is the identity, so g~i~j raises derivative indices.</span>
 <span class="c">-- v' refers to the updated velocity (symplectic).</span>
 <span class="c">-- The fields are declared staggered, so every d_a becomes a half-cell</span>
@@ -1940,8 +1942,8 @@ init:
                   [| 0.0 |] |]~i~j
 
 step:
-  v'~i = v~i + (dt / ρ0) * ∂_j σ~i~j
-  σ'~i~j = σ~i~j + dt * (λ * g~i~j * ∂_k v'~k + μ * (g~i~k * ∂_k v'~j + g~j~k * ∂_k v'~i))</pre></details>
+  v'~i = v~i + (dt / ρ0) * contractWith (+) (∂_j σ~i~j)
+  σ'~i~j = σ~i~j + dt * (λ * g~i~j * contractWith (+) (∂_k v'~k) + μ * (g~i~k . ∂_k v'~j + g~j~k . ∂_k v'~i))</pre></details>
   <details class="codebox" data-egi="elastic3d/elastic3d.egi"><summary>生成された Egison(中間形・fec 出力)(elastic3d.egi・222 行)</summary>
 <pre><span class="c">--</span>
 <span class="c">-- GENERATED by fec (the Formurae compiler) from elastic3d.fe -- edit the .fe, not this file</span>
@@ -2134,15 +2136,15 @@ def FormuraeInternalMetricContra_i_j := generateTensor (\[i, j] -&gt; if i = j t
 def FormuraeInternalMetricMixedUpDown_i_j := generateTensor (\[i, j] -&gt; if i = j then 1 else 0) [feDim, feDim]
 def FormuraeInternalMetricMixedDownUp_i_j := generateTensor (\[i, j] -&gt; if i = j then 1 else 0) [feDim, feDim]
 
-def feqv1 := v_1 +( (dt / rho0) * dYee 1 [1 / 2, 0, 0] (sigma_1_1, [0, 0, 0]) +  (dt / rho0) * dYee 2 [1 / 2, 0, 0] (sigma_1_2, [1 / 2, 1 / 2, 0]) +  (dt / rho0) * dYee 3 [1 / 2, 0, 0] (sigma_1_3, [1 / 2, 0, 1 / 2]))
-def feqv2 := v_2 +( (dt / rho0) * dYee 1 [0, 1 / 2, 0] (sigma_1_2, [1 / 2, 1 / 2, 0]) +  (dt / rho0) * dYee 2 [0, 1 / 2, 0] (sigma_2_2, [0, 0, 0]) +  (dt / rho0) * dYee 3 [0, 1 / 2, 0] (sigma_2_3, [0, 1 / 2, 1 / 2]))
-def feqv3 := v_3 +( (dt / rho0) * dYee 1 [0, 0, 1 / 2] (sigma_1_3, [1 / 2, 0, 1 / 2]) +  (dt / rho0) * dYee 2 [0, 0, 1 / 2] (sigma_2_3, [0, 1 / 2, 1 / 2]) +  (dt / rho0) * dYee 3 [0, 0, 1 / 2] (sigma_3_3, [0, 0, 0]))
-def feqsigma11 := sigma_1_1 + dt * ((lambda * 1 * dYee 1 [0, 0, 0] (v'_1, [1 / 2, 0, 0])  + lambda * 1 * dYee 2 [0, 0, 0] (v'_2, [0, 1 / 2, 0])  + lambda * 1 * dYee 3 [0, 0, 0] (v'_3, [0, 0, 1 / 2]) )+ mu * (dYee 1 [0, 0, 0] (v'_1, [1 / 2, 0, 0]) + 1 * dYee 1 [0, 0, 0] (v'_1, [1 / 2, 0, 0])))
-def feqsigma22 := sigma_2_2 + dt * ((lambda * 1 * dYee 1 [0, 0, 0] (v'_1, [1 / 2, 0, 0])  + lambda * 1 * dYee 2 [0, 0, 0] (v'_2, [0, 1 / 2, 0])  + lambda * 1 * dYee 3 [0, 0, 0] (v'_3, [0, 0, 1 / 2]) )+ mu * (dYee 2 [0, 0, 0] (v'_2, [0, 1 / 2, 0]) + 1 * dYee 2 [0, 0, 0] (v'_2, [0, 1 / 2, 0])))
-def feqsigma33 := sigma_3_3 + dt * ((lambda * 1 * dYee 1 [0, 0, 0] (v'_1, [1 / 2, 0, 0])  + lambda * 1 * dYee 2 [0, 0, 0] (v'_2, [0, 1 / 2, 0])  + lambda * 1 * dYee 3 [0, 0, 0] (v'_3, [0, 0, 1 / 2]) )+ mu * (dYee 3 [0, 0, 0] (v'_3, [0, 0, 1 / 2]) + 1 * dYee 3 [0, 0, 0] (v'_3, [0, 0, 1 / 2])))
-def feqsigma12 := sigma_1_2 + dt * ( mu * (dYee 1 [1 / 2, 1 / 2, 0] (v'_2, [0, 1 / 2, 0]) + 1 * dYee 2 [1 / 2, 1 / 2, 0] (v'_1, [1 / 2, 0, 0])))
-def feqsigma13 := sigma_1_3 + dt * ( mu * (dYee 1 [1 / 2, 0, 1 / 2] (v'_3, [0, 0, 1 / 2]) + 1 * dYee 3 [1 / 2, 0, 1 / 2] (v'_1, [1 / 2, 0, 0])))
-def feqsigma23 := sigma_2_3 + dt * ( mu * (dYee 2 [0, 1 / 2, 1 / 2] (v'_3, [0, 0, 1 / 2]) + 1 * dYee 3 [0, 1 / 2, 1 / 2] (v'_2, [0, 1 / 2, 0])))
+def feqv1 := v_1 + (dt / rho0) * (dYee 1 [1 / 2, 0, 0] (sigma_1_1, [0, 0, 0]) + dYee 2 [1 / 2, 0, 0] (sigma_1_2, [1 / 2, 1 / 2, 0]) + dYee 3 [1 / 2, 0, 0] (sigma_1_3, [1 / 2, 0, 1 / 2]))
+def feqv2 := v_2 + (dt / rho0) * (dYee 1 [0, 1 / 2, 0] (sigma_1_2, [1 / 2, 1 / 2, 0]) + dYee 2 [0, 1 / 2, 0] (sigma_2_2, [0, 0, 0]) + dYee 3 [0, 1 / 2, 0] (sigma_2_3, [0, 1 / 2, 1 / 2]))
+def feqv3 := v_3 + (dt / rho0) * (dYee 1 [0, 0, 1 / 2] (sigma_1_3, [1 / 2, 0, 1 / 2]) + dYee 2 [0, 0, 1 / 2] (sigma_2_3, [0, 1 / 2, 1 / 2]) + dYee 3 [0, 0, 1 / 2] (sigma_3_3, [0, 0, 0]))
+def feqsigma11 := sigma_1_1 + dt * (lambda * 1 * (dYee 1 [0, 0, 0] (v'_1, [1 / 2, 0, 0]) + dYee 2 [0, 0, 0] (v'_2, [0, 1 / 2, 0]) + dYee 3 [0, 0, 0] (v'_3, [0, 0, 1 / 2])) + mu * ((dYee 1 [0, 0, 0] (v'_1, [1 / 2, 0, 0])) + (dYee 1 [0, 0, 0] (v'_1, [1 / 2, 0, 0]))))
+def feqsigma22 := sigma_2_2 + dt * (lambda * 1 * (dYee 1 [0, 0, 0] (v'_1, [1 / 2, 0, 0]) + dYee 2 [0, 0, 0] (v'_2, [0, 1 / 2, 0]) + dYee 3 [0, 0, 0] (v'_3, [0, 0, 1 / 2])) + mu * ((dYee 2 [0, 0, 0] (v'_2, [0, 1 / 2, 0])) + (dYee 2 [0, 0, 0] (v'_2, [0, 1 / 2, 0]))))
+def feqsigma33 := sigma_3_3 + dt * (lambda * 1 * (dYee 1 [0, 0, 0] (v'_1, [1 / 2, 0, 0]) + dYee 2 [0, 0, 0] (v'_2, [0, 1 / 2, 0]) + dYee 3 [0, 0, 0] (v'_3, [0, 0, 1 / 2])) + mu * ((dYee 3 [0, 0, 0] (v'_3, [0, 0, 1 / 2])) + (dYee 3 [0, 0, 0] (v'_3, [0, 0, 1 / 2]))))
+def feqsigma12 := sigma_1_2 + dt * (mu * ((dYee 1 [1 / 2, 1 / 2, 0] (v'_2, [0, 1 / 2, 0])) + (dYee 2 [1 / 2, 1 / 2, 0] (v'_1, [1 / 2, 0, 0]))))
+def feqsigma13 := sigma_1_3 + dt * (mu * ((dYee 1 [1 / 2, 0, 1 / 2] (v'_3, [0, 0, 1 / 2])) + (dYee 3 [1 / 2, 0, 1 / 2] (v'_1, [1 / 2, 0, 0]))))
+def feqsigma23 := sigma_2_3 + dt * (mu * ((dYee 2 [0, 1 / 2, 1 / 2] (v'_3, [0, 0, 1 / 2])) + (dYee 3 [0, 1 / 2, 1 / 2] (v'_2, [0, 1 / 2, 0]))))
 
 def feParams := [("lambda", "2.0"), ("mu", "1.0"), ("rho0", "1.0"), ("dt", "0.0005")]
 def feHelpers :=
@@ -2205,7 +2207,7 @@ end function</pre></details>
   <div class="imgs"><img src="../img/elastic.svg" alt="P and S"></div>
   <div class="cap">同時発射した P パルス(vx)と S パルス(vy)が速度差で分離</div>
   <div class="facts">実測 <b>vp=1.990/2・vs=0.995/1</b>・エネルギー 3.4e-4。
-    Einstein 記法 .fe の生成 .fmr は v0 テンソル版と<b>バイト一致</b>。</div>
+    明示縮約つき添字記法 .fe の生成 .fmr は v0 テンソル版と<b>バイト一致</b>。</div>
 </div>
 
 <div class="card">
