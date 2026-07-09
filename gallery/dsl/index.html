@@ -61,7 +61,7 @@
      <b>.fe(既定で展開表示)→ 中間 .egi → 生成 .fmr</b> の3段。意味保存は .fmr 比較で検証済み
      (手書き版とバイト一致 or 整形差のみで同値検証)、全例 <code>make &lt;name&gt;</code> green。
      現在は <code>∂x</code> 形式の座標微分、<code>epsilon~i~j~k . ∂_j X_k</code> のような ε 縮約、
-     <code>def curl X~i = ...</code> 形式の添字付きユーザ定義演算子、<code>sin</code>/<code>exp</code> などのスカラー関数の
+     <code>use vector-calculus { curl }</code> で生成される Egison 側のベクトル解析定義、<code>sin</code>/<code>exp</code> などのスカラー関数の
      自動 extern と成分ごとの lift をサポートしています。Yee/音響・LBM・MHD の一部は総合ギャラリーに直接 Egison 版として残っています。
      書き方は<a href="../usage.html">使い方ガイド</a>、設計は <a href="../../DSL-DESIGN.md">DSL-DESIGN.md</a>、全26例は <a href="../index.html">総合ギャラリー</a>へ。</p>
 </header>
@@ -1250,9 +1250,9 @@ end function</pre></details>
   <div class="math">∂<sub>t</sub>E = ∇×B,&nbsp;&nbsp;∂<sub>t</sub>B = −∇×E′&nbsp;&nbsp;(c=1)</div>
   <div class="dslbox"><b>.fe</b>: <code>field E : vector</code> と宣言すれば、物理は
     <code>E' = E + dt * curl B</code> / <code>B' = B - dt * curl E'</code> の
-    <b>添字も成分もない2行</b>(<code>∇ ×</code> とも書ける)。<code>E'</code> は更新済みの場への参照
-    (symplectic・袖幅1)。同じ回転は <code>def curl X~i = epsilon~i~j~k . ∂_j X_k</code> のような
-    添字付きユーザ定義演算子としても表せる。</div>
+    <b>添字も成分もない2行</b>。<code>E'</code> は更新済みの場への参照
+    (symplectic・袖幅1)。<code>curl</code> の数式展開は Formurae ではなく、
+    生成 .egi の Egison 定義に任せる。</div>
   <details class="codebox" data-fe="maxwell3d/maxwell3d.fe" open><summary>Formurae ソース全文(maxwell3d.fe・25 行)</summary>
 <pre><span class="c">-- Maxwell's equations in vacuum (c = 1), collocated grid</span>
 <span class="c">--   dE/dt =  curl B</span>

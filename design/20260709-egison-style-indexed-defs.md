@@ -1,139 +1,162 @@
-# Egison 方式の添字記法と省略添字補完
+# Egison 側に任せる添字補完と Formurae の役割
 
 Date: 2026-07-09
 
 ## 目的
 
-Formurae の数学記法を、Egison / type-tensor-paper と同じ考え方に寄せる。
-その際、添字付き expression と、添字を省略した tensor/vector equation を明確に
-分ける。
+Formurae は、Formura へ落とすための物理 DSL / 座標文脈 DSL として薄く保つ。
+テンソル記法、スカラー関数の tensorMap 的 lift、微分形式の省略添字補完、縮約などの
+数式展開は Egison 側に任せる。
 
-重要な方針は次のとおり。
+中心方針は次のとおり。
 
-- 添字付き expression では、自由添字は式の表面に明示されていなければならない
-- `E'~i = E~i + dt * curl B` のように、添字付き項の中へ `curl B` を混ぜる形は許さない
-- ベクトル解析風に書く場合は、式全体を添字なし tensor equation として書く
-- つまり `E' = E + dt * curl B` はサポート対象にできる
-- `curl` / `div` / `grad` は、添字付き項を返す特殊構文ではなく、tensor/vector 値を返す普通の関数として扱う
-- 添字なし equation は、LHS の field 宣言・shape・添字型に基づいて component equation へ lowering する
-- Egison の omitted-index completion と同様に、省略された添字は必要な文脈で補完する
-- strict Einstein 検査は、添字付き expression に対しては従来どおり厳密に行う
+- Formurae には Egison と重複する一般的な添字補完器を実装しない
+- `curl` / `divg` は Formurae の添字付き項を返す特殊構文ではなく、生成 Egison 側の通常関数として扱う
+- `E' = E + dt * curl B` のような添字なし vector equation は許す
+- `E'~i = E~i + dt * curl B` のように、添字付き式へ添字なし vector 関数を混ぜる形は許さない
+- 添字付き equation は、右辺に自由添字が表面上すべて現れる strict Einstein 記法として扱う
+- Formurae の lowering は、field 宣言に基づく成分名への射影と Formura 出力に集中する
 
-## 1. 2つの記法層
+## 1. Formurae と Egison の分担
 
-### 1.1 添字付き expression
+### 1.1 Formurae が担当すること
 
-添字付き expression では、自由添字が表面に現れている必要がある。
+Formurae は次を担当する。
 
-```text
-E'~i = E~i + dt * (epsilon~i~j~k . ∂_j B_k)
-B'~i = B~i - dt * (epsilon~i~j~k . ∂_j E'_k)
-q' = ∂_i V~i
-```
+- `dimension` / `axes` / `metric` / `embedding` などの座標文脈を読む
+- `field` 宣言から Formura storage layout を決める
+- `use vector-calculus { curl }` のような宣言に応じて、必要な Egison 定義だけを生成 `.egi` に出す
+- 添字なし vector/form equation を成分更新式へ下ろす
+- 明示的な添字 equation は strict Einstein 検査と成分展開を行う
+- 最終的に Formura `.fmr` を出す Egison プログラムを生成する
 
-この層では、右辺の各項の自由添字が LHS の自由添字と一致するかを検査する。
-したがって、次は許さない。
+### 1.2 Egison が担当すること
 
-```text
--- NG
-E'~i = E~i + dt * curl B
-```
+Egison は次を担当する。
 
-`curl B` の表面には自由添字がないため、添字付き項 `~i` として扱えない。
+- tensor 値に添字情報を保持する
+- スカラー関数を tensor 引数へ lift する
+- `withSymbols` による局所添字管理を行う
+- `epsilon`、metric、縮約、tensorMap 的 lift を含む数式展開を行う
+- differential forms の omitted-index completion を行う
+- `curl` / `divg` などの生成定義の内部で添字記法を評価する
 
-### 1.2 添字なし tensor/vector equation
+したがって、Formurae 側で Egison の omitted-index completion を再実装しない。
+
+## 2. 添字なし vector equation
 
 ベクトル解析風に書きたい場合は、式全体を添字なしにする。
 
 ```text
-E' = E + dt * curl B
-B' = B - dt * curl E'
-q' = div V
-P' = grad u
-```
+use vector-calculus { curl }
 
-この層では、`curl B` は「自由添字 `~i` を暗黙に持つ項」ではなく、
-rank-1 tensor/vector 値を返す普通の関数適用である。式全体の shape は LHS の
-field 宣言から決まり、最後に component equation へ lowering する。
-
-概念的には、compiler が次のような展開を行う。
-
-```text
-E' = E + dt * curl B
-
--- lowering 後
-E'~i = E~i + dt * (epsilon~i~j~k . ∂_j B_k)
-```
-
-この補完は、添字付き expression の途中で発生するのではなく、添字なし equation を
-component equation に下ろす境界で発生する。
-
-## 2. Egison との対応
-
-Egison では、tensor は添字情報を値側に保持できる。また、differential forms は
-添字を省略した tensor として表現され、演算に参加するときに omitted indices が
-補完される。
-
-Formurae に移すべき要点は次である。
-
-- 添字情報は、macro-local な文字列ではなく tensor 値に付く
-- スカラー関数は tensor 引数に対して `tensorMap` 的に lift される
-- 添字 reduction と省略添字 completion は別の処理である
-- completion は、隠れた自由添字を添字付き項の中に突然作る処理ではない
-- completion は、添字なし tensor/form 値を、演算や lowering の文脈で具体的な添字付き表現へ変換する処理である
-
-この理解に基づくと、`curl B` は添字付き項ではなく、vector 値を返す関数適用として
-扱うのが自然である。
-
-## 3. `curl` / `div` / `grad` の位置付け
-
-`curl` / `div` / `grad` は、Formurae の indexed core には入れない。
-ただし、添字なし tensor/vector equation のための prelude 関数としては提供できる。
-
-```text
-use vector-calculus { curl, div, grad }
+field E : vector
+field B : vector
 
 step:
   E' = E + dt * curl B
   B' = B - dt * curl E'
 ```
 
-これらの関数は、入力と出力の rank / dimension 制約を持つ。
+Formurae はこれを、生成 Egison 側で次のような成分定義へ下ろす。
 
-```text
-grad : scalar -> covariant vector
-div  : contravariant vector -> scalar
-curl : covariant vector -> contravariant vector   -- 3D
+```egison
+def feqE_i := withSymbols [i] E_i + dt * (curl B_#)_i
+def feqB_i := withSymbols [i] B_i - dt * (curl E'_#)_i
 ```
 
-ただし Formurae では rank を型で管理しないため、これらは静的型ではなく
-field 宣言、metric、dimension、実際の lowering 時の shape 検査として実装する。
+ここで Formurae がしていることは、`E_i` や `(curl B_#)_i` のように成分を取り出す
+ことである。`curl` の数式展開そのものは、生成 `.egi` に出した Egison 定義が担当する。
 
-`curl` は 3D 専用なので、`dimension 2` で `use vector-calculus { curl }` または
-`curl B` が現れた場合は早期エラーにする。
+```egison
+def dGrad (X: Vector MathValue) : Matrix MathValue :=
+  generateTensor (\[a, b] -> dC a X_b) [feDim, feDim]
 
-## 4. 添字付き式との接続
+def curl (X: Vector MathValue) : Vector MathValue :=
+  withSymbols [i, j, k] (epsilon 3)~i~j~k . (dGrad X)_j_k
+```
 
-`curl` / `div` / `grad` を添字付き式の部分項として使うことは、第一段階では禁止する。
+このため、Formurae に「`curl B` から `epsilon~i~j~k . ∂_j B_k` を作る」
+target-aware な添字補完ルールは不要である。
+
+## 3. 添字付き equation
+
+添字付き equation では、自由添字を右辺の表面に明示する。
+
+```text
+field v~i @ staggered
+field σ{~i~j} @ staggered
+
+step:
+  v'~i = v~i + (dt / ρ0) * ∂_j σ~i~j
+```
+
+この層では strict Einstein 検査を行う。
+
+- 自由添字は LHS と同じ名前・上下で各項に現れる
+- ダミー添字は上1・下1だけを許す
+- `∂_i` は下添字だけを許す
+- metric による上げ下げは明示的に書く
+
+したがって次は許さない。
 
 ```text
 -- NG
 E'~i = E~i + dt * curl B
+```
 
--- OK
-E' = E + dt * curl B
+`curl B` は添字付き項ではなく vector 値を返す Egison 関数呼び出しなので、添字付き
+Formurae equation の項としては自由添字 `~i` が見えない。
 
--- OK
+同じ物理を添字付き equation で書くなら、展開形を明示する。
+
+```text
 E'~i = E~i + dt * (epsilon~i~j~k . ∂_j B_k)
 ```
 
-理由は、添字付き expression の検査を単純で予測可能に保つためである。
-自由添字が見えている式は strict Einstein 検査へ渡す。
-自由添字が見えていない vector calculus 関数は、添字なし equation の lowering で扱う。
+## 4. `use vector-calculus`
+
+`use vector-calculus` は、Formurae が現在の座標文脈から生成 Egison 定義を出すための
+宣言である。
+
+現在の対象:
+
+```text
+use vector-calculus { curl }
+use vector-calculus { divg }
+use vector-calculus { dGrad }
+```
+
+`curl` は `dimension 3` 専用として、`use` 宣言時点で検査する。
+`divg` / `dGrad` は `dimension 1` / `2` / `3` で生成できる。
+
+`divg` の例:
+
+```text
+use vector-calculus { divg }
+
+field V : vector
+field q : scalar
+
+step:
+  q' = divg V
+```
+
+生成 Egison 側では、`q'` の RHS は概念的に次のようになる。
+
+```egison
+divg V_#
+```
+
+`divg` の中身は Egison 定義である。
+
+```egison
+def divg (X: Vector MathValue) : MathValue := trace (dGrad X)
+```
 
 ## 5. `def` の扱い
 
-`def` は、まず scalar 関数と座標軸 stencil の定義に限定する。
+`.fe` の `def` は、第一段階では scalar 関数と座標軸 stencil の定義に寄せる。
 
 ```text
 def square u = u * u
@@ -141,176 +164,69 @@ def Δ u = ∂2x u + ∂2y u + ∂2z u
 def Δ4 u = ∂2,2x u + ∂2,2y u + ∂2,2z u
 ```
 
-添字付き expression に scalar 関数を適用した場合は map される。
+body に新しい自由添字を持つ定義は、Formurae の通常 `def` としては扱わない。
 
 ```text
-W_i = square V_i
-```
-
-一方、body に新しい自由添字を持つ `def` は、通常の scalar `def` としては扱わない。
-
-```text
--- scalar def としては NG
+-- 採用しない
 def grad u = ∂_i u
 def curl X = epsilon~i~j~k . ∂_j X_k
 ```
 
-`curl` / `div` / `grad` を提供する場合は、通常の scalar `def` ではなく、
-prelude の tensor/vector 関数として扱う。実装上は、unindexed equation lowering が
-これらの関数を既知の rank-changing operation として展開する。
+この種類の数式抽象は Egison 側で定義する。Formurae は必要な定義を `use` に応じて
+生成 `.egi` に出す。
 
-将来、ユーザ定義の rank-changing tensor 関数を一般化する場合は、
-Egison の omitted-index completion と index-sequence pattern を参考に、別の設計として
-導入する。
+## 6. 実装状態
 
-## 6. `use` との関係
+現状の Formurae 実装は、この方針に近い。
 
-`use vector-calculus { curl, div, grad }` は、添字なし tensor/vector equation のための
-prelude として位置付ける。
+- `E' = E + dt * curl B` は unindexed vector equation として通る
+- `curl B` は `curl B_#` という Egison の vector 呼び出しになり、component lowering で `(curl B_#)_i` として取り出す
+- `curl` / `divg` は `use vector-calculus` で明示した場合だけ利用できる
+- `curl` / `divg` の数式本体は、生成 `.egi` の Egison 定義として出る
+- 一般的な omitted-index completion は Formurae には実装しない
 
-```text
-dimension 3
-axes x, y, z
-metric δ
+重要なのは、Formurae の component lowering は「成分を取り出す」だけであり、
+`curl` の数式を Haskell 側で `epsilon` 展開しないことである。
 
-use vector-calculus { curl, div, grad }
+## 7. 実装手順
 
-field E~i @ staggered
-field B_i @ staggered
+### Step 1: documentation を新方針へ揃える
 
-step:
-  E' = E + dt * curl B
-```
+- `def curl X~i = ...` や `def grad u_i = ...` を Formurae の目標構文として紹介しない
+- `curl` / `divg` は `use` で生成される Egison 定義として説明する
+- Formurae には一般的な添字補完器を実装しないことを明記する
 
-`use` された関数だけを利用可能にする。未 import の関数名は通常の未定義名として
-エラーにする。
+### Step 2: 既存実装の境界を明確にする
 
-`extern` との分担は従来方針どおりである。
+- `opPass` は vector/form 関数呼び出しを Egison 呼び出しへつなぐだけに保つ
+- `rewrite` は成分射影だけを行う
+- `curl` の `epsilon` 展開を Haskell 側へ移さない
 
-- `extern`: Formura/C 側で使うスカラー関数
-- `use`: Formurae が座標文脈・dimension・metric から展開する数学演算子
+### Step 3: 禁止ケースを確認する
 
-## 7. lowering 方針
-
-### 7.1 添字なし equation の shape 推論
-
-LHS が `field E~i` として宣言されている場合、
-
-```text
-E' = E + dt * curl B
-```
-
-は rank-1 equation として扱う。compiler は LHS の添字 pattern `~i` を component
-lowering の target pattern として使う。
-
-`curl B` は直接 `~i` を持つ項ではないが、`curl` の lowering rule が target pattern を
-受け取り、次の添字式を生成する。
-
-```text
-curl(B) under target ~i
-  -> epsilon~i~j~k . ∂_j B_k
-```
-
-`div V` は scalar target の中でのみ許す。
-
-```text
-div(V) under scalar target
-  -> ∂_i V~i
-```
-
-`grad u` は rank-1 target の中でのみ許す。
-
-```text
-grad(u) under target _i
-  -> ∂_i u
-
-grad(u) under target ~i
-  -> g~i~j . ∂_j u
-```
-
-ここで上げ下げは自動ではなく、`grad` の rule が metric を明示的に展開式へ入れる。
-ユーザの添字付き expression 内で勝手に上げ下げするわけではない。
-
-### 7.2 添字付き expression の検査
-
-lowering 後に得られた expression は、通常の strict Einstein 検査に通す。
-
-```text
-E'~i = E~i + dt * (epsilon~i~j~k . ∂_j B_k)
-```
-
-この段階では自由添字もダミー添字もすべて表面に現れている。
-
-## 8. 実装手順
-
-### Step 1: 設計と documentation を修正する
-
-成功条件:
-
-- `E'~i = E~i + dt * curl B` を NG と明記する
-- `E' = E + dt * curl B` をサポート対象として明記する
-- `curl` / `div` / `grad` は indexed core ではなく unindexed equation prelude として説明する
-
-### Step 2: unindexed equation lowering に target pattern を渡す
-
-現在の component lowering に、LHS field の添字 pattern を渡せるようにする。
-
-成功条件:
-
-- `field E~i ...` に対して `E' = ...` を rank-1 target として lower できる
-- scalar LHS に対して `q' = ...` を scalar target として lower できる
-
-### Step 3: vector-calculus prelude を target-aware にする
-
-`curl` / `div` / `grad` を、target pattern を受け取って添字 expression を返す
-lowering rule として実装する。
-
-成功条件:
-
-```text
-E' = E + dt * curl B
-  -> E'~i = E~i + dt * (epsilon~i~j~k . ∂_j B_k)
-
-q' = div V
-  -> q' = ∂_i V~i
-
-P' = grad u
-  -> P'_i = ∂_i u
-```
-
-### Step 4: 禁止ケースのエラーを入れる
-
-成功条件:
+次の形が分かりやすく失敗することを確認する。
 
 ```text
 E'~i = E~i + dt * curl B
-  -> NG: vector-calculus functions are only allowed in unindexed tensor equations
-
-dimension 2
-E' = E + dt * curl B
-  -> NG: curl requires dimension 3
-
-q' = curl B
-  -> NG: curl returns rank-1 but scalar target was expected
 ```
 
-### Step 5: examples を更新する
+一方、次は通る。
 
-成功条件:
+```text
+E' = E + dt * curl B
+```
 
-- Maxwell 例で `E' = E + dt * curl B` が通る
-- divergence 例で `q' = div V` が通る
-- 添字展開版も引き続き通る
-- `make all` が通る
+### Step 4: 回帰確認
 
-## 9. 完了条件
+- `cabal build`
+- `make maxwell3d`
+- `make divergence2d`
+- 必要に応じて `make all`
 
-この設計が完了したと言える条件は次である。
+## 8. 完了条件
 
-- 添字付き expression では、自由添字が表面に現れる規則を維持する
-- `E'~i = E~i + dt * curl B` は分かりやすく失敗する
-- `E' = E + dt * curl B` は unindexed tensor equation として通る
-- `curl` / `div` / `grad` は `use vector-calculus` で明示的に import された場合だけ使える
-- lowering 後の式は通常の strict Einstein 検査に通す
-- Egison の省略添字補完と同様に、添字省略は equation/lowering の境界で扱う
-- `make all` が通る
+- Formurae 側に一般的な添字補完器を追加しない設計になっている
+- `E' = E + dt * curl B` は、生成 Egison の `curl` 定義に任せて動く
+- `E'~i = E~i + dt * curl B` は strict Einstein 検査で失敗する
+- documentation が「数式展開は Egison、Formurae は座標文脈と Formura 出力」という分担を説明している
+- 既存例の生成結果とテストが壊れていない

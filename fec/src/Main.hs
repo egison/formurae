@@ -45,10 +45,12 @@
 --                                    library-level operators such as
 --                                    exterior-calculus { d, delta } and
 --                                    vector-calculus { curl, divg }.
---   def NAME ARG(~i|_i)* = EXPR     user-defined operator, expanded at use
---                                    sites (file scope; a body may use only
---                                    operators defined before it).  A use
---                                    definition may be redefined.
+--   def NAME ARG = EXPR             user-defined scalar/stencil operator,
+--                                    expanded at use sites (file scope; a
+--                                    body may use only operators defined
+--                                    before it).  Indexed/rank-changing
+--                                    tensor operators live in generated
+--                                    Egison definitions selected by `use`.
 --   param NAME = RAW                Formura parameter (double :: NAME = RAW)
 --   extern NAME                     extern function :: NAME
 --                                   (core scalar intrinsics such as sin,
@@ -91,10 +93,11 @@
 -- `metric NAME` lowers to generated tensors according to variance:
 -- NAME~i~j, NAME~i_j, NAME_i~j, NAME_i_j.  The fused delta_ij is rejected.
 --
--- A vector update may be written without indices (E' = E + dt * curl B);
--- bare vector names combine elementwise and curl applies to the whole
--- field.  X' in a RHS refers to the updated field (Formura's primed
--- array), so B' = B - dt * curl E' is the symplectic pair.
+-- A vector update may be written without indices (E' = E + dt * curl B).
+-- fec lowers it to component extraction from Egison vector values, while
+-- the mathematical definition of curl/divg itself stays in generated Egison
+-- code.  X' in a RHS refers to the updated field (Formura's primed array),
+-- so B' = B - dt * curl E' is the symplectic pair.
 
 import Data.Char (isAlpha, isAlphaNum, isDigit, isSpace)
 import Data.List (dropWhileEnd, intercalate, permutations, sort, nub, stripPrefix)
@@ -259,15 +262,15 @@ eqForm marker s = do
     headDef d [] = d
     headDef _ (c:_) = c
 
--- def NAME PARAM(~i|_i)* = BODY
--- The optional index marks after PARAM describe the returned indexed
--- quantity.  The current thin implementation keeps PARAM as the substitution
--- variable and lets the index equation expander interpret BODY's free indices.
+-- def NAME PARAM = BODY
+-- User definitions are scalar/stencil substitutions in the Formurae layer.
+-- Rank-changing indexed tensor operators are intentionally not parsed here;
+-- they should be generated as Egison definitions through `use`.
 defForm :: String -> Maybe (String, String, String)
 defForm r = do
   (nm, r1) <- identU (strip r)
   (p, r2) <- identParam (dropWhile isSpace r1)
-  r3 <- stripPrefix "=" (dropWhile isSpace (dropIdxSuffix r2))
+  r3 <- stripPrefix "=" (dropWhile isSpace r2)
   let body = strip r3
   if null body then Nothing else Just (nm, p, body)
   where
@@ -276,9 +279,12 @@ defForm r = do
     identParam (c:cs) | isAlpha c =
       let (a, b) = span isAlphaNum cs in Just (c : a, b)
     identParam _ = Nothing
-    dropIdxSuffix ('~':c:rest) | isAlpha c = dropIdxSuffix rest
-    dropIdxSuffix ('_':c:rest) | isAlpha c = dropIdxSuffix rest
-    dropIdxSuffix s = s
+
+defHasIndexedParam :: String -> Bool
+defHasIndexedParam r =
+  case words r of
+    (_:param:_) -> any (`elem` ("_~" :: String)) param
+    _ -> False
 
 -- NAME'(~a|_a)(~b|_b)? = EXPR   (a, b single index letters)
 primeEqForm :: String -> Maybe (String, [IxPart], String)
@@ -536,8 +542,12 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
               rejectReservedName ln nm
               rejectReservedName ln p
               return m { mDefs = (nm, (p, body)) : mDefs m }
+            Nothing | defHasIndexedParam r ->
+              fatal ("indexed def parameters are not supported in Formurae def"
+                     ++ " (line " ++ show ln
+                     ++ "); put rank-changing tensor operators in generated Egison via use")
             Nothing -> fatal ("bad def (line " ++ show ln
-                              ++ "): def NAME ARG(~i|_i)* = EXPR")
+                              ++ "): def NAME ARG = EXPR")
       | Just r <- stripPrefix "param " s =
           case break (== '=') r of
             (nm, '=':v) | not (null (strip nm)) && not (null (strip v)) -> do
