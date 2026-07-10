@@ -1,0 +1,16 @@
+mode collocated
+dimension 2
+axes x, y
+
+field u : scalar
+field q_i
+field M~i_j
+
+init:
+  u = 0
+  q_i = [| 0, 0 |]_i
+  M~i_j = [| [| 0, 0 |], [| 0, 0 |] |]~i_j
+
+step:
+  q'_i = grad u..._i
+  M'~i_j = matmul M M...~i_j

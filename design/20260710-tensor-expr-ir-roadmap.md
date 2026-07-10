@@ -4,6 +4,17 @@ Date: 2026-07-10
 
 ## 実装更新 (2026-07-10)
 
+- `lib/formurae-tensor.egi` を追加した。Egison の既存 Tensor primitive
+  (`withSymbols`、`contract`、`tensorMap`、`subrefs`、`transpose`、`!.`) を
+  Formurae 用の一つの bridge から利用し、`fec` の標準演算子定義を Haskell
+  に複製しない。生成 `.egi` はこの bridge と `fmrgen.egi` をロードする。
+- 座標微分だけはモデルごとの生成 context (`fePartial`/`fePartial2` と
+  `feGrad`/`feCurl` などの hook) に残した。`∂_x`、`∂^2_x`、`∂'^2_x` の
+  stencil/配置は Formurae 固有だが、hook の返り値は Egison Tensor とする。
+- Tensor-valued operator の成分選択 `grad u..._i` を Egison 式
+  `(grad u)_1` へ変換する経路を追加した。これにより結果添字を定義 head に
+  書かず、呼び出し側で指定できる。
+
 - `tensorMap`、`subrefs`、`transpose`、disjoint product `!.` を
   TensorExpr の first-class node として追加し、成分 lowering まで実装した。
 - `def swap A_i_j = ...` のような固定長 indexed parameter と、

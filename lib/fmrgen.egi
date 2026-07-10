@@ -5,6 +5,7 @@
 -- quote cleanup, and form helpers.  Generated/hand-written models
 -- provide their own coordinate context, stencil/differential operators,
 -- and Formura printer.
+-- Tensor semantics live in lib/formurae-tensor.egi and are loaded separately.
 --
 
 --

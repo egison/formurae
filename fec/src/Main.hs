@@ -11,7 +11,7 @@
 -- only; build and run with
 --
 --   cabal run -v0 fec -- model.fme > model.egi
---   egison -l lib/fmrgen.egi model.egi > model.fmr
+--   egison -l lib/formurae-tensor.egi -l lib/fmrgen.egi model.egi > model.fmr
 --
 -- Formurae grammar (v1):
 --   mode collocated|dec             REQUIRED; spatial discretization and standard prelude
@@ -41,11 +41,8 @@
 --                                   hodge factors sqrt(g)/h_a^2 become
 --                                   coefficient FIELDS evaluated by the
 --                                   CAS at the half-cell placements.
---   def NAME ARG... = EXPR          user-defined operator, expanded at use
---                                    sites (file scope; a body may use only
---                                    operators defined before it).  Operator
---                                    definitions follow Egison: result indices
---                                    are not written in the head; use
+--   def NAME ARG... = EXPR          user-defined operator.  Its tensor
+--                                    semantics are passed to Egison; use
 --                                    withSymbols for newly introduced free
 --                                    indices and contractWith / `.` for
 --                                    contraction.
@@ -138,43 +135,15 @@ scalarIntrinsics =
   , "exp", "log", "sqrt", "pow", "fabs"
   ]
 
-standardDefs :: Model -> [Def]
-standardDefs m =
-  [ Def "." ["A", "B"] "contractWith (+) (A * B)"
-  , Def "wedge" ["A", "B"] "A !. B"
-  , Def "outer" ["A", "B"] "A !. B"
-  , Def "inner" ["A", "B"] "contractWith (+) (A~i * B_i)"
-  , Def "trace" ["A"] "contractWith (+) A~i_i"
-  , Def "matmul" ["A", "B"] "withSymbols [i, j] (A~i_k . B~k_j)"
-  , Def "sym" ["A"]
-      "withSymbols [i, j] ((subrefs A [_i, _j] + transpose [j, i] (subrefs A [_i, _j])) / 2)"
-  , Def "antisym" ["A"]
-      "withSymbols [i, j] ((subrefs A [_i, _j] - transpose [j, i] (subrefs A [_i, _j])) / 2)"
-  , Def "norm2" ["X"] "contractWith (+) (X~i * X_i)"
-  , Def "hessian" ["u"] "withSymbols [i, j] (∂_i ∂_j u)"
-  ]
-  ++ modeStandardDefs m
-
-modeStandardDefs :: Model -> [Def]
-modeStandardDefs m =
-  case selectedMode m of
-    CollocatedMode -> collocatedPreludeDefs
-    DecMode -> []
-
--- These are ordinary TensorExpr definitions rather than special lowering
--- cases.  In particular curl and divg are expressed only with indexed
--- derivatives, context tensors, withSymbols, and explicit contraction.
-collocatedPreludeDefs :: [Def]
-collocatedPreludeDefs =
-  [ Def "grad" ["u"] "withSymbols [i] (∂_i u)"
-  , Def "dGrad" ["X"] "withSymbols [i, j] (∂_i X_j)"
-  , Def "divg" ["X"]
-      ("withSymbols [i, j] (" ++ metricPreludeName ++ "~i~j . ∂_i X_j)")
-  , Def "curl" ["X"]
-      "withSymbols [i, j, k] (epsilon_i~j~k . ∂_j X_k)"
-  , Def "lap" ["u"]
-      ("withSymbols [i, j] (" ++ metricPreludeName ++ "~i~j . ∂_i ∂_j u)")
-  , Def "Δ" ["u"] "lap u"
+-- Tensor algebra is an Egison concern.  The generated .egi loads
+-- lib/formurae-tensor.egi, which defines the standard operators in terms of
+-- Egison's Tensor primitives.  Keeping only the names here lets the parser
+-- recognise those operators while avoiding a second Haskell implementation
+-- of their semantics.
+standardNames :: [String]
+standardNames =
+  [ ".", "wedge", "outer", "inner", "trace", "matmul", "sym", "antisym"
+  , "norm2", "hessian", "grad", "dGrad", "divg", "curl", "lap", "Δ"
   ]
 
 -- ---------------------------------------------------------------- model
@@ -526,11 +495,11 @@ parseFe name txt = go STop initialModel
                       ("in step expression: " ++ sEx st) (sEx st))
                 (mSteps mUse)
           mapM_ (checkInitUse mUse) (mInits mUse)
-          -- resolve user-defined operators (definition order; a body may
-          -- use only operators defined before it) and expand all uses.
-          -- Prelude operators are ordinary defs; a user definition later in
-          -- the file shadows the prelude name.
-          defs <- resolveDefs mUse (standardDefs mUse ++ reverse (mDefs mUse))
+          -- Resolve user-defined operators (definition order; a body may
+          -- use only operators defined before it) for the surface checks.
+          -- Tensor prelude names are supplied by the Egison bridge, not
+          -- expanded here.
+          defs <- resolveDefs mUse (reverse (mDefs mUse))
           tensorDefs <- resolveTensorDefs mUse defs (reverse (mTensorDefs mUse))
           let mDef = mUse { mDefs = defs, mTensorDefs = tensorDefs }
           steps' <- mapM (\st -> do ex0 <- preprocessTensorExpr mUse (sEx st)
@@ -974,7 +943,7 @@ surfaceBanned m locals s =
       any isTensorOperator seen
     isTensorOperator (TId nm _) =
       nm == "tensorMap" || nm == "subrefs" || nm == "transpose"
-      || any ((== nm) . defName) (standardDefs m)
+      || nm `elem` standardNames
       || any ((== nm) . defName) (mDefs m)
       || any ((== nm) . tdName) (mTensorDefs m)
     isTensorOperator _ = False
@@ -1324,6 +1293,17 @@ emit m = do
       contextMathDecls = scalarContextDecls
                          ++ (if needsYeeContext then yeeContextDecls else [])
                          ++ (if needsFormContext then formContextDecls else [])
+      tensorPreludeDecls =
+            [ "-- Formurae tensor operators: Egison-side wrappers around the generated coordinate hooks"
+            , "def grad (u: MathValue) : Tensor MathValue := feGrad u"
+            , "def dGrad (u: Tensor MathValue) : Tensor MathValue := feDGrad u"
+            , "def divg (u: Tensor MathValue) : MathValue := feDivg u"
+            , "def curl (u: Tensor MathValue) : Tensor MathValue := feCurl u"
+            , "def lap (u: MathValue) : MathValue := feLap u"
+            , "def Δ (u: MathValue) : MathValue := lap u"
+            , "def hessian (u: MathValue) : Tensor MathValue :="
+            , "  generateTensor (\\[i, j] -> fePartial2 i (fePartial j u)) [feDim, feDim]"
+            ]
       scalarContextDecls =
             [ "def shift (a: Integer) (c: MathValue) (u: MathValue) : MathValue :="
             , "  substitute [(feCoords_a, feCoords_a + c * feHsteps_a)] u"
@@ -1350,9 +1330,27 @@ emit m = do
                , "      else if m = 2 && r = 1 then dC2 a u"
                , "      else dTaylor m (between (0 - r) r) a u"
                ]
+            ++ [ "def fePartial (a: Integer) (u: MathValue) : MathValue := ∂ 1 1 feCoords_a u"
+               , "def fePartial2 (a: Integer) (u: MathValue) : MathValue := ∂ 2 1 feCoords_a u"
+               , "def feIndexPairs : [(Integer, Integer)] := " ++ axisPairList
+               , "def feEpsilon (i: Integer) (j: Integer) (k: Integer) : MathValue :="
+               , "  if i = j || j = k || i = k then 0"
+               , "  else if (i = 1 && j = 2 && k = 3) || (i = 2 && j = 3 && k = 1) || (i = 3 && j = 1 && k = 2) then 1"
+               , "  else -1"
+               , "def feGrad (u: MathValue) : Tensor MathValue :="
+               , "  generateTensor (\\[i] -> fePartial i u) [feDim]"
+               , "def feDGrad (u: Tensor MathValue) : Tensor MathValue :="
+               , "  generateTensor (\\[i, j] -> fePartial i (u_j)) [feDim, feDim]"
+               , "def feDivg (u: Tensor MathValue) : MathValue :="
+               , "  sum (map (\\i -> fePartial i (u_i)) feAxisIds)"
+               , "def feCurl (u: Tensor MathValue) : Tensor MathValue :="
+               , "  generateTensor (\\[i] ->"
+               , "    sum (map (\\(j, k) -> feEpsilon i j k * fePartial j (u_k)) feIndexPairs)) [feDim]"
+               , "def feLap (u: MathValue) : MathValue :="
+               , "  sum (map (\\i -> fePartial2 i u) feAxisIds)"
+               ]
       yeeContextDecls =
-            [ "def feIndexPairs : [(Integer, Integer)] := " ++ axisPairList
-            , "def yeeRef (sT: [MathValue]) (fld: (MathValue, [MathValue])) (disp: [MathValue]) : MathValue :="
+            [ "def yeeRef (sT: [MathValue]) (fld: (MathValue, [MathValue])) (disp: [MathValue]) : MathValue :="
             , "  let (fF, sF) := fld"
             , "   in substitute"
             , "        (map (\\a -> (feCoords_a, feCoords_a + (nth a disp + nth a sT - nth a sF) * feHsteps_a)) feAxisIds)"
@@ -1593,6 +1591,7 @@ emit m = do
         , "-- GENERATED by fec (the Formurae compiler) from " ++ mName m
             ++ ".fme -- edit the .fme, not this file"
         , "-- mode " ++ modeSurfaceName (selectedMode m)
+        , "-- load lib/formurae-tensor.egi and lib/fmrgen.egi before this file"
         , "--"
         , "" ] ++
         (if null (mParams m) then []
@@ -1639,7 +1638,7 @@ emit m = do
       mainDef
         | null gates = [ "def main (args: [String]) : IO () := " ++ emitCall ]
         | otherwise = [ "def main (args: [String]) : IO () :=", "  " ++ nest gates ]
-  return (unlines (header ++ contextDecls ++ contextMathDecls ++ printerContextDecls
+  return (unlines (header ++ contextDecls ++ contextMathDecls ++ tensorPreludeDecls ++ printerContextDecls
                    ++ (if null contextDecls then [] else [""])
                    ++ fieldDecls ++ primDecls ++ localDecls ++ tensorAliasDecls
                    ++ metricContextDecls ++ [""]
@@ -1659,13 +1658,17 @@ emit m = do
       "[" ++ intercalate ", " (formComponentNames nm primes k) ++ "]"
     fdecl (nm, Scalar) = ["def " ++ nm ++ " := function (" ++ fieldCoordArgs ++ ")"]
     fdecl (nm, Vector _) =
-      ["def " ++ nm ++ "_i := generateTensor (\\[i] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape1]
+      [ "def " ++ nm ++ "_i := generateTensor (\\[i] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape1
+      , "def " ++ nm ++ " := " ++ nm ++ "_i" ]
     fdecl (nm, SymM) =
-      ["def " ++ nm ++ "_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2]
+      [ "def " ++ nm ++ "_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2
+      , "def " ++ nm ++ " := " ++ nm ++ "_i_j" ]
     fdecl (nm, AntiM) =
-      ["def " ++ nm ++ "_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2]
+      [ "def " ++ nm ++ "_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2
+      , "def " ++ nm ++ " := " ++ nm ++ "_i_j" ]
     fdecl (nm, Tensor2 _) =
-      ["def " ++ nm ++ "_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2]
+      [ "def " ++ nm ++ "_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2
+      , "def " ++ nm ++ " := " ++ nm ++ "_i_j" ]
     fdecl (nm, Form k) =
       formFamilyDecl nm "" k
       ++ [ "def " ++ nm ++ "f : (Integer, Integer, [MathValue]) := (0, " ++ show k
@@ -1673,13 +1676,17 @@ emit m = do
     pdecl nm = case kindOf m nm of
       Just Scalar -> ["def " ++ nm ++ "' := function (" ++ fieldCoordArgs ++ ")"]
       Just (Vector _) ->
-        ["def " ++ nm ++ "'_i := generateTensor (\\[i] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape1]
+        [ "def " ++ nm ++ "'_i := generateTensor (\\[i] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape1
+        , "def " ++ nm ++ "' := " ++ nm ++ "'_i" ]
       Just SymM ->
-        ["def " ++ nm ++ "'_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2]
+        [ "def " ++ nm ++ "'_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2
+        , "def " ++ nm ++ "' := " ++ nm ++ "'_i_j" ]
       Just AntiM ->
-        ["def " ++ nm ++ "'_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2]
+        [ "def " ++ nm ++ "'_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2
+        , "def " ++ nm ++ "' := " ++ nm ++ "'_i_j" ]
       Just (Tensor2 _) ->
-        ["def " ++ nm ++ "'_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2]
+        [ "def " ++ nm ++ "'_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2
+        , "def " ++ nm ++ "' := " ++ nm ++ "'_i_j" ]
       Just (Form k) ->
         formFamilyDecl nm "'" k
         ++ [ "def " ++ nm ++ "fN : (Integer, Integer, [MathValue]) := (0, " ++ show k

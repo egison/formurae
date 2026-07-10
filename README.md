@@ -11,24 +11,21 @@ Formura を設計した村主崇行氏への敬意を込め、氏の言語の名
 ```
 .fme      : Formurae — 表層言語(field 宣言+添字記法・微分形式・計量の方程式) ← 22例
    ↓        fec(薄い変換層、Haskell; cabal build)
-Egison   : 生成 .egi(座標文脈・差分化コンビネータ・DEC・.fmr プリンタを含む)
+Egison   : 生成 .egi + lib/formurae-tensor.egi(テンソル意味論・座標文脈・差分化・DEC・プリンタ)
    ↓        Egison CAS + mathValue マッチャ
 Formura  : .fmr → C ライブラリ(MPI 通信・temporal blocking を自動生成)
    ↓
 C コンパイラ + ドライバ → 実行
 ```
 
-Formurae の collocated Maxwell。`mode` が離散化と標準 prelude を選び、
-`curl` は `epsilon`・添字微分・明示縮約から定義された通常の Formurae 演算子として
-自動ロードされる:
-
-```
 mode collocated
 dimension 3
 axes x, y, z
 
 field E_i
 field B_i
+
+def curl X = withSymbols [i, j, k] (epsilon_i~j~k . ∂_j X_k)
 
 init:
   E_i = [| 0, gauss1(i*dx), 0 |]_i
@@ -38,6 +35,14 @@ step:
   E'_i = E_i + dt * curl B_i
   B'_i = B_i - dt * curl E'_i    -- E' は更新済み配列への参照(symplectic・袖幅1)
 ```
+
+`fec` が出す `.egi` はテンソル演算を成分式へ再実装しません。Makefile はまず
+`lib/formurae-tensor.egi` を読み込み、Egison の `withSymbols`、自動縮約、
+`tensorMap`、`subrefs`、`transpose`、`!.` をそのまま使える環境を作ってから、
+モデル固有の座標・差分フックを評価します。したがって `.fme` の `def` は、
+`∂_x`/`∂'^2_x` などの座標微分を除けば Egison のテンソル式へ直訳できる形を保ちます。
+テンソル値の標準演算子は `grad u..._i`、`matmul A B...~i_j` のように結果添字を
+呼び出し側で付けます。生成された `(grad u)_1` の評価と成分抽出は Egison に任せます。
 
 標準 `curl` 自体も特別な Haskell lowering ではなく、概念的には次の prelude 定義である。
 同名のユーザー `def` を書けば置き換えられる。
@@ -137,7 +142,8 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
 
 | パス | 内容 |
 |---|---|
-| `fec/` + `fec.cabal` | **Formurae コンパイラ**: 表層言語 Formurae(.fme;`field E_i`・`def curl X = ...`・`E'_i = E_i + dt * curl B_i`・`B' = B - dt * d E'`)を埋め込み形 .egi に変換。Haskell(base のみ)、リポジトリ直下で `cabal build` / `cabal run -v0 fec -- model.fme`。意味論は Egison 側に一本化した薄い変換層 |
+| `fec/` + `fec.cabal` | **Formurae コンパイラ**: 表層言語 Formurae(.fme;`field E_i`・`def curl X = ...`・`E'_i = E_i + dt * curl B_i`・`B' = B - dt * d E'`)を埋め込み形 .egi に変換。Haskell(base のみ)、リポジトリ直下で `cabal build` / `cabal run -v0 fec -- model.fme`。添字・縮約・テンソル演算の意味論は生成 Egison 側へ渡す薄い変換層 |
+| `lib/formurae-tensor.egi` | Formurae 用 Egison テンソル bridge。`contractWith`、`.`、`!.`、`tensorMap`、`subrefs`、`transpose` と `wedge`/`outer`/`inner`/`trace` などを Egison の Tensor primitive から定義する |
 | `lib/fmrgen.egi` | 生成コア: Taylor 条件から係数を導出する **`taylorStencil`**、quote cleanup、形式補助などの座標非依存基盤 |
 | `lib/fmrlegacy3d.egi` | まだ `.fme` 化していない手書き `.egi` 例のための 3D 互換文脈。`.fme` 由来の生成物では使わない |
 | `examples/diffusion1d/` | 1D 拡散方程式。`def Δ u = ∂^2_x u` と書き、check driver が質量保存とピーク減衰を検査 |
@@ -194,7 +200,8 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
   `feDim`・`feAxes`・`feAxisIds`・`feCoords`・`feHsteps` と、その文脈を参照する
   `shift`/`dC`/`dC2`/`dTaylor` と表向きの `∂ order radius axis expr`、
   必要に応じて Yee/DEC context と `.fmr` プリンタを出す。collocated の
-  `grad`/`dGrad`/`divg`/`curl`/`lap`/`Δ` は TensorExpr prelude、DEC の
+  `grad`/`dGrad`/`divg`/`curl`/`lap`/`Δ` は生成 Egison context と
+  `lib/formurae-tensor.egi` の bridge、DEC の
   `d`/`δ`/`codiff`/`hodge` は form context から利用できる。
   `extern` は Formura/C 側のスカラー関数である。
 - **離散微分形式(構造格子 Yee/DEC)**: 現実装の form 値は積分 cochain ではなく

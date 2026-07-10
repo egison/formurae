@@ -397,7 +397,9 @@ step:
   → Formura(fork)→ MPI + temporal blocking つき C
 ```
 
-- **意味論は生成される Egison コードに一本化**する。`lib/fmrgen.egi` は
+- **意味論は生成される Egison コードに一本化**する。`lib/formurae-tensor.egi`
+  が Egison Tensor primitive と Formurae のテンソル演算子 bridge を提供し、
+  `lib/fmrgen.egi` は
   `taylorStencil` や quote cleanup などの座標非依存 core に縮小し、
   座標文脈つき演算子と `.fmr` プリンタは `.fme` ごとの `.egi` に出す。
   バイト一致テストを意味のアンカーとして維持する。

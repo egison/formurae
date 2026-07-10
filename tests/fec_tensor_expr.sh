@@ -221,10 +221,10 @@ write_case "$f" \
   'field B~i_j' \
   'field C~i_j' \
   'step:' \
-  "  C'~i_j = matmul A B"
+  "  C'~i_j = matmul A B...~i_j"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'A_1_1 * B_1_1 + A_1_2 * B_2_1' 'standard matmul'
+assert_contains "$out" 'def feqC11 := (matmul A B)_1_1' 'Egison matmul bridge'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -234,10 +234,10 @@ write_case "$f" \
   'field A_i_j' \
   'field S_i_j' \
   'step:' \
-  "  S'_i_j = sym A"
+  "  S'_i_j = sym A..._i_j"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" '(A_1_2 + A_2_1) / 2' 'standard symmetrize'
+assert_contains "$out" 'def feqS12 := (sym A)_1_2' 'Egison symmetrize bridge'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -248,10 +248,10 @@ write_case "$f" \
   'field B_j' \
   'field C_i_j' \
   'step:' \
-  "  C'_i_j = wedge A_i B_j"
+  "  C'_i_j = wedge A B..._i_j"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'A_1 * B_2' 'standard wedge'
+assert_contains "$out" 'def feqC12 := (wedge A B)_1_2' 'Egison wedge bridge'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -318,23 +318,23 @@ write_case "$f" \
   'field E_i' \
   'field B_i' \
   'step:' \
-  "  E'_i = curl B_i"
+  "  E'_i = curl B..._i"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'def feqE1 := ((∂ 1 1 y B_3 - ∂ 1 1 z B_2))' 'standard curl expands for indexed fields'
+assert_contains "$out" 'def feqE1 := (curl B)_1' 'Egison curl bridge for indexed fields'
 
 f=$(tmp_fme)
 write_case "$f" \
   'mode collocated' \
   'dimension 3' \
   'axes x,y,z' \
-  'field E : vector' \
-  'field B : vector' \
+  'field E_i' \
+  'field B_i' \
   'step:' \
-  "  E' = curl B"
+  "  E'_i = curl B..._i"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'def feqE1 := ((∂ 1 1 y B_3 - ∂ 1 1 z B_2))' 'standard curl expands for vector equation'
+assert_contains "$out" 'def feqE1 := (curl B)_1' 'Egison curl bridge for vector equation'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -343,6 +343,7 @@ write_case "$f" \
   'axes x,y,z' \
   'field X_i @ staggered' \
   'field C_i @ staggered' \
+  'def curl X = withSymbols [i, j, k] (epsilon_i~j~k . ∂_j X_k)' \
   'step:' \
   "  C'_i = curl X_i"
 out=$(compile_fme "$f")
@@ -357,6 +358,7 @@ write_case "$f" \
   'axes x,y' \
   'field V_i @ staggered' \
   'field q : scalar' \
+  'def divg X = ∂_x X_1 + ∂_y X_2' \
   'step:' \
   "  V'_i = V_i" \
   "  q' = divg V_i"
@@ -373,11 +375,11 @@ write_case "$f" \
   'field E_i' \
   'field B_i' \
   'step:' \
-  "  E'_i = curl B_i"
+  "  E'_i = curl B..._i"
 out=$(compile_fme "$f")
 rm -f "$f"
 assert_contains "$out" '-- mode collocated' 'explicit collocated mode metadata'
-assert_contains "$out" '∂ 1 1 y B_3 - ∂ 1 1 z B_2' 'collocated prelude is automatic'
+assert_contains "$out" '(curl B)_1' 'collocated Egison bridge is automatic'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -389,7 +391,7 @@ write_case "$f" \
   "  u' = lap u"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" '∂ 2 1 x u + ∂ 2 1 y u' 'metric-backed lap prelude'
+assert_contains "$out" 'def feSteps := scalarEq "u" (lap u)' 'Egison lap bridge'
 
 f=$(tmp_fme)
 write_case "$f" \

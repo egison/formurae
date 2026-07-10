@@ -188,7 +188,7 @@ fec: error: curl requires dimension 3
    showFmr, fmrEq, fmrInit, scalarEq, componentEqs, emitModelOn など
 ```
 
-`.fme` から生成される `.egi` は `lib/fmrgen.egi` だけを読む。まだ `.fme` 化していない
+`.fme` から生成される `.egi` は `lib/formurae-tensor.egi` と `lib/fmrgen.egi` を読む。まだ `.fme` 化していない
 手書き `.egi` 例は互換用に `lib/fmrlegacy3d.egi` も読む。
 
 `lib/fmrgen.egi` からは

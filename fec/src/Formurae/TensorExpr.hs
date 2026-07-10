@@ -1599,6 +1599,14 @@ ixExpand m lets env anchor expr = do
           t' <- expandAst env' t
           e' <- expandAst env' e
           return ("if " ++ c' ++ " then " ++ t' ++ " else " ++ e')
+        -- A tensor-valued Egison operator keeps its result tensor until the
+        -- caller supplies the component suffix.  In particular `(grad u)_i`
+        -- must become `(grad u)_1` after specialization, not `grad u_1`
+        -- (which would pass a scalar component to grad).
+        TEAppendIndexed body parts -> do
+          base <- expandAst env' body
+          vals <- mapM (need env' . ixName) parts
+          return ("(" ++ base ++ ")" ++ concatMap (('_' :) . show) vals)
         TEWithSymbols names body ->
           expandWithSymbolsAst env' names body
         TEContractWith reducer body ->
@@ -1618,8 +1626,6 @@ ixExpand m lets env anchor expr = do
           expandDerivativeAst env' parts body
         TEIdent base parts ->
           resolveIdentAst env' base parts
-        TEAppendIndexed e parts ->
-          expandAst env' (appendIndexedAst e parts)
         TEGroup e -> do
           body <- expandAst env' e
           return ("(" ++ body ++ ")")

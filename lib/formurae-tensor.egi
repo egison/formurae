@@ -1,0 +1,54 @@
+--
+-- formurae-tensor.egi : Formurae's Egison tensor bridge
+--
+-- This is the semantic boundary of Formurae.  The surface compiler may
+-- translate coordinate derivatives and grid placement, but tensor algebra
+-- is evaluated here by Egison's Tensor machinery.  Keep this file free of
+-- Formurae grid/layout code so it can also be used by hand-written .egi
+-- probes.
+--
+
+declare symbol i, j, k
+
+infixl expression 7 .
+infixl expression 7 .'
+
+-- Egison's `contract` returns the diagonal components of a tensor.  The
+-- reducer is deliberately explicit: equal upper/lower names alone do not
+-- imply a sum in Formurae.  The result remains a rank-reduced Tensor; scalar
+-- helpers such as `trace` use `sum (contract ...)` when a scalar is wanted.
+def contractWith {a} (reducer: Tensor a -> Tensor a -> Tensor a)
+                (t: Tensor a) : Tensor a :=
+  foldl1 reducer (contract t)
+
+-- The ordinary and MathValue tensor products are the same operations used by
+-- Egison's algebra/tensor library.  They are repeated here so generated
+-- Formurae .egi files need only load this one bridge.
+def (.') (t1: Tensor MathValue) (t2: Tensor MathValue) : Tensor MathValue :=
+  foldl1 (+') (contract (t1 *' t2))
+
+def (.) {Ring a} (t1: Tensor a) (t2: Tensor a) : Tensor a :=
+  foldl1 (+) (contract (t1 * t2))
+
+def wedge {Ring a} (a: Tensor a) (b: Tensor a) : Tensor a := a !. b
+def outer {Ring a} (a: Tensor a) (b: Tensor a) : Tensor a := a !. b
+
+def inner {Ring a} (a: Tensor a) (b: Tensor a) : a :=
+  withSymbols [i] (a~i . b_i)
+
+def trace {Ring a} (a: Tensor a) : a :=
+  withSymbols [i] sum (contract a~i_i)
+
+def matmul {Ring a} (a: Tensor a) (b: Tensor a) : Tensor a :=
+  withSymbols [i, j] (a~i_k . b~k_j)
+
+def sym {Ring a} (a: Tensor a) : Tensor a :=
+  withSymbols [i, j]
+    ((a_i_j + a_j_i) / 2)
+
+def antisym {Ring a} (a: Tensor a) : Tensor a :=
+  withSymbols [i, j]
+    ((a_i_j - a_j_i) / 2)
+
+def norm2 {Ring a} (a: Tensor a) : a :=
+  withSymbols [i] (a~i . a_i)

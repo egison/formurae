@@ -2,9 +2,10 @@
 #
 #   make setup        : fetch + patch + build Formura (vendor/, bin/formura)
 #   cabal build       : build the Formurae compiler (fec)
-#   make <example>    : .fme -> fec -> Egison -> Formura -> cc -> check
+#   make <example>    : .fme -> fec -> Egison(tensor bridge) -> Formura -> cc -> check
 #   make all          : every example (each check exits nonzero on failure)
 #   make fec-tensor-tests : compiler regression tests for indexed tensor exprs
+#   make formurae-tensor-tests : Egison tensor bridge + tensor-valued operator smoke tests
 #
 # The Egison interpreter must be the development tree (the installed
 # binary ships an older math library); set EGISON_DIR accordingly.
@@ -13,6 +14,7 @@ EGISON_DIR ?= $(abspath ../egison)
 FORMURA    ?= $(abspath bin/formura)
 MPISTUB    := $(abspath mpistub)
 FMRGEN     := $(abspath lib/fmrgen.egi)
+FETENSOR   := $(abspath lib/formurae-tensor.egi)
 FMRLEGACY3 := $(abspath lib/fmrlegacy3d.egi)
 
 CC      ?= cc
@@ -81,7 +83,7 @@ endef
 define FME_RULE
 $(1):
 	$$(FEC_RUN) $$(abspath examples/$(1)/$(1).fme) > $$(abspath examples/$(1)/$(1).egi)
-	$$(EGISON_RUN) -l $$(FMRGEN) $$(abspath examples/$(1)/$(1).egi) \
+	$$(EGISON_RUN) -l $$(FETENSOR) -l $$(FMRGEN) $$(abspath examples/$(1)/$(1).egi) \
 	  > $$(abspath examples/$(1)/$(1).fmr)
 	$$(call BUILD_AND_CHECK,$(1))
 endef
@@ -97,13 +99,17 @@ $(foreach e,$(FME_EXAMPLES),$(eval $(call FME_RULE,$(e))))
 $(foreach e,$(EGI_EXAMPLES),$(eval $(call EGI_RULE,$(e))))
 $(foreach a,$(ALIASES),$(eval $(word 1,$(subst :, ,$(a))): $(word 2,$(subst :, ,$(a)))))
 
-.PHONY: all setup clean fec-tensor-tests $(FME_EXAMPLES) $(EGI_EXAMPLES) \
+.PHONY: all setup clean fec-tensor-tests formurae-tensor-tests $(FME_EXAMPLES) $(EGI_EXAMPLES) \
         $(foreach a,$(ALIASES),$(word 1,$(subst :, ,$(a))))
 
 all: $(FME_EXAMPLES) $(EGI_EXAMPLES)
 
 fec-tensor-tests:
 	sh tests/fec_tensor_expr.sh
+
+formurae-tensor-tests:
+	$(EGISON_RUN) -t -l $(FETENSOR) $(abspath tests/formurae_tensor_lib.egi)
+	sh tests/formurae_tensor_bridge.sh
 
 setup:
 	./setup.sh

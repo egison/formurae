@@ -63,8 +63,10 @@
 <h2 id="pipeline">1. パイプラインの全体像</h2>
 <pre>
 model.fme    Formurae ソース: field 宣言+数式(添字記法・微分形式・計量・ユーザ定義演算子)
-   │  fec(Haskell; cabal build / cabal run -v0 fec --)
-model.egi   埋め込み形(生成中間物; 座標文脈・演算子・プリンタを含む Egison)
+   │  fec(Haskell; 表層の添字/微分を Egison 形へ薄く変換)
+model.egi   埋め込み形(生成中間物; 座標文脈・差分フック・プリンタ)
+   │  Egison -l lib/formurae-tensor.egi -l lib/fmrgen.egi
+             (withSymbols・contract・tensorMap・subrefs・transpose・!. の意味論)
    │  Egison の CAS が添字・微分形式・計量を記号的に展開
 model.fmr   Formura ソース(全更新式が具体的なステンシルに)
    │  Formura(fork; bin/formura)
@@ -122,20 +124,21 @@ make diffusion3d
 <h3>宣言</h3>
 <table>
 <tr><th>構文</th><th>意味</th></tr>
-<tr><td><code>mode collocated</code> / <code>mode dec</code></td><td>空間離散化と標準 prelude を選ぶ宣言(<b>必須・top-level で1回</b>)。collocated は TensorExpr のベクトル演算子、dec は微分形式の context を自動ロードする</td></tr>
+<tr><td><code>mode collocated</code> / <code>mode dec</code></td><td>空間離散化と生成 Egison context を選ぶ宣言(<b>必須・top-level で1回</b>)。テンソル primitive は <code>lib/formurae-tensor.egi</code> から共通にロードする</td></tr>
 <tr><td><code>dimension 1</code> / <code>dimension 2</code> / <code>dimension 3</code></td><td>次元(<b>必須</b>)。scalar/vector/rank-2 field と <code>k-form</code> は 1D/2D/3D に対応。<code>curl</code> と <code>epsilon~i~j~k</code> は3次元専用として検査する</td></tr>
-<tr><td><code>curl X</code> / <code>divg X</code> / <code>grad u</code></td><td>collocated mode の標準 prelude 演算子。<code>epsilon</code>、内部 Cartesian metric、<code>withSymbols</code>、<code>contractWith</code>、<code>∂_i</code> の組合せとして自動ロードされ、ユーザー <code>def</code> で shadow できる</td></tr>
+<tr><td><code>curl X</code> / <code>divg X</code> / <code>grad u</code></td><td>collocated mode の Egison-side operator。生成座標 context の差分 hook をテンソルとして返し、成分は <code>grad u..._i</code> のように選ぶ</td></tr>
 <tr><td><code>d ω</code> / <code>δ ω</code></td><td>dec mode の標準 form 演算子。形式場では生成 .egi の <code>dForm</code>/<code>codiff</code> へ接続する</td></tr>
 <tr><td><code>metric g</code> + <code>def Δ u = g~i~j . ∂_i ∂_j u</code></td><td><b>ユーザ定義演算子</b>(ファイルスコープ・使用箇所で展開。本文は先に定義された演算子のみ参照可、再帰不可)。平坦格子の Laplacian は metric と <code>.</code> による明示縮約で定義でき、生成時に <code>∂^2_x u + ∂^2_y u + ∂^2_z u</code> へ下りる</td></tr>
 <tr><td><code>def Δ u = lb u</code></td><td>計量宣言下の Laplace-Beltrami を <code>Δ</code> として使う例。<code>lb</code> は計量係数場を生成する低水準プリミティブ</td></tr>
 <tr><td><code>def grad u = withSymbols [i] ∂_i u</code></td><td>Egison と同様に、演算子定義には結果添字を書かない。<code>withSymbols</code> で導入した自由添字は、呼び出し側の添字へ付け替えられて成分展開される</td></tr>
 <tr><td><code>def div X = contractWith (+) (∂_i X~i)</code></td><td>同じ上下添字が現れただけでは総和しない。<code>contractWith</code> が diagonal axis を明示的に有限和へ畳み込む</td></tr>
-<tr><td><code>def (.) A B = contractWith (+) (A * B)</code></td><td><code>.</code> は標準 prelude のユーザ定義演算子。任意のテンソル同士の積を作り、内部の <code>contractWith (+)</code> が上下ペアを縮約する。ユーザ定義で shadow できる</td></tr>
+<tr><td><code>def (.) A B = contractWith (+) (A * B)</code></td><td><code>.</code> は bridge の通常の Egison operator。任意のテンソル同士の積を作り、上下ペアを縮約する</td></tr>
 <tr><td><code>tensorMap f A</code></td><td>スカラー関数 <code>f</code> をテンソルの各成分へ適用する TensorExpr primitive。<code>def mapExp X... = tensorMap exp X</code> のように、rank ごとの添字ループを書かずに再利用できる</td></tr>
 <tr><td><code>subrefs A [_i, _j]</code></td><td>テンソルへ添字列を付加する primitive。添字付き <code>def</code> の本体で、引数の添字を明示的に取り出すために使う。裸の <code>[i, j]</code> は下付き添字として扱う</td></tr>
 <tr><td><code>transpose [j, i] A</code></td><td>引数の添字列を指定順に並べ替える primitive。<code>sym</code>/<code>antisym</code> のような通常の演算子定義で使える</td></tr>
+<tr><td><code>grad u..._i</code></td><td>Egison の tensor-valued operator の結果成分を呼び出し側で選ぶ。<code>...</code> は演算子の結果へ添字を付けるための Formurae 表層記法で、生成 Egison では <code>(grad u)_1</code> のようになる</td></tr>
 <tr><td><code>A !. B</code></td><td>縮約しない disjoint tensor product。<code>.</code> と違って上下添字を畳み込まず、添字が衝突する場合は右辺を hygienic に改名する</td></tr>
-<tr><td><code>trace</code> / <code>matmul</code> / <code>wedge</code> / <code>sym</code> / <code>antisym</code> / <code>inner</code> / <code>outer</code> / <code>hessian</code> / <code>norm2</code></td><td>標準 prelude の通常の TensorExpr 定義。<code>def</code> と同じ展開経路を使い、ユーザー定義で shadow できる</td></tr>
+<tr><td><code>trace</code> / <code>matmul</code> / <code>wedge</code> / <code>sym</code> / <code>antisym</code> / <code>inner</code> / <code>outer</code> / <code>hessian</code> / <code>norm2</code></td><td><code>lib/formurae-tensor.egi</code> の通常の Egison 定義。Tensor primitive と同じ評価経路を使う</td></tr>
 <tr><td><code>axes r, θ, φ</code></td><td>軸名(<b>必須</b>)。<code>∂_θ</code> の解決や添字文字の走る範囲=座標系を確定させる宣言。生成 Formura の <code>axes ::</code>、格子幅 <code>dr</code>/<code>dtheta</code>、C ドライバの <code>space_interval_r</code>/<code>lower_theta</code> まで宣言名を使う。CAS 内部だけは正規座標 <code>x,y,z</code> に写像する</td></tr>
 <tr><td><code>param dt = 0.5*dx</code></td><td>Formura パラメタ(<code>double :: dt = …</code>)。値は Formura 式</td></tr>
 <tr><td><code>extern exp</code></td><td><code>extern function :: exp</code>。<code>sin</code>, <code>cos</code>, <code>exp</code>, <code>sqrt</code>, <code>fabs</code> など Formura が扱えるスカラー関数は、式や raw ヘルパで使われたら不足分を自動 extern する。明示 <code>extern</code> も従来通り可</td></tr>
@@ -167,7 +170,7 @@ make diffusion3d
 <table>
 <tr><th>構文</th><th>意味</th></tr>
 <tr><td><code>u' = 式</code></td><td>スカラー更新。<code>X'</code> を右辺に書くと「更新後の X」への参照(symplectic な leapfrog が書ける)</td></tr>
-<tr><td><code>E'_i = E_i + dt * curl B_i</code></td><td>添字付きベクトル方程式。collocated mode の標準 <code>curl</code> の結果添字が呼び出し側の <code>_i</code> に付け替えられて展開される</td></tr>
+<tr><td><code>E'_i = E_i + dt * curl B..._i</code></td><td>添字付きベクトル方程式。collocated mode の標準 <code>curl</code> の結果添字を呼び出し側で選び、生成 Egison では <code>(curl B)_1</code> のように評価する</td></tr>
 <tr><td><code>B' = B - dt * d E'</code></td><td>dec mode の形式方程式。<code>d</code>/<code>δ</code> は mode が選ぶ form context へ下りる</td></tr>
 <tr><td><code>v'~i = v~i + (dt/ρ0) * contractWith (+) (∂_j σ~i~j)</code></td><td><b>テンソル添字方程式</b>(staggered 場)。各項は strict 検査され、自由添字は LHS と上下まで一致する。上下ペアは <code>contractWith</code> または <code>.</code> で明示的に縮約する。<code>∂_a</code> は対象成分の配置にアンカーされた半セル差分</td></tr>
 <tr><td><code>local w = ∂^2_x u</code></td><td>中間<b>格子場</b>(.fmr に1行として出る — 4階微分の2段化などに)</td></tr>
@@ -178,10 +181,11 @@ make diffusion3d
 <table>
 <tr><th>分類</th><th>演算子</th><th>説明</th></tr>
 <tr><td><code>mode dec</code></td><td><code>d ω</code>, <code>δ ω</code></td><td>離散外微分・余微分。形式場では生成 .egi の <code>dForm</code>/<code>codiff</code> へ下ろす</td></tr>
-<tr><td><code>mode collocated</code></td><td><code>grad u</code>, <code>divg X</code>, <code>curl X</code>, <code>lap u</code>, <code>Δ u</code></td><td>標準 prelude の TensorExpr 演算子。ユーザー定義で置き換えることもできる</td></tr>
-<tr><td>ユーザ定義</td><td><code>def customDiv X = ...</code>, <code>def Δ u = ...</code></td><td><code>def</code> で定義した演算子は使用箇所に展開される。<code>withSymbols</code>, <code>contractWith</code>, <code>.</code>, <code>∂_i</code>, <code>∂_x</code> などを組み合わせて、問題ごとの演算子を .fme 側に直接書ける</td></tr>
+<tr><td><code>mode collocated</code></td><td><code>grad u</code>, <code>divg X</code>, <code>curl X</code>, <code>lap u</code>, <code>Δ u</code></td><td>生成 Egison context と tensor bridge を組み合わせた演算子。テンソル値の結果は添字 suffix で成分化する</td></tr>
+<tr><td>ユーザ定義</td><td><code>def customDiv X = ...</code>, <code>def Δ u = ...</code></td><td><code>def</code> 本体は Egison の Tensor 式へ渡される。<code>withSymbols</code>, <code>contractWith</code>, <code>.</code>, <code>∂_i</code>, <code>∂_x</code> などを組み合わせて、問題ごとの演算子を .fme 側に直接書ける</td></tr>
 <tr><td><code>fec</code> 組み込み変換</td><td><code>∂_x e</code>, <code>∂^2_x e</code>, <code>∂'^2_x e</code></td><td>軸名を見て中心差分または Taylor 条件から導出する stencil へ下ろす。1階微分は <code>∂_x e</code>、高階・広幅 stencil は <code>∂^m_x e</code> や <code>∂'^m_x e</code> のように書く</td></tr>
 <tr><td><code>TensorExpr</code> 組み込み</td><td><code>∂_i X~i</code>, <code>contractWith (+) A~i_i</code>, <code>.</code>, <code>!.</code>, <code>tensorMap</code>, <code>subrefs</code>, <code>transpose</code>, <code>δ~i_j</code>, <code>epsilon~i~j~k</code>, <code>g_i_j</code></td><td>添字式を TensorExpr AST として展開する。<code>g</code> は上下パターンごとの計量テンソル、metric 名でない <code>δ~i_j</code> は Kronecker identity。<code>.</code> と <code>contractWith</code> は縮約、<code>!.</code> は disjoint product、<code>tensorMap</code> はスカラー関数の成分 lift、<code>subrefs</code>/<code>transpose</code> は添字列操作を行う</td></tr>
+<tr><td><code>lib/formurae-tensor.egi</code></td><td><code>contractWith</code>、<code>.</code>、<code>!.</code>、<code>wedge</code>、<code>outer</code>、<code>inner</code>、<code>trace</code>、<code>matmul</code>、<code>sym</code>、<code>antisym</code></td><td>Egison の Tensor primitive を使う Formurae 用 bridge。テンソルの shape/添字/縮約はここで評価し、<code>fec</code> は同じ意味論を Haskell に複製しない</td></tr>
 <tr><td><code>fec</code> 組み込み変換</td><td><code>d ω</code>, <code>δ ω</code> / <code>delta ω</code> / <code>codiff ω</code></td><td><code>mode dec</code> の <code>field E : 1-form</code> などの形式場を、生成 Egison の <code>dForm</code>/<code>codiff</code> 呼び出しへ下ろす</td></tr>
 <tr><td>Formura/extern 組み込み</td><td><code>sin</code>, <code>cos</code>, <code>exp</code>, <code>sqrt</code>, <code>fabs</code> など</td><td>スカラー関数。テンソル成分に適用されると成分ごとへ lift され、不足する <code>extern function :: ...</code> は <code>fec</code> が自動で出す</td></tr>
 <tr><td>生成 .egi の座標文脈定義</td><td><code>dGrad</code>, <code>curl</code>, <code>divg</code>, <code>dForm</code>, <code>codiff</code>, <code>dTaylor</code>, <code>showFmr</code>, <code>emitModelOn</code></td><td><code>.fme</code> の prelude ではなく、<code>fec</code> が <code>dimension</code>/<code>axes</code>/<code>metric</code> から生成する定義</td></tr>
@@ -269,8 +273,8 @@ def δ := codiff
 <tr><td><code>Δ e</code></td><td>ユーザ定義</td><td>平坦格子なら <code>metric g</code> と <code>def Δ u = g~i~j . ∂_i ∂_j u</code>、または <code>def Δ u = ∂^2_x u + ∂^2_y u + ∂^2_z u</code>、計量下なら <code>def Δ u = lb u</code> のように定義して使う</td></tr>
 <tr><td><code>lb e</code></td><td><code>fec</code> 組み込み生成</td><td>計量宣言下の Laplace–Beltrami。hodge 因子の係数場生成・半セル CAS 評価・保存流束まで自動</td></tr>
 <tr><td><code>Δ4 e</code></td><td>ユーザ定義</td><td><code>def Δ4 u = ∂'^2_x u + ∂'^2_y u + ∂'^2_z u</code>。4階微分ではなく、4次精度の2階微分和</td></tr>
-<tr><td><code>curl X</code></td><td><code>mode collocated</code></td><td>標準 prelude の回転。<code>epsilon_i~j~k . ∂_j X_k</code> として展開し、ユーザー定義で shadow できる</td></tr>
-<tr><td><code>divg X</code></td><td><code>mode collocated</code></td><td>標準 prelude の発散。内部 Cartesian metric と添字縮約へ展開する</td></tr>
+<tr><td><code>curl X</code></td><td><code>mode collocated</code></td><td>Egison の <code>generateTensor</code> と生成差分 hook で回転テンソルを作る</td></tr>
+<tr><td><code>divg X</code></td><td><code>mode collocated</code></td><td>Egison bridge の発散。成分差分を有限和へ畳み込む</td></tr>
 <tr><td><code>d ω</code></td><td><code>mode dec</code></td><td>離散外微分(k-form → (k+1)-form)。形式場では <code>dForm</code> 呼び出しになる</td></tr>
 <tr><td><code>delta ω</code>(= <code>codiff</code>/<code>δ</code>)</td><td><code>mode dec</code></td><td>余微分 (−1)^{n(k+1)+1} ⋆d⋆。形式場では <code>codiff</code> 呼び出しになる</td></tr>
 </table>
