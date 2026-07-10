@@ -134,6 +134,20 @@ f=$(tmp_fe)
 write_case "$f" \
   'dimension 2' \
   'axes x,y' \
+  'field A_i' \
+  'field q_i' \
+  'def shaped X = withSymbols [i] exp(0 - X_i^2) + sin(X_i)' \
+  'step:' \
+  "  q'_i = shaped A_i"
+out=$(compile_fe "$f")
+rm -f "$f"
+assert_contains "$out" 'exp(0 - (A_1 ^ 2)) + sin(A_1)' 'scalar call and power AST'
+assert_contains "$out" 'exp(0 - (A_2 ^ 2)) + sin(A_2)' 'scalar call and power AST component 2'
+
+f=$(tmp_fe)
+write_case "$f" \
+  'dimension 2' \
+  'axes x,y' \
   'field A~i_j' \
   'field p : scalar' \
   'field q : scalar' \

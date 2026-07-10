@@ -280,7 +280,8 @@ fec が Formura 向けに ASCII 名(theta, phi, …)へ字訳します。
 (metric_torus.fe がこの形)。</p>
 
 <p class="note"><b>現在の実装範囲</b>: scalar/vector/rank-2/k-form field の 1D/2D/3D 生成、添字付き field の上下・自由添字・未縮約 diagonal 検査、indexed CAS initializer、対称/反対称 rank-2 field backend、DEC の一般次元基底生成、<code>withSymbols</code>/<code>contractWith</code>/<code>.</code> を使うユーザ定義テンソル演算子は実装済みです。
-scalar 式全体はまだ TensorExpr の raw leaf として扱うため、完全な scalar parser や source span つき診断は今後の拡張です。</p>
+scalar 式も <code>TENumber</code>、<code>TEUnary</code>、<code>TECall</code>、<code>TEApply</code>、<code>TEIf</code>、<code>TEBinary</code> などの TensorExpr AST として保持します。
+source span つき診断は今後の拡張です。</p>
 
 <h2 id="papers">5. 関連論文</h2>
 <ul>

@@ -68,26 +68,29 @@ IR は完全な Egison 実装ではなく、Formurae が stencil へ下ろすた
 ```haskell
 data TensorExpr
   = EVar Name
-  | ELit String
-  | EApply Name [TensorExpr]
+  | ENumber String
+  | EUnary Op TensorExpr
+  | ECall TensorExpr [TensorExpr]
+  | EApply TensorExpr [TensorExpr]
+  | EIf TensorExpr TensorExpr TensorExpr
+  | EBinary Op TensorExpr TensorExpr
   | EIndexed TensorExpr [IxPart]
   | EAppendIndexed TensorExpr [IxPart]
   | EWithSymbols [IndexName] TensorExpr
   | EContractWith Reducer TensorExpr
   | EDot TensorExpr TensorExpr
-  | EPointwise Op [TensorExpr]
   | EDerivative IxPart TensorExpr
   | ECoordDerivative Order Radius AxisName TensorExpr
   | EMetric Name [IxPart]
   | EDelta [IxPart]
   | EEpsilon [IxPart]
-  | ERawScalar String
 ```
 
-`ERawScalar` は、Formura の scalar 式としてそのまま扱えるが、添字構造を持たない
-式の逃げ道である。最初から Formura の式文法を完全に parse しようとすると
-実装が大きくなるため、添字式の骨格を IR 化し、純粋な scalar 部分は raw leaf として
-保持する。
+scalar 式も raw leaf にはせず、数値、単項演算、関数呼び出し、空白適用、条件式、
+二項演算を AST として保持する。これにより `exp(0 - X_i^2) + sin(X_i)` のような
+式でも、添字つき引数 `X_i` の付け替えや出現検査を文字列走査に戻らず扱える。
+source span つき診断や parser error の精密化は、この AST に位置情報を付ける形で
+追加する。
 
 各ノードには elaboration 後に次の情報を注釈する。
 
@@ -268,11 +271,12 @@ def lap u = div (grad u)
 
 ### 1. IR 化の範囲
 
-Formurae の全 scalar 式を完全に parse するか、添字式の骨格だけを parse して
-scalar 部分を `ERawScalar` として残すか。
+Formurae の scalar 式をどこまで parse するか。
 
-推奨: 最初は後者にする。添字意味論を IR 化することが今回の目的であり、
-Formura scalar 文法の完全 parser は別問題として分ける。
+決定: scalar 部分も raw leaf として残さず、演算子優先順位つきの AST として保持する。
+これにより、ユーザ定義テンソル演算子の beta reduction、添字付け替え、出現検査を
+同じ `TensorExpr` 経路で扱う。source span つき診断はこの AST に位置情報を足して
+拡張する。
 
 ### 2. 中間テンソルの rank
 
