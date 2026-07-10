@@ -45,10 +45,6 @@ def ∂ (m: Integer) (r: Integer) (axis: MathValue) (u: MathValue) : MathValue :
    in if m = 1 && r = 1 then dC a u
       else if m = 2 && r = 1 then dC2 a u
       else dTaylor m (between (0 - r) r) a u
-def dGrad (X: Vector MathValue) : Matrix MathValue :=
-  generateTensor (\[a, b] -> dC a X_b) [feDim, feDim]
-def curl (X: Vector MathValue) : Vector MathValue :=
-  withSymbols [i, j, k] (ε 3)~i~j~k . (dGrad X)_j_k
 def offsetSuffix (o: MathValue) : String :=
   match o as mathValue with
     | #0 -> ""
@@ -67,12 +63,18 @@ def gridIndex (a: Integer) (arg: MathValue) : String :=
   S.append (axisName a) (offsetSuffix ((arg - coords_a) / hsteps_a))
 def fmrFieldName (nm: String) : String :=
   match nm as string with
-    | #"E'_1" -> "E_1'"
-    | #"E'_2" -> "E_2'"
-    | #"E'_3" -> "E_3'"
-    | #"B'_1" -> "B_1'"
-    | #"B'_2" -> "B_2'"
-    | #"B'_3" -> "B_3'"
+    | #"E_1" -> "E_down1"
+    | #"E'_1" -> "E_down1'"
+    | #"E_2" -> "E_down2"
+    | #"E'_2" -> "E_down2'"
+    | #"E_3" -> "E_down3"
+    | #"E'_3" -> "E_down3'"
+    | #"B_1" -> "B_down1"
+    | #"B'_1" -> "B_down1'"
+    | #"B_2" -> "B_down2"
+    | #"B'_2" -> "B_down2'"
+    | #"B_3" -> "B_down3"
+    | #"B'_3" -> "B_down3'"
     | _ -> nm
 def gridRef (g: MathValue) (args: [MathValue]) : String :=
   S.concat
@@ -162,23 +164,27 @@ def FormuraeInternalTensorBDown_i := B_i
 def FormuraeInternalTensorEUp'_i := E'_i
 def FormuraeInternalTensorEDown'_i := E'_i
 
-def feqE_i := withSymbols [i] E_i + dt * (curl B_#)_i
-def feqB_i := withSymbols [i] B_i - dt * (curl E'_#)_i
+def feqE1 := E_1 + dt * ((1 * (∂ 1 1 y B_3 - ∂ 1 1 z B_2)))
+def feqE2 := E_2 + dt * ((0 * (∂ 1 1 y B_3 - ∂ 1 1 z B_2)) + (1 * (∂ 1 1 z B_1 - ∂ 1 1 x B_3)))
+def feqE3 := E_3 + dt * ((0 * (∂ 1 1 y B_3 - ∂ 1 1 z B_2)) + (1 * (∂ 1 1 x B_2 - ∂ 1 1 y B_1)))
+def feqB1 := B_1 - dt * ((1 * (∂ 1 1 y E'_3 - ∂ 1 1 z E'_2)))
+def feqB2 := B_2 - dt * ((0 * (∂ 1 1 y E'_3 - ∂ 1 1 z E'_2)) + (1 * (∂ 1 1 z E'_1 - ∂ 1 1 x E'_3)))
+def feqB3 := B_3 - dt * ((0 * (∂ 1 1 y E'_3 - ∂ 1 1 z E'_2)) + (1 * (∂ 1 1 x E'_2 - ∂ 1 1 y E'_1)))
 
 def feParams := [("dt", "0.1*dx")]
 def feHelpers :=
   [ "extern function :: exp"
   , "gauss1 = fun(x) exp(-((x-(total_grid_x*dx/2))/(8*dx))**2)"
   ]
-def feComps : [String] := ["E_1", "E_2", "E_3", "B_1", "B_2", "B_3"]
+def feComps : [String] := ["E_down1", "E_down2", "E_down3", "B_down1", "B_down2", "B_down3"]
 def feInits :=
-  [ "  E_1[i,j,k] = 0"
-  , "  E_2[i,j,k] = gauss1(i*dx)"
-  , "  E_3[i,j,k] = 0"
-  , "  B_1[i,j,k] = 0"
-  , "  B_2[i,j,k] = 0"
-  , "  B_3[i,j,k] = gauss1(i*dx)"
+  [ "  E_down1[i,j,k] = 0"
+  , "  E_down2[i,j,k] = gauss1(i*dx)"
+  , "  E_down3[i,j,k] = 0"
+  , "  B_down1[i,j,k] = 0"
+  , "  B_down2[i,j,k] = 0"
+  , "  B_down3[i,j,k] = gauss1(i*dx)"
   ]
-def feSteps := componentEqs ["E_1", "E_2", "E_3"] [feqE_1, feqE_2, feqE_3] ++ componentEqs ["B_1", "B_2", "B_3"] [feqB_1, feqB_2, feqB_3]
+def feSteps := componentEqs ["E_down1", "E_down2", "E_down3"] [feqE1, feqE2, feqE3] ++ componentEqs ["B_down1", "B_down2", "B_down3"] [feqB1, feqB2, feqB3]
 
 def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feComps feInits feSteps)

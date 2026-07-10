@@ -219,9 +219,9 @@ indexedIdentOccurrences m lets base0 parts w =
              derivativeIdentOccurrences parts w
          | fieldDeclOf m base /= Nothing && not (null parts) -> do
              validateFieldRefParts m lets w
-             return parts
+             return (symbolicIxParts parts)
          | base `elem` lets && not (null parts) ->
-             return parts
+             return (symbolicIxParts parts)
          | Just metricNm <- mMetricName m
          , base == metricNm
          , not (null parts) ->
@@ -237,12 +237,12 @@ metricIdentOccurrences metricNm parts w =
 
 kroneckerIdentOccurrences :: [IxPart] -> String -> IO [IxPart]
 kroneckerIdentOccurrences [p, q] w
-  | all isSingleAlphaIx [p, q] =
+  | all isIndexedMetricPart [p, q] =
       if isMixedIxPair p q
-        then return [p, q]
+        then return (symbolicIxParts [p, q])
         else fatal ("Kronecker delta indices must be mixed, e.g. delta~i_j; use metric g and g~i~j/g_i_j for metric components: " ++ w)
 kroneckerIdentOccurrences _ w =
-  fatal ("Kronecker delta takes two single marked indices, e.g. delta~i_j: " ++ w)
+  fatal ("Kronecker delta takes two marked indices, e.g. delta~i_j or delta_i~1: " ++ w)
 
 derivativeIdentOccurrences :: [IxPart] -> String -> IO [IxPart]
 derivativeIdentOccurrences [p] _ = return [p]
@@ -251,6 +251,10 @@ derivativeIdentOccurrences _ w =
 
 isIndexedMetricPart :: IxPart -> Bool
 isIndexedMetricPart (IxPart _ nm) = all isAlphaNum nm && not (null nm)
+
+symbolicIxParts :: [IxPart] -> [IxPart]
+symbolicIxParts =
+  filter (\p -> not (all isDigit (ixName p)))
 
 isMixedIxPair :: IxPart -> IxPart -> Bool
 isMixedIxPair (IxPart VUp _) (IxPart VDown _) = True
@@ -1290,7 +1294,7 @@ ixExpand m lets env anchor expr = do
                  vals <- mapM (need env' . ixName) [p, q, r]
                  return (show (leviCivita3 vals))
              | ("delta", [p, q]) <- splitIdentW
-             , all isSingleAlphaIx [p, q] -> do
+             , all indexedMetricPart [p, q] -> do
                  if not (isMixedPair p q)
                    then fatal ("Kronecker delta indices must be mixed, e.g. delta~i_j; use metric g and g~i~j/g_i_j for metric components: " ++ w)
                    else return ()
@@ -1298,7 +1302,7 @@ ixExpand m lets env anchor expr = do
                  qv <- need env' (ixName q)
                  return (if pv == qv then "1" else "0")
              | ("delta", _ : _) <- splitIdentW ->
-                 fatal ("Kronecker delta takes two single marked indices, e.g. delta~i_j: " ++ w)
+                 fatal ("Kronecker delta takes two marked indices, e.g. delta~i_j or delta_i~1: " ++ w)
              | ("epsilon", _ : _) <- splitIdentW ->
                  fatal ("epsilon takes three single marked indices, e.g. epsilon~i~j~k: " ++ w)
              | ("d", _ : _) <- splitIdentW ->
@@ -1373,7 +1377,7 @@ ixExpand m lets env anchor expr = do
         zeroIdent base parts =
           case (base, parts) of
             ("delta", [p, q])
-              | all isSingleAlphaIx [p, q], isMixedPair p q ->
+              | all indexedMetricPart [p, q], isMixedPair p q ->
                   resolvedDifferent p q
             _
               | euclideanDeclaredMetric

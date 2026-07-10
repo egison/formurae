@@ -29,7 +29,7 @@ run cahnhilliard cahnhilliard3d cahnhilliard3d -DSLICE -DDUMPS='{0,25000}' \
 CHPID=$!
 
 run diffusion diffusion3d diffusion3d -DSLICE -DDUMPS='{0,100}' -DF1="$U.u[i][j][k]"
-run maxwell maxwell3d maxwell3d -DDUMPS='{0,100}' -DF1="$U.E_2[i][j][k]" -DF2="$U.B_3[i][j][k]"
+run maxwell maxwell3d maxwell3d -DDUMPS='{0,100}' -DF1="$U.E_down2[i][j][k]" -DF2="$U.B_down3[i][j][k]"
 run yee maxwell3d_yee maxwell3d_yee -DDUMPS='{0,100}' -DF1="$U.Ey[i][j][k]" -DF2="$U.Bz[i][j][k]"
 run burgers burgers3d burgers3d -DDUMPS='{0,5000}' -DF1="$U.u[i][j][k]"
 run tdgl tdgl3d tdgl3d -DSLICE -DDUMPS='{0,4000}' \

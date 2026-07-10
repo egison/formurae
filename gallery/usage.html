@@ -123,7 +123,7 @@ make diffusion3d
 <tr><th>構文</th><th>意味</th></tr>
 <tr><td><code>dimension 1</code> / <code>dimension 2</code> / <code>dimension 3</code></td><td>次元(<b>必須</b>)。scalar/vector/rank-2 field と <code>k-form</code> は 1D/2D/3D に対応。<code>curl</code> と <code>epsilon~i~j~k</code> は3次元専用として検査する</td></tr>
 <tr><td><code>use exterior-calculus { d, δ }</code></td><td><b>外微分・余微分</b>を有効化する。形式場では生成 .egi の座標文脈つき <code>dForm</code>/<code>codiff</code> へ接続する</td></tr>
-<tr><td><code>use vector-calculus { curl, divg }</code></td><td><b>ベクトル解析演算子</b>を有効化する。生成 .egi に座標文脈つき <code>curl</code>/<code>divg</code> を出す。<code>curl</code> は3次元専用として検査する</td></tr>
+<tr><td><code>def curl X = ...</code> / <code>def divg X = ...</code></td><td><b>ユーザ定義テンソル演算子</b>。gallery の Maxwell/divergence 例は <code>use</code> ではなく、この形式で演算子を直接定義する。<code>use vector-calculus</code> による既定定義も必要なら使える</td></tr>
 <tr><td><code>metric g</code> + <code>def Δ u = g~i~j . ∂_i ∂_j u</code></td><td><b>ユーザ定義演算子</b>(ファイルスコープ・使用箇所で展開。本文は先に定義された演算子のみ参照可、再帰不可)。平坦格子の Laplacian は metric と <code>.</code> による明示縮約で定義でき、生成時に <code>∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u</code> へ下りる</td></tr>
 <tr><td><code>def Δ u = lb u</code></td><td>計量宣言下の Laplace-Beltrami を <code>Δ</code> として使う例。<code>lb</code> は計量係数場を生成する低水準プリミティブ</td></tr>
 <tr><td><code>def grad u = withSymbols [i] ∂_i u</code></td><td>Egison と同様に、演算子定義には結果添字を書かない。<code>withSymbols</code> で導入した自由添字は、呼び出し側の添字へ付け替えられて成分展開される</td></tr>
@@ -160,7 +160,7 @@ make diffusion3d
 <table>
 <tr><th>構文</th><th>意味</th></tr>
 <tr><td><code>u' = 式</code></td><td>スカラー更新。<code>X'</code> を右辺に書くと「更新後の X」への参照(symplectic な leapfrog が書ける)</td></tr>
-<tr><td><code>E' = E + dt * curl B</code></td><td>ベクトル方程式(成分・添字なし)。<code>curl</code> には <code>use vector-calculus { curl }</code> が必要</td></tr>
+<tr><td><code>E'_i = E_i + dt * curl B_i</code></td><td>添字付きベクトル方程式。<code>curl</code> は同じ .fe 内の <code>def curl X = ...</code> で定義できる。呼び出し側の <code>_i</code> に結果添字が付け替えられて展開される</td></tr>
 <tr><td><code>B' = B - dt * d E'</code></td><td>形式方程式(d は次数で解決)。<code>d</code>/<code>δ</code> には <code>use exterior-calculus { d, δ }</code> が必要</td></tr>
 <tr><td><code>v'~i = v~i + (dt/ρ0) * contractWith (+) (∂_j σ~i~j)</code></td><td><b>テンソル添字方程式</b>(staggered 場)。各項は strict 検査され、自由添字は LHS と上下まで一致する。上下ペアは <code>contractWith</code> または <code>.</code> で明示的に縮約する。<code>∂_a</code> は対象成分の配置にアンカーされた半セル差分</td></tr>
 <tr><td><code>local w = ∂ 2 1 x u</code></td><td>中間<b>格子場</b>(.fmr に1行として出る — 4階微分の2段化などに)</td></tr>
@@ -171,7 +171,7 @@ make diffusion3d
 <table>
 <tr><th>分類</th><th>演算子</th><th>説明</th></tr>
 <tr><td><code>use exterior-calculus</code></td><td><code>d ω</code>, <code>δ ω</code></td><td><code>use exterior-calculus { d, δ }</code> で有効化される。形式場では生成 .egi の座標文脈つき <code>dForm</code>/<code>codiff</code> へ下ろす</td></tr>
-<tr><td><code>use vector-calculus</code></td><td><code>curl X</code>, <code>divg X</code></td><td><code>use vector-calculus { curl }</code> / <code>{ divg }</code> で有効化される。<code>fec</code> は生成 .egi に座標文脈つき Egison 定義を出し、Formurae 側では vector 値の成分取り出しだけを行う</td></tr>
+<tr><td>ユーザ定義</td><td><code>curl X</code>, <code>divg X</code>, <code>Δ u</code></td><td><code>def</code> で定義した演算子は使用箇所に展開される。<code>withSymbols</code>, <code>contractWith</code>, <code>.</code>, <code>∂_i</code>, <code>∂ 1 1 x</code> などを組み合わせて、問題ごとの演算子を .fe 側に直接書ける</td></tr>
 <tr><td><code>fec</code> 組み込み変換</td><td><code>∂x e</code>, <code>∂ 2 1 x e</code>, <code>∂ 2 2 x e</code></td><td>軸名を見て中心差分または Taylor 条件から導出する stencil へ下ろす。<code>∂x</code> は1階だけの短縮形で、<code>∂_x</code> と <code>d_x</code> は座標微分としては許可しない</td></tr>
 <tr><td><code>TensorExpr</code> 組み込み</td><td><code>∂_i X~i</code>, <code>contractWith (+) A~i_i</code>, <code>.</code>, <code>δ~i_j</code>, <code>epsilon~i~j~k</code>, <code>g_i_j</code></td><td>添字式を TensorExpr AST として展開する。<code>g</code> は上下パターンごとの計量テンソル、metric 名でない <code>δ~i_j</code> は Kronecker identity。縮約は <code>contractWith</code> と、標準定義 <code>def (.) A B = contractWith (+) (A * B)</code> だけが行う。<code>*</code> は縮約しない積として扱う</td></tr>
 <tr><td><code>fec</code> 組み込み変換</td><td><code>d ω</code>, <code>δ ω</code> / <code>delta ω</code> / <code>codiff ω</code></td><td><code>field E : 1-form</code> などの形式場では、<code>use exterior-calculus</code> で有効化されたときに生成 Egison の <code>dForm</code>/<code>codiff</code> 呼び出しへ下ろす</td></tr>
@@ -185,6 +185,9 @@ make diffusion3d
 <pre>
 def Δ u = ∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u
 def Δ4 u = ∂ 2 2 x u + ∂ 2 2 y u + ∂ 2 2 z u
+
+def divg X = ∂ 1 1 x X_1 + ∂ 1 1 y X_2
+def curl X = withSymbols [i] delta_i~1 * (∂ 1 1 y X_3 - ∂ 1 1 z X_2) + delta_i~2 * (∂ 1 1 z X_1 - ∂ 1 1 x X_3) + delta_i~3 * (∂ 1 1 x X_2 - ∂ 1 1 y X_1)
 </pre>
 <p><b><code>use</code></b> や計量宣言を持つモデルでは、<code>fec</code> が次のような <b>座標文脈つき Egison 定義</b>を生成 .egi の先頭に出します。以下は <code>.fe</code> prelude ではなく、<code>dimension</code>/<code>axes</code> から生成されるライブラリ片です。CAS 内部の座標シンボルは <code>x,y,z</code> に正規化し、Formura へ出すときに <code>axes</code> の名前へ戻します。</p>
 <pre>
@@ -258,8 +261,8 @@ def δ := codiff
 <tr><td><code>Δ e</code></td><td>ユーザ定義</td><td>平坦格子なら <code>metric g</code> と <code>def Δ u = g~i~j . ∂_i ∂_j u</code>、または <code>def Δ u = ∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u</code>、計量下なら <code>def Δ u = lb u</code> のように定義して使う</td></tr>
 <tr><td><code>lb e</code></td><td><code>fec</code> 組み込み生成</td><td>計量宣言下の Laplace–Beltrami。hodge 因子の係数場生成・半セル CAS 評価・保存流束まで自動</td></tr>
 <tr><td><code>Δ4 e</code></td><td>ユーザ定義</td><td><code>def Δ4 u = ∂ 2 2 x u + ∂ 2 2 y u + ∂ 2 2 z u</code>。4階微分ではなく、4次精度の2階微分和</td></tr>
-<tr><td><code>curl X</code></td><td><code>use vector-calculus { curl }</code></td><td>回転。生成 .egi の Egison 定義 <code>withSymbols [i,j,k] (ε 3)~i~j~k . (dGrad X)_j_k</code> に任せる。<code>E' = E + dt * curl B</code> のような添字なし vector equation で使う。<code>use</code> なしの <code>curl</code> はエラー</td></tr>
-<tr><td><code>divg X</code></td><td><code>use vector-calculus { divg }</code></td><td>発散。生成 .egi の Egison 定義 <code>trace (dGrad X)</code> に任せる。<code>use</code> なしの <code>divg</code> はエラー</td></tr>
+<tr><td><code>curl X</code></td><td>ユーザ定義 / <code>use vector-calculus { curl }</code></td><td>回転。gallery の Maxwell では <code>def curl X = withSymbols [i] ...</code> と直接定義する。未定義名として使った場合だけエラー</td></tr>
+<tr><td><code>divg X</code></td><td>ユーザ定義 / <code>use vector-calculus { divg }</code></td><td>発散。gallery の divergence では <code>def divg X = ∂ 1 1 x X_1 + ∂ 1 1 y X_2</code> と直接定義する。未定義名として使った場合だけエラー</td></tr>
 <tr><td><code>d ω</code></td><td><code>use exterior-calculus { d }</code></td><td>離散外微分(k-form → (k+1)-form)。形式場では <code>dForm</code> 呼び出しになる。<code>use</code> なしの <code>d</code> はエラー</td></tr>
 <tr><td><code>delta ω</code>(= <code>codiff</code>/<code>δ</code>)</td><td><code>use exterior-calculus { δ }</code></td><td>余微分 (−1)^{n(k+1)+1} ⋆d⋆。形式場では <code>codiff</code> 呼び出しになる。<code>use</code> なしの <code>δ</code> はエラー</td></tr>
 </table>

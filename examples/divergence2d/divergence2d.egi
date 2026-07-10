@@ -42,9 +42,6 @@ def ∂ (m: Integer) (r: Integer) (axis: MathValue) (u: MathValue) : MathValue :
    in if m = 1 && r = 1 then dC a u
       else if m = 2 && r = 1 then dC2 a u
       else dTaylor m (between (0 - r) r) a u
-def dGrad (X: Vector MathValue) : Matrix MathValue :=
-  generateTensor (\[a, b] -> dC a X_b) [feDim, feDim]
-def divg (X: Vector MathValue) : MathValue := trace (dGrad X)
 def offsetSuffix (o: MathValue) : String :=
   match o as mathValue with
     | #0 -> ""
@@ -63,8 +60,10 @@ def gridIndex (a: Integer) (arg: MathValue) : String :=
   S.append (axisName a) (offsetSuffix ((arg - coords_a) / hsteps_a))
 def fmrFieldName (nm: String) : String :=
   match nm as string with
-    | #"V'_1" -> "V_1'"
-    | #"V'_2" -> "V_2'"
+    | #"V_1" -> "V_down1"
+    | #"V'_1" -> "V_down1'"
+    | #"V_2" -> "V_down2"
+    | #"V'_2" -> "V_down2'"
     | _ -> nm
 def gridRef (g: MathValue) (args: [MathValue]) : String :=
   S.concat
@@ -149,7 +148,8 @@ def q := function (x, y)
 def FormuraeInternalTensorVUp_i := V_i
 def FormuraeInternalTensorVDown_i := V_i
 
-def feqV_i := withSymbols [i] V_i
+def feqV1 := V_1
+def feqV2 := V_2
 
 def feParams := [("dt", "1.0")]
 def feHelpers :=
@@ -157,12 +157,12 @@ def feHelpers :=
   , "sx = fun(x) sin(6.283185307179586*x/(total_grid_x*dx))"
   , "sy = fun(y) sin(6.283185307179586*y/(total_grid_y*dy))"
   ]
-def feComps : [String] := ["V_1", "V_2", "q"]
+def feComps : [String] := ["V_down1", "V_down2", "q"]
 def feInits :=
-  [ "  V_1[i,j] = sx(i*dx)"
-  , "  V_2[i,j] = sy(j*dy)"
+  [ "  V_down1[i,j] = sx(i*dx)"
+  , "  V_down2[i,j] = sy(j*dy)"
   , "  q[i,j] = 0.0"
   ]
-def feSteps := componentEqs ["V_1", "V_2"] [feqV_1, feqV_2] ++ scalarEq "q" (divg V_#)
+def feSteps := componentEqs ["V_down1", "V_down2"] [feqV1, feqV2] ++ scalarEq "q" ((∂ 1 1 x V_1 + ∂ 1 1 y V_2))
 
 def main (args: [String]) : IO () := print (emitModelOn 2 ["x", "y"] feParams feHelpers feComps feInits feSteps)

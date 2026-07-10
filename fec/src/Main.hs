@@ -403,27 +403,32 @@ validateDimensionFeatures m
 missingUse :: Model -> String -> Maybe String
 missingUse m s = go (tokenize s)
   where
+    userDefined nm =
+      any ((== nm) . defName) (mDefs m)
+      || any ((== nm) . tdName) (mTensorDefs m)
     go [] = Nothing
     go (t:ts) = check t ts `orElse` go ts
     check (TId "d" _) rest
       | indexedAfter rest = Nothing
+      | userDefined "d" = Nothing
       | not (hasUse m "exterior-calculus" "d") =
       Just "d requires use exterior-calculus { d }"
     check (TId "delta" _) rest
       | indexedAfter rest = Nothing
+      | userDefined "delta" = Nothing
       | not (hasUse m "exterior-calculus" "delta") =
       Just "δ requires use exterior-calculus { δ }"
-    check (TId "codiff" _) _ | not (hasUse m "exterior-calculus" "codiff") =
+    check (TId "codiff" _) _ | not (userDefined "codiff" || hasUse m "exterior-calculus" "codiff") =
       Just "codiff requires use exterior-calculus { codiff }"
-    check (TId "dForm" _) _ | not (hasUse m "exterior-calculus" "dForm") =
+    check (TId "dForm" _) _ | not (userDefined "dForm" || hasUse m "exterior-calculus" "dForm") =
       Just "dForm requires use exterior-calculus { dForm }"
-    check (TId "hodge" _) _ | not (hasUse m "exterior-calculus" "hodge") =
+    check (TId "hodge" _) _ | not (userDefined "hodge" || hasUse m "exterior-calculus" "hodge") =
       Just "hodge requires use exterior-calculus { hodge }"
-    check (TId "curl" _) _ | not (hasUse m "vector-calculus" "curl") =
+    check (TId "curl" _) _ | not (userDefined "curl" || hasUse m "vector-calculus" "curl") =
       Just "curl requires use vector-calculus { curl }"
-    check (TId "divg" _) _ | not (hasUse m "vector-calculus" "divg") =
+    check (TId "divg" _) _ | not (userDefined "divg" || hasUse m "vector-calculus" "divg") =
       Just "divg requires use vector-calculus { divg }"
-    check (TId "dGrad" _) _ | not (hasUse m "vector-calculus" "dGrad") =
+    check (TId "dGrad" _) _ | not (userDefined "dGrad" || hasUse m "vector-calculus" "dGrad") =
       Just "dGrad requires use vector-calculus { dGrad }"
     check _ _ = Nothing
     indexedAfter rest =
@@ -470,13 +475,13 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
           -- use only operators defined before it) and expand all uses.
           -- The tensor dot is a standard prelude operator, not a core
           -- primitive; a user definition later in the file shadows it.
-          defs <- resolveDefs (standardDefs ++ reverse (mDefs mUse))
-          tensorDefs <- resolveTensorDefs defs (reverse (mTensorDefs mUse))
+          defs <- resolveDefs mUse (standardDefs ++ reverse (mDefs mUse))
+          tensorDefs <- resolveTensorDefs mUse defs (reverse (mTensorDefs mUse))
           let mDef = mUse { mDefs = defs, mTensorDefs = tensorDefs }
           steps' <- mapM (\st -> do ex <- expandDefs defs (sEx st)
                                     return st { sEx = ex })
                          (reverse (mSteps mUse))
-          inits' <- mapM (expandInit defs) (reverse (mInits mUse))
+          inits' <- mapM (expandInit mUse defs) (reverse (mInits mUse))
           mapM_ (\df ->
                     checkGeneratedSurface mDef (defParams df)
                       ("in def " ++ defName df) (defBody df))
@@ -515,7 +520,7 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
 
     bal t = sum [1 :: Int | c <- t, c `elem` "(["] - sum [1 | c <- t, c `elem` ")]"]
 
-    resolveDefs ds = goD [] ds
+    resolveDefs mUse ds = goD [] ds
       where
         -- earlier defs are expanded into the body, so a resolved body
         -- may contain no def name at all: any survivor is a self or
@@ -523,22 +528,22 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
         allNames = map defName ds
         goD acc [] = return acc
         goD acc (df : more) = do
-          body' <- expandDefs acc (defBody df)
+          body' <- expandDefs acc (mathOps mUse (defBody df))
           case [w | TId w _ <- tokenize body', w `elem` allNames] of
             (w:_) -> fatal ("def " ++ defName df ++ " uses " ++ w
                             ++ " which is not defined before it")
             [] -> goD (df { defBody = body' } : acc) more
 
-    resolveTensorDefs defs = mapM resolveOne
+    resolveTensorDefs mUse defs = mapM resolveOne
       where
         resolveOne td = do
-          body' <- expandDefs defs (tdBody td)
+          body' <- expandDefs defs (mathOps mUse (tdBody td))
           return td { tdBody = body' }
 
-    expandInit defs it = case it of
-      ICas nm ex -> do ex' <- expandDefs defs ex
+    expandInit mUse defs it = case it of
+      ICas nm ex -> do ex' <- expandDefs defs (mathOps mUse ex)
                        return (ICas nm ex')
-      ICasIndex nm ix ex -> do ex' <- expandDefs defs ex
+      ICasIndex nm ix ex -> do ex' <- expandDefs defs (mathOps mUse ex)
                                return (ICasIndex nm ix ex')
       _ -> return it
 
@@ -942,13 +947,14 @@ surfaceBanned m locals s =
     checkIndexTok (II nm) =
       case parseIndexedIdent nm of
         ("delta", parts@(_:_))
-          | not (length parts == 2 && all isSingleAlphaIx parts) ->
-              Just ("Kronecker delta takes two single marked indices, e.g. delta~i_j: " ++ nm)
+          | not (length parts == 2 && all isAlphaNumIx parts) ->
+              Just ("Kronecker delta takes two marked indices, e.g. delta~i_j or delta_i~1: " ++ nm)
         ("epsilon", parts@(_:_))
           | not (length parts == 3 && all isSingleAlphaIx parts) ->
               Just ("epsilon takes three single marked indices, e.g. epsilon~i~j~k: " ++ nm)
         _ -> Nothing
     checkIndexTok _ = Nothing
+    isAlphaNumIx (IxPart _ ix) = not (null ix) && all isAlphaNum ix
     orElse (Just x) _ = Just x
     orElse Nothing y = y
 
