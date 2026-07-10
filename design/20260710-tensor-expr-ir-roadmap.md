@@ -6,21 +6,21 @@ Date: 2026-07-10
 
 - `lib/formurae-tensor.egi` を追加した。Egison の既存 Tensor primitive
   (`withSymbols`、`contract`、`tensorMap`、`subrefs`、`transpose`、`!.`) を
-  Formurae 用の一つの bridge から利用し、`fec` の標準演算子定義を Haskell
-  に複製しない。生成 `.egi` はこの bridge と `fmrgen.egi` をロードする。
-- 座標微分だけはモデルごとの生成 context (`fePartial`/`fePartial2` と
-  `feGrad`/`feCurl` などの hook) に残した。`∂_x`、`∂^2_x`、`∂'^2_x` の
-  stencil/配置は Formurae 固有だが、hook の返り値は Egison Tensor とする。
-- Tensor-valued operator の成分選択 `grad u..._i` を Egison 式
-  `(grad u)_1` へ変換する経路を追加した。これにより結果添字を定義 head に
-  書かず、呼び出し側で指定できる。
+  Formurae 用の一つの bridge から利用する。生成 `.egi` はこの bridge、
+  `fmrgen.egi`、共有プリンタ `formurae-runtime.egi` をロードする。
+- `grad`/`dGrad`/`divg`/`curl`/`lap`/`Δ`/`hessian` は
+  `coordinatePreludeDefs` の通常の TensorExpr `Def` とし、ユーザー `def` と同じ経路で
+  呼び出し側の成分と field placement へ特殊化する。旧 `fePartial`/`fePartial2`、
+  `feGrad`/`feCurl` hook と生成 Egison 側の演算子定義は撤去した。
+- `∂_x`、`∂^2_x`、`∂'^2_x` の stencil と、必要な場合の `dYee` は
+  Formurae 固有の低水準残余として生成 `.egi` に残る。
 
 - `tensorMap`、`subrefs`、`transpose`、disjoint product `!.` を
   TensorExpr の first-class node として追加し、成分 lowering まで実装した。
 - `def swap A_i_j = ...` のような固定長 indexed parameter と、
   `X...` の rank-polymorphic marker を受け付ける。
-- 標準 prelude に `wedge`、`trace`、
-  `sym`、`antisym`、`norm2`、`hessian` を通常の定義として追加した。
+- `wedge`、`trace`、`sym`、`antisym`、`norm2` は Egison bridge に残し、
+  残余式が Tensor 値を参照するときだけ生成側に bare field alias を出す。
 
 ## 目的
 

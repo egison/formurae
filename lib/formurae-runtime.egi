@@ -1,0 +1,173 @@
+--
+-- formurae-runtime.egi : Formura output printer for generated Formurae models
+--
+-- This file is loaded before the generated .egi file.  Egison treats files
+-- passed with `-l` and the executed file as separate definition batches, so
+-- definitions here must not refer directly to generated names such as
+-- `axisName`, `symName`, or `feCoords`.  Printer-dependent functions therefore
+-- receive an explicit, data-only context:
+--
+--   (symbolNames, fieldNames, indexNames, coords, hsteps, axisIds)
+--
+-- `symbolNames` and `fieldNames` are [(sourceName, outputName)] lookup tables.
+-- Missing names are preserved.  The generated file owns these policies and
+-- passes the tuple to FMR.eq/FMR.init/FMR.componentEqs/FMR.scalarEq.
+--
+
+def FMR.lookupOr (key: String) (names: [(String, String)]) : String :=
+  let found := filter (\(source, _) -> source = key) names
+   in if found = [] then key else snd (head found)
+
+def FMR.offsetSuffix (o: MathValue) : String :=
+  match o as mathValue with
+    | #0 -> ""
+    | #1 -> "+1"
+    | #2 -> "+2"
+    | #3 -> "+3"
+    | #(-1) -> "-1"
+    | #(-2) -> "-2"
+    | #(-3) -> "-3"
+    | #(1 / 2) -> "+1/2"
+    | #(-1 / 2) -> "-1/2"
+    | #(3 / 2) -> "+3/2"
+    | #(-3 / 2) -> "-3/2"
+    | _ -> S.concat ["+(", show o, ")"]
+
+def FMR.gridIndex
+      (ctx: ([(String, String)], [(String, String)], [String],
+             Vector MathValue, Vector MathValue, [Integer]))
+      (a: Integer) (arg: MathValue) : String :=
+  let (_, _, indexNames, coords, hsteps, _) := ctx
+   in S.append (nth a indexNames) (FMR.offsetSuffix ((arg - coords_a) / hsteps_a))
+
+def FMR.gridRef
+      (ctx: ([(String, String)], [(String, String)], [String],
+             Vector MathValue, Vector MathValue, [Integer]))
+      (g: MathValue) (args: [MathValue]) : String :=
+  let (_, fieldNames, _, _, _, axisIds) := ctx
+   in S.concat
+        [FMR.lookupOr (show g) fieldNames, "[",
+         S.intercalate "," (map (\(a, arg) -> FMR.gridIndex ctx a arg) (zip axisIds args)),
+         "]"]
+
+def FMR.wrapNeg (s: String) : String :=
+  if S.head s = '-' then S.concat ["(", s, ")"] else s
+
+def FMR.applyName g := mathFunctionName g
+
+def FMR.showFactor
+      (ctx: ([(String, String)], [(String, String)], [String],
+             Vector MathValue, Vector MathValue, [Integer]))
+      (f: MathValue) : String :=
+  let (symbolNames, _, _, _, _, _) := ctx
+   in match f as mathValue with
+        | func $g $args -> FMR.gridRef ctx g args
+        | apply1 $g $a1 -> S.concat [FMR.applyName g, "(", FMR.show ctx a1, ")"]
+        | quote $e -> S.concat ["(", FMR.show ctx e, ")"]
+        | symbol $v _ -> FMR.lookupOr v symbolNames
+        | _ -> S.concat ["(", FMR.show ctx f, ")"]
+
+def FMR.showPow
+      (ctx: ([(String, String)], [(String, String)], [String],
+             Vector MathValue, Vector MathValue, [Integer]))
+      (f: MathValue) (n: Integer) : String :=
+  if n = 1
+    then FMR.showFactor ctx f
+    else S.concat [FMR.showFactor ctx f, "**", show n]
+
+def FMR.coefPQ (c: MathValue) : (String, String) :=
+  match c as mathValue with
+    | $p / $q -> (show p, show q)
+
+def FMR.showTerm
+      (ctx: ([(String, String)], [(String, String)], [String],
+             Vector MathValue, Vector MathValue, [Integer]))
+      (t: MathValue) : String :=
+  match t as mathValue with
+    | term $c $xs ->
+        let (cp, cq) := FMR.coefPQ c
+         in let numFs := map (\(f, n) -> FMR.showPow ctx f n) (filter (\(f, n) -> n > 0) xs)
+         in let denFs := map (\(f, n) -> FMR.showPow ctx f (0 - n)) (filter (\(f, n) -> n < 0) xs)
+         in let numParts := if cp = "1" && not (numFs = []) then numFs
+                              else FMR.wrapNeg cp :: numFs
+         in let denParts := (if cq = "1" then [] else [cq]) ++ denFs
+         in let numStr := S.intercalate "*" numParts
+         in if denParts = []
+              then numStr
+              else S.concat [numStr, "/(", S.intercalate "*" denParts, ")"]
+
+def FMR.showPoly
+      (ctx: ([(String, String)], [(String, String)], [String],
+             Vector MathValue, Vector MathValue, [Integer]))
+      (p: MathValue) : String :=
+  match p as mathValue with
+    | #0 -> "0"
+    | poly $ts / _ -> S.intercalate " + " (map (FMR.showTerm ctx) ts)
+
+def FMR.show
+      (ctx: ([(String, String)], [(String, String)], [String],
+             Vector MathValue, Vector MathValue, [Integer]))
+      (e: MathValue) : String :=
+  match e as mathValue with
+    | #0 -> "0"
+    | $nu / #1 -> FMR.showPoly ctx nu
+    | $nu / $de -> S.concat ["(", FMR.showPoly ctx nu, ")/(", FMR.showPoly ctx de, ")"]
+
+def FMR.eq
+      (ctx: ([(String, String)], [(String, String)], [String],
+             Vector MathValue, Vector MathValue, [Integer]))
+      (lhs: String) (rhs: MathValue) : String :=
+  S.concat ["  ", lhs, " = ", FMR.show ctx rhs]
+
+def FMR.gridPoint
+      (ctx: ([(String, String)], [(String, String)], [String],
+             Vector MathValue, Vector MathValue, [Integer])) : String :=
+  let (_, _, indexNames, _, _, axisIds) := ctx
+   in S.intercalate "," (map (\a -> nth a indexNames) axisIds)
+
+def FMR.init
+      (ctx: ([(String, String)], [(String, String)], [String],
+             Vector MathValue, Vector MathValue, [Integer]))
+      (lhs: String) (rhs: MathValue) : String :=
+  S.concat ["  ", lhs, "[", FMR.gridPoint ctx, "] = ", FMR.show ctx rhs]
+
+def FMR.componentEqs
+      (ctx: ([(String, String)], [(String, String)], [String],
+             Vector MathValue, Vector MathValue, [Integer]))
+      (names: [String]) (values: [MathValue]) : [String] :=
+  map (\(name, value) -> FMR.eq ctx (S.append name "'") value) (zip names values)
+
+def FMR.scalarEq
+      (ctx: ([(String, String)], [(String, String)], [String],
+             Vector MathValue, Vector MathValue, [Integer]))
+      (nm: String) (c: MathValue) : [String] :=
+  [FMR.eq ctx (S.append nm "'") c]
+
+def FMR.tupleOf (xs: [String]) : String :=
+  if length xs = 1
+    then head xs
+    else S.concat ["(", S.intercalate "," xs, ")"]
+
+def FMR.emitModelOn (dim: Integer) (axes: [String])
+                    (params: [(String, String)]) (helpers: [String])
+                    (comps: [String]) (initLines: [String])
+                    (stepLines: [String]) : String :=
+  let compsP := map (\c -> S.append c "'") comps
+   in S.intercalate "\n"
+        ([ S.append "dimension :: " (show dim)
+         , S.append "axes :: " (S.intercalate "," axes)
+         , ""
+         ]
+         ++ map (\(n, v) -> S.concat ["double :: ", n, " = ", v]) params
+         ++ [""] ++ helpers ++ [""]
+         ++ [ S.concat ["begin function ", FMR.tupleOf comps, " = init()"]
+            , S.concat ["  double [] :: ", S.intercalate ", " comps]
+            ]
+         ++ initLines
+         ++ [ "end function"
+            , ""
+            , S.concat ["begin function ", FMR.tupleOf compsP,
+                        " = step", "(", S.intercalate "," comps, ")"]
+            ]
+         ++ stepLines
+         ++ [ "end function" ])

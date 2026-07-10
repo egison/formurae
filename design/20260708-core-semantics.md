@@ -8,6 +8,9 @@ Follow-up: このメモの中核方針である「添字付きテンソル演算
 Egison と同じ `.` / `contractWith` / `withSymbols` を Formurae の AST に持たせる
 ものであり、詳細は `design/20260709-dot-contractwith-tensor-operators.md` と
 `design/20260709-indexed-expr-ast-implementation.md` を参照する。
+さらに v1.30 では標準座標演算子も TensorExpr prelude として成分特殊化し、
+生成プリンタを `lib/formurae-runtime.egi` へ共有化した。以下の内部 tensor alias 案は
+履歴であり、現行構成は `DSL-DESIGN.md` の v1.30 を参照する。
 
 このメモは、Formurae を Egison の強みを活かした小さな核へ整理するための
 実装手順をまとめる。
@@ -102,12 +105,10 @@ g_i_j  -> FormuraeInternalMetricCov_i_j
 metric はこの規則の例外的な宣言形であり、`metric g` は内部的には2添字テンソルを
 宣言しているものとして扱う。
 
-一般の添字付きテンソル変数についても、上下パターンごとの内部束縛を用意する。
-例えば `field v~i` には `FormuraeInternalTensorvUp` と
-`FormuraeInternalTensorvDown` を生成し、`let A_i = ...` のような一時テンソルには
-`FormuraeInternalTensorAUp` と `FormuraeInternalTensorADown` を生成する。
-現在の格子場 lowering はどちらも同じ成分へ写すが、将来の
-variance-aware な上げ下げに差し替えられる。
+初期案では一般の添字付きテンソル変数に上下パターンごとの内部束縛を用意した。
+v1.30 では field/let を storage 成分へ直接特殊化するため、
+`FormuraeInternalTensor...` alias は撤去した。`sym`/`wedge` のような残余 Egison
+Tensor 演算が裸の値を必要とするときだけ、`A := A_#` のような alias を生成する。
 
 ## 3. スカラー関数の自動 lift/map を実装する
 

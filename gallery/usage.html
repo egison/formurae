@@ -63,11 +63,10 @@
 <h2 id="pipeline">1. パイプラインの全体像</h2>
 <pre>
 model.fme    Formurae ソース: field 宣言+数式(添字記法・微分形式・計量・ユーザ定義演算子)
-   │  fec(Haskell; 表層の添字/微分を Egison 形へ薄く変換)
-model.egi   埋め込み形(生成中間物; 座標文脈・差分フック・プリンタ)
-   │  Egison -l lib/formurae-tensor.egi -l lib/fmrgen.egi
-             (withSymbols・contract・tensorMap・subrefs・transpose・!. の意味論)
-   │  Egison の CAS が添字・微分形式・計量を記号的に展開
+   │  fec(Haskell; TensorExpr def/prelude 展開・添字/配置の成分特殊化)
+model.egi   埋め込み形(生成中間物; モデル固有の場・残余式・必要な座標文脈)
+   │  Egison -l formurae-tensor.egi -l fmrgen.egi -l formurae-runtime.egi
+   │  Egison CAS が残余 Tensor/DEC 式を評価し、共有 runtime が文字列化
 model.fmr   Formura ソース(全更新式が具体的なステンシルに)
    │  Formura(fork; bin/formura)
 model.c/.h  MPI 通信・temporal blocking つき C ライブラリ
@@ -170,7 +169,7 @@ make diffusion3d
 <table>
 <tr><th>構文</th><th>意味</th></tr>
 <tr><td><code>u' = 式</code></td><td>スカラー更新。<code>X'</code> を右辺に書くと「更新後の X」への参照(symplectic な leapfrog が書ける)</td></tr>
-<tr><td><code>E'_i = E_i + dt * curl B..._i</code></td><td>添字付きベクトル方程式。collocated mode の標準 <code>curl</code> の結果添字を呼び出し側で選び、生成 Egison では <code>(curl B)_1</code> のように評価する</td></tr>
+<tr><td><code>E'_i = E_i + dt * curl B_i</code></td><td>添字付きベクトル方程式。collocated mode の標準 <code>curl</code> は TensorExpr prelude として各 storage 成分へ特殊化される</td></tr>
 <tr><td><code>B' = B - dt * d E'</code></td><td>dec mode の形式方程式。<code>d</code>/<code>δ</code> は mode が選ぶ form context へ下りる</td></tr>
 <tr><td><code>v'~i = v~i + (dt/ρ0) * contractWith (+) (∂_j σ~i~j)</code></td><td><b>テンソル添字方程式</b>(staggered 場)。各項は strict 検査され、自由添字は LHS と上下まで一致する。上下ペアは <code>contractWith</code> または <code>.</code> で明示的に縮約する。<code>∂_a</code> は対象成分の配置にアンカーされた半セル差分</td></tr>
 <tr><td><code>local w = ∂^2_x u</code></td><td>中間<b>格子場</b>(.fmr に1行として出る — 4階微分の2段化などに)</td></tr>
@@ -181,19 +180,20 @@ make diffusion3d
 <table>
 <tr><th>分類</th><th>演算子</th><th>説明</th></tr>
 <tr><td><code>mode dec</code></td><td><code>d ω</code>, <code>δ ω</code></td><td>離散外微分・余微分。形式場では生成 .egi の <code>dForm</code>/<code>codiff</code> へ下ろす</td></tr>
-<tr><td><code>mode collocated</code></td><td><code>grad u</code>, <code>divg X</code>, <code>curl X</code>, <code>lap u</code>, <code>Δ u</code></td><td>生成 Egison context と tensor bridge を組み合わせた演算子。テンソル値の結果は添字 suffix で成分化する</td></tr>
-<tr><td>ユーザ定義</td><td><code>def customDiv X = ...</code>, <code>def Δ u = ...</code></td><td><code>def</code> 本体は Egison の Tensor 式へ渡される。<code>withSymbols</code>, <code>contractWith</code>, <code>.</code>, <code>∂_i</code>, <code>∂_x</code> などを組み合わせて、問題ごとの演算子を .fme 側に直接書ける</td></tr>
+<tr><td><code>mode collocated</code></td><td><code>grad u</code>, <code>divg X</code>, <code>curl X</code>, <code>lap u</code>, <code>Δ u</code></td><td>通常の TensorExpr prelude <code>Def</code>。ユーザー <code>def</code> と同じ経路で自由添字・縮約・配置を成分特殊化し、同名定義で shadow できる</td></tr>
+<tr><td>ユーザ定義</td><td><code>def customDiv X = ...</code>, <code>def Δ u = ...</code></td><td><code>withSymbols</code>, <code>contractWith</code>, <code>.</code>, <code>∂_i</code>, <code>∂_x</code> などを組み合わせて問題固有の演算子を書き、TensorExpr 上で展開する。特殊化後にも残る <code>sym</code>/<code>wedge</code> などは Egison が評価する</td></tr>
 <tr><td><code>fec</code> 組み込み変換</td><td><code>∂_x e</code>, <code>∂^2_x e</code>, <code>∂'^2_x e</code></td><td>軸名を見て中心差分または Taylor 条件から導出する stencil へ下ろす。1階微分は <code>∂_x e</code>、高階・広幅 stencil は <code>∂^m_x e</code> や <code>∂'^m_x e</code> のように書く</td></tr>
 <tr><td><code>TensorExpr</code> 組み込み</td><td><code>∂_i X~i</code>, <code>contractWith (+) A~i_i</code>, <code>.</code>, <code>!.</code>, <code>tensorMap</code>, <code>subrefs</code>, <code>transpose</code>, <code>δ~i_j</code>, <code>epsilon~i~j~k</code>, <code>g_i_j</code></td><td>添字式を TensorExpr AST として展開する。<code>g</code> は上下パターンごとの計量テンソル、metric 名でない <code>δ~i_j</code> は Kronecker identity。<code>.</code> と <code>contractWith</code> は縮約、<code>!.</code> は disjoint product、<code>tensorMap</code> はスカラー関数の成分 lift、<code>subrefs</code>/<code>transpose</code> は添字列操作を行う</td></tr>
-<tr><td><code>lib/formurae-tensor.egi</code></td><td><code>contractWith</code>、<code>.</code>、<code>!.</code>、<code>wedge</code>、<code>trace</code>、<code>sym</code>、<code>antisym</code></td><td>Egison の Tensor primitive を使う Formurae 用 bridge。テンソルの shape/添字/縮約はここで評価し、<code>fec</code> は同じ意味論を Haskell に複製しない</td></tr>
+<tr><td><code>lib/formurae-tensor.egi</code></td><td><code>contractWith</code>、<code>.</code>、<code>wedge</code>、<code>trace</code>、<code>sym</code>、<code>antisym</code></td><td>Egison の Tensor primitive を使う Formurae 用 bridge。<code>tensorMap</code>/<code>subrefs</code>/<code>transpose</code>/<code>!.</code> は Egison primitive を直接使う</td></tr>
 <tr><td><code>fec</code> 組み込み変換</td><td><code>d ω</code>, <code>δ ω</code> / <code>delta ω</code> / <code>codiff ω</code></td><td><code>mode dec</code> の <code>field E : 1-form</code> などの形式場を、生成 Egison の <code>dForm</code>/<code>codiff</code> 呼び出しへ下ろす</td></tr>
 <tr><td>Formura/extern 組み込み</td><td><code>sin</code>, <code>cos</code>, <code>exp</code>, <code>sqrt</code>, <code>fabs</code> など</td><td>スカラー関数。テンソル成分に適用されると成分ごとへ lift され、不足する <code>extern function :: ...</code> は <code>fec</code> が自動で出す</td></tr>
-<tr><td>生成 .egi の座標文脈定義</td><td><code>dGrad</code>, <code>curl</code>, <code>divg</code>, <code>dForm</code>, <code>codiff</code>, <code>dTaylor</code>, <code>showFmr</code>, <code>emitModelOn</code></td><td><code>.fme</code> の prelude ではなく、<code>fec</code> が <code>dimension</code>/<code>axes</code>/<code>metric</code> から生成する定義</td></tr>
+<tr><td>生成 .egi の残余文脈</td><td><code>∂</code>/<code>dTaylor</code>, <code>dYee</code>, <code>dForm</code>/<code>codiff</code>, metric family</td><td>最終残余式が参照する依存閉包だけを生成する。DEC form context は <code>mode dec</code> が選ぶ</td></tr>
+<tr><td><code>lib/formurae-runtime.egi</code></td><td><code>FMR.show</code>, <code>FMR.eq</code>, <code>FMR.init</code>, <code>FMR.emitModelOn</code></td><td>座標・格子幅・名前変換表を明示 context として受け取る共有 Formura プリンタ</td></tr>
 <tr><td>生成先 Egison ライブラリ</td><td><code>taylorStencil</code>, <code>unquoteAll</code>, <code>formComps</code>, <code>scaleForm</code></td><td>座標非依存の小さな core として <code>lib/fmrgen.egi</code> に残る</td></tr>
 </table>
 
 <h3>ユーザ定義演算子</h3>
-<p><code>Δ</code> や <code>Δ4</code> は組み込みではなく、必要に応じて .fme 側で定義します。</p>
+<p><code>Δ</code> は平坦格子用 prelude を同名の <code>def</code> で置き換えられます。<code>Δ4</code> など問題固有の演算子も .fme 側で定義します。</p>
 <pre>
 def Δ u = ∂^2_x u + ∂^2_y u + ∂^2_z u
 def Δ4 u = ∂'^2_x u + ∂'^2_y u + ∂'^2_z u
@@ -201,7 +201,7 @@ def Δ4 u = ∂'^2_x u + ∂'^2_y u + ∂'^2_z u
 def customDiv X = contractWith (+) (∂_i X~i)
 def customCurl X = withSymbols [i, j, k] (epsilon_i~j~k . ∂_j X_k)
 </pre>
-<p><code>mode</code> や計量宣言に応じて、<code>fec</code> は次のような <b>座標文脈つき Egison 定義</b>を生成 .egi の先頭に出します。以下は <code>.fme</code> prelude ではなく、<code>dimension</code>/<code>axes</code> から生成されるライブラリ片です。CAS 内部の座標シンボルは <code>x,y,z</code> に正規化し、Formura へ出すときに <code>axes</code> の名前へ戻します。</p>
+<p><code>fec</code> は次のようなモデル固有 context と、残余式が実際に使う低水準 helper だけを生成します。標準 <code>grad</code>/<code>curl</code> などと Formura プリンタ本体はここには複製しません。</p>
 <pre>
 def feDim : Integer := 3
 def feAxes : [String] := ["theta", "phi", "z"]
@@ -209,59 +209,15 @@ def feAxisIds : [Integer] := [1, 2, 3]
 def feCoords : Vector MathValue := [| x, y, z |]
 def feHsteps : Vector MathValue := [| hx, hy, hz |]
 
-def symName (v: String) : String :=
-  match v as string with
-    | #"hx" -&gt; "dtheta"
-    | #"hy" -&gt; "dphi"
-    | #"hz" -&gt; "dz"
-    | #"x" -&gt; "(i*dtheta)"
-    | #"y" -&gt; "(j*dphi)"
-    | #"z" -&gt; "(k*dz)"
-    | _ -&gt; v
+def feSymbolNames := [("hx", "dtheta"), ..., ("x", "(i*dtheta)"), ...]
+def fePrinterContext :=
+  (feSymbolNames, feFieldNames, ["i", "j", "k"], feCoords, feHsteps, feAxisIds)
+def fmrEq := FMR.eq fePrinterContext
 
-def dGrad (X: Vector MathValue) : Matrix MathValue :=
-  generateTensor (\[a, b] -&gt; dC a X_b) [feDim, feDim]
-
-def curl (X: Vector MathValue) : Vector MathValue :=
-  withSymbols [i, j, k] (ε 3)~i~j~k . (dGrad X)_j_k
-
-def divg (X: Vector MathValue) : MathValue :=
-  trace (dGrad X)
-
-def formBasis (k: Integer) : [[Integer]] :=
-  if k = 0 then [[]] else if k = 1 then [[1], [2], [3]]
-  else if k = 2 then [[1, 2], [1, 3], [2, 3]] else [[1, 2, 3]]
-
-def basisSign (xs: [Integer]) : MathValue := ...  -- permutation sign
-def complementBasis (basis: [Integer]) : [Integer] :=
-  filter (\a -&gt; not (any (\b -&gt; a = b) basis)) feAxisIds
-
-def hodge (f: (Integer, Integer, [MathValue])) : (Integer, Integer, [MathValue]) :=
-  let (c, k, cs) := f
-   in let kd := feDim - k
-   in (1 - c, kd,
-       map (\basis -&gt; let src := complementBasis basis
-                       in basisSign (src ++ basis) * formComponent src cs)
-           (formBasis kd))
-
-def dForm (f: (Integer, Integer, [MathValue])) : (Integer, Integer, [MathValue]) :=
-  let (c, k, cs) := f
-   in let kp := k + 1
-   in (c, kp,
-       map (\basis -&gt;
-              foldl (\acc a -&gt;
-                       let src := basisRemove a basis
-                        in acc + basisSign ([a] ++ src) *
-                           dYee a (sigmaC c basis) (formComponent src cs, sigmaC c src))
-                    0 basis)
-           (formBasis kp))
-
-def codiff (f: (Integer, Integer, [MathValue])) : (Integer, Integer, [MathValue]) :=
-  scaleForm ((-1) ^ (feDim * (formDeg f + 1) + 1)) (hodge (dForm (hodge f)))
-
-def δ := codiff
+-- ∂ が残るモデルだけ shift/dC/dC2/dTaylor/∂ を生成。
+-- dYee、DEC、metric の各 context も参照時だけ追加する。
 </pre>
-<p><code>taylorStencil</code>、quote cleanup、形式補助などの座標非依存部分だけが <code>lib/fmrgen.egi</code> に残ります。<code>dTaylor</code> と .fmr プリンタは生成 `.egi` 側に出ます。<code>Δ4</code> は必要なら .fme 側の <code>def</code> で定義します。</p>
+<p><code>taylorStencil</code> などの座標非依存 core は <code>lib/fmrgen.egi</code>、Formura 文字列化は <code>lib/formurae-runtime.egi</code> に一度だけ定義します。<code>dTaylor</code> は使うモデルだけに残ります。</p>
 
 <h3>演算子リファレンス(数式のまま書く)</h3>
 <table>
@@ -270,19 +226,19 @@ def δ := codiff
 <tr><td><code>∂^2_x e</code></td><td><code>fec</code> 組み込み</td><td>x 方向の2階中心差分。<code>∂^2_θ</code> のように任意の宣言軸名で書ける</td></tr>
 <tr><td><code>∂'^2_x e</code></td><td><code>fec</code> 組み込み</td><td>x 方向の2階微分を半径2の5点 stencil <code>[-2,-1,0,1,2]</code> で近似する。係数は <code>taylorStencil</code> が導出する</td></tr>
 <tr><td><code>∂_i X~i</code></td><td>TensorExpr 組み込み</td><td>添字微分。<code>axes</code> で宣言した座標方向について展開する。単独では未縮約の diagonal tensor なので、発散なら <code>contractWith (+) (∂_i X~i)</code> のように書く</td></tr>
-<tr><td><code>Δ e</code></td><td>ユーザ定義</td><td>平坦格子なら <code>metric g</code> と <code>def Δ u = g~i~j . ∂_i ∂_j u</code>、または <code>def Δ u = ∂^2_x u + ∂^2_y u + ∂^2_z u</code>、計量下なら <code>def Δ u = lb u</code> のように定義して使う</td></tr>
+<tr><td><code>Δ e</code></td><td>collocated prelude / ユーザ定義</td><td>平坦格子の標準 <code>lap</code> を使う。<code>metric g</code> と <code>def Δ u = g~i~j . ∂_i ∂_j u</code>、計量下の <code>def Δ u = lb u</code> などで shadow できる</td></tr>
 <tr><td><code>lb e</code></td><td><code>fec</code> 組み込み生成</td><td>計量宣言下の Laplace–Beltrami。hodge 因子の係数場生成・半セル CAS 評価・保存流束まで自動</td></tr>
 <tr><td><code>Δ4 e</code></td><td>ユーザ定義</td><td><code>def Δ4 u = ∂'^2_x u + ∂'^2_y u + ∂'^2_z u</code>。4階微分ではなく、4次精度の2階微分和</td></tr>
-<tr><td><code>curl X</code></td><td><code>mode collocated</code></td><td>Egison の <code>generateTensor</code> と生成差分 hook で回転テンソルを作る</td></tr>
-<tr><td><code>divg X</code></td><td><code>mode collocated</code></td><td>Egison bridge の発散。成分差分を有限和へ畳み込む</td></tr>
+<tr><td><code>curl X</code></td><td><code>mode collocated</code></td><td><code>epsilon_i~j~k . ∂_j X_k</code> という通常の TensorExpr prelude を成分・配置へ特殊化する(3D)</td></tr>
+<tr><td><code>divg X</code></td><td><code>mode collocated</code></td><td><code>contractWith (+) (∂_i X~i)</code> を各軸の成分差分の和へ特殊化する</td></tr>
 <tr><td><code>d ω</code></td><td><code>mode dec</code></td><td>離散外微分(k-form → (k+1)-form)。形式場では <code>dForm</code> 呼び出しになる</td></tr>
 <tr><td><code>delta ω</code>(= <code>codiff</code>/<code>δ</code>)</td><td><code>mode dec</code></td><td>余微分 (−1)^{n(k+1)+1} ⋆d⋆。形式場では <code>codiff</code> 呼び出しになる</td></tr>
 </table>
 
-<p><b>添字</b>: 添字方程式では上付き <code>~i</code> と下付き <code>_i</code> を常に区別します。添字つき field は <code>field v~i @ staggered</code>、<code>field σ{~i~j} @ staggered</code>、<code>field A[_i_j] @ staggered</code> のように宣言し、rank・上下・対称性・Formura 出力 layout は添字仕様から推論します。初期値も <code>v~i = [| ... |]~i</code>、<code>σ~i~j = [| ... |]~i~j</code>、<code>σ~i~j := g~i~j * exp(x)</code> のように同じ添字 suffix を明示します。<code>{...}</code> は対称、<code>[...]</code> は反対称です。反対称 field は <code>A_j_i = -A_i_j</code>、<code>A_i_i = 0</code> に正準化されます。右辺の各項は strict 検査され、自由添字は LHS と上下まで一致します。同じ上下添字が残る式は diagonal tensor であり、scalar にするには <code>contractWith</code> または <code>.</code> が必要です。添字の上げ下げは自動化しないため、必要なら <code>g_i_j . v~j</code> のように metric を明示します。<code>metric g</code> で宣言した計量名は <code>g~i~j</code>/<code>g~i_j</code>/<code>g_i~j</code>/<code>g_i_j</code> を別々の計量テンソルとして展開します。Kronecker delta は <code>δ~i_j</code> のような mixed identity としてだけ書けます(融合形 <code>delta_ij</code> は不可)。例(弾性波):
+<p><b>添字</b>: 添字方程式では上付き <code>~i</code> と下付き <code>_i</code> を常に区別します。添字つき field は <code>field v~i @ staggered</code>、<code>field σ{~i~j} @ staggered</code>、<code>field A[_i_j] @ staggered</code> のように宣言し、rank・上下・対称性・Formura 出力 layout は添字仕様から推論します。初期値も <code>v~i = [| ... |]~i</code>、<code>σ~i~j = [| ... |]~i~j</code>、<code>σ~i~j := g~i~j * exp(x)</code> のように同じ添字 suffix を明示します。<code>{...}</code> は対称、<code>[...]</code> は反対称です。反対称 field は <code>A_j_i = -A_i_j</code>、<code>A_i_i = 0</code> に正準化されます。右辺の各項は strict 検査され、自由添字は LHS と上下まで一致します。同じ上下添字が残る式は diagonal tensor であり、scalar にするには <code>contractWith</code> または <code>.</code> が必要です。添字の上げ下げは自動化しないため、必要なら <code>g_i_j . v~j</code> のように metric を明示します。<code>metric g</code> で宣言した計量名は <code>g~i~j</code>/<code>g~i_j</code>/<code>g_i~j</code>/<code>g_i_j</code> のうち参照された variance だけを内部計量へ下ろします(Euclidean は成分式へ inline)。Kronecker delta は <code>δ~i_j</code> のような mixed identity としてだけ書けます(融合形 <code>delta_ij</code> は不可)。例(弾性波):
 <code>v'~i = v~i + (dt / ρ0) * contractWith (+) (∂_j σ~i~j)</code></p>
 
-<p><b>内部名</b>: <code>metric g</code> の <code>g</code> は生成 Egison で <code>FormuraeInternalMetricContra</code>、<code>FormuraeInternalMetricMixedUpDown</code>、<code>FormuraeInternalMetricMixedDownUp</code>、<code>FormuraeInternalMetricCov</code> に下ります。添字付き field と <code>let A_i</code> のような一時テンソルについても <code>FormuraeInternalTensor...Up/Down...</code> という内部束縛を生成します。<code>FormuraeInternal</code> prefix は予約済みで、ユーザ定義名には使えません。</p>
+<p><b>内部名</b>: 非 Euclidean metric の参照成分は必要に応じて <code>FormuraeInternalMetricContra</code>、<code>FormuraeInternalMetricMixedUpDown</code>、<code>FormuraeInternalMetricMixedDownUp</code>、<code>FormuraeInternalMetricCov</code> の該当 family へ下ります。field 成分は storage 名へ直接特殊化し、旧 <code>FormuraeInternalTensor...</code> alias は生成しません。<code>FormuraeInternal</code> prefix は予約済みで、ユーザ定義名には使えません。</p>
 
 <p><b>Unicode</b>: ギリシャ文字(θ, φ, ρ, τ, κ, μ, λ, …)は識別子として使え、
 fec が Formura 向けに ASCII 名(theta, phi, …)へ字訳します。
@@ -365,9 +321,9 @@ python3 gallery/tools/embed_src.py<span class="c"># カードに .fme / .egi / .
 
 <h2 id="layers">10. 3層構造と検証の考え方</h2>
 <ul>
-<li><b>.fme</b> が唯一の編集対象。<b>.egi は生成中間物</b>(ヘッダに GENERATED 印。意味論は
-    座標文脈・差分コンビネータ・DEC・プリンタを含む。<code>lib/fmrgen.egi</code> は
-    <code>taylorStencil</code> などの小さな core に縮小した。
+<li><b>.fme</b> が唯一の編集対象。<b>.egi は生成中間物</b>(ヘッダに GENERATED 印)。
+    TensorExpr で特殊化済みのモデル式と、残余依存の座標/DEC context だけを持つ。
+    tensor semantics・座標非依存 core・プリンタはそれぞれ共有ライブラリへ分離した。
     一部の例(Yee・LBM・MHD・音響)はまだ埋め込み形で直接書かれており、
     それらだけ <code>lib/fmrlegacy3d.egi</code> を読む。</li>
 <li>リファクタや DSL 拡張の際の意味保存は「<b>生成 .fmr のバイト一致</b>」で検証するのが本リポジトリの

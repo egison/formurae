@@ -5,7 +5,9 @@ Date: 2026-07-09
 Superseded: このメモは「Formurae に一般的な添字補完器を実装しない」という
 保守的な境界を記録した履歴文書である。現行方針では、Egison と同じ
 `.` / `contractWith` / `withSymbols` を Formurae の AST に持たせ、添字つき `def` を
-prelude 的な数式定義へ広げる。詳細は
+prelude 的な数式定義へ広げる。v1.30 では標準座標演算子も TensorExpr prelude として
+`fec` 内で成分特殊化し、特殊化後に残る Tensor 演算だけを Egison へ渡す。
+旧 `use` 宣言と生成 Egison 側の `curl`/`divg` 定義は撤去済みである。詳細は
 `design/20260709-dot-contractwith-tensor-operators.md` と
 `design/20260709-indexed-expr-ast-implementation.md` を参照する。
 
@@ -189,7 +191,7 @@ def grad u = withSymbols [i] ∂_i u
 この履歴メモを書いた時点では、この種類の数式抽象は Egison 側で定義し、
 Formurae は必要な定義を `use` に応じて生成 `.egi` に出す方針だった。
 
-## 6. 実装状態
+## 6. 当時の実装状態(履歴)
 
 現状の Formurae 実装は、この方針に近い。
 

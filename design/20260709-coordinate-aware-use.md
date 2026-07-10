@@ -2,8 +2,21 @@
 
 Date: 2026-07-09
 
+> 履歴メモ。`use` を中心とする以下の手順は当時の設計記録であり、現行仕様は
+> `mode` と `DSL-DESIGN.md` の v1.29/v1.30 を参照する。
+
 ## 実装状況
 
+- 2026-07-10: collocated の `grad`/`dGrad`/`divg`/`curl`/`lap`/`Δ` と、
+  mode 共通の `hessian` は生成 `.egi` の関数群ではなく、
+  ユーザー `def` と同じ TensorExpr prelude として
+  `fec` 内で成分特殊化する方式へ移行した。ユーザー定義による shadowing は維持する。
+- 2026-07-10: `.fmr` 出力層は各 `.egi` への複製をやめ、
+  `lib/formurae-runtime.egi` の共有実装へ移した。生成物は座標・格子幅・名前変換表を
+  明示 data context として渡す。collocated 微分、Yee helper、metric context は
+  最終残余式が参照するものだけ、DEC form context は `mode dec` で生成する。
+  以下の 2026-07-09 項目は移行履歴であり、
+  「生成 `.egi` 側へ移した」という記述はこの共有 runtime 化より前の状態を指す。
 - 2026-07-09: `use exterior-calculus { Δ }` はその後撤去し、
   `Δ`/`Δ4` は `.fme` 側の通常の `def` で書く方針へ移行済み。
   平坦格子用の生成 `.egi` 文脈からも `lap` は外し、
@@ -179,16 +192,18 @@ fec: error: curl requires dimension 3
    lib/fmrgen.egi:
    taylorStencil, gaussSolve, unquoteAll, formComps, scaleForm など
 
-2. モデルごとに生成する座標文脈つき定義
+2. モデルごとに生成する残余文脈と式
    生成 .egi:
-   coords, hsteps, shift, dC, dC2, lap, hodge, dForm, codiff など
+   feDim, feAxes, feCoords, feHsteps, field, step、
+   残余依存の shift/dC/dC2/dTaylor・Yee・metric、mode dec の form context
 
-3. Formura 出力 DSL
-   生成 .egi:
-   showFmr, fmrEq, fmrInit, scalarEq, componentEqs, emitModelOn など
+3. 共有 Formura 出力 runtime
+   lib/formurae-runtime.egi:
+   FMR.show, FMR.eq, FMR.init, FMR.componentEqs, FMR.scalarEq, FMR.emitModelOn
 ```
 
-`.fme` から生成される `.egi` は `lib/formurae-tensor.egi` と `lib/fmrgen.egi` を読む。まだ `.fme` 化していない
+`.fme` から生成される `.egi` は `lib/formurae-tensor.egi`、`lib/fmrgen.egi`、
+`lib/formurae-runtime.egi` を読む。まだ `.fme` 化していない
 手書き `.egi` 例は互換用に `lib/fmrlegacy3d.egi` も読む。
 
 `lib/fmrgen.egi` からは
@@ -393,4 +408,5 @@ use exterior-calculus { Δ } を実装し、
 ```
 
 このマイルストーンは完了した。`use` の構文、名前解決、早期エラーを導入し、
-さらに `lib/fmrgen.egi` の座標依存部分と出力層を生成 `.egi` 側へ移した。
+さらに当時は `lib/fmrgen.egi` の座標依存部分と出力層を生成 `.egi` 側へ移した。
+出力層は v1.30 で `lib/formurae-runtime.egi` に再抽出済みである。

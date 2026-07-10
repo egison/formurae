@@ -9,10 +9,13 @@ copyright:          2026 Satoshi Egi
 synopsis:           The Formurae (.fme) compiler: mathematical stencil language to embedded Egison
 description:
     Translates Formurae, the .fme surface language (field declarations plus
-    index-notation and differential-form equations), into the embedded DSL form: an Egison
-    program over lib/fmrgen.egi.  All semantics (tensor
-    index expansion, DEC, the CAS, the .fmr printer) live on the Egison
-    side; fec is a thin, line-oriented translator.
+    index-notation and differential-form equations), into a compact embedded
+    Egison program.  fec expands user definitions and the coordinate-operator
+    prelude through one TensorExpr path, resolves indices and field placement,
+    and emits only the residual model-specific context.  Generated programs
+    run with lib/formurae-tensor.egi, lib/fmrgen.egi, and
+    lib/formurae-runtime.egi; Egison evaluates the residual expressions,
+    normalizes the CAS result, and emits .fmr through the shared runtime.
 build-type:         Simple
 
 executable fec

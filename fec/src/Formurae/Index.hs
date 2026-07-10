@@ -150,14 +150,6 @@ inferFieldLayout ln spec (Just (FieldIndex [Antisymmetric parts])) _
 inferFieldLayout ln spec _ _ =
   fatal ("unsupported field spec: " ++ spec ++ " (line " ++ show ln ++ ")")
 
-varianceWord :: Variance -> String
-varianceWord VUp = "Up"
-varianceWord VDown = "Down"
-
-tensorInternalBase :: String -> [Variance] -> String
-tensorInternalBase nm vars =
-  reservedInternalPrefix ++ "Tensor" ++ nm ++ concatMap varianceWord vars
-
 metricInternalBase :: Variance -> Variance -> String
 metricInternalBase VUp VUp = reservedInternalPrefix ++ "MetricContra"
 metricInternalBase VUp VDown = reservedInternalPrefix ++ "MetricMixedUpDown"

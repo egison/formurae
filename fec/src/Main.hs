@@ -3,15 +3,15 @@
 -- Formurae (.fme) is the mathematical surface language of this repo,
 -- named after Muranushi's Formura (its Latin-looking plural, and a pun
 -- on "formulae").  fec translates it into the embedded DSL form: an
--- Egison program that carries its own coordinate context, mathematical
--- operators, and .fmr printer, while using lib/fmrgen.egi only for
--- small coordinate-free helpers.  Tensor index notation, differential
--- forms, CAS expansion, and printing are still expressed as generated
--- Egison code; this is a thin, line-oriented translator.  Base library
+-- Egison program that carries its own coordinate context and residual
+-- mathematical expressions.  Shared tensor semantics, coordinate-free CAS
+-- helpers, and the Formura printer live in small Egison libraries; model
+-- specific names and expressions remain in the generated file.  Base library
 -- only; build and run with
 --
 --   cabal run -v0 fec -- model.fme > model.egi
---   egison -l lib/formurae-tensor.egi -l lib/fmrgen.egi model.egi > model.fmr
+--   egison -l lib/formurae-tensor.egi -l lib/fmrgen.egi \
+--          -l lib/formurae-runtime.egi model.egi > model.fmr
 --
 -- Formurae grammar (v1):
 --   mode collocated|dec             REQUIRED; spatial discretization and standard prelude
@@ -42,10 +42,13 @@
 --                                   coefficient FIELDS evaluated by the
 --                                   CAS at the half-cell placements.
 --   def NAME ARG... = EXPR          user-defined operator.  Its tensor
---                                    semantics are passed to Egison; use
+--                                    semantics are expanded on the TensorExpr
+--                                    AST; use
 --                                    withSymbols for newly introduced free
 --                                    indices and contractWith / `.` for
---                                    contraction.
+--                                    contraction.  Tensor primitives left
+--                                    after component specialization are
+--                                    evaluated by Egison.
 --                                    Fixed indexed parameters such as A_i_j and
 --                                    the rank-polymorphic marker X... are also
 --                                    accepted.
@@ -88,8 +91,8 @@
 -- when i is not a declared axis.  A bare small delta is the
 -- codifferential, indexed delta is Kronecker's delta, and the minus sign is
 -- '-'.  Higher mathematical
--- operators such as Δ or Δ4 are ordinary user definitions over these
--- derivative primitives rather than built-in aliases.
+-- operators such as Δ use ordinary prelude definitions over these derivative
+-- primitives and may be shadowed by user definitions; Δ4 is user-defined.
 -- In index equations superscripts (~i) and subscripts (_i) are kept
 -- distinct.  Kronecker's delta is the mixed identity (delta~i_j, or with
 -- the small delta sign), while the metric tensor name declared by
@@ -100,7 +103,7 @@
 -- B' = B - dt * curl E' is the symplectic pair.
 
 import Data.Char (isAlpha, isAlphaNum, isDigit, isSpace)
-import Data.List (dropWhileEnd, intercalate, permutations, sort, nub, stripPrefix, isSuffixOf)
+import Data.List (dropWhileEnd, intercalate, permutations, sort, nub, stripPrefix, isInfixOf, isPrefixOf, isSuffixOf)
 import System.Environment (getArgs)
 import System.IO (hPutStrLn, stderr)
 
@@ -109,7 +112,6 @@ import Formurae.Index
 import Formurae.Syntax
 import Formurae.TensorExpr
   ( expandDefs
-  , expandTensorDefs
   , ixExpand
   , placeSB
   , placeText
@@ -136,15 +138,32 @@ scalarIntrinsics =
   ]
 
 -- Tensor algebra is an Egison concern.  The generated .egi loads
--- lib/formurae-tensor.egi, which defines the standard operators in terms of
--- Egison's Tensor primitives.  Keeping only the names here lets the parser
--- recognise those operators while avoiding a second Haskell implementation
--- of their semantics.
+-- lib/formurae-tensor.egi, which defines the algebraic operators in terms of
+-- Egison's Tensor primitives.  Coordinate operators, on the other hand, are
+-- ordinary Formurae definitions: registering them before user definitions
+-- lets the normal TensorExpr expansion specialize them to the model's axes
+-- and placements.  A user definition is subsequently pushed in front of
+-- these definitions and therefore shadows the corresponding prelude entry.
 standardNames :: [String]
 standardNames =
   [ ".", "wedge", "trace", "sym", "antisym"
   , "norm2", "hessian", "grad", "dGrad", "divg", "curl", "lap", "Δ"
   ]
+
+coordinatePreludeDefs :: Model -> [Def]
+coordinatePreludeDefs m =
+  [ Def "grad" ["u"] "withSymbols [i] ∂_i u"
+  , Def "dGrad" ["X"] "withSymbols [i, j] ∂_i X_j"
+  , Def "divg" ["X"] "contractWith (+) (∂_i X~i)"
+  ]
+  ++ [ Def "curl" ["X"]
+         "withSymbols [i, j, k] (epsilon_i~j~k . ∂_j X_k)"
+     | mDim m == 3
+     ]
+  ++ [ Def "lap" ["u"] "divg (grad u)"
+     , Def "Δ" ["u"] "lap u"
+     , Def "hessian" ["u"] "withSymbols [i, j] ∂_i ∂_j u"
+     ]
 
 -- ---------------------------------------------------------------- model
 
@@ -173,7 +192,6 @@ modelExprTexts m =
   ++ concatMap initExpr (mInits m)
   ++ map sEx (mSteps m)
   ++ maybe [] id (mMetric m)
-  ++ map tdBody (mTensorDefs m)
   ++ map defBody (mDefs m)
   where
     helperExprs = filter isExprHelper
@@ -391,7 +409,6 @@ unavailableOperator m s = go (tokenize s)
   where
     userDefined nm =
       any ((== nm) . defName) (mDefs m)
-      || any ((== nm) . tdName) (mTensorDefs m)
     go [] = Nothing
     go (t:ts) = check t ts `orElse` go ts
     check (TId "d" _) rest
@@ -465,7 +482,6 @@ parseFe name txt = go STop initialModel
       , mDd = Nothing
       , mMetric = Nothing
       , mEmbed = Nothing
-      , mTensorDefs = []
       , mDefs = []
       }
     -- dimension and axes are required: they fix the coordinate frame
@@ -486,35 +502,29 @@ parseFe name txt = go STop initialModel
                     checkUserSurface mUse (map defParamBase (defParams df))
                       ("in def " ++ defName df) (defBody df))
                 (mDefs mUse)
-          mapM_ (\td ->
-                    checkUserSurface mUse [tdParam td]
-                      ("in def " ++ tdName td) (tdBody td))
-                (mTensorDefs mUse)
           mapM_ (\st ->
                     checkUserSurface mUse []
                       ("in step expression: " ++ sEx st) (sEx st))
                 (mSteps mUse)
           mapM_ (checkInitUse mUse) (mInits mUse)
-          -- Resolve user-defined operators (definition order; a body may
-          -- use only operators defined before it) for the surface checks.
-          -- Tensor prelude names are supplied by the Egison bridge, not
-          -- expanded here.
-          defs <- resolveDefs mUse (reverse (mDefs mUse))
-          tensorDefs <- resolveTensorDefs mUse defs (reverse (mTensorDefs mUse))
-          let mDef = mUse { mDefs = defs, mTensorDefs = tensorDefs }
+          -- Resolve the coordinate prelude first, then push user definitions
+          -- in source order.  lookupDef chooses the first match, so user
+          -- definitions shadow prelude definitions while retaining the same
+          -- definition-order rule among themselves.
+          preludeDefs <- resolveDefs mUse [] (coordinatePreludeDefs mUse)
+          let userDefs0 = reverse (mDefs mUse)
+          allDefs <- resolveDefs mUse preludeDefs userDefs0
+          let defs = take (length userDefs0) allDefs
+          let mDef = mUse { mDefs = defs }
           steps' <- mapM (\st -> do ex0 <- preprocessTensorExpr mUse (sEx st)
-                                    ex <- expandDefs defs ex0
+                                    ex <- expandDefs allDefs ex0
                                     return st { sEx = ex })
                          (reverse (mSteps mUse))
-          inits' <- mapM (expandInit mUse defs) (reverse (mInits mUse))
+          inits' <- mapM (expandInit mUse allDefs) (reverse (mInits mUse))
           mapM_ (\df ->
                     checkGeneratedSurface mDef (map defParamBase (defParams df))
                       ("in def " ++ defName df) (defBody df))
                 defs
-          mapM_ (\td ->
-                    checkGeneratedSurface mDef [tdParam td]
-                      ("in def " ++ tdName td) (tdBody td))
-                tensorDefs
           mapM_ (\st ->
                     checkGeneratedSurface mDef []
                       ("in step expression: " ++ sEx st) (sEx st))
@@ -545,7 +555,7 @@ parseFe name txt = go STop initialModel
 
     bal t = sum [1 :: Int | c <- t, c `elem` "(["] - sum [1 | c <- t, c `elem` ")]"]
 
-    resolveDefs mUse ds = goD [] ds
+    resolveDefs mUse initial ds = goD initial ds
       where
         -- earlier defs are expanded into the body, so a resolved body
         -- may contain no def name at all: any survivor is a self or
@@ -559,13 +569,6 @@ parseFe name txt = go STop initialModel
             (w:_) -> fatal ("def " ++ defName df ++ " uses " ++ w
                             ++ " which is not defined before it")
             [] -> goD (df { defBody = body' } : acc) more
-
-    resolveTensorDefs mUse defs = mapM resolveOne
-      where
-        resolveOne td = do
-          body0 <- preprocessTensorExpr mUse (tdBody td)
-          body' <- expandDefs defs body0
-          return td { tdBody = body' }
 
     expandInit mUse defs it = case it of
       ICas nm ex -> do ex0 <- preprocessTensorExpr mUse ex
@@ -945,7 +948,6 @@ surfaceBanned m locals s =
       nm == "tensorMap" || nm == "subrefs" || nm == "transpose"
       || nm `elem` standardNames
       || any ((== nm) . defName) (mDefs m)
-      || any ((== nm) . tdName) (mTensorDefs m)
     isTensorOperator _ = False
 
     isBareIndexedFieldName nm =
@@ -1008,8 +1010,7 @@ lbTarget m = case concatMap scan (mSteps m) of
 indexDefs :: Model -> [String] -> Step -> IO [String]
 indexDefs m lets st = do
   validateFieldRefParts m lets (sNm st ++ concatMap ixSuffix (sIdx st))
-  ex0 <- expandTensorDefs m (sEx st)
-  ex <- preprocessTensorExpr m ex0
+  ex <- preprocessTensorExpr m (sEx st)
   strictEinstein m lets (sIdx st) ex
   case (kindOf m (sNm st), sIdx st) of
     (Just (Vector staggered), [fi]) ->
@@ -1036,8 +1037,7 @@ indexDefs m lets st = do
 
 implicitVectorDefs :: Model -> [String] -> Step -> IO [String]
 implicitVectorDefs m lets st = do
-  ex0 <- expandTensorDefs m (sEx st)
-  ex <- preprocessTensorExpr m ex0
+  ex <- preprocessTensorExpr m (sEx st)
   if hasIndexSyntax m ex
     then do
       strictEinstein m lets [lhsIx] ex
@@ -1135,8 +1135,7 @@ invalidDerivativeOp _ nm =
 
 rewrite :: Model -> [String] -> Maybe String -> String -> IO String
 rewrite m lets mk expr = do
-  exprT0 <- expandTensorDefs m expr
-  exprT <- preprocessTensorExpr m exprT0
+  exprT <- preprocessTensorExpr m expr
   fmap concat (mapM render (attach (elems exprT)))
   where
     elems exprT = lbPass (opPass m (tokenize exprT))
@@ -1187,12 +1186,11 @@ rewrite m lets mk expr = do
 
 rewriteScalar :: Model -> [String] -> String -> IO String
 rewriteScalar m lets expr = do
-  exprT <- expandTensorDefs m expr
-  pre <- preprocessTensorExpr m exprT
+  pre <- preprocessTensorExpr m expr
   if hasIndexSyntax m pre
     then strictEinstein m lets [] pre
          >> ixExpand m lets [] (zeroPlaceB m) pre
-    else rewrite m lets Nothing exprT
+    else rewrite m lets Nothing expr
 
 hasIndexSyntax :: Model -> String -> Bool
 hasIndexSyntax m = any indexedTok . itok
@@ -1222,6 +1220,13 @@ escH = concatMap esc
     esc '"' = "\\\""
     esc c = [c]
 
+egiStringPairs :: [(String, String)] -> String
+egiStringPairs pairs =
+  "[" ++ intercalate ", "
+    ["(" ++ show source ++ ", " ++ show target ++ ")"
+    | (source, target) <- pairs]
+  ++ "]"
+
 emit :: Model -> IO String
 emit m = do
   if length (mAxes m) /= mDim m
@@ -1250,9 +1255,6 @@ emit m = do
       axisIds = [1 .. mDim m]
       axisList = "[" ++ intercalate ", " (map show axisIds) ++ "]"
       symbolDecl = "declare symbol " ++ intercalate ", " (internalCoords ++ internalHsteps)
-      axisPairList =
-        "[" ++ intercalate ", " [ "(" ++ show a ++ ", " ++ show b ++ ")"
-                                | a <- axisIds, b <- axisIds ] ++ "]"
       ifChain cases fallback =
         foldr (\(cond, value) rest -> "if " ++ cond ++ " then " ++ value ++ " else " ++ rest)
               fallback cases
@@ -1269,10 +1271,10 @@ emit m = do
                 | xs <- basisSignInputs]
                 "0"
       needsFormContext = selectedMode m == DecMode
-      needsStaggeredContext =
-        any (\(_, k) -> k == Vector True || k == SymM || k == AntiM || k == Tensor2 True) (mFlds m)
-      needsYeeContext = mtx /= Nothing || needsFormContext || needsStaggeredContext
-      symbolCase sym repl = "    | #\"" ++ sym ++ "\" -> \"" ++ repl ++ "\""
+      symbolNames =
+        zip internalHsteps internalGridSteps
+        ++ [ (c, "(" ++ ix ++ "*" ++ g ++ ")")
+           | (c, ix, g) <- zip3 internalCoords internalIndexVars internalGridSteps ]
       contextDecls =
             [ symbolDecl
             , "def feDim : Integer := " ++ show (mDim m)
@@ -1280,29 +1282,6 @@ emit m = do
             , "def feAxisIds : [Integer] := " ++ axisList
             , "def feCoords : Vector MathValue := " ++ coordVec
             , "def feHsteps : Vector MathValue := " ++ hstepVec
-            , "def coords : Vector MathValue := feCoords"
-            , "def hsteps : Vector MathValue := feHsteps"
-            , "def axisName (a: Integer) : String := nth a " ++ egiStringList internalIndexVars
-            , "def symName (v: String) : String :="
-            , "  match v as string with"
-            ]
-            ++ [ symbolCase h g | (h, g) <- zip internalHsteps internalGridSteps ]
-            ++ [ symbolCase c ("(" ++ ix ++ "*" ++ g ++ ")")
-               | (c, ix, g) <- zip3 internalCoords internalIndexVars internalGridSteps ]
-            ++ [ "    | _ -> v" ]
-      contextMathDecls = scalarContextDecls
-                         ++ (if needsYeeContext then yeeContextDecls else [])
-                         ++ (if needsFormContext then formContextDecls else [])
-      tensorPreludeDecls =
-            [ "-- Formurae tensor operators: Egison-side wrappers around the generated coordinate hooks"
-            , "def grad (u: MathValue) : Tensor MathValue := feGrad u"
-            , "def dGrad (u: Tensor MathValue) : Tensor MathValue := feDGrad u"
-            , "def divg (u: Tensor MathValue) : MathValue := feDivg u"
-            , "def curl (u: Tensor MathValue) : Tensor MathValue := feCurl u"
-            , "def lap (u: MathValue) : MathValue := feLap u"
-            , "def Δ (u: MathValue) : MathValue := lap u"
-            , "def hessian (u: MathValue) : Tensor MathValue :="
-            , "  generateTensor (\\[i, j] -> fePartial2 i (fePartial j u)) [feDim, feDim]"
             ]
       scalarContextDecls =
             [ "def shift (a: Integer) (c: MathValue) (u: MathValue) : MathValue :="
@@ -1311,8 +1290,6 @@ emit m = do
             , "  (shift a 1 u - shift a (-1) u) / (2 * feHsteps_a)"
             , "def dC2 (a: Integer) (u: MathValue) : MathValue :="
             , "  (shift a 1 u - 2 * u + shift a (-1) u) / ((feHsteps_a) ^ 2)"
-            , "def dF (a: Integer) (u: MathValue) : MathValue := (shift a 1 u - u) / feHsteps_a"
-            , "def dB (a: Integer) (u: MathValue) : MathValue := (u - shift a (-1) u) / feHsteps_a"
             , "def dTaylor (m: Integer) (ks: [MathValue]) (a: Integer) (u: MathValue) : MathValue :="
             , "  sum (map (\\(c, k) -> c * shift a k u) (zip (taylorStencil m ks) ks)) / (feHsteps_a ^ m)"
             ]
@@ -1330,25 +1307,6 @@ emit m = do
                , "      else if m = 2 && r = 1 then dC2 a u"
                , "      else dTaylor m (between (0 - r) r) a u"
                ]
-            ++ [ "def fePartial (a: Integer) (u: MathValue) : MathValue := ∂ 1 1 feCoords_a u"
-               , "def fePartial2 (a: Integer) (u: MathValue) : MathValue := ∂ 2 1 feCoords_a u"
-               , "def feIndexPairs : [(Integer, Integer)] := " ++ axisPairList
-               , "def feEpsilon (i: Integer) (j: Integer) (k: Integer) : MathValue :="
-               , "  if i = j || j = k || i = k then 0"
-               , "  else if (i = 1 && j = 2 && k = 3) || (i = 2 && j = 3 && k = 1) || (i = 3 && j = 1 && k = 2) then 1"
-               , "  else -1"
-               , "def feGrad (u: MathValue) : Tensor MathValue :="
-               , "  generateTensor (\\[i] -> fePartial i u) [feDim]"
-               , "def feDGrad (u: Tensor MathValue) : Tensor MathValue :="
-               , "  generateTensor (\\[i, j] -> fePartial i (u_j)) [feDim, feDim]"
-               , "def feDivg (u: Tensor MathValue) : MathValue :="
-               , "  sum (map (\\i -> fePartial i (u_i)) feAxisIds)"
-               , "def feCurl (u: Tensor MathValue) : Tensor MathValue :="
-               , "  generateTensor (\\[i] ->"
-               , "    sum (map (\\(j, k) -> feEpsilon i j k * fePartial j (u_k)) feIndexPairs)) [feDim]"
-               , "def feLap (u: MathValue) : MathValue :="
-               , "  sum (map (\\i -> fePartial2 i u) feAxisIds)"
-               ]
       yeeContextDecls =
             [ "def yeeRef (sT: [MathValue]) (fld: (MathValue, [MathValue])) (disp: [MathValue]) : MathValue :="
             , "  let (fF, sF) := fld"
@@ -1359,9 +1317,6 @@ emit m = do
             , "  map (\\b -> if a = b then c else 0) feAxisIds"
             , "def dYee (a: Integer) (sT: [MathValue]) (fld: (MathValue, [MathValue])) : MathValue :="
             , "  (yeeRef sT fld (unit3 a (1 / 2)) - yeeRef sT fld (unit3 a (-1 / 2))) / feHsteps_a"
-            , "def curlYee (i1: Integer) (sT: [MathValue]) (flds: [(MathValue, [MathValue])]) : MathValue :="
-            , "  sum (map (\\(j1, k1) -> (\949 3)_i1_j1_k1 * dYee j1 sT (nth k1 flds))"
-            , "           feIndexPairs)"
             ]
       formContextDecls =
             [ "def formBasis (k: Integer) : [[Integer]] := " ++ formBasisExpr
@@ -1402,7 +1357,6 @@ emit m = do
             , "           (formBasis kp))"
             , "def codiff (f: (Integer, Integer, [MathValue])) : (Integer, Integer, [MathValue]) :="
             , "  scaleForm ((-1) ^ (feDim * (formDeg f + 1) + 1)) (hodge (dForm (hodge f)))"
-            , "def \948 := codiff"
             ]
       metricContextDecls =
             case (mMetricName m, mMetric m, mEmbed m) of
@@ -1410,8 +1364,8 @@ emit m = do
               _ ->
                 let identity = "if i = j then 1 else 0"
                     gen nm expr =
-                      "def " ++ nm ++ "_i_j := generateTensor (\\[i, j] -> "
-                      ++ expr ++ ") [feDim, feDim]"
+                      (nm, "def " ++ nm ++ "_i_j := generateTensor (\\[i, j] -> "
+                           ++ expr ++ ") [feDim, feDim]")
                     (covExpr, contraExpr) = case (mMetric m, mEmbed m) of
                       (Just hs0, _) ->
                         let hs = "[" ++ intercalate ", " (map (renameAxes m) hs0) ++ "]"
@@ -1427,111 +1381,20 @@ emit m = do
                    , gen (metricInternalBase VUp VDown) identity
                    , gen (metricInternalBase VDown VUp) identity
                    ]
-      fmrFieldNameCases =
-        [ "    | #\"" ++ escH egisonName ++ "\" -> \"" ++ escH storageName ++ "\""
+      fieldNames =
+        [ (egisonName, storageName)
         | (egisonName, storageName) <- concatMap (fieldStorageMapEntries m) (mFlds m)
         , egisonName /= storageName
         ]
-        ++ ["    | _ -> nm"]
       printerContextDecls =
-            [ "def offsetSuffix (o: MathValue) : String :="
-            , "  match o as mathValue with"
-            , "    | #0 -> \"\""
-            , "    | #1 -> \"+1\""
-            , "    | #2 -> \"+2\""
-            , "    | #3 -> \"+3\""
-            , "    | #(-1) -> \"-1\""
-            , "    | #(-2) -> \"-2\""
-            , "    | #(-3) -> \"-3\""
-            , "    | #(1 / 2) -> \"+1/2\""
-            , "    | #(-1 / 2) -> \"-1/2\""
-            , "    | #(3 / 2) -> \"+3/2\""
-            , "    | #(-3 / 2) -> \"-3/2\""
-            , "    | _ -> S.concat [\"+(\", show o, \")\"]"
-            , "def gridIndex (a: Integer) (arg: MathValue) : String :="
-            , "  S.append (axisName a) (offsetSuffix ((arg - coords_a) / hsteps_a))"
-            , "def fmrFieldName (nm: String) : String :="
-            , "  match nm as string with"
-            ]
-            ++ fmrFieldNameCases
-            ++
-            [ "def gridRef (g: MathValue) (args: [MathValue]) : String :="
-            , "  S.concat"
-            , "    [fmrFieldName (show g), \"[\","
-            , "     S.intercalate \",\" (map (\\(a, arg) -> gridIndex a arg) (zip feAxisIds args)),"
-            , "     \"]\"]"
-            , "def wrapNeg (s: String) : String :="
-            , "  if S.head s = '-' then S.concat [\"(\", s, \")\"] else s"
-            , "def applyName g := mathFunctionName g"
-            , "def showFactor (f: MathValue) : String :="
-            , "  match f as mathValue with"
-            , "    | func $g $args -> gridRef g args"
-            , "    | apply1 $g $a1 -> S.concat [applyName g, \"(\", showFmr a1, \")\"]"
-            , "    | quote $e -> S.concat [\"(\", showFmr e, \")\"]"
-            , "    | symbol $v _ -> symName v"
-            , "    | _ -> S.concat [\"(\", showFmr f, \")\"]"
-            , "def showPow (f: MathValue) (n: Integer) : String :="
-            , "  if n = 1 then showFactor f else S.concat [showFactor f, \"**\", show n]"
-            , "def coefPQ (c: MathValue) : (String, String) :="
-            , "  match c as mathValue with"
-            , "    | $p / $q -> (show p, show q)"
-            , "def showTerm (t: MathValue) : String :="
-            , "  match t as mathValue with"
-            , "    | term $c $xs ->"
-            , "        let (cp, cq) := coefPQ c"
-            , "         in let numFs := map (\\(f, n) -> showPow f n) (filter (\\(f, n) -> n > 0) xs)"
-            , "         in let denFs := map (\\(f, n) -> showPow f (0 - n)) (filter (\\(f, n) -> n < 0) xs)"
-            , "         in let numParts := if cp = \"1\" && not (numFs = []) then numFs"
-            , "                              else wrapNeg cp :: numFs"
-            , "         in let denParts := (if cq = \"1\" then [] else [cq]) ++ denFs"
-            , "         in let numStr := S.intercalate \"*\" numParts"
-            , "         in if denParts = []"
-            , "              then numStr"
-            , "              else S.concat [numStr, \"/(\", S.intercalate \"*\" denParts, \")\"]"
-            , "def showPoly (p: MathValue) : String :="
-            , "  match p as mathValue with"
-            , "    | #0 -> \"0\""
-            , "    | poly $ts / _ -> S.intercalate \" + \" (map showTerm ts)"
-            , "def showFmr (e: MathValue) : String :="
-            , "  match e as mathValue with"
-            , "    | #0 -> \"0\""
-            , "    | $nu / #1 -> showPoly nu"
-            , "    | $nu / $de -> S.concat [\"(\", showPoly nu, \")/(\", showPoly de, \")\"]"
-            , "def fmrEq (lhs: String) (rhs: MathValue) : String :="
-            , "  S.concat [\"  \", lhs, \" = \", showFmr rhs]"
-            , "def feGridPoint : String := S.intercalate \",\" (map axisName feAxisIds)"
-            , "def fmrInit (lhs: String) (rhs: MathValue) : String :="
-            , "  S.concat [\"  \", lhs, \"[\", feGridPoint, \"] = \", showFmr rhs]"
-            , "def componentEqs (names: [String]) (values: [MathValue]) : [String] :="
-            , "  map (\\(name, value) -> fmrEq (S.append name \"'\") value) (zip names values)"
-            , "def scalarEq (nm: String) (c: MathValue) : [String] := [fmrEq (S.append nm \"'\") c]"
-            , "def tupleOf (xs: [String]) : String :="
-            , "  if length xs = 1"
-            , "    then head xs"
-            , "    else S.concat [\"(\", S.intercalate \",\" xs, \")\"]"
-            , "def emitModelOn (dim: Integer) (axes: [String])"
-            , "                (params: [(String, String)]) (helpers: [String])"
-            , "                (comps: [String]) (initLines: [String])"
-            , "                (stepLines: [String]) : String :="
-            , "  let compsP := map (\\c -> S.append c \"'\") comps"
-            , "   in S.intercalate \"\\n\""
-            , "        ([ S.append \"dimension :: \" (show dim)"
-            , "         , S.append \"axes :: \" (S.intercalate \",\" axes)"
-            , "         , \"\""
-            , "         ]"
-            , "         ++ map (\\(n, v) -> S.concat [\"double :: \", n, \" = \", v]) params"
-            , "         ++ [\"\"] ++ helpers ++ [\"\"]"
-            , "         ++ [ S.concat [\"begin function \", tupleOf comps, \" = init()\"]"
-            , "            , S.concat [\"  double [] :: \", S.intercalate \", \" comps]"
-            , "            ]"
-            , "         ++ initLines"
-            , "         ++ [ \"end function\""
-            , "            , \"\""
-            , "            , S.concat [\"begin function \", tupleOf compsP,"
-            , "                        \" = step\", \"(\", S.intercalate \",\" comps, \")\"]"
-            , "            ]"
-            , "         ++ stepLines"
-            , "         ++ [ \"end function\" ])"
+            [ "def feSymbolNames : [(String, String)] := " ++ egiStringPairs symbolNames
+            , "def feFieldNames : [(String, String)] := " ++ egiStringPairs fieldNames
+            , "def feIndexNames : [String] := " ++ egiStringList internalIndexVars
+            , "def fePrinterContext := (feSymbolNames, feFieldNames, feIndexNames, feCoords, feHsteps, feAxisIds)"
+            , "def fmrEq : String -> MathValue -> String := FMR.eq fePrinterContext"
+            , "def fmrInit : String -> MathValue -> String := FMR.init fePrinterContext"
+            , "def componentEqs : [String] -> [MathValue] -> [String] := FMR.componentEqs fePrinterContext"
+            , "def scalarEq : String -> MathValue -> [String] := FMR.scalarEq fePrinterContext"
             ]
       embDefs = case mEmbed m of
         Nothing -> []
@@ -1586,27 +1449,57 @@ emit m = do
         Just _ -> [ "scalarEq \"" ++ n ++ "\" (" ++ n ++ ")"
                   | n <- metricCoeffNames ++ ["sg"] ]
       stepItems = mtFlux ++ [it | Just it <- items] ++ mtPass
+      ddDef = case mDd m of
+        Nothing -> []
+        Just g -> ["def feDD := foldl (\\acc x -> acc + x ^ 2) 0 (formComps (dForm (dForm "
+                   ++ dropWhileEnd (== '\'') g ++ "fN)))"]
+      gates = orthoGate ++ (case mDd m of
+                Just _ -> [("feDD = 0",
+                            "# ERROR: d . d /= 0 on this grid -- refusing to generate")]
+                Nothing -> [])
+      residualText = unlines
+        (concat body ++ concat inits ++ mtInits ++ stepItems ++ embDefs ++ ddDef
+         ++ map fst gates)
+      residualIds = [(name, primed) | TId name primed <- tokenize residualText]
+      residualNames = map fst residualIds
+      usesResidualName names = any (`elem` residualNames) names
+      needsScalarContext =
+        "∂ " `isInfixOf` residualText
+        || usesResidualName ["shift", "dC", "dC2", "dTaylor", "axisId"]
+      needsResidualYeeContext =
+        usesResidualName ["dYee", "yeeRef", "unit3"]
+      contextMathDecls =
+        (if needsScalarContext then scalarContextDecls else [])
+        ++ (if needsFormContext || needsResidualYeeContext then yeeContextDecls else [])
+        ++ (if needsFormContext then formContextDecls else [])
+      usesResidualFamily name =
+        any (\residualName -> residualName == name
+                              || (name ++ "_") `isPrefixOf` residualName)
+            residualNames
+      liveMetricContextDecls =
+        [decl | (name, decl) <- metricContextDecls, usesResidualFamily name]
+      needsBareValue name primed = (name, primed) `elem` residualIds
+      bodyWithBareLets = zipWith addBareLetAlias (mSteps m) body
+      addBareLetAlias st decls
+        | sk st == KLet
+        , isIndexI (sIdx st)
+        , needsBareValue (sNm st) False =
+            decls ++ ["def " ++ sNm st ++ " := " ++ sNm st ++ "_#"]
+        | otherwise = decls
       header =
         [ "--"
         , "-- GENERATED by fec (the Formurae compiler) from " ++ mName m
             ++ ".fme -- edit the .fme, not this file"
         , "-- mode " ++ modeSurfaceName (selectedMode m)
-        , "-- load lib/formurae-tensor.egi and lib/fmrgen.egi before this file"
+        , "-- load lib/formurae-tensor.egi, lib/fmrgen.egi, and lib/formurae-runtime.egi before this file"
         , "--"
         , "" ] ++
         (if null (mParams m) then []
          else [ "declare symbol " ++ intercalate ", " (map fst (mParams m)), "" ])
-      fieldDecls = concatMap fdecl (mFlds m)
-      primDecls = concatMap pdecl prims
-      tensorAliasDecls =
-        concatMap (\(nm, k) -> tensorAliases nm 0 k) (mFlds m)
-        ++ concatMap (\nm -> maybe [] (tensorAliases nm 1) (kindOf m nm)) prims
+      fieldDecls = concatMap (\field@(name, _) -> fdecl (needsBareValue name False) field) (mFlds m)
+      primDecls = concatMap (\name -> pdecl (needsBareValue name True) name) prims
       localDecls = [ "def " ++ sNm st ++ " := function (" ++ coordArgs ++ ")"
                    | st <- mSteps m, sk st == KLocal ] ++ embDefs ++ mtDecls
-      ddDef = case mDd m of
-        Nothing -> []
-        Just g -> ["def feDD := foldl (\\acc x -> acc + x ^ 2) 0 (formComps (dForm (dForm "
-                   ++ dropWhileEnd (== '\'') g ++ "fN)))"]
       feParams = "def feParams := ["
                  ++ intercalate ", " [ "(\"" ++ n ++ "\", \"" ++ v ++ "\")"
                                      | (n, v) <- mParams m ] ++ "]"
@@ -1626,11 +1519,7 @@ emit m = do
         : [ (if i == (0 :: Int) then "  [ " else "  , ") ++ ln
           | (i, ln) <- zip [0 ..] (concat inits ++ mtInits) ] ++ ["  ]"]
       feSteps = "def feSteps := " ++ intercalate " ++ " stepItems
-      emitter = "emitModelOn " ++ show (mDim m) ++ " " ++ egiStringList (mAxes m)
-      gates = orthoGate ++ (case mDd m of
-                Just _ -> [("feDD = 0",
-                            "# ERROR: d . d /= 0 on this grid -- refusing to generate")]
-                Nothing -> [])
+      emitter = "FMR.emitModelOn feDim feAxes"
       emitCall = "print (" ++ emitter ++ " feParams feHelpers feComps feInits feSteps)"
       nest [] = emitCall
       nest ((c, msg):gs) =
@@ -1638,11 +1527,11 @@ emit m = do
       mainDef
         | null gates = [ "def main (args: [String]) : IO () := " ++ emitCall ]
         | otherwise = [ "def main (args: [String]) : IO () :=", "  " ++ nest gates ]
-  return (unlines (header ++ contextDecls ++ contextMathDecls ++ tensorPreludeDecls ++ printerContextDecls
+  return (unlines (header ++ contextDecls ++ contextMathDecls ++ printerContextDecls
                    ++ (if null contextDecls then [] else [""])
-                   ++ fieldDecls ++ primDecls ++ localDecls ++ tensorAliasDecls
-                   ++ metricContextDecls ++ [""]
-                   ++ concat body ++ ddDef ++ [""]
+                   ++ fieldDecls ++ primDecls ++ localDecls
+                   ++ liveMetricContextDecls ++ [""]
+                   ++ concat bodyWithBareLets ++ ddDef ++ [""]
                    ++ [feParams] ++ feHelpers ++ [feComps] ++ feInits
                    ++ [feSteps] ++ [""] ++ mainDef))
   where
@@ -1656,37 +1545,37 @@ emit m = do
       | inds <- componentIndices (mDim m) (Form k)]
     formComponentList nm primes k =
       "[" ++ intercalate ", " (formComponentNames nm primes k) ++ "]"
-    fdecl (nm, Scalar) = ["def " ++ nm ++ " := function (" ++ fieldCoordArgs ++ ")"]
-    fdecl (nm, Vector _) =
-      [ "def " ++ nm ++ "_i := generateTensor (\\[i] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape1
-      , "def " ++ nm ++ " := " ++ nm ++ "_i" ]
-    fdecl (nm, SymM) =
-      [ "def " ++ nm ++ "_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2
-      , "def " ++ nm ++ " := " ++ nm ++ "_i_j" ]
-    fdecl (nm, AntiM) =
-      [ "def " ++ nm ++ "_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2
-      , "def " ++ nm ++ " := " ++ nm ++ "_i_j" ]
-    fdecl (nm, Tensor2 _) =
-      [ "def " ++ nm ++ "_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2
-      , "def " ++ nm ++ " := " ++ nm ++ "_i_j" ]
-    fdecl (nm, Form k) =
+    fdecl _ (nm, Scalar) = ["def " ++ nm ++ " := function (" ++ fieldCoordArgs ++ ")"]
+    fdecl keepBare (nm, Vector _) =
+      ["def " ++ nm ++ "_i := generateTensor (\\[i] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape1]
+      ++ ["def " ++ nm ++ " := " ++ nm ++ "_#" | keepBare]
+    fdecl keepBare (nm, SymM) =
+      ["def " ++ nm ++ "_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2]
+      ++ ["def " ++ nm ++ " := " ++ nm ++ "_#_#" | keepBare]
+    fdecl keepBare (nm, AntiM) =
+      ["def " ++ nm ++ "_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2]
+      ++ ["def " ++ nm ++ " := " ++ nm ++ "_#_#" | keepBare]
+    fdecl keepBare (nm, Tensor2 _) =
+      ["def " ++ nm ++ "_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2]
+      ++ ["def " ++ nm ++ " := " ++ nm ++ "_#_#" | keepBare]
+    fdecl _ (nm, Form k) =
       formFamilyDecl nm "" k
       ++ [ "def " ++ nm ++ "f : (Integer, Integer, [MathValue]) := (0, " ++ show k
            ++ ", " ++ formComponentList nm "" k ++ ")" ]
-    pdecl nm = case kindOf m nm of
+    pdecl keepBare nm = case kindOf m nm of
       Just Scalar -> ["def " ++ nm ++ "' := function (" ++ fieldCoordArgs ++ ")"]
       Just (Vector _) ->
-        [ "def " ++ nm ++ "'_i := generateTensor (\\[i] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape1
-        , "def " ++ nm ++ "' := " ++ nm ++ "'_i" ]
+        ["def " ++ nm ++ "'_i := generateTensor (\\[i] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape1]
+        ++ ["def " ++ nm ++ "' := " ++ nm ++ "'_#" | keepBare]
       Just SymM ->
-        [ "def " ++ nm ++ "'_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2
-        , "def " ++ nm ++ "' := " ++ nm ++ "'_i_j" ]
+        ["def " ++ nm ++ "'_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2]
+        ++ ["def " ++ nm ++ "' := " ++ nm ++ "'_#_#" | keepBare]
       Just AntiM ->
-        [ "def " ++ nm ++ "'_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2
-        , "def " ++ nm ++ "' := " ++ nm ++ "'_i_j" ]
+        ["def " ++ nm ++ "'_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2]
+        ++ ["def " ++ nm ++ "' := " ++ nm ++ "'_#_#" | keepBare]
       Just (Tensor2 _) ->
-        [ "def " ++ nm ++ "'_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2
-        , "def " ++ nm ++ "' := " ++ nm ++ "'_i_j" ]
+        ["def " ++ nm ++ "'_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2]
+        ++ ["def " ++ nm ++ "' := " ++ nm ++ "'_#_#" | keepBare]
       Just (Form k) ->
         formFamilyDecl nm "'" k
         ++ [ "def " ++ nm ++ "fN : (Integer, Integer, [MathValue]) := (0, " ++ show k
@@ -1702,40 +1591,11 @@ emit m = do
               ++ "] -> function (" ++ fieldCoordArgs ++ ")) " ++ shapeK k]
       | otherwise =
           error ("unsupported form degree in field declaration: " ++ nm)
-    tensorAliases nm primes kind = case kind of
-      Scalar -> []
-      Vector _ -> rank1Aliases nm primes
-      Form _ -> []
-      SymM -> symRank2Aliases nm primes
-      AntiM -> antiRank2Aliases nm primes
-      Tensor2 _ -> fullRank2Aliases nm primes
-    primedBase nm primes = nm ++ replicate primes '\''
-    rank1Aliases nm primes =
-      [ "def " ++ tensorInternalBase nm [v] ++ replicate primes '\'' ++ "_i := "
-        ++ primedBase nm primes ++ "_i"
-      | v <- [VUp, VDown] ]
-    symRank2Aliases nm primes =
-      [ "def " ++ tensorInternalBase nm vars ++ replicate primes '\'' ++ "_i_j := "
-        ++ "generateTensor (\\[i, j] -> if i <= j then "
-        ++ primedBase nm primes ++ "_i_j else "
-        ++ primedBase nm primes ++ "_j_i) [feDim, feDim]"
-      | vars <- [[VUp, VUp], [VUp, VDown], [VDown, VUp], [VDown, VDown]] ]
-    antiRank2Aliases nm primes =
-      [ "def " ++ tensorInternalBase nm vars ++ replicate primes '\'' ++ "_i_j := "
-        ++ "generateTensor (\\[i, j] -> if i = j then 0 else if i < j then "
-        ++ primedBase nm primes ++ "_i_j else 0 - "
-        ++ primedBase nm primes ++ "_j_i) [feDim, feDim]"
-      | vars <- [[VUp, VUp], [VUp, VDown], [VDown, VUp], [VDown, VDown]] ]
-    fullRank2Aliases nm primes =
-      [ "def " ++ tensorInternalBase nm vars ++ replicate primes '\'' ++ "_i_j := "
-        ++ primedBase nm primes ++ "_i_j"
-      | vars <- [[VUp, VUp], [VUp, VDown], [VDown, VUp], [VDown, VDown]] ]
     stepDefs lets st = case sk st of
       KLet | isIndexI (sIdx st) -> do
                e <- rewrite m lets Nothing (sEx st)
                let nm = sNm st
-               return (("def " ++ nm ++ "_i := withSymbols [i] " ++ e)
-                       : tensorAliases nm 0 (Vector False))
+               return ["def " ++ nm ++ "_i := withSymbols [i] " ++ e]
            | otherwise -> do
                e <- rewriteScalar m lets (sEx st)
                return ["def " ++ sNm st ++ " := " ++ e]
@@ -1814,8 +1674,7 @@ emit m = do
       ICasIndex nm lhsIx ex -> indexedInitLines lets nm lhsIx ex
 
     indexedInitLines lets nm lhsIx ex = do
-      exT <- expandTensorDefs m ex
-      pre <- preprocessTensorExpr m exT
+      pre <- preprocessTensorExpr m ex
       strictEinstein m lets lhsIx pre
       case (kindOf m nm, lhsIx) of
         (Just (Vector staggered), [fi]) ->

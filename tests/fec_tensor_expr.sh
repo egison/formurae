@@ -21,6 +21,16 @@ assert_contains() {
   fi
 }
 
+assert_not_contains() {
+  haystack=$1
+  needle=$2
+  label=$3
+  if printf '%s\n' "$haystack" | grep -F -- "$needle" >/dev/null; then
+    printf 'unexpected output for %s:\n%s\n' "$label" "$needle" >&2
+    exit 1
+  fi
+}
+
 write_case() {
   file=$1
   shift
@@ -77,6 +87,25 @@ write_case "$f" \
 out=$(compile_fme "$f")
 rm -f "$f"
 assert_contains "$out" '∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u' 'metric dot laplacian'
+assert_not_contains "$out" 'FormuraeInternalMetric' 'Euclidean metric is specialized away'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'metric g' \
+  'metric scale [1, 2]' \
+  'field A_j' \
+  'field B~i' \
+  'step:' \
+  "  B'~i = g~i~j . A_j"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" 'def FormuraeInternalMetricContra_i_j' 'non-Euclidean contravariant metric is retained'
+assert_not_contains "$out" 'def FormuraeInternalMetricCov_i_j' 'unused covariant metric is not emitted'
+assert_not_contains "$out" 'def FormuraeInternalMetricMixedUpDown_i_j' 'unused mixed metric is not emitted'
+assert_not_contains "$out" 'def FormuraeInternalMetricMixedDownUp_i_j' 'unused reverse mixed metric is not emitted'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -120,6 +149,19 @@ write_case "$f" \
 out=$(compile_fme "$f")
 rm -f "$f"
 assert_contains "$out" 'A_1_1 + B_1_1' 'user-defined dot shadowing'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field u : scalar' \
+  'def lap u = 7 * u' \
+  'step:' \
+  "  u' = lap u"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" 'def feSteps := scalarEq "u" (7 * u)' 'user-defined standard operator shadowing'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -224,6 +266,8 @@ write_case "$f" \
 out=$(compile_fme "$f")
 rm -f "$f"
 assert_contains "$out" 'def feqS12 := (sym A)_1_2' 'Egison symmetrize bridge'
+assert_contains "$out" 'def A := A_#_#' 'bare tensor alias retained for runtime sym'
+assert_not_contains "$out" 'FormuraeInternalTensor' 'obsolete internal tensor aliases are not emitted'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -238,6 +282,8 @@ write_case "$f" \
 out=$(compile_fme "$f")
 rm -f "$f"
 assert_contains "$out" 'def feqC12 := (wedge A B)_1_2' 'Egison wedge bridge'
+assert_contains "$out" 'def A := A_#' 'bare tensor alias retained for runtime wedge lhs'
+assert_contains "$out" 'def B := B_#' 'bare tensor alias retained for runtime wedge rhs'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -304,23 +350,40 @@ write_case "$f" \
   'field E_i' \
   'field B_i' \
   'step:' \
-  "  E'_i = curl B..._i"
+  "  E'_i = curl B_i"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'def feqE1 := (curl B)_1' 'Egison curl bridge for indexed fields'
+assert_contains "$out" '∂ 1 1 y B_3 - ∂ 1 1 z B_2' 'standard curl component expansion'
+assert_not_contains "$out" 'def curl ' 'standard curl is not emitted'
 
 f=$(tmp_fme)
 write_case "$f" \
   'mode collocated' \
-  'dimension 3' \
-  'axes x,y,z' \
-  'field E_i' \
-  'field B_i' \
+  'dimension 2' \
+  'axes x,y' \
+  'field u : scalar' \
+  'field q_i' \
   'step:' \
-  "  E'_i = curl B..._i"
+  "  q'_i = grad u"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'def feqE1 := (curl B)_1' 'Egison curl bridge for vector equation'
+assert_contains "$out" 'def feqq1 := ∂ 1 1 x u' 'standard grad component 1'
+assert_contains "$out" 'def feqq2 := ∂ 1 1 y u' 'standard grad component 2'
+assert_not_contains "$out" 'def grad ' 'standard grad is not emitted'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field X_j' \
+  'field G_i_j' \
+  'step:' \
+  "  G'_i_j = dGrad X"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" 'def feqG12 := ∂ 1 1 x X_2' 'standard dGrad component expansion'
+assert_not_contains "$out" 'def dGrad ' 'standard dGrad is not emitted'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -329,7 +392,6 @@ write_case "$f" \
   'axes x,y,z' \
   'field X_i @ staggered' \
   'field C_i @ staggered' \
-  'def curl X = withSymbols [i, j, k] (epsilon_i~j~k . ∂_j X_k)' \
   'step:' \
   "  C'_i = curl X_i"
 out=$(compile_fme "$f")
@@ -342,12 +404,11 @@ write_case "$f" \
   'mode collocated' \
   'dimension 2' \
   'axes x,y' \
-  'field V_i @ staggered' \
+  'field V~i @ staggered' \
   'field q : scalar' \
-  'def divg X = ∂_x X_1 + ∂_y X_2' \
   'step:' \
-  "  V'_i = V_i" \
-  "  q' = divg V_i"
+  "  V'~i = V~i" \
+  "  q' = divg V~i"
 out=$(compile_fme "$f")
 rm -f "$f"
 assert_contains "$out" 'dYee 1 [0, 0] (V_1, [1 / 2, 0])' 'standard divg uses staggered coordinate derivative x'
@@ -356,16 +417,42 @@ assert_contains "$out" 'dYee 2 [0, 0] (V_2, [0, 1 / 2])' 'standard divg uses sta
 f=$(tmp_fme)
 write_case "$f" \
   'mode collocated' \
-  'dimension 3' \
-  'axes x,y,z' \
-  'field E_i' \
-  'field B_i' \
+  'dimension 2' \
+  'axes x,y' \
+  'field V_i @ staggered' \
   'step:' \
-  "  E'_i = curl B..._i"
+  "  V'_i = V_i"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_not_contains "$out" 'def dYee ' 'unused Yee helpers are not emitted'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 1' \
+  'axes x' \
+  'field u : scalar' \
+  'step:' \
+  "  u' = shift 1 1 u"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" 'def shift ' 'direct low-level derivative helper retains its dependency closure'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field u : scalar' \
+  'field H_i_j' \
+  'step:' \
+  "  H'_i_j = hessian u"
 out=$(compile_fme "$f")
 rm -f "$f"
 assert_contains "$out" '-- mode collocated' 'explicit collocated mode metadata'
-assert_contains "$out" '(curl B)_1' 'collocated Egison bridge is automatic'
+assert_contains "$out" 'def feqH11 := ∂ 2 1 x u' 'standard hessian diagonal is second derivative'
+assert_contains "$out" 'def feqH12 := ∂ 1 1 x (∂ 1 1 y u)' 'standard hessian mixed derivative'
+assert_not_contains "$out" 'fePartial2' 'obsolete hessian helper is not emitted'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -377,7 +464,98 @@ write_case "$f" \
   "  u' = lap u"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'def feSteps := scalarEq "u" (lap u)' 'Egison lap bridge'
+assert_contains "$out" '∂ 2 1 x u + ∂ 2 1 y u' 'standard lap expansion'
+assert_not_contains "$out" 'def lap ' 'standard lap is not emitted'
+assert_not_contains "$out" 'def feGrad ' 'obsolete coordinate operator helpers are not emitted'
+assert_not_contains "$out" 'def dF ' 'unused forward derivative helper is not emitted'
+assert_not_contains "$out" 'def dB ' 'unused backward derivative helper is not emitted'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field u : scalar' \
+  'def apply f x = f x' \
+  'step:' \
+  "  u' = apply lap u"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" '∂ 2 1 x u + ∂ 2 1 y u' 'higher-order standard operator is re-expanded after substitution'
+assert_not_contains "$out" 'lap u' 'higher-order expansion leaves no runtime-only coordinate operator'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field u : scalar' \
+  'def pass f = (f)' \
+  'step:' \
+  "  u' = pass lap u"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" '∂ 2 1 x u + ∂ 2 1 y u' 'higher-order returned operator consumes remaining arguments'
+assert_not_contains "$out" 'lap u' 'remaining arguments are re-expanded through the returned operator'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field u : scalar' \
+  'def pass f = f' \
+  'step:' \
+  "  u' = (pass lap) u"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" '∂ 2 1 x u + ∂ 2 1 y u' 'parenthesized partial application is redispatched after head expansion'
+assert_not_contains "$out" '(lap) u' 'parenthesized higher-order head leaves no runtime-only operator'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field u : scalar' \
+  'def apply f x = f x' \
+  'step:' \
+  "  u' = apply apply lap u"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" '∂ 2 1 x u + ∂ 2 1 y u' 'finite higher-order application spine is flattened before expansion'
+assert_not_contains "$out" 'apply lap' 'partial higher-order application does not fail or survive'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 1' \
+  'axes x' \
+  'field u : scalar' \
+  'def self f = f f' \
+  'step:' \
+  "  u' = self self u"
+if out=$(compile_fme "$f" 2>&1); then
+  rm -f "$f"
+  printf 'recursive higher-order expansion unexpectedly succeeded\n' >&2
+  exit 1
+fi
+rm -f "$f"
+assert_contains "$out" 'possible higher-order recursion' 'recursive higher-order expansion is bounded'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field u : scalar' \
+  'def (.) f x = f x' \
+  'step:' \
+  "  u' = lap . u"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" '∂ 2 1 x u + ∂ 2 1 y u' 'higher-order dot result is re-expanded'
+assert_not_contains "$out" 'lap u' 'dot expansion leaves no runtime-only coordinate operator'
 
 f=$(tmp_fme)
 write_case "$f" \

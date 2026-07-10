@@ -2,7 +2,7 @@
 #
 #   make setup        : fetch + patch + build Formura (vendor/, bin/formura)
 #   cabal build       : build the Formurae compiler (fec)
-#   make <example>    : .fme -> fec -> Egison(tensor bridge) -> Formura -> cc -> check
+#   make <example>    : .fme -> fec -> Egison(tensor/fmrgen/runtime) -> Formura -> cc -> check
 #   make all          : every example (each check exits nonzero on failure)
 #   make fec-tensor-tests : compiler regression tests for indexed tensor exprs
 #   make formurae-tensor-tests : Egison tensor bridge + tensor-valued operator smoke tests
@@ -15,6 +15,7 @@ FORMURA    ?= $(abspath bin/formura)
 MPISTUB    := $(abspath mpistub)
 FMRGEN     := $(abspath lib/fmrgen.egi)
 FETENSOR   := $(abspath lib/formurae-tensor.egi)
+FERUNTIME  := $(abspath lib/formurae-runtime.egi)
 FMRLEGACY3 := $(abspath lib/fmrlegacy3d.egi)
 
 CC      ?= cc
@@ -83,7 +84,7 @@ endef
 define FME_RULE
 $(1):
 	$$(FEC_RUN) $$(abspath examples/$(1)/$(1).fme) > $$(abspath examples/$(1)/$(1).egi)
-	$$(EGISON_RUN) -l $$(FETENSOR) -l $$(FMRGEN) $$(abspath examples/$(1)/$(1).egi) \
+	$$(EGISON_RUN) -l $$(FETENSOR) -l $$(FMRGEN) -l $$(FERUNTIME) $$(abspath examples/$(1)/$(1).egi) \
 	  > $$(abspath examples/$(1)/$(1).fmr)
 	$$(call BUILD_AND_CHECK,$(1))
 endef

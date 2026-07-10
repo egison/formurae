@@ -47,13 +47,6 @@ data SK = KLet | KLocal | KEq deriving Eq
 
 data Step = Step { sk :: SK, sNm :: String, sIdx :: [IxPart], sEx :: String }
 
-data TensorDef = TensorDef
-  { tdName     :: String
-  , tdParam    :: String
-  , tdResultIx :: [IxPart]
-  , tdBody     :: String
-  }
-
 data Def = Def
   { defName   :: String
   , defParams :: [String]
@@ -75,7 +68,6 @@ data Model = Model
   , mDd     :: Maybe String
   , mMetric :: Maybe [String]
   , mEmbed  :: Maybe [String]
-  , mTensorDefs :: [TensorDef]
   , mDefs   :: [Def]
   }
 

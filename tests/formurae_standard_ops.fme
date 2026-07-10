@@ -5,9 +5,12 @@ axes x, y
 field u : scalar
 field q_i
 
+def apply f x = f x
+
 init:
   u = 0
   q_i = [| 0, 0 |]_i
 
 step:
-  q'_i = grad u..._i
+  u' = apply lap u
+  q'_i = apply grad u

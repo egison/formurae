@@ -37,7 +37,6 @@ module Formurae.TensorExpr
   , preprocessTensorExpr
   , elaborateTensorExpr
   , ixExpand
-  , expandTensorDefs
   , expandDefs
   , strictEinstein
   , validateFieldRefParts
@@ -1198,9 +1197,13 @@ isSpaceITok :: ITok -> Bool
 isSpaceITok (IC c) = isSpace c
 isSpaceITok _ = False
 
--- Expand operator applications on the TensorExpr AST. Bodies are def-free
--- after resolution, so one pass over the parsed tree suffices; arguments are
--- expanded before substitution.
+-- Expand operator applications on the TensorExpr AST.  Resolved bodies are
+-- def-free, but higher-order substitution can introduce another definition.
+-- Bound the nesting of such expansions so self-application is diagnosed
+-- instead of making fec diverge.
+maxDefExpansionDepth :: Int
+maxDefExpansionDepth = 128
+
 expandDefs :: [Def] -> String -> IO String
 expandDefs defs s = renderTensorExpr <$> expandDefsAst defs s
 
@@ -1210,7 +1213,10 @@ expandDefsAst defs s = do
   expandDefExpr defs ast
 
 expandDefExpr :: [Def] -> TensorExpr -> IO TensorExpr
-expandDefExpr defs expr =
+expandDefExpr = expandDefExprAt maxDefExpansionDepth
+
+expandDefExprAt :: Int -> [Def] -> TensorExpr -> IO TensorExpr
+expandDefExprAt fuel defs expr =
   case expr of
     TENumber _ -> return expr
     TEIdent nm [] | Just df <- lookupDef nm defs, null (defParams df) ->
@@ -1222,6 +1228,11 @@ expandDefExpr defs expr =
       keepSpan (TECall <$> expand f <*> mapM expand args)
     TEApply (TEIdent nm []) args
       | Just df <- lookupDef nm defs -> do
+          if fuel <= 0
+            then fatal ("operator expansion exceeded " ++ show maxDefExpansionDepth
+                        ++ " nested applications near " ++ renderTensorExpr expr
+                        ++ "; possible higher-order recursion")
+            else return ()
           args' <- mapM expand args
           let n = length (defParams df)
           if length args' < n
@@ -1229,12 +1240,23 @@ expandDefExpr defs expr =
                         ++ show n ++ " argument(s)")
             else return ()
           let (used, rest) = splitAt n args'
-          body <- applyDefAst defs df used
-          if null rest
-            then return (setTensorSpan (tensorExprSpan expr) body)
-            else keepSpan (return (TEApply body rest))
-    TEApply f args ->
-      keepSpan (TEApply <$> expand f <*> mapM expand args)
+          -- Combine surplus arguments before re-expansion.  A higher-order
+          -- body may return a function (pass lap u) or a partial application
+          -- (apply apply lap u), and both must see the surplus arguments as
+          -- part of the same application node.
+          body0 <- applyDefAst defs df used
+          let result0 = appendApplyArgs body0 rest
+          result <- expandDefExprAt (fuel - 1) defs result0
+          return (setTensorSpan (tensorExprSpan expr) result)
+    TEApply f args -> do
+      f' <- expand f
+      args' <- mapM expand args
+      let result0 = appendApplyArgs f' args'
+      if hasDefinitionHead result0
+        then do
+          result <- expandDefExprAt fuel defs result0
+          return (setTensorSpan (tensorExprSpan expr) result)
+        else return (setTensorSpan (tensorExprSpan expr) result0)
     TEIf c t e ->
       keepSpan (TEIf <$> expand c <*> expand t <*> expand e)
     TEAppendIndexed (TEIdent base0 parts) appendParts -> do
@@ -1257,8 +1279,14 @@ expandDefExpr defs expr =
       keepSpan (TEDerivative parts <$> expand body)
     TEDot parts
       | Just dotDef <- lookupDef "." defs -> do
+          if fuel <= 0
+            then fatal ("operator expansion exceeded " ++ show maxDefExpansionDepth
+                        ++ " nested applications near " ++ renderTensorExpr expr
+                        ++ "; possible higher-order recursion")
+            else return ()
           parts' <- mapM expand parts
-          body <- expandDotAst defs dotDef parts'
+          body0 <- expandDotAst defs dotDef parts'
+          body <- expandDefExprAt (fuel - 1) defs body0
           return (setTensorSpan (tensorExprSpan expr) body)
       | otherwise ->
           keepSpan (TEDot <$> mapM expand parts)
@@ -1267,8 +1295,17 @@ expandDefExpr defs expr =
     TEGroup body ->
       keepSpan (TEGroup <$> expand body)
   where
-    expand = expandDefExpr defs
+    expand = expandDefExprAt fuel defs
     keepSpan action = setTensorSpan (tensorExprSpan expr) <$> action
+    appendApplyArgs body [] = body
+    appendApplyArgs (TEGroup body) outer = appendApplyArgs body outer
+    appendApplyArgs (TEApply f inner) outer = appendApplyArgs f (inner ++ outer)
+    appendApplyArgs body outer = TEApply body outer
+    hasDefinitionHead (TEApply (TEIdent nm []) _) =
+      case lookupDef nm defs of
+        Just _ -> True
+        Nothing -> False
+    hasDefinitionHead _ = False
 
 lookupDef :: String -> [Def] -> Maybe Def
 lookupDef nm defs =
@@ -2112,61 +2149,3 @@ ixExpand m lets env anchor expr = do
     renderApplyText e
       | all (\c -> isAlphaNum c || c == '_' || c == '\'' || c == '.' || c == '~') e = e
       | otherwise = "(" ++ e ++ ")"
-
-expandTensorDefs :: Model -> String -> IO String
-expandTensorDefs m = go . itok
-  where
-    go [] = return ""
-    go (II nm : rest)
-      | Just td <- lookupTensorDef nm = do
-          let (_, rest1) = span isSpaceI rest
-          case rest1 of
-            II argTok : rest2 -> do
-              body <- instantiate td argTok
-              body' <- expandTensorDefs m body
-              tail' <- go rest2
-              return ("(" ++ body' ++ ")" ++ tail')
-            _ -> fatal ("tensor operator " ++ nm ++ " needs an indexed result argument")
-      | otherwise = fmap (nm ++) (go rest)
-    go (IC c : rest) = fmap (c :) (go rest)
-
-    lookupTensorDef nm =
-      case [td | td <- mTensorDefs m, tdName td == nm] of
-        td:_ -> Just td
-        [] -> Nothing
-
-    instantiate td argTok = do
-      let (argBase, callIx) = parseIndexedIdent argTok
-          resultIx = tdResultIx td
-      if null argBase
-        then fatal ("bad argument to tensor operator " ++ tdName td ++ ": " ++ argTok)
-        else return ()
-      if length callIx /= length resultIx
-        then fatal ("tensor operator " ++ tdName td ++ " expects result suffix "
-                    ++ showIxParts resultIx ++ " but got " ++ argTok)
-        else return ()
-      mapM_ (uncurry sameVariance) (zip resultIx callIx)
-      let env = zip (map ixName resultIx) callIx
-      return (concatMap (substTok td argBase env) (itok (tdBody td)))
-
-    sameVariance (IxPart v1 _) (IxPart v2 _)
-      | v1 == v2 = return ()
-      | otherwise = fatal "tensor operator result index variance mismatch"
-
-    substTok _ _ _ (IC c) = [c]
-    substTok td argBase env (II w) =
-      let (base, parts) = parseIndexedIdent w
-          (fname, primes) = fieldBaseOf base
-          base' = if fname == tdParam td
-                    then argBase ++ replicate primes '\''
-                    else base
-          parts' = map (substIx env) parts
-      in base' ++ concatMap ixSuffix parts'
-
-    substIx env (IxPart v nm) =
-      case lookup nm env of
-        Just (IxPart _ nm') -> IxPart v nm'
-        Nothing -> IxPart v nm
-
-    isSpaceI (IC c) = isSpace c
-    isSpaceI _ = False

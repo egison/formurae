@@ -1,0 +1,19 @@
+mode collocated
+dimension 2
+axes x, y
+
+field A_i
+field B_i
+field C_i_j
+field S_i_j
+
+init:
+  A_i = [| 1, 2 |]_i
+  B_i = [| 3, 4 |]_i
+  C_i_j = [| [| 0, 0 |], [| 0, 0 |] |]_i_j
+  S_i_j = [| [| 0, 0 |], [| 0, 0 |] |]_i_j
+
+step:
+  let T_i = A_i
+  C'_i_j = wedge T B..._i_j
+  S'_i_j = sym C..._i_j

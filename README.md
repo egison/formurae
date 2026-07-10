@@ -10,14 +10,15 @@ Formura を設計した村主崇行氏への敬意を込め、氏の言語の名
 
 ```
 .fme      : Formurae — 表層言語(field 宣言+添字記法・微分形式・計量の方程式) ← 22例
-   ↓        fec(薄い変換層、Haskell; cabal build)
-Egison   : 生成 .egi + lib/formurae-tensor.egi(テンソル意味論・座標文脈・差分化・DEC・プリンタ)
+   ↓        fec(TensorExpr 展開・配置特殊化、Haskell; cabal build)
+Egison   : 生成 .egi + tensor/fmrgen/runtime ライブラリ(CAS・DEC・Formuraプリンタ)
    ↓        Egison CAS + mathValue マッチャ
 Formura  : .fmr → C ライブラリ(MPI 通信・temporal blocking を自動生成)
    ↓
 C コンパイラ + ドライバ → 実行
 ```
 
+```formurae
 mode collocated
 dimension 3
 axes x, y, z
@@ -36,13 +37,12 @@ step:
   B'_i = B_i - dt * curl E'_i    -- E' は更新済み配列への参照(symplectic・袖幅1)
 ```
 
-`fec` が出す `.egi` はテンソル演算を成分式へ再実装しません。Makefile はまず
-`lib/formurae-tensor.egi` を読み込み、Egison の `withSymbols`、自動縮約、
-`tensorMap`、`subrefs`、`transpose`、`!.` をそのまま使える環境を作ってから、
-モデル固有の座標・差分フックを評価します。したがって `.fme` の `def` は、
-`∂_x`/`∂'^2_x` などの座標微分を除けば Egison のテンソル式へ直訳できる形を保ちます。
-テンソル値の標準演算子は `grad u..._i` のように結果添字を呼び出し側で付けます。
-生成された `(grad u)_1` の評価と成分抽出は Egison に任せます。
+`fec` は `.fme` の `def` と標準座標演算子を同じ TensorExpr AST 上で展開し、
+自由添字・縮約・staggered placement を解決してから残余 `.egi` を出します。
+`grad` / `curl` / `hessian` も通常の prelude `Def` であり、ユーザーの同名 `def` で
+shadow できます。残余式に `sym` / `wedge` などの純テンソル演算が残る場合は
+`lib/formurae-tensor.egi` の Egison Tensor primitive を使い、数式の正規化は Egison CAS、
+Formura への文字列化は `lib/formurae-runtime.egi` が担当します。
 
 標準 `curl` 自体も特別な Haskell lowering ではなく、概念的には次の prelude 定義である。
 同名のユーザー `def` を書けば置き換えられる。
@@ -142,15 +142,16 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
 
 | パス | 内容 |
 |---|---|
-| `fec/` + `fec.cabal` | **Formurae コンパイラ**: 表層言語 Formurae(.fme;`field E_i`・`def curl X = ...`・`E'_i = E_i + dt * curl B_i`・`B' = B - dt * d E'`)を埋め込み形 .egi に変換。Haskell(base のみ)、リポジトリ直下で `cabal build` / `cabal run -v0 fec -- model.fme`。添字・縮約・テンソル演算の意味論は生成 Egison 側へ渡す薄い変換層 |
-| `lib/formurae-tensor.egi` | Formurae 用 Egison テンソル bridge。`contractWith`、`.`、`!.`、`tensorMap`、`subrefs`、`transpose`、`wedge`、`trace` などを Egison の Tensor primitive から定義する |
+| `fec/` + `fec.cabal` | **Formurae コンパイラ**: 表層言語 Formurae(.fme;`field E_i`・`def curl X = ...`・`E'_i = E_i + dt * curl B_i`・`B' = B - dt * d E'`)を埋め込み形 .egi に変換。Haskell(base のみ)、リポジトリ直下で `cabal build` / `cabal run -v0 fec -- model.fme`。TensorExpr 上で `def`、添字、縮約、配置を成分特殊化する |
+| `lib/formurae-tensor.egi` | Formurae 用 Egison テンソル bridge。Egison primitive を使って `contractWith`、`.`、`.'`、`wedge`、`trace`、`sym`、`antisym`、`norm2` を定義する。`tensorMap`、`subrefs`、`transpose`、`!.` は primitive を直接使う |
 | `lib/fmrgen.egi` | 生成コア: Taylor 条件から係数を導出する **`taylorStencil`**、quote cleanup、形式補助などの座標非依存基盤 |
+| `lib/formurae-runtime.egi` | 共有 Formura プリンタ。生成 `.egi` から座標名・storage名・座標ベクトルを明示 context として受け取り、正規化済み `MathValue` を `.fmr` へ変換する |
 | `lib/fmrlegacy3d.egi` | まだ `.fme` 化していない手書き `.egi` 例のための 3D 互換文脈。`.fme` 由来の生成物では使わない |
 | `examples/diffusion1d/` | 1D 拡散方程式。`def Δ u = ∂^2_x u` と書き、check driver が質量保存とピーク減衰を検査 |
 | `examples/diffusion2d/` | 2D 拡散方程式。`dimension 2` と `axes x, y` に応じて Formura/C の配列・Navi・Laplacian が2次元化される |
 | `examples/divergence2d/` | 2D 発散演算子の smoke test。collocated prelude の `divg` とユーザー定義版が中心差分の離散記号と一致することを検査 |
 | `examples/diffusion3d/` | 3D 拡散方程式(`metric g` と `def Δ u = g~i~j . ∂_i ∂_j u` で Laplacian を定義し、物理は `u' = u + dt * κ * Δ u` の1行) |
-| `examples/maxwell3d/` | Maxwell 方程式(**E・B が添字付きベクトル場**。`mode collocated` の標準 `curl` prelude と更新2本から collocated 格子コードを生成) |
+| `examples/maxwell3d/` | Maxwell 方程式(**E・B が添字付きベクトル場**。標準 `curl` と同形のユーザー `def` で prelude shadowing も検証し、更新2本から collocated 格子コードを生成) |
 | `examples/maxwell3d_yee/` | **Yee-FDTD**(E=辺・B=面のスタガード格子+leapfrog。場ごとの配置オフセット宣言から教科書どおりの FDTD を生成) |
 | `examples/maxwell_dec/` | **Maxwell(微分形式/DEC)**(`mode dec` で外微分・余微分を自動ロード。E=1-form・B=2-form の**次数宣言だけ**で Yee 配置を導出。B の storage は `B_1_2,B_1_3,B_2_3` の幾何基底名。d∘d=0 を CAS が生成時に検査し、check driver がエネルギー・伝播・divB を検証) |
 | `examples/pearson3d/` | **Formura 論文の看板シミュレーション再現**(菌根菌 mycorrhiza の Pearson 反応拡散系。FHPC'16 と同じ方程式・パラメタ。自己複製スポットパターンが創発) |
@@ -190,18 +191,19 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
 
 - **場の表現**: `def u := function (x, y, z)`(抽象関数)。格子参照は
   `substitute [(x, x + hx)] u` が生む未解釈適用 `u (x + hx) y z` として現れる。
-- **プリンタ**: `fec` が各 `.egi` に生成する。正規化された数式を `mathValue` マッチャ(`poly`/`term`/`func`/`symbol`)で分解し、
+- **プリンタ**: `lib/formurae-runtime.egi` の共有実装が、生成 `.egi` の明示 context を受け取る。正規化された数式を `mathValue` マッチャ(`poly`/`term`/`func`/`symbol`)で分解し、
   適用引数から `(引数 − 座標)/h` でオフセットを有理数として逆算して `u[i+1,j,k]` に写す。
   半整数オフセット(`1/2`)も扱える。
 - **スタガード格子**: 場を「(抽象関数, 配置オフセット σ∈{0,½}³)」の組で表し、参照時に
-  「変位 + 対象の σ − 参照場の σ」で配列オフセットを解決する(`yeeRef`/`dYee`/`curlYee`)。
-  Yee 配置なら curl の全項が整数オフセット(袖幅1)に落ちる。
+  「変位 + 対象の σ − 参照場の σ」で配列オフセットを解決する(`yeeRef`/`dYee`)。
+  staggered curl は TensorExpr で成分特殊化され、各微分項が `dYee` へ下りる。
+  Yee 配置なら全項が整数オフセット(袖幅1)に落ちる。
 - **`mode` と座標文脈**: `mode` と計量宣言から、生成 `.egi` に
   `feDim`・`feAxes`・`feAxisIds`・`feCoords`・`feHsteps` と、その文脈を参照する
-  `shift`/`dC`/`dC2`/`dTaylor` と表向きの `∂ order radius axis expr`、
-  必要に応じて Yee/DEC context と `.fmr` プリンタを出す。collocated の
-  `grad`/`dGrad`/`divg`/`curl`/`lap`/`Δ` は生成 Egison context と
-  `lib/formurae-tensor.egi` の bridge、DEC の
+  必要な場合だけ `shift`/`dC`/`dC2`/`dTaylor` と表向きの
+  `∂ order radius axis expr` と、残余式が使う場合だけ Yee context を出す。
+  DEC form context は `mode dec` のモデルに出す。collocated の
+  `grad`/`dGrad`/`divg`/`curl`/`lap`/`Δ` は通常の TensorExpr prelude `Def`、DEC の
   `d`/`δ`/`codiff`/`hodge` は form context から利用できる。
   `extern` は Formura/C 側のスカラー関数である。
 - **離散微分形式(構造格子 Yee/DEC)**: 現実装の form 値は積分 cochain ではなく
@@ -227,8 +229,8 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
   上三角 off-diagonal 成分だけを持つ(2D なら1成分、3D なら3成分)。参照時には
   `A_j_i = -A_i_j`、`A_i_i = 0` に正準化する。
   上付き `~i` と下付き `_i` は strict に区別し、`metric g` で宣言した計量名は
-  `g~i~j`/`g~i_j`/`g_i~j`/`g_i_j` の上下パターンごとに生成 `.egi` の
-  内部計量テンソルへ下ろす(Euclidean では単位行列)。`δ` は Kronecker delta
+  `g~i~j`/`g~i_j`/`g_i~j`/`g_i_j` のうち参照された上下パターンだけ、生成 `.egi` の
+  内部計量テンソルへ下ろす(Euclidean では成分式に単位行列を inline する)。`δ` は Kronecker delta
   として `δ~i_j` の mixed identity だけに使う。添字の上げ下げは自動化せず、必要なら
   `g_i_j . v~j` のように metric と縮約を明示する。metric 名と同じ `param`/`field` 名は warning。
   ユーザ定義演算子は Egison と同様に結果添字を書かない。`def grad u = withSymbols [i] ∂_i u` は
