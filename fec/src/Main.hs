@@ -49,6 +49,9 @@
 --                                    withSymbols for newly introduced free
 --                                    indices and contractWith / `.` for
 --                                    contraction.
+--                                    Fixed indexed parameters such as A_i_j and
+--                                    the rank-polymorphic marker X... are also
+--                                    accepted.
 --   def (.) A B = EXPR              user-defined tensor dot operator.
 --   param NAME = RAW                Formura parameter (double :: NAME = RAW)
 --   extern NAME                     extern function :: NAME
@@ -100,7 +103,7 @@
 -- B' = B - dt * curl E' is the symplectic pair.
 
 import Data.Char (isAlpha, isAlphaNum, isDigit, isSpace)
-import Data.List (dropWhileEnd, intercalate, permutations, sort, nub, stripPrefix)
+import Data.List (dropWhileEnd, intercalate, permutations, sort, nub, stripPrefix, isSuffixOf)
 import System.Environment (getArgs)
 import System.IO (hPutStrLn, stderr)
 
@@ -138,6 +141,17 @@ scalarIntrinsics =
 standardDefs :: Model -> [Def]
 standardDefs m =
   [ Def "." ["A", "B"] "contractWith (+) (A * B)"
+  , Def "wedge" ["A", "B"] "A !. B"
+  , Def "outer" ["A", "B"] "A !. B"
+  , Def "inner" ["A", "B"] "contractWith (+) (A~i * B_i)"
+  , Def "trace" ["A"] "contractWith (+) A~i_i"
+  , Def "matmul" ["A", "B"] "withSymbols [i, j] (A~i_k . B~k_j)"
+  , Def "sym" ["A"]
+      "withSymbols [i, j] ((subrefs A [_i, _j] + transpose [j, i] (subrefs A [_i, _j])) / 2)"
+  , Def "antisym" ["A"]
+      "withSymbols [i, j] ((subrefs A [_i, _j] - transpose [j, i] (subrefs A [_i, _j])) / 2)"
+  , Def "norm2" ["X"] "contractWith (+) (X~i * X_i)"
+  , Def "hessian" ["u"] "withSymbols [i, j] (∂_i ∂_j u)"
   ]
   ++ modeStandardDefs m
 
@@ -334,11 +348,26 @@ defForm r = do
     identU (c:cs) | isAlpha c = let (a, b) = span isW cs in Just (c : a, b)
     identU _ = Nothing
     parseParams ps =
-      if all validParam ps && length ps == length (nub ps)
+      if all validParam ps && length (map defParamBase ps) == length (nub (map defParamBase ps))
         then Just ps
         else Nothing
     validParam p =
-      validSurfaceName p && null (snd (parseIndexedIdent p))
+      let stem = stripPatternEllipsis p
+          (base, parts) = parseIndexedIdent stem
+      in validSurfaceName base
+         && (isPatternEllipsis p || all validPatternPart parts)
+    validPatternPart (IxPart _ nm) = not (null nm) && all isAlphaNum nm
+
+defParamBase :: String -> String
+defParamBase p = fst (parseIndexedIdent (stripPatternEllipsis p))
+
+stripPatternEllipsis :: String -> String
+stripPatternEllipsis p
+  | "..." `isSuffixOf` p = take (length p - 3) p
+  | otherwise = p
+
+isPatternEllipsis :: String -> Bool
+isPatternEllipsis = ("..." `isSuffixOf`)
 
 -- NAME'(~a|_a)(~b|_b)? = EXPR   (a, b single index letters)
 primeEqForm :: String -> Maybe (String, [IxPart], String)
@@ -485,7 +514,7 @@ parseFe name txt = go STop initialModel
           validateMetricName mUse
           validateDimensionFeatures mUse
           mapM_ (\df ->
-                    checkUserSurface mUse (defParams df)
+                    checkUserSurface mUse (map defParamBase (defParams df))
                       ("in def " ++ defName df) (defBody df))
                 (mDefs mUse)
           mapM_ (\td ->
@@ -510,7 +539,7 @@ parseFe name txt = go STop initialModel
                          (reverse (mSteps mUse))
           inits' <- mapM (expandInit mUse defs) (reverse (mInits mUse))
           mapM_ (\df ->
-                    checkGeneratedSurface mDef (defParams df)
+                    checkGeneratedSurface mDef (map defParamBase (defParams df))
                       ("in def " ++ defName df) (defBody df))
                 defs
           mapM_ (\td ->
@@ -925,20 +954,30 @@ parseFe name txt = go STop initialModel
 
 surfaceBanned :: Model -> [String] -> String -> Maybe String
 surfaceBanned m locals s =
-  bareIndexedField (tokenize s)
+  bareIndexedField [] (tokenize s)
   `orElse`
   foldr (\t acc -> checkTok t `orElse` acc) Nothing (tokenize s)
   `orElse`
   foldr (\t acc -> checkIndexTok t `orElse` acc) Nothing (itok s)
   where
-    bareIndexedField [] = Nothing
-    bareIndexedField (TId nm _ : rest)
+    bareIndexedField _ [] = Nothing
+    bareIndexedField seen (TId nm _ : rest)
       | isBareIndexedFieldName nm
       , nm `notElem` locals
-      , not (indexedAfter rest) =
+      , not (indexedAfter rest)
+      , not (tensorArgumentContext seen) =
           Just ("indexed tensor field " ++ nm
                 ++ " must be referenced with indices")
-    bareIndexedField (_ : rest) = bareIndexedField rest
+    bareIndexedField seen (tok : rest) = bareIndexedField (tok : seen) rest
+
+    tensorArgumentContext seen =
+      any isTensorOperator seen
+    isTensorOperator (TId nm _) =
+      nm == "tensorMap" || nm == "subrefs" || nm == "transpose"
+      || any ((== nm) . defName) (standardDefs m)
+      || any ((== nm) . defName) (mDefs m)
+      || any ((== nm) . tdName) (mTensorDefs m)
+    isTensorOperator _ = False
 
     isBareIndexedFieldName nm =
       case parseIndexedIdent nm of

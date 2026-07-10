@@ -14,6 +14,10 @@ module Formurae.TensorExpr
   , pattern TEAppendIndexed
   , pattern TEWithSymbols
   , pattern TEContractWith
+  , pattern TETensorMap
+  , pattern TESubrefs
+  , pattern TETranspose
+  , pattern TEDisjoint
   , pattern TEDerivative
   , pattern TEDot
   , pattern TEBinary
@@ -40,7 +44,7 @@ module Formurae.TensorExpr
   ) where
 
 import Data.Char (isAlphaNum, isDigit, isSpace)
-import Data.List (intercalate, isPrefixOf, nub, stripPrefix)
+import Data.List (intercalate, isPrefixOf, isSuffixOf, nub, stripPrefix)
 import Control.Monad (foldM)
 
 import Formurae.Common (fatal, strip, validSurfaceName)
@@ -70,11 +74,19 @@ data TensorExprNode
   | TEAppendIndexedNode TensorExpr [IxPart]
   | TEWithSymbolsNode [String] TensorExpr
   | TEContractWithNode String TensorExpr
+  | TETensorMapNode TensorExpr TensorExpr
+  | TESubrefsNode TensorExpr [IxPart]
+  | TETransposeNode [String] TensorExpr
+  | TEDisjointNode [TensorExpr]
   | TEDerivativeNode [IxPart] TensorExpr
   | TEDotNode [TensorExpr]
   | TEBinaryNode String TensorExpr TensorExpr
   | TEGroupNode TensorExpr
   deriving (Eq, Show)
+
+-- `tensorMap` is explicit scalar-to-tensor lifting.  `subrefs` and
+-- `transpose` operate on the symbolic index sequence before component
+-- lowering; `!.` is a disjoint product and never contracts an index pair.
 
 pattern TENumber :: String -> TensorExpr
 pattern TENumber s <- TensorExpr _ (TENumberNode s)
@@ -112,6 +124,22 @@ pattern TEContractWith :: String -> TensorExpr -> TensorExpr
 pattern TEContractWith reducer body <- TensorExpr _ (TEContractWithNode reducer body)
   where TEContractWith reducer body = TensorExpr noSourceSpan (TEContractWithNode reducer body)
 
+pattern TETensorMap :: TensorExpr -> TensorExpr -> TensorExpr
+pattern TETensorMap f body <- TensorExpr _ (TETensorMapNode f body)
+  where TETensorMap f body = TensorExpr noSourceSpan (TETensorMapNode f body)
+
+pattern TESubrefs :: TensorExpr -> [IxPart] -> TensorExpr
+pattern TESubrefs body parts <- TensorExpr _ (TESubrefsNode body parts)
+  where TESubrefs body parts = TensorExpr noSourceSpan (TESubrefsNode body parts)
+
+pattern TETranspose :: [String] -> TensorExpr -> TensorExpr
+pattern TETranspose names body <- TensorExpr _ (TETransposeNode names body)
+  where TETranspose names body = TensorExpr noSourceSpan (TETransposeNode names body)
+
+pattern TEDisjoint :: [TensorExpr] -> TensorExpr
+pattern TEDisjoint parts <- TensorExpr _ (TEDisjointNode parts)
+  where TEDisjoint parts = TensorExpr noSourceSpan (TEDisjointNode parts)
+
 pattern TEDerivative :: [IxPart] -> TensorExpr -> TensorExpr
 pattern TEDerivative parts body <- TensorExpr _ (TEDerivativeNode parts body)
   where TEDerivative parts body = TensorExpr noSourceSpan (TEDerivativeNode parts body)
@@ -129,8 +157,9 @@ pattern TEGroup e <- TensorExpr _ (TEGroupNode e)
   where TEGroup e = TensorExpr noSourceSpan (TEGroupNode e)
 
 {-# COMPLETE TENumber, TEIdent, TEUnary, TECall, TEApply, TEIf,
-             TEAppendIndexed, TEWithSymbols, TEContractWith, TEDerivative,
-             TEDot, TEBinary, TEGroup #-}
+             TEAppendIndexed, TEWithSymbols, TEContractWith, TETensorMap,
+             TESubrefs, TETranspose, TEDisjoint, TEDerivative, TEDot,
+             TEBinary, TEGroup #-}
 
 data DiagIx = DiagIx
   { diagName :: String
@@ -202,6 +231,15 @@ renderTensorExpr (TEWithSymbols names body) =
   "withSymbols [" ++ intercalate ", " names ++ "] " ++ renderTensorExpr body
 renderTensorExpr (TEContractWith reducer body) =
   "contractWith " ++ renderReducer reducer ++ " " ++ renderContractBody body
+renderTensorExpr (TETensorMap f body) =
+  "tensorMap " ++ renderTensorAtom f ++ " " ++ renderTensorAtom body
+renderTensorExpr (TESubrefs body parts) =
+  "subrefs " ++ renderTensorAtom body ++ " ["
+  ++ intercalate ", " (map ixSuffix parts) ++ "]"
+renderTensorExpr (TETranspose names body) =
+  "transpose [" ++ intercalate ", " names ++ "] " ++ renderTensorAtom body
+renderTensorExpr (TEDisjoint parts) =
+  intercalate " !. " (map renderTensorDotPart parts)
 renderTensorExpr (TEDerivative parts body) =
   let (parts', body') = flattenDerivative parts body
   in unwords (map (\p -> "d" ++ ixSuffix p) parts' ++ [renderTensorAtom body'])
@@ -250,6 +288,14 @@ preprocessTensorAst m expr =
       keep (TEWithSymbols names (pre body))
     TEContractWith reducer body ->
       keep (TEContractWith reducer (pre body))
+    TETensorMap f body ->
+      keep (TETensorMap (pre f) (pre body))
+    TESubrefs body parts ->
+      keep (TESubrefs (pre body) parts)
+    TETranspose names body ->
+      keep (TETranspose names (pre body))
+    TEDisjoint parts ->
+      keep (TEDisjoint (map pre parts))
     TEDerivative parts body
       | otherwise ->
           keep (foldr lowerDerivativePart (pre body) parts)
@@ -313,6 +359,9 @@ tensorOccurrenceAlternatives m lets lhs aliases expr =
       tAlts <- tensorOccurrenceAlternatives m lets lhs aliases t
       eAlts <- tensorOccurrenceAlternatives m lets lhs aliases e
       return (cartesianConcat [cAlts, tAlts, eAlts])
+    TEAppendIndexed (TEIdent base existing) parts -> do
+      tensorOccurrenceAlternatives m lets lhs aliases
+        (TEIdent base (existing ++ map (renameIxPart aliases) parts))
     TEAppendIndexed e parts -> do
       alts <- tensorOccurrenceAlternatives m lets lhs aliases e
       return [occ ++ map (renameIxPart aliases) parts | occ <- alts]
@@ -323,6 +372,18 @@ tensorOccurrenceAlternatives m lets lhs aliases expr =
     TEContractWith _ body -> do
       bodyTerms <- tensorTermOccurrences m lets lhs aliases body
       return (map removeContractedOccurrences bodyTerms)
+    TETensorMap _ body ->
+      tensorOccurrenceAlternatives m lets lhs aliases
+        (materializeTensorOccurrence m lhs body)
+    TESubrefs body parts -> do
+      tensorOccurrenceAlternatives m lets lhs aliases
+        (TEAppendIndexed body parts)
+    TETranspose names body ->
+      tensorOccurrenceAlternatives m lets lhs aliases
+        (transposeOccurrenceAst m names body)
+    TEDisjoint parts -> do
+      alts <- mapM (tensorOccurrenceAlternatives m lets lhs aliases) parts
+      return (cartesianConcat alts)
     TEDerivative parts body -> do
       bodyTerms <- tensorOccurrenceAlternatives m lets lhs aliases body
       return [map (renameIxPart aliases) parts ++ occ | occ <- bodyTerms]
@@ -455,6 +516,60 @@ removeContractedOccurrences occs =
       contracted = map diagName (tiDiagIx info)
   in [p | p <- occs, ixName p `notElem` contracted]
 
+transposeOccurrenceAst :: Model -> [String] -> TensorExpr -> TensorExpr
+transposeOccurrenceAst m names body =
+  case stripGroupAst body of
+    TEIdent base parts
+      | null parts ->
+          let vars = case fieldDeclOf m (fst (fieldBaseOf base)) >>= fieldIndexParts of
+                       Just ps | length ps == length names -> map ixVariance ps
+                       _ -> replicate (length names) VDown
+          in TEIdent base [IxPart v n | (v, n) <- zip vars names]
+      | length parts == length names ->
+          TEIdent base [IxPart (ixVariance p) n | (p, n) <- zip parts names]
+    _ -> body
+
+materializeTensorOccurrence :: Model -> [IxPart] -> TensorExpr -> TensorExpr
+materializeTensorOccurrence m lhs body =
+  case body of
+    TEIdent base [] ->
+      let fname = fst (fieldBaseOf base)
+      in case kindOf m fname of
+           Just kind
+             | componentRank kind == length lhs
+             , componentRank kind > 0 ->
+                 let vars = case fieldDeclOf m fname >>= fieldIndexParts of
+                              Just ps | length ps == length lhs -> map ixVariance ps
+                              _ -> replicate (length lhs) VDown
+                 in TEIdent base [IxPart v (ixName p) | (v, p) <- zip vars lhs]
+           Nothing
+             | not (null lhs) ->
+                 TEIdent base [IxPart VDown (ixName p) | p <- lhs]
+           _ -> body
+    TEIdent _ _ -> body
+    TEUnary op e -> TEUnary op (materializeTensorOccurrence m lhs e)
+    TECall f args -> TECall (materializeTensorOccurrence m lhs f)
+                           (map (materializeTensorOccurrence m lhs) args)
+    TEApply f args -> TEApply (materializeTensorOccurrence m lhs f)
+                             (map (materializeTensorOccurrence m lhs) args)
+    TEIf c t e -> TEIf (materializeTensorOccurrence m lhs c)
+                      (materializeTensorOccurrence m lhs t)
+                      (materializeTensorOccurrence m lhs e)
+    TEAppendIndexed e parts -> TEAppendIndexed (materializeTensorOccurrence m lhs e) parts
+    TEWithSymbols names e -> TEWithSymbols names (materializeTensorOccurrence m lhs e)
+    TEContractWith r e -> TEContractWith r (materializeTensorOccurrence m lhs e)
+    TETensorMap f e -> TETensorMap (materializeTensorOccurrence m lhs f)
+                                  (materializeTensorOccurrence m lhs e)
+    TESubrefs e parts -> TESubrefs (materializeTensorOccurrence m lhs e) parts
+    TETranspose names e -> TETranspose names (materializeTensorOccurrence m lhs e)
+    TEDisjoint es -> TEDisjoint (map (materializeTensorOccurrence m lhs) es)
+    TEDerivative parts e -> TEDerivative parts (materializeTensorOccurrence m lhs e)
+    TEDot es -> TEDot (map (materializeTensorOccurrence m lhs) es)
+    TEBinary op l r -> TEBinary op (materializeTensorOccurrence m lhs l)
+                               (materializeTensorOccurrence m lhs r)
+    TEGroup e -> TEGroup (materializeTensorOccurrence m lhs e)
+    TENumber _ -> body
+
 parseTensorTokensE :: String -> [ITok] -> Either String TensorExpr
 parseTensorTokensE src ts0 =
   let ts = trimTensorIToks ts0
@@ -475,22 +590,26 @@ parseTensorTokensE src ts0 =
                      Just (lhs, op, rhs) ->
                        TEBinary op <$> parse lhs <*> parse rhs
                      Nothing ->
-                       case splitTopAddI ts of
+                         case splitTopAddI ts of
                          Just (lhs, op, rhs) ->
                            TEBinary op <$> parse lhs <*> parse rhs
                          Nothing ->
-                           case splitTopDotsI ts of
-                             (_:_:_) | not (hasEllipsisAtTop ts) ->
-                               TEDot <$> mapM parse (splitTopDotsI ts)
+                           case splitTopDisjointI ts of
+                             (_:_:_) ->
+                               TEDisjoint <$> mapM parse (splitTopDisjointI ts)
                              _ ->
-                               case splitTopMulDivI ts of
-                                 Just (lhs, op, rhs) ->
-                                   TEBinary op <$> parse lhs <*> parse rhs
-                                 Nothing ->
-                                   case splitTopPowerI ts of
+                               case splitTopDotsI ts of
+                                 (_:_:_) | not (hasEllipsisAtTop ts) ->
+                                   TEDot <$> mapM parse (splitTopDotsI ts)
+                                 _ ->
+                                   case splitTopMulDivI ts of
                                      Just (lhs, op, rhs) ->
                                        TEBinary op <$> parse lhs <*> parse rhs
-                                     Nothing -> parseTensorAtomE src ts
+                                     Nothing ->
+                                       case splitTopPowerI ts of
+                                         Just (lhs, op, rhs) ->
+                                           TEBinary op <$> parse lhs <*> parse rhs
+                                         Nothing -> parseTensorAtomE src ts
   where
     parse = parseTensorTokensE src
 
@@ -514,33 +633,42 @@ parseTensorAtomE src ts =
       case parseContractWithExprE src ts of
         Just e -> e
         Nothing ->
-          case parseWithSymbolsExprE src ts of
+          case parseTensorMapExprE src ts of
             Just e -> e
             Nothing ->
-              case parseDerivativeExprE src ts of
+              case parseSubrefsExprE src ts of
                 Just e -> e
                 Nothing ->
-                  case parseAppendExprE src ts of
+                  case parseTransposeExprE src ts of
                     Just e -> e
                     Nothing ->
-                      case parseCallExprE src ts of
+                      case parseWithSymbolsExprE src ts of
                         Just e -> e
                         Nothing ->
-                          case parseApplyExprE src ts of
+                          case parseDerivativeExprE src ts of
                             Just e -> e
                             Nothing ->
-                              case parseUnaryExprE src ts of
+                              case parseAppendExprE src ts of
                                 Just e -> e
                                 Nothing ->
-                                  case parseNumberExpr ts of
-                                    Just e -> Right e
+                                  case parseCallExprE src ts of
+                                    Just e -> e
                                     Nothing ->
-                                      case ts of
-                                        [II w] ->
-                                          let (base, parts) = parseIndexedIdent w
-                                          in Right (TEIdent base parts)
-                                        [IC '∂'] -> Right (TEIdent "∂" [])
-                                        _ -> parseError src ts "unsupported scalar expression atom"
+                                      case parseApplyExprE src ts of
+                                        Just e -> e
+                                        Nothing ->
+                                          case parseUnaryExprE src ts of
+                                            Just e -> e
+                                            Nothing ->
+                                              case parseNumberExpr ts of
+                                                Just e -> Right e
+                                                Nothing ->
+                                                  case ts of
+                                                    [II w] ->
+                                                      let (base, parts) = parseIndexedIdent w
+                                                      in Right (TEIdent base parts)
+                                                    [IC '∂'] -> Right (TEIdent "∂" [])
+                                                    _ -> parseError src ts "unsupported scalar expression atom"
   where
     parse = parseTensorTokensE src
 
@@ -556,6 +684,67 @@ parseContractWithExprE src ts =
             in if null body
                  then parseError src ts "contractWith needs a body"
                  else TEContractWith reducer <$> parseTensorTokensE src body
+    _ -> Nothing
+
+parseTensorMapExprE :: String -> [ITok] -> Maybe (Either String TensorExpr)
+parseTensorMapExprE src ts =
+  case splitTopSpaceI (dropWhile isSpaceITok ts) of
+    [kw, f, body] | renderIToks kw == "tensorMap" ->
+      Just (TETensorMap <$> parseTensorTokensE src f <*> parseTensorTokensE src body)
+    _ -> Nothing
+
+parseSubrefsExprE :: String -> [ITok] -> Maybe (Either String TensorExpr)
+parseSubrefsExprE src ts =
+  case splitTopSpaceI (dropWhile isSpaceITok ts) of
+    [kw, body, indices] | renderIToks kw == "subrefs" ->
+      Just $
+        case parseIxListI indices of
+          Nothing -> parseError src ts "subrefs needs an index list, e.g. [~i, _j]"
+          Just parts -> TESubrefs <$> parseTensorTokensE src body <*> pure parts
+    _ -> Nothing
+
+parseTransposeExprE :: String -> [ITok] -> Maybe (Either String TensorExpr)
+parseTransposeExprE src ts =
+  case splitTopSpaceI (dropWhile isSpaceITok ts) of
+    [kw, names, body] | renderIToks kw == "transpose" ->
+      Just $
+        case parseNameListI names of
+          Nothing -> parseError src ts "transpose needs a name list, e.g. [j, i]"
+          Just ns -> TETranspose ns <$> parseTensorTokensE src body
+    _ -> Nothing
+
+parseIxListI :: [ITok] -> Maybe [IxPart]
+parseIxListI ts = do
+  inside <- bracketInsideI ts
+  mapM parseOne (splitTopCommaI inside)
+  where
+    parseOne item =
+      let text = renderIToks (trimTensorIToks item)
+      in case parseMarkedPrefix text of
+           Just ([p], "") -> Just p
+           Just ([], nm) | validSurfaceName nm -> Just (IxPart VDown nm)
+           _ -> Nothing
+
+parseNameListI :: [ITok] -> Maybe [String]
+parseNameListI ts = do
+  inside <- bracketInsideI ts
+  mapM parseOne (splitTopCommaI inside)
+  where
+    parseOne item =
+      case trimTensorIToks item of
+        [II nm] | validSurfaceName nm -> Just nm
+        [IC '~', II nm] | validSurfaceName nm -> Just nm
+        [IC '_', II nm] | validSurfaceName nm -> Just nm
+        _ -> Nothing
+
+bracketInsideI :: [ITok] -> Maybe [ITok]
+bracketInsideI ts =
+  case trimTensorIToks ts of
+    IC '[' : rest ->
+      case closeGroupI ']' rest [] of
+        Just (inside, remaining)
+          | null (trimTensorIToks remaining) -> Just inside
+        _ -> Nothing
     _ -> Nothing
 
 parseWithSymbolsExprE :: String -> [ITok] -> Maybe (Either String TensorExpr)
@@ -686,6 +875,10 @@ renderTensorAtom e@(TEIdent _ _) = renderTensorExpr e
 renderTensorAtom e@(TECall _ _) = renderTensorExpr e
 renderTensorAtom e@(TEApply _ _) = renderTensorExpr e
 renderTensorAtom e@(TEAppendIndexed _ _) = renderTensorExpr e
+renderTensorAtom e@(TETensorMap _ _) = renderTensorExpr e
+renderTensorAtom e@(TESubrefs _ _) = renderTensorExpr e
+renderTensorAtom e@(TETranspose _ _) = renderTensorExpr e
+renderTensorAtom e@(TEDisjoint _) = renderTensorExpr e
 renderTensorAtom e@(TEGroup _) = renderTensorExpr e
 renderTensorAtom e = "(" ++ renderTensorExpr e ++ ")"
 
@@ -694,6 +887,11 @@ renderTensorUnaryArg e@(TENumber _) = renderTensorExpr e
 renderTensorUnaryArg e@(TEIdent _ _) = renderTensorExpr e
 renderTensorUnaryArg e@(TECall _ _) = renderTensorExpr e
 renderTensorUnaryArg e@(TEApply _ _) = renderTensorExpr e
+renderTensorUnaryArg e@(TEAppendIndexed _ _) = renderTensorExpr e
+renderTensorUnaryArg e@(TETensorMap _ _) = renderTensorExpr e
+renderTensorUnaryArg e@(TESubrefs _ _) = renderTensorExpr e
+renderTensorUnaryArg e@(TETranspose _ _) = renderTensorExpr e
+renderTensorUnaryArg e@(TEDisjoint _) = renderTensorExpr e
 renderTensorUnaryArg e@(TEGroup _) = renderTensorExpr e
 renderTensorUnaryArg e = "(" ++ renderTensorExpr e ++ ")"
 
@@ -750,6 +948,20 @@ splitTopBinaryOpsRightI ops rejectUnary = go (0 :: Int) []
       , not (isPowerStar op acc after)
       , not rejectUnary || binaryOpAllowed acc =
           Just (trimTensorIToks (reverse acc), op, trimTensorIToks after)
+    go d acc (t : rest) = go d (t : acc) rest
+
+splitTopDisjointI :: [ITok] -> [[ITok]]
+splitTopDisjointI = go (0 :: Int) []
+  where
+    go _ acc [] = [trimTensorIToks (reverse acc)]
+    go d acc (IC '!' : IC '.' : rest)
+      | d == 0
+      , leftSpaceI acc
+      , rightSpaceI rest =
+          trimTensorIToks (reverse acc) : go d [] rest
+    go d acc (t@(IC c) : rest)
+      | c `elem` "([" = go (d + 1) (t : acc) rest
+      | c `elem` ")]" = go (d - 1) (t : acc) rest
     go d acc (t : rest) = go d (t : acc) rest
 
 sortOps :: [String] -> [String]
@@ -1033,6 +1245,14 @@ expandDefExpr defs expr =
       keepSpan (TEWithSymbols names <$> expand body)
     TEContractWith reducer body ->
       keepSpan (TEContractWith reducer <$> expand body)
+    TETensorMap f body ->
+      keepSpan (TETensorMap <$> expand f <*> expand body)
+    TESubrefs body parts ->
+      keepSpan (TESubrefs <$> expand body <*> pure parts)
+    TETranspose names body ->
+      keepSpan (TETranspose names <$> expand body)
+    TEDisjoint parts ->
+      keepSpan (TEDisjoint <$> mapM expand parts)
     TEDerivative parts body ->
       keepSpan (TEDerivative parts <$> expand body)
     TEDot parts
@@ -1065,8 +1285,13 @@ expandDotAst defs dotDef (p:ps) =
 applyDefAst :: [Def] -> Def -> [TensorExpr] -> IO TensorExpr
 applyDefAst _ df args = do
   ast <- parseTensorExprIO ("in def " ++ defName df) (defBody df)
-  let env = zip (defParams df) (map argInfo args)
+  let env = zip (map defParamBase (defParams df)) (map argInfo args)
   substExpr df env ast
+  where
+    defParamBase p = fst (parseIndexedIdent (stripPatternEllipsis p))
+    stripPatternEllipsis p
+      | "..." `isSuffixOf` p = take (length p - 3) p
+      | otherwise = p
 
 type ArgInfo = (TensorExpr, Maybe (String, Int, [IxPart]))
 
@@ -1107,6 +1332,14 @@ substExpr df env expr =
       keepSpan (TEWithSymbols names <$> subst body)
     TEContractWith reducer body ->
       keepSpan (TEContractWith reducer <$> subst body)
+    TETensorMap f body ->
+      keepSpan (TETensorMap <$> subst f <*> subst body)
+    TESubrefs body parts ->
+      keepSpan (TESubrefs <$> subst body <*> pure parts)
+    TETranspose names body ->
+      keepSpan (TETranspose names <$> subst body)
+    TEDisjoint parts ->
+      keepSpan (TEDisjoint <$> mapM subst parts)
     TEDerivative parts body ->
       keepSpan (TEDerivative parts <$> subst body)
     TEDot parts ->
@@ -1180,6 +1413,14 @@ renameLocalIxAst aliases expr =
       in keep (TEWithSymbols names (renameLocalIxAst aliases' body))
     TEContractWith reducer body ->
       keep (TEContractWith reducer (rename body))
+    TETensorMap f body ->
+      keep (TETensorMap (rename f) (rename body))
+    TESubrefs body parts ->
+      keep (TESubrefs (rename body) (renameParts parts))
+    TETranspose names body ->
+      keep (TETranspose (map renameName names) (rename body))
+    TEDisjoint parts ->
+      keep (TEDisjoint (map rename parts))
     TEDerivative parts body ->
       keep (TEDerivative (renameParts parts) (rename body))
     TEDot parts ->
@@ -1196,6 +1437,10 @@ renameLocalIxAst aliases expr =
              case lookup nm aliases of
                Just p' -> p'
                Nothing -> p)
+    renameName nm =
+      case lookup nm aliases of
+        Just (IxPart _ nm') -> nm'
+        Nothing -> nm
 
 stripGroupAst :: TensorExpr -> TensorExpr
 stripGroupAst (TEGroup e) = stripGroupAst e
@@ -1358,6 +1603,15 @@ ixExpand m lets env anchor expr = do
           expandWithSymbolsAst env' names body
         TEContractWith reducer body ->
           expandContractAst env' reducer body
+        TETensorMap f body ->
+          expandTensorMapAst env' f body
+        TESubrefs body parts ->
+          expandAst env' (appendIndexedAst body parts)
+        TETranspose names body -> do
+          body' <- materializeTensorAst env' body
+          expandAst env' (transposeAst names body')
+        TEDisjoint parts ->
+          expandDisjointAst env' parts
         TEDot parts ->
           expandContractAst env' "+" (dotAsProduct parts)
         TEDerivative parts body ->
@@ -1380,6 +1634,144 @@ ixExpand m lets env anchor expr = do
       appendIndexedAst e parts
     appendIndexedAst e parts =
       TEAppendIndexed e parts
+
+    materializeTensorAst env' body =
+      case stripGroupAst body of
+        TEIdent base [] -> inferTensorIndices env' (TEIdent base [])
+        TEAppendIndexed e parts ->
+          do e' <- materializeTensorAst env' e
+             return (appendIndexedAst e' parts)
+        TESubrefs e parts ->
+          materializeTensorAst env' (appendIndexedAst e parts)
+        TEGroup e -> materializeTensorAst env' e
+        _ -> return body
+
+    inferTensorIndices env' body@(TEIdent base0 []) =
+      let (fname, _) = fieldBaseOf base0
+      in case kindOf m fname of
+           Just Scalar -> return body
+           Just kind -> do
+             let rank = componentRank kind
+                 names = map fst env'
+                 vars = case fieldDeclOf m fname >>= fieldIndexParts of
+                          Just parts | length parts == rank -> map ixVariance parts
+                          _ -> replicate rank VDown
+             if length names < rank
+               then fatal ("tensor operand " ++ fname
+                          ++ " needs " ++ show rank
+                          ++ " local indices; use an explicit subscript")
+               else return (TEIdent base0
+                            [IxPart v n | (v, n) <- zip vars (take rank names)])
+           Nothing -> return body
+    inferTensorIndices _ body = return body
+
+    transposeAst names body =
+      case stripGroupAst body of
+        TEIdent base parts ->
+          if length names /= length parts
+            then fatalPure "transpose index list length does not match tensor rank"
+            else TEIdent base
+                   [IxPart (ixVariance p) nm | (p, nm) <- zip parts names]
+        TEAppendIndexed e parts ->
+          let base = stripGroupAst e
+          in case base of
+               TEIdent nm existing
+                 | length (existing ++ parts) == length names ->
+                     TEIdent nm
+                       [IxPart (ixVariance p) n
+                       | (p, n) <- zip (existing ++ parts) names]
+               _ -> appendIndexedAst (transposeAst names e) parts
+        TESubrefs e parts ->
+          transposeAst names (appendIndexedAst e parts)
+        TEGroup e -> transposeAst names e
+        _ -> body
+
+    expandTensorMapAst env' f body = do
+      body' <- materializeTensorAst env' body
+      fn <- expandAst env' f
+      arg <- expandAst env' body'
+      return (unwords [fn, renderApplyText arg])
+
+    expandDisjointAst env' parts = do
+      body <- disjointProductAst parts
+      expandAst env' body
+
+    disjointProductAst [] = return (TENumber "1")
+    disjointProductAst (p:ps) = foldM add p ps
+      where
+        add lhs rhs = do
+          let occupied = tensorIndexNamesAst lhs
+              clashes = nub [nm | nm <- tensorIndexNamesAst rhs, nm `elem` occupied]
+              aliases = [(nm, freshIndexName nm (occupied ++ tensorIndexNamesAst rhs))
+                        | nm <- clashes]
+              rhs' = renameIndexNamesAst aliases rhs
+          return (TEBinary "*" lhs rhs')
+
+    tensorIndexNamesAst ast =
+      nub $ case ast of
+        TENumber _ -> []
+        TEIdent _ parts -> map ixName parts
+        TEUnary _ e -> tensorIndexNamesAst e
+        TECall f args -> concatMap tensorIndexNamesAst (f : args)
+        TEApply f args -> concatMap tensorIndexNamesAst (f : args)
+        TEIf c t e -> concatMap tensorIndexNamesAst [c, t, e]
+        TEAppendIndexed e parts -> map ixName parts ++ tensorIndexNamesAst e
+        TEWithSymbols _ e -> tensorIndexNamesAst e
+        TEContractWith _ e -> tensorIndexNamesAst e
+        TETensorMap f e -> tensorIndexNamesAst f ++ tensorIndexNamesAst e
+        TESubrefs e parts -> map ixName parts ++ tensorIndexNamesAst e
+        TETranspose _ e -> tensorIndexNamesAst e
+        TEDisjoint es -> concatMap tensorIndexNamesAst es
+        TEDerivative parts e -> map ixName parts ++ tensorIndexNamesAst e
+        TEDot es -> concatMap tensorIndexNamesAst es
+        TEBinary _ l r -> tensorIndexNamesAst l ++ tensorIndexNamesAst r
+        TEGroup e -> tensorIndexNamesAst e
+
+    freshIndexName base used =
+      go (0 :: Int)
+      where
+        go n =
+          let candidate = base ++ show n
+          in if candidate `elem` used then go (n + 1) else candidate
+
+    renameIndexNamesAst aliases ast =
+      case ast of
+        TENumber _ -> ast
+        TEIdent base parts ->
+          TEIdent base [IxPart (ixVariance p) (renameName (ixName p)) | p <- parts]
+        TEUnary op e -> TEUnary op (renameIndexNamesAst aliases e)
+        TECall f args -> TECall (renameIndexNamesAst aliases f)
+                           (map (renameIndexNamesAst aliases) args)
+        TEApply f args -> TEApply (renameIndexNamesAst aliases f)
+                           (map (renameIndexNamesAst aliases) args)
+        TEIf c t e -> TEIf (renameIndexNamesAst aliases c)
+                          (renameIndexNamesAst aliases t)
+                          (renameIndexNamesAst aliases e)
+        TEAppendIndexed e parts ->
+          TEAppendIndexed (renameIndexNamesAst aliases e)
+            [IxPart (ixVariance p) (renameName (ixName p)) | p <- parts]
+        TEWithSymbols names e -> TEWithSymbols names (renameIndexNamesAst aliases e)
+        TEContractWith r e -> TEContractWith r (renameIndexNamesAst aliases e)
+        TETensorMap f e -> TETensorMap (renameIndexNamesAst aliases f)
+                                  (renameIndexNamesAst aliases e)
+        TESubrefs e parts -> TESubrefs (renameIndexNamesAst aliases e)
+          [IxPart (ixVariance p) (renameName (ixName p)) | p <- parts]
+        TETranspose names e -> TETranspose (map renameName names)
+          (renameIndexNamesAst aliases e)
+        TEDisjoint es -> TEDisjoint (map (renameIndexNamesAst aliases) es)
+        TEDerivative parts e -> TEDerivative
+          [IxPart (ixVariance p) (renameName (ixName p)) | p <- parts]
+          (renameIndexNamesAst aliases e)
+        TEDot es -> TEDot (map (renameIndexNamesAst aliases) es)
+        TEBinary op l r -> TEBinary op (renameIndexNamesAst aliases l)
+                               (renameIndexNamesAst aliases r)
+        TEGroup e -> TEGroup (renameIndexNamesAst aliases e)
+      where
+        renameName nm = case lookup nm aliases of
+                          Just nm' -> nm'
+                          Nothing -> nm
+
+    fatalPure msg = error msg
 
     expandWithSymbolsAst env' names body =
       let vals = map snd env'
@@ -1553,6 +1945,10 @@ ixExpand m lets env anchor expr = do
         TEUnary _ body -> zeroByIdentityAst env' body
         TECall f args -> zeroByIdentityAst env' f || any (zeroByIdentityAst env') args
         TEApply f args -> zeroByIdentityAst env' f || any (zeroByIdentityAst env') args
+        TETensorMap f body -> zeroByIdentityAst env' f || zeroByIdentityAst env' body
+        TESubrefs body _ -> zeroByIdentityAst env' body
+        TETranspose _ body -> zeroByIdentityAst env' body
+        TEDisjoint parts -> any (zeroByIdentityAst env') parts
         TEBinary "*" lhs rhs ->
           zeroByIdentityAst env' lhs || zeroByIdentityAst env' rhs
         TEGroup e -> zeroByIdentityAst env' e

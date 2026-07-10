@@ -131,6 +131,11 @@ make diffusion3d
 <tr><td><code>def grad u = withSymbols [i] ∂_i u</code></td><td>Egison と同様に、演算子定義には結果添字を書かない。<code>withSymbols</code> で導入した自由添字は、呼び出し側の添字へ付け替えられて成分展開される</td></tr>
 <tr><td><code>def div X = contractWith (+) (∂_i X~i)</code></td><td>同じ上下添字が現れただけでは総和しない。<code>contractWith</code> が diagonal axis を明示的に有限和へ畳み込む</td></tr>
 <tr><td><code>def (.) A B = contractWith (+) (A * B)</code></td><td><code>.</code> は標準 prelude のユーザ定義演算子。任意のテンソル同士の積を作り、内部の <code>contractWith (+)</code> が上下ペアを縮約する。ユーザ定義で shadow できる</td></tr>
+<tr><td><code>tensorMap f A</code></td><td>スカラー関数 <code>f</code> をテンソルの各成分へ適用する TensorExpr primitive。<code>def mapExp X... = tensorMap exp X</code> のように、rank ごとの添字ループを書かずに再利用できる</td></tr>
+<tr><td><code>subrefs A [_i, _j]</code></td><td>テンソルへ添字列を付加する primitive。添字付き <code>def</code> の本体で、引数の添字を明示的に取り出すために使う。裸の <code>[i, j]</code> は下付き添字として扱う</td></tr>
+<tr><td><code>transpose [j, i] A</code></td><td>引数の添字列を指定順に並べ替える primitive。<code>sym</code>/<code>antisym</code> のような通常の演算子定義で使える</td></tr>
+<tr><td><code>A !. B</code></td><td>縮約しない disjoint tensor product。<code>.</code> と違って上下添字を畳み込まず、添字が衝突する場合は右辺を hygienic に改名する</td></tr>
+<tr><td><code>trace</code> / <code>matmul</code> / <code>wedge</code> / <code>sym</code> / <code>antisym</code> / <code>inner</code> / <code>outer</code> / <code>hessian</code> / <code>norm2</code></td><td>標準 prelude の通常の TensorExpr 定義。<code>def</code> と同じ展開経路を使い、ユーザー定義で shadow できる</td></tr>
 <tr><td><code>axes r, θ, φ</code></td><td>軸名(<b>必須</b>)。<code>∂_θ</code> の解決や添字文字の走る範囲=座標系を確定させる宣言。生成 Formura の <code>axes ::</code>、格子幅 <code>dr</code>/<code>dtheta</code>、C ドライバの <code>space_interval_r</code>/<code>lower_theta</code> まで宣言名を使う。CAS 内部だけは正規座標 <code>x,y,z</code> に写像する</td></tr>
 <tr><td><code>param dt = 0.5*dx</code></td><td>Formura パラメタ(<code>double :: dt = …</code>)。値は Formura 式</td></tr>
 <tr><td><code>extern exp</code></td><td><code>extern function :: exp</code>。<code>sin</code>, <code>cos</code>, <code>exp</code>, <code>sqrt</code>, <code>fabs</code> など Formura が扱えるスカラー関数は、式や raw ヘルパで使われたら不足分を自動 extern する。明示 <code>extern</code> も従来通り可</td></tr>
@@ -176,7 +181,7 @@ make diffusion3d
 <tr><td><code>mode collocated</code></td><td><code>grad u</code>, <code>divg X</code>, <code>curl X</code>, <code>lap u</code>, <code>Δ u</code></td><td>標準 prelude の TensorExpr 演算子。ユーザー定義で置き換えることもできる</td></tr>
 <tr><td>ユーザ定義</td><td><code>def customDiv X = ...</code>, <code>def Δ u = ...</code></td><td><code>def</code> で定義した演算子は使用箇所に展開される。<code>withSymbols</code>, <code>contractWith</code>, <code>.</code>, <code>∂_i</code>, <code>∂_x</code> などを組み合わせて、問題ごとの演算子を .fme 側に直接書ける</td></tr>
 <tr><td><code>fec</code> 組み込み変換</td><td><code>∂_x e</code>, <code>∂^2_x e</code>, <code>∂'^2_x e</code></td><td>軸名を見て中心差分または Taylor 条件から導出する stencil へ下ろす。1階微分は <code>∂_x e</code>、高階・広幅 stencil は <code>∂^m_x e</code> や <code>∂'^m_x e</code> のように書く</td></tr>
-<tr><td><code>TensorExpr</code> 組み込み</td><td><code>∂_i X~i</code>, <code>contractWith (+) A~i_i</code>, <code>.</code>, <code>δ~i_j</code>, <code>epsilon~i~j~k</code>, <code>g_i_j</code></td><td>添字式を TensorExpr AST として展開する。<code>g</code> は上下パターンごとの計量テンソル、metric 名でない <code>δ~i_j</code> は Kronecker identity。縮約は <code>contractWith</code> と、標準定義 <code>def (.) A B = contractWith (+) (A * B)</code> だけが行う。<code>*</code> は縮約しない積として扱う</td></tr>
+<tr><td><code>TensorExpr</code> 組み込み</td><td><code>∂_i X~i</code>, <code>contractWith (+) A~i_i</code>, <code>.</code>, <code>!.</code>, <code>tensorMap</code>, <code>subrefs</code>, <code>transpose</code>, <code>δ~i_j</code>, <code>epsilon~i~j~k</code>, <code>g_i_j</code></td><td>添字式を TensorExpr AST として展開する。<code>g</code> は上下パターンごとの計量テンソル、metric 名でない <code>δ~i_j</code> は Kronecker identity。<code>.</code> と <code>contractWith</code> は縮約、<code>!.</code> は disjoint product、<code>tensorMap</code> はスカラー関数の成分 lift、<code>subrefs</code>/<code>transpose</code> は添字列操作を行う</td></tr>
 <tr><td><code>fec</code> 組み込み変換</td><td><code>d ω</code>, <code>δ ω</code> / <code>delta ω</code> / <code>codiff ω</code></td><td><code>mode dec</code> の <code>field E : 1-form</code> などの形式場を、生成 Egison の <code>dForm</code>/<code>codiff</code> 呼び出しへ下ろす</td></tr>
 <tr><td>Formura/extern 組み込み</td><td><code>sin</code>, <code>cos</code>, <code>exp</code>, <code>sqrt</code>, <code>fabs</code> など</td><td>スカラー関数。テンソル成分に適用されると成分ごとへ lift され、不足する <code>extern function :: ...</code> は <code>fec</code> が自動で出す</td></tr>
 <tr><td>生成 .egi の座標文脈定義</td><td><code>dGrad</code>, <code>curl</code>, <code>divg</code>, <code>dForm</code>, <code>codiff</code>, <code>dTaylor</code>, <code>showFmr</code>, <code>emitModelOn</code></td><td><code>.fme</code> の prelude ではなく、<code>fec</code> が <code>dimension</code>/<code>axes</code>/<code>metric</code> から生成する定義</td></tr>
@@ -285,7 +290,7 @@ fec が Formura 向けに ASCII 名(theta, phi, …)へ字訳します。
 <code>u' = u + dt * Δ u</code> の4行で幾何・使う演算子・物理を書けます
 (metric_torus.fme がこの形)。</p>
 
-<p class="note"><b>現在の実装範囲</b>: scalar/vector/rank-2/k-form field の 1D/2D/3D 生成、添字付き field の上下・自由添字・未縮約 diagonal 検査、indexed CAS initializer、対称/反対称 rank-2 field backend、DEC の一般次元基底生成、<code>withSymbols</code>/<code>contractWith</code>/<code>.</code> を使うユーザ定義テンソル演算子は実装済みです。
+<p class="note"><b>現在の実装範囲</b>: scalar/vector/rank-2/k-form field の 1D/2D/3D 生成、添字付き field の上下・自由添字・未縮約 diagonal 検査、indexed CAS initializer、対称/反対称 rank-2 field backend、DEC の一般次元基底生成、<code>withSymbols</code>/<code>contractWith</code>/<code>.</code>/<code>!.</code>/<code>tensorMap</code>/<code>subrefs</code>/<code>transpose</code> を使うユーザ定義テンソル演算子は実装済みです。添字列パターンは固定長の indexed parameter と <code>X...</code> の rank-polymorphic marker を受け付けます。
 scalar 式も <code>TENumber</code>、<code>TEUnary</code>、<code>TECall</code>、<code>TEApply</code>、<code>TEIf</code>、<code>TEBinary</code> などの TensorExpr AST として保持します。
 parser error は式全体、失敗近傍、column を表示します。source span つき診断は今後の拡張です。</p>
 

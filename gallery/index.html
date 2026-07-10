@@ -54,7 +54,8 @@
      (いずれもクリックで展開)・実行結果の可視化・検証数値</b>を載せています。
      表層言語 <code>.fme</code> では、<code>∂_x</code> / <code>∂^2_x</code> / <code>∂'^2_x</code> 形式の座標微分、上付き/下付き添字、
      <code>contractWith</code> とユーザ定義 <code>.</code> による明示的な縮約、
-     <code>withSymbols</code> を使うテンソル演算子定義、<code>sin</code>/<code>exp</code> などのスカラー関数の自動 extern/lift を扱えます。
+     <code>withSymbols</code> を使うテンソル演算子定義、<code>tensorMap</code>/<code>subrefs</code>/<code>transpose</code>/<code>!.</code> による添字操作、
+     <code>sin</code>/<code>exp</code> などのスカラー関数の自動 extern/lift を扱えます。
      すべて <code>make all</code> で再現でき、画像は <code>gallery/gen.sh</code> →
      <code>gallery/tools/render.py</code>、ソース全文の埋め込みは <code>gallery/tools/embed_src.py</code>
      で再生成できます(いずれも外部ライブラリ不要)。

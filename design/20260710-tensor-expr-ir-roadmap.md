@@ -2,6 +2,15 @@
 
 Date: 2026-07-10
 
+## 実装更新 (2026-07-10)
+
+- `tensorMap`、`subrefs`、`transpose`、disjoint product `!.` を
+  TensorExpr の first-class node として追加し、成分 lowering まで実装した。
+- `def swap A_i_j = ...` のような固定長 indexed parameter と、
+  `X...` の rank-polymorphic marker を受け付ける。
+- 標準 prelude に `wedge`、`outer`、`inner`、`trace`、`matmul`、
+  `sym`、`antisym`、`norm2`、`hessian` を通常の定義として追加した。
+
 ## 目的
 
 Egison の大きな利点は、添字記法を使ってテンソル演算子を簡潔に定義できる

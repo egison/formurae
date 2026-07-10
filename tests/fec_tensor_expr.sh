@@ -157,6 +157,107 @@ write_case "$f" \
   'mode collocated' \
   'dimension 2' \
   'axes x,y' \
+  'field A_i' \
+  'field q_i' \
+  'def mapExp X... = tensorMap exp X' \
+  'step:' \
+  "  q'_i = mapExp A"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" 'exp A_1' 'explicit tensorMap component 1'
+assert_contains "$out" 'exp A_2' 'explicit tensorMap component 2'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field A_i' \
+  'field q_i' \
+  'def copy X = subrefs X [_i]' \
+  'step:' \
+  "  q'_i = copy A"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" 'A_1' 'subrefs component 1'
+assert_contains "$out" 'A_2' 'subrefs component 2'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field A_i_j' \
+  'field C_i_j' \
+  'def transpose2 X_i_j = transpose [j, i] X' \
+  'step:' \
+  "  C'_i_j = transpose2 A"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" 'A_1_1' 'transpose diagonal component'
+assert_contains "$out" 'A_2_1' 'transpose off-diagonal component'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field A~i' \
+  'field B_j' \
+  'field C~i_j' \
+  'step:' \
+  "  C'~i_j = A~i !. B_j"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" 'A_1 * B_1' 'disjoint product component 1'
+assert_contains "$out" 'A_2 * B_2' 'disjoint product component 2'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field A~i_j' \
+  'field B~i_j' \
+  'field C~i_j' \
+  'step:' \
+  "  C'~i_j = matmul A B"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" 'A_1_1 * B_1_1 + A_1_2 * B_2_1' 'standard matmul'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field A_i_j' \
+  'field S_i_j' \
+  'step:' \
+  "  S'_i_j = sym A"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" '(A_1_2 + A_2_1) / 2' 'standard symmetrize'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field A_i' \
+  'field B_j' \
+  'field C_i_j' \
+  'step:' \
+  "  C'_i_j = wedge A_i B_j"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" 'A_1 * B_2' 'standard wedge'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
   'field A~i_j' \
   'field p : scalar' \
   'field q : scalar' \

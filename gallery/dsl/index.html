@@ -62,7 +62,7 @@
      (手書き版とバイト一致 or 整形差のみで同値検証)、全例 <code>make &lt;name&gt;</code> green。
      現在は <code>∂_x</code> / <code>∂^2_x</code> / <code>∂'^2_x</code> 形式の座標微分、<code>contractWith (+) A~i_i</code> や
      <code>epsilon~i~j~k . ∂_j X_k</code> のような明示縮約、
-     <code>withSymbols</code> を使うユーザ定義テンソル演算子、<code>contractWith</code> や <code>.</code> による明示縮約、<code>sin</code>/<code>exp</code> などのスカラー関数の
+     <code>withSymbols</code> を使うユーザ定義テンソル演算子、<code>tensorMap</code>/<code>subrefs</code>/<code>transpose</code>/<code>!.</code> による添字操作、<code>contractWith</code> や <code>.</code> による明示縮約、<code>sin</code>/<code>exp</code> などのスカラー関数の
      自動 extern と成分ごとの lift をサポートしています。Yee/音響・LBM・MHD の一部は総合ギャラリーに直接 Egison 版として残っています。
      書き方は<a href="../usage.html">使い方ガイド</a>、関連論文は <a href="../usage.html#papers">関連論文</a>、
      設計は <a href="../../DSL-DESIGN.md">DSL-DESIGN.md</a>、全26例は <a href="../index.html">総合ギャラリー</a>へ。</p>

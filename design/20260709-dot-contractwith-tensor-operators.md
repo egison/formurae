@@ -72,6 +72,21 @@ step:
 def grad u = withSymbols [i] ∂_i u
 def div X = contractWith (+) (∂_i X~i)
 def Δ u = g~i~j . ∂_i ∂_j u
+
+添字列操作と成分 lift も TensorExpr の基本演算子である。
+
+```formurae
+def mapExp X... = tensorMap exp X
+def transpose2 A_i_j = transpose [j, i] A
+def sym A = withSymbols [i, j]
+  ((subrefs A [_i, _j] + transpose [j, i] (subrefs A [_i, _j])) / 2)
+def wedge A B = A !. B
+```
+
+`tensorMap` はスカラー関数を全成分へ適用し、`subrefs` は添字列を付加する。
+`transpose` は指定した順序へ添字を並べ替え、`!.` は添字を縮約しない
+disjoint tensor product である。`X...` は呼び出し側の添字列を受け取る
+rank-polymorphic parameter marker、`A_i_j` は固定長の indexed parameter である。
 ```
 
 弾性波で使う演算子:

@@ -227,6 +227,12 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
   ユーザ定義演算子は Egison と同様に結果添字を書かない。`def grad u = withSymbols [i] ∂_i u` は
   `w'_i = grad u` の各成分へ、`def div X = contractWith (+) (∂_i X~i)` は scalar 式へ、
   `def Δ u = g~i~j . ∂_i ∂_j u` は二階中心差分の和へ展開される。
+  さらに `tensorMap`(スカラー関数の成分 lift)、`subrefs`(添字列の付加)、
+  `transpose`(添字列の並べ替え)、`!.`(縮約しない disjoint tensor product) を TensorExpr の
+  基本演算子として使える。例えば `def sym A = withSymbols [i, j]
+  ((subrefs A [_i, _j] + transpose [j, i] (subrefs A [_i, _j])) / 2)` のような
+  対称化を通常の `def` として定義でき、`def mapExp X... = tensorMap exp X` の
+  `X...` は添字列を呼び出し側へ委ねるパターンである。
 
 ## 検証結果(Apple Silicon Mac、1コア)
 
