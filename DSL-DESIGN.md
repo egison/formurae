@@ -6,9 +6,7 @@ Formura のラテン語風複数形で *formulae*(数式)への掛詞 — 「数
 (「Formura 2」は本体の現行バージョン 2.3.2 と紛れるため回避)。
 
 **v1.29(2026-07-10): `mode collocated` / `mode dec` と通常 prelude** —
-ファイル全体の空間離散化を `mode` で明示する。省略時は互換性のため
-`collocated`、旧 `use vector-calculus` / `use exterior-calculus` は warning 付きで
-対応モードを推論する。明示 mode と矛盾する `use`、複数の mode 宣言、
+ファイル全体の空間離散化を `mode` で明示する。`mode` は必須であり、複数の mode 宣言、
 collocated mode の form field / `assert-dd-zero` はエラーにする。
 collocated mode は `grad`、`dGrad`、`divg`、`curl`、`lap`、`Δ` を自動ロードする。
 これらは個別の Haskell 特殊展開ではなく、`withSymbols`、`contractWith`、`.`、

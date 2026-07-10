@@ -12,6 +12,7 @@
 -- (sin^2 + cos^2 collapses to 1, sqrt of the quoted square reduces),
 -- and are expanded away before the half-cell substitution.
 
+mode collocated
 dimension 3
 axes θ, φ, z
 

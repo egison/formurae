@@ -6,6 +6,7 @@
 -- as an exactly conservative flux form.  The r walls are Neumann
 -- (mirror), phi is periodic.
 
+mode collocated
 dimension 3
 axes r, φ, z
 

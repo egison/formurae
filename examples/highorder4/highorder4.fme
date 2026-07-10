@@ -4,6 +4,7 @@
 -- elimination inside the CAS.  The check driver verifies the run
 -- against the exact discrete symbol of the derived stencil.
 
+mode collocated
 dimension 3
 axes x, y, z
 

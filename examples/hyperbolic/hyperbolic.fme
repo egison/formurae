@@ -7,6 +7,7 @@
 -- (1+y)^2 (u_xx + u_yy)) and assembles the conservative flux form.
 -- The y walls are Neumann (mirror), x is periodic.
 
+mode collocated
 dimension 3
 axes x, y, z
 

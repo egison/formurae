@@ -63,9 +63,7 @@ step:
 assert-dd-zero E'      -- d∘d=0 を CAS が確認しない限り生成しない
 ```
 
-旧 `use vector-calculus` / `use exterior-calculus` は移行用に warning 付きで受理され、
-`mode` がない場合のモード推論にも使われる。新しいモデルでは `mode collocated` または
-`mode dec` を明示する。
+すべての `.fme` で `mode collocated` または `mode dec` を明示する。
 
 Unicode でもそのまま書ける(fec が Formura 向けに ASCII へ字訳する)。
 トーラス上の熱方程式の幾何・使う演算子・物理は4行:
@@ -198,7 +196,7 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
   必要に応じて Yee/DEC context と `.fmr` プリンタを出す。collocated の
   `grad`/`dGrad`/`divg`/`curl`/`lap`/`Δ` は TensorExpr prelude、DEC の
   `d`/`δ`/`codiff`/`hodge` は form context から利用できる。
-  `extern` は Formura/C 側のスカラー関数、旧 `use` は移行互換だけに限定している。
+  `extern` は Formura/C 側のスカラー関数である。
 - **離散微分形式(構造格子 Yee/DEC)**: 現実装の form 値は積分 cochain ではなく
   staggered 格子上の微分形式成分であり、`dForm` は格子幅で割る `dYee` を使う。
   形式は「(複体, 次数, 成分)」の3つ組で、**格子配置は複体と次数だけ

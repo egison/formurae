@@ -5,14 +5,6 @@ import Data.Char (isAlpha, isAlphaNum, isSpace)
 data Mode = CollocatedMode | DecMode
   deriving (Eq, Show)
 
-data ModeOrigin = ExplicitMode | LegacyUseMode | DefaultMode
-  deriving (Eq, Show)
-
-data ModeSelection = ModeSelection
-  { modeValue  :: Mode
-  , modeOrigin :: ModeOrigin
-  } deriving (Eq, Show)
-
 data Kind = Scalar | Vector Bool | Form Int | SymM | AntiM | Tensor2 Bool
   deriving (Eq, Show)
 
@@ -72,9 +64,8 @@ data Model = Model
   { mName   :: String
   , mDim    :: Int
   , mAxes   :: [String]
-  , mMode   :: Maybe ModeSelection
+  , mMode   :: Maybe Mode
   , mMetricName :: Maybe String
-  , mUses   :: [(String, [String])]
   , mParams :: [(String, String)]
   , mHelp   :: [String]
   , mFlds   :: [(String, Kind)]
@@ -89,7 +80,10 @@ data Model = Model
   }
 
 selectedMode :: Model -> Mode
-selectedMode m = maybe CollocatedMode modeValue (mMode m)
+selectedMode m =
+  case mMode m of
+    Just mode -> mode
+    Nothing -> error "selectedMode: mode declaration has not been validated"
 
 modeSurfaceName :: Mode -> String
 modeSurfaceName CollocatedMode = "collocated"

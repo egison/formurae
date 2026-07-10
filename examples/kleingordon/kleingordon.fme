@@ -3,6 +3,7 @@
 -- makes the pair symplectic.  Initial data: a kink-antikink pair
 -- boosted to v = +-0.2 (Lorentz-contracted tanh profiles).
 
+mode collocated
 dimension 3
 axes x, y, z
 

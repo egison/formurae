@@ -5,6 +5,7 @@
 -- Dirichlet eigenmode, whose exact decay (1 + lam dt)^n the check
 -- driver asserts to machine precision.
 
+mode collocated
 dimension 3
 axes x, y, z
 

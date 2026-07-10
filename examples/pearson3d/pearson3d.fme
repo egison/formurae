@@ -2,6 +2,7 @@
 -- FHPC 2016, Listing 1): below-ground dynamics of mycorrhiza modelled
 -- by Pearson's equations, with the paper's parameters.
 
+mode collocated
 dimension 3
 axes x, y, z
 

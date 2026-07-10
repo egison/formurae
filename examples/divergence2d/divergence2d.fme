@@ -1,5 +1,6 @@
 -- 2D divergence smoke test with a user-defined tensor operator.
 
+mode collocated
 dimension 2
 axes x, y
 

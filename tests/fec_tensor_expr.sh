@@ -32,6 +32,7 @@ write_case() {
 
 f=$(tmp_fme)
 write_case "$f" \
+  'mode collocated' \
   'dimension 3' \
   'axes x,y,z' \
   'field u : scalar' \
@@ -48,6 +49,7 @@ assert_contains "$out" '∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u' 'lap = div grad
 
 f=$(tmp_fme)
 write_case "$f" \
+  'mode collocated' \
   'dimension 3' \
   'axes x,y,z' \
   'field u : scalar' \
@@ -62,6 +64,7 @@ assert_contains "$out" '∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u' 'raised indexed
 
 f=$(tmp_fme)
 write_case "$f" \
+  'mode collocated' \
   'dimension 3' \
   'axes x,y,z' \
   'metric g' \
@@ -77,6 +80,7 @@ assert_contains "$out" '∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u' 'metric dot lap
 
 f=$(tmp_fme)
 write_case "$f" \
+  'mode collocated' \
   'dimension 2' \
   'axes x,y' \
   'field A~i_j' \
@@ -90,6 +94,7 @@ assert_contains "$out" 'A_1_1 + A_2_2' 'trace'
 
 f=$(tmp_fme)
 write_case "$f" \
+  'mode collocated' \
   'dimension 2' \
   'axes x,y' \
   'field A~i_j' \
@@ -103,6 +108,7 @@ assert_contains "$out" 'A_1_1 * B_1_1 + A_1_2 * B_2_1' 'prelude dot'
 
 f=$(tmp_fme)
 write_case "$f" \
+  'mode collocated' \
   'dimension 2' \
   'axes x,y' \
   'field A~i_j' \
@@ -117,6 +123,7 @@ assert_contains "$out" 'A_1_1 + B_1_1' 'user-defined dot shadowing'
 
 f=$(tmp_fme)
 write_case "$f" \
+  'mode collocated' \
   'dimension 2' \
   'axes x,y' \
   'field u : scalar' \
@@ -132,6 +139,7 @@ assert_contains "$out" 'def feqq2 := ∂ 1 1 y u' 'withSymbols alpha-renaming'
 
 f=$(tmp_fme)
 write_case "$f" \
+  'mode collocated' \
   'dimension 2' \
   'axes x,y' \
   'field A_i' \
@@ -146,6 +154,7 @@ assert_contains "$out" 'exp(0 - (A_2 ^ 2)) + sin(A_2)' 'scalar call and power AS
 
 f=$(tmp_fme)
 write_case "$f" \
+  'mode collocated' \
   'dimension 2' \
   'axes x,y' \
   'field A~i_j' \
@@ -161,6 +170,7 @@ assert_contains "$out" 'max(A_1_1, A_2_2)' 'contractWith function reducer'
 
 f=$(tmp_fme)
 write_case "$f" \
+  'mode collocated' \
   'dimension 3' \
   'axes x,y,z' \
   'field u : scalar' \
@@ -173,6 +183,7 @@ assert_contains "$out" '∂ 2 2 x u' 'quoted stencil-radius derivative'
 
 f=$(tmp_fme)
 write_case "$f" \
+  'mode collocated' \
   'dimension 2' \
   'axes x,y' \
   'field u : scalar' \
@@ -184,6 +195,7 @@ assert_contains "$out" '∂ 1 1 x u + ∂ 1 1 y u' 'subscript first derivative'
 
 f=$(tmp_fme)
 write_case "$f" \
+  'mode collocated' \
   'dimension 2' \
   'axes x,y' \
   'field V_i @ staggered' \
@@ -199,9 +211,9 @@ assert_contains "$out" 'dYee 2 [0, 0] (V_2, [0, 1 / 2])' 'staggered coordinate d
 
 f=$(tmp_fme)
 write_case "$f" \
+  'mode collocated' \
   'dimension 3' \
   'axes x,y,z' \
-  'use vector-calculus { curl }' \
   'field E_i' \
   'field B_i' \
   'step:' \
@@ -212,22 +224,22 @@ assert_contains "$out" 'def feqE1 := ((∂ 1 1 y B_3 - ∂ 1 1 z B_2))' 'standar
 
 f=$(tmp_fme)
 write_case "$f" \
+  'mode collocated' \
   'dimension 3' \
   'axes x,y,z' \
-  'use vector-calculus { curl }' \
   'field E : vector' \
   'field B : vector' \
   'step:' \
   "  E' = curl B"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'def feqE1 := ((∂ 1 1 y B_3 - ∂ 1 1 z B_2))' 'standard curl expands for legacy vector equation'
+assert_contains "$out" 'def feqE1 := ((∂ 1 1 y B_3 - ∂ 1 1 z B_2))' 'standard curl expands for vector equation'
 
 f=$(tmp_fme)
 write_case "$f" \
+  'mode collocated' \
   'dimension 3' \
   'axes x,y,z' \
-  'use vector-calculus { curl }' \
   'field X_i @ staggered' \
   'field C_i @ staggered' \
   'step:' \
@@ -239,9 +251,9 @@ assert_contains "$out" 'dYee 3 [1 / 2, 0, 0] (X_2, [0, 1 / 2, 0])' 'standard cur
 
 f=$(tmp_fme)
 write_case "$f" \
+  'mode collocated' \
   'dimension 2' \
   'axes x,y' \
-  'use vector-calculus { divg }' \
   'field V_i @ staggered' \
   'field q : scalar' \
   'step:' \
@@ -310,38 +322,6 @@ assert_contains "$out" 'formComps (codiff (dForm uf))' 'composed dec operators i
 
 f=$(tmp_fme)
 write_case "$f" \
-  'dimension 3' \
-  'axes x,y,z' \
-  'use exterior-calculus { d, δ }' \
-  'field E : 1-form' \
-  'field B : 2-form' \
-  'step:' \
-  "  E' = E + dt * δ B" \
-  "  B' = B - dt * d E'"
-out=$(compile_fme "$f" 2>&1)
-rm -f "$f"
-assert_contains "$out" 'use exterior-calculus is deprecated; mode dec' 'legacy use infers dec mode'
-
-f=$(tmp_fme)
-write_case "$f" \
-  'mode collocated' \
-  'dimension 3' \
-  'axes x,y,z' \
-  'use exterior-calculus { d }' \
-  'field u : scalar'
-set +e
-out=$(compile_fme "$f" 2>&1)
-status=$?
-set -e
-rm -f "$f"
-if [ "$status" -eq 0 ]; then
-  printf 'conflicting mode/use unexpectedly succeeded\n' >&2
-  exit 1
-fi
-assert_contains "$out" 'mode collocated cannot be combined with use exterior-calculus' 'mode/use conflict'
-
-f=$(tmp_fme)
-write_case "$f" \
   'mode collocated' \
   'mode dec' \
   'dimension 2' \
@@ -362,6 +342,41 @@ f=$(tmp_fme)
 write_case "$f" \
   'dimension 2' \
   'axes x,y' \
+  'field u : scalar'
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+rm -f "$f"
+if [ "$status" -eq 0 ]; then
+  printf 'missing mode unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_contains "$out" 'mode declaration is required' 'required mode'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 3' \
+  'axes x,y,z' \
+  'use vector-calculus { curl }' \
+  'field E_i'
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+rm -f "$f"
+if [ "$status" -eq 0 ]; then
+  printf 'removed use declaration unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_contains "$out" 'unrecognized: use vector-calculus { curl }' 'removed use declaration'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
   'field u : scalar' \
   'field q_i' \
   'step:' \
@@ -373,6 +388,7 @@ assert_contains "$out" 'def feqq2 := ∂ 2 1 y u' 'decorated indexed derivative 
 
 f=$(tmp_fme)
 write_case "$f" \
+  'mode collocated' \
   'dimension 2' \
   'axes x,y' \
   'field u : scalar' \
@@ -386,6 +402,7 @@ assert_contains "$out" 'def feqq2 := ∂ 2 2 y u' 'quoted indexed derivative com
 
 f=$(tmp_fme)
 write_case "$f" \
+  'mode collocated' \
   'dimension 2' \
   'axes x,y' \
   'field u : scalar' \
@@ -404,6 +421,7 @@ assert_contains "$out" 'coordinate derivative must be written with subscript not
 
 f=$(tmp_fme)
 write_case "$f" \
+  'mode collocated' \
   'dimension 2' \
   'axes x,y' \
   'field u : scalar' \
@@ -422,6 +440,7 @@ assert_contains "$out" 'coordinate derivative must be written with subscript not
 
 f=$(tmp_fme)
 write_case "$f" \
+  'mode collocated' \
   'dimension 2' \
   'axes x,y' \
   'field v~i' \
@@ -441,6 +460,7 @@ assert_contains "$out" 'must be referenced with indices' 'bare indexed tensor fi
 
 f=$(tmp_fme)
 write_case "$f" \
+  'mode collocated' \
   'dimension 2' \
   'axes x,y' \
   'field A_i' \
@@ -460,6 +480,7 @@ assert_contains "$out" 'bad tensor expression: unsupported scalar expression ato
 
 f=$(tmp_fme)
 write_case "$f" \
+  'mode collocated' \
   'dimension 2' \
   'axes x,y' \
   'field u : scalar' \
@@ -478,6 +499,7 @@ assert_contains "$out" 'withSymbols needs a bracketed symbol list at column 1 in
 
 f=$(tmp_fme)
 write_case "$f" \
+  'mode collocated' \
   'dimension 2' \
   'axes x,y' \
   'field A~i_j' \

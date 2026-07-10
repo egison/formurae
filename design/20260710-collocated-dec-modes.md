@@ -4,8 +4,7 @@ Date: 2026-07-10
 
 Implementation status (2026-07-10):
 
-- `mode collocated` / `mode dec`、重複検査、旧 `use` からの推論と warning、
-  mode/use 競合検査を実装済み。
+- `mode collocated` / `mode dec`、mode の必須化、重複検査を実装済み。
 - `collocated` prelude の `grad` / `dGrad` / `divg` / `curl` / `lap` / `Δ` は
   通常の TensorExpr `Def` として自動ロードする。
 - `mode dec` は既存の structured Yee/form context (`dForm`, `hodge`, `codiff`) を
@@ -28,7 +27,7 @@ Implementation status (2026-07-10):
 - `metric` は常に内部的に存在する。明示宣言がない場合は Euclidean identity metric とする。
 - `collocated` は Euclidean/cartesian な簡潔表記のためのモードとする。
 - `dec` は metric、配置、保存則を明示する幾何的なモードとする。
-- 既存 `.fme` との互換のため、当面は `mode` 省略時を `collocated` とみなす。
+- `mode` は必須の top-level 宣言とする。
 
 ## 1. なぜ `use` ではなく `mode` か
 
@@ -69,8 +68,6 @@ mode dec
 
 - `mode` は top-level で1回だけ指定できる。
 - `dimension` / `axes` と同じく、式の意味を決める文脈宣言として扱う。
-- 省略時は移行期間のため `mode collocated` とみなす。
-- 将来的に `mode` 省略を warning にするかは、examples 移行後に判断する。
 
 例:
 
@@ -258,34 +255,21 @@ Euclidean identity metric では、成分値としては恒等変換になる。
 vector/covector の musical map と、form field/cochain 間の離散写像を分ける。
 `flat` / `sharp` 自体に placement の補間・積分・再構成を暗黙に含めない。
 
-## 6. `use` の扱い
+## 6. 標準演算子の選択
 
-標準演算子に対する `use vector-calculus` / `use exterior-calculus` は deprecated にする。
-
-移行期間の扱い:
-
-- 既存 `.fme` を壊さないため、当面 `use` は parse し続ける。
-- `use vector-calculus { ... }` があって `mode` がない場合は `mode collocated` と同じ扱いにする。
-- `use exterior-calculus { ... }` があって `mode` がない場合は、当面は既存挙動維持のため
-  DEC 文脈を有効化する。ただし warning を出す段階を設ける。
-- `mode collocated` と `use exterior-calculus` の併用、または `mode dec` と
-  `use vector-calculus` の併用は、移行後はエラーにする。
-
-将来:
-
-- 標準演算子の `use` は削除する。
-- `use` を残すなら、外部/実験的ライブラリの読み込みだけに限定する。
+標準演算子は `mode` により自動的に選択する。標準演算子のための `use` 宣言は
+存在せず、`use` は構文として受理しない。
 
 ## 7. 実装手順
 
 ### Phase 1 (implemented): syntax と Model に mode を追加する
 
 - `Syntax.hs` に `Mode = CollocatedMode | DecMode` を追加する。
-- `Model` に `mMode :: Maybe Mode` または `mMode :: Mode` を追加する。
+- `Model` に `mMode :: Maybe Mode` を追加し、parse 完了時に必須性を検査する。
 - parser に `mode collocated` / `mode dec` を追加する。
 - `mode` が複数回出たらエラーにする。
-- 省略時は `CollocatedMode` にする。
-- `README.md` と `DSL-DESIGN.md` の `use` 説明に deprecated 方針を書く。
+- `mode` がなければエラーにする。
+- `README.md` と `DSL-DESIGN.md` に mode 必須の方針を書く。
 
 ### Phase 2 (implemented): standard operator registry を mode keyed にする
 
@@ -320,12 +304,12 @@ standardDefs m =
 
 - 現在の `∂_x` / `∂_i` lowering を `collocated` mode の実装として固定する。
 - `@ staggered` field への座標微分は、既存の target/source placement つき `dYee` lowering を使う。
-- `use vector-calculus` で生成 `.egi` に `def curl` / `def dGrad` を出す経路は撤去する。
+- 標準演算子を mode ごとの prelude def 展開に一本化する。
 - `curl` / `divg` / `dGrad` は prelude def 展開に一本化する。
 - regression:
   - `field B_i` に対する `curl B_i` が中心差分になる。
   - `field X_i @ staggered` に対する `curl X_i` が `dYee` になる。
-  - legacy `field B : vector` / `E' = curl B` も component 展開される。
+  - vector field / `E' = curl B` も component 展開される。
 
 ### Phase 4 (implemented): dec mode の基本 context を自動ロードする
 
@@ -398,33 +382,18 @@ step:
 
 この2つの配置と符号が想定どおりかを小さな manufactured solution で検査する。
 
-### Phase 7 (implemented for core conflicts): mode の混在を制限する
+### Phase 7 (implemented): mode の適用範囲を固定する
 
-移行が済んだら、次をエラーにする。
-
-```formurae
-mode collocated
-field E : 1-form
-```
-
-または:
-
-```formurae
-mode dec
-use vector-calculus { curl }
-```
-
-ただし、`mode dec` でも vector field 自体は許す。禁止するのは
-collocated semantics の vector-calculus を持ち込むことである。
+`mode collocated` では form field と `assert-dd-zero` を禁止し、`mode dec` では
+form context を有効にする。`mode` のないファイルや標準演算子用の `use` はエラーにする。
 
 ## 8. テスト計画
 
 compiler regression:
 
-- `mode collocated` 省略時に既存 examples が通る。
 - `mode collocated` 明示時にも既存 examples が通る。
-- `use vector-calculus` なしで `curl` / `divg` が使える。
-- `mode dec` では `d` / `δ` / `hodge` が `use` なしで使える。
+- `mode collocated` で `curl` / `divg` が使える。
+- `mode dec` では `d` / `δ` / `hodge` が使える。
 - `mode dec` で `maxwell_dec` が通る。
 - `mode collocated` と `mode dec` の混在エラーを検査する。
 
@@ -436,12 +405,8 @@ end-to-end:
 - `make elastic3d`
 - `make metric_torus metric_sphere`
 
-互換性:
-
-- `mode` 省略の既存 `.fme` は当面 `collocated` として扱う。
-- 既存 `use` は warning を出す段階までは受理する。
-- 生成 `.egi` のバイト一致は可能な範囲で維持するが、standard operator の
-  prelude def 展開化に伴う整形差は許容する。
+生成 `.egi` のバイト一致は要件とせず、standard operator の prelude def 展開と
+新しい mode 必須仕様を基準に検証する。
 
 ## 9. 注意点
 

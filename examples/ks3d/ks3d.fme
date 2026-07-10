@@ -3,6 +3,7 @@
 -- (a `local`, emitted as a grid field line), so every term telescopes
 -- and sum u is conserved exactly.  L = 22: spatio-temporal chaos.
 
+mode collocated
 dimension 3
 axes x, y, z
 

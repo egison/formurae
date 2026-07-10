@@ -4,6 +4,7 @@
 -- intermediate field mu (a `local`).  Mass (sum c) is conserved
 -- exactly; the yaml monitors it through reduces.
 
+mode collocated
 dimension 3
 axes x, y, z
 

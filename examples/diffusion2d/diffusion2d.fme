@@ -1,5 +1,6 @@
 -- The 2D diffusion equation: du/dt = kappa * laplacian(u)
 
+mode collocated
 dimension 2
 axes x, y
 

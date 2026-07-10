@@ -14,7 +14,7 @@
 --   egison -l lib/fmrgen.egi model.egi > model.fmr
 --
 -- Formurae grammar (v1):
---   mode collocated|dec             spatial discretization and standard prelude
+--   mode collocated|dec             REQUIRED; spatial discretization and standard prelude
 --   -- comment                      (kept out of the output)
 --   dimension 1|2|3                 (REQUIRED; Formura grid dimension)
 --   axes x[, y[, z]]                (REQUIRED; fixes the coordinate frame
@@ -41,11 +41,6 @@
 --                                   hodge factors sqrt(g)/h_a^2 become
 --                                   coefficient FIELDS evaluated by the
 --                                   CAS at the half-cell placements.
---   use MODULE { NAME, ... }         coordinate-context mathematical operators
---                                    made available to this file; these are
---                                    library-level operators such as
---                                    exterior-calculus { d, delta } and
---                                    vector-calculus { curl, divg }.
 --   def NAME ARG... = EXPR          user-defined operator, expanded at use
 --                                    sites (file scope; a body may use only
 --                                    operators defined before it).  Operator
@@ -370,69 +365,6 @@ primeEqForm s = do
 
 data Section = STop | SInit | SStep
 
-supportedUses :: [(String, [String])]
-supportedUses =
-  [ ("exterior-calculus", ["d", "delta", "codiff", "dForm", "hodge"])
-  , ("vector-calculus", ["dGrad", "curl", "divg"])
-  ]
-
-displayUseName :: String -> String
-displayUseName "\916" = "Δ"
-displayUseName "delta" = "δ"
-displayUseName nm = nm
-
-normalizeUses :: [(String, [String])] -> [(String, [String])]
-normalizeUses uses =
-  [ (modName, nub (concat [names | (m, names) <- uses, m == modName]))
-  | modName <- nub (map fst uses)
-  ]
-
-validateUses :: Model -> IO ()
-validateUses m = mapM_ validateModule (mUses m)
-  where
-    validateModule (modName, names) =
-      case lookup modName supportedUses of
-        Nothing -> fatal ("unknown use module: " ++ modName)
-        Just allowed -> mapM_ (validateName modName allowed) names
-    validateName modName allowed nm
-      | nm `notElem` allowed =
-          fatal ("unknown operator " ++ displayUseName nm ++ " in use " ++ modName)
-      | modName == "vector-calculus", nm == "curl", mDim m /= 3 =
-          fatal "curl requires dimension 3"
-      | otherwise = return ()
-
-resolveMode :: Model -> IO Model
-resolveMode m = do
-  selection <-
-    case mMode m of
-      Just explicit -> return explicit
-      Nothing ->
-        case (hasModule "vector-calculus", hasModule "exterior-calculus") of
-          (True, True) ->
-            fatal "legacy use declarations select conflicting modes; add either mode collocated or mode dec and remove the incompatible use"
-          (True, False) -> return (ModeSelection CollocatedMode LegacyUseMode)
-          (False, True) -> return (ModeSelection DecMode LegacyUseMode)
-          (False, False) -> return (ModeSelection CollocatedMode DefaultMode)
-  validateCompatibility selection
-  mapM_ (warnDeprecatedUse selection) (mUses m)
-  return m { mMode = Just selection }
-  where
-    hasModule modName = any ((== modName) . fst) (mUses m)
-    validateCompatibility selection =
-      case modeValue selection of
-        CollocatedMode
-          | hasModule "exterior-calculus" ->
-              fatal "mode collocated cannot be combined with use exterior-calculus"
-        DecMode
-          | hasModule "vector-calculus" ->
-              fatal "mode dec cannot be combined with use vector-calculus"
-        _ -> return ()
-    warnDeprecatedUse selection (modName, _) =
-      hPutStrLn stderr
-        ("fec: warning: use " ++ modName ++ " is deprecated; mode "
-         ++ modeSurfaceName (modeValue selection)
-         ++ " loads its standard operators automatically")
-
 validateDimensionFeatures :: Model -> IO ()
 validateDimensionFeatures m
   | selectedMode m == CollocatedMode
@@ -526,7 +458,6 @@ parseFe name txt = go STop initialModel
       , mAxes = []
       , mMode = Nothing
       , mMetricName = Nothing
-      , mUses = []
       , mParams = []
       , mHelp = []
       , mFlds = []
@@ -548,12 +479,10 @@ parseFe name txt = go STop initialModel
       | length (mAxes m) /= mDim m =
           fatal ("axes declares " ++ show (length (mAxes m))
                  ++ " names for dimension " ++ show (mDim m))
+      | mMode m == Nothing = fatal "mode declaration is required (mode collocated or mode dec)"
       | otherwise = do
-          let uses = normalizeUses (reverse (mUses m))
-              mUsesNormalized = m { mUses = uses }
-          mUse <- resolveMode mUsesNormalized
+          let mUse = m
           validateMetricName mUse
-          validateUses mUse
           validateDimensionFeatures mUse
           mapM_ (\df ->
                     checkUserSurface mUse (defParams df)
@@ -700,12 +629,6 @@ parseFe name txt = go STop initialModel
             _ -> fatal ("bad param (line " ++ show ln ++ ")")
       | Just r <- stripPrefix "extern " s =
           return m { mHelp = ("extern function :: " ++ strip r) : mHelp m }
-      | Just r <- stripPrefix "use " s =
-          case useForm r of
-            Just (modName, names) ->
-              return m { mUses = (modName, names) : mUses m }
-            Nothing -> fatal ("bad use (line " ++ show ln
-                              ++ "): use MODULE { name1, name2, ... }")
       | s == "raw" = return m { mHelp = "" : mHelp m }
       | Just r <- stripPrefix "raw " s = return m { mHelp = r : mHelp m }
       | Just r <- stripPrefix "field " s =
@@ -742,7 +665,7 @@ parseFe name txt = go STop initialModel
       where
         setMode mode =
           case mMode m of
-            Nothing -> return m { mMode = Just (ModeSelection mode ExplicitMode) }
+            Nothing -> return m { mMode = Just mode }
             Just _ -> fatal ("mode may be declared only once (line " ++ show ln ++ ")")
         addField fd =
           return m { mFlds = (fdName fd, kindFromFieldDecl fd) : mFlds m
@@ -753,16 +676,6 @@ parseFe name txt = go STop initialModel
                                 ++ show n ++ ")")
                     else return m { mDim = n }
               | otherwise = fatal ("bad dimension (line " ++ show ln ++ ")")
-        useForm r =
-          let (modName, rest0) = span (not . isSpace) (strip r)
-              rest1 = strip rest0
-          in case rest1 of
-               ('{':body) | not (null body), last body == '}' ->
-                 let names = map strip (splitTop ',' (init body))
-                 in if null modName || null names || any null names
-                      then Nothing
-                      else Just (modName, names)
-               _ -> Nothing
     ini ln s m
       | Just (nm, ix, ex) <- casForm s = do
           rejectReservedName ln (dropWhileEnd (== '\'') nm)
