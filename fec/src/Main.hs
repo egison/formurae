@@ -85,10 +85,11 @@
 --   assert-dd-zero NAME'            gate generation on d(d NAME') == 0
 --
 -- Unicode: Greek letters transliterate to their ASCII names (theta,
--- phi, ...); coordinate derivatives are written as ∂ order radius axis expr
--- in Formurae (with ∂x expr kept as the first-derivative shorthand) and
--- lower to the generated Egison operator ∂ order radius axis expr.  The
--- indexed derivative ∂_i remains distinct.  A bare small delta is the
+-- phi, ...); coordinate derivatives are written as ∂_axis expr or
+-- ∂^order_axis expr in Formurae (with apostrophes after ∂ increasing the
+-- stencil radius) and lower to the generated Egison operator
+-- ∂ order radius axis expr.  The indexed derivative ∂_i remains distinct
+-- when i is not a declared axis.  A bare small delta is the
 -- codifferential, indexed delta is Kronecker's delta, and the minus sign is
 -- '-'.  Higher mathematical
 -- operators such as Δ or Δ4 are ordinary user definitions over these
@@ -445,7 +446,7 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
                       (zip [1 :: Int ..] (lines txt))
   where
     -- dimension and axes are required: they fix the coordinate frame
-    -- that gives the operators their meaning (which axis ∂theta is,
+    -- that gives the operators their meaning (which axis ∂_theta is,
     -- what an index letter in ∂_j ranges over)
     go _ m []
       | mDim m == 0 = fatal "dimension declaration is required (dimension 1, 2, or 3)"
@@ -938,15 +939,7 @@ surfaceBanned m locals s =
       | Just msg <- invalidDerivativeOp m nm =
           Just msg
       | nm == "badPartialDerivative" =
-          Just "coordinate derivative must be written ∂ order radius axis expr, e.g. ∂ 2 1 x u; ∂x u is the only compact shorthand"
-      | Just ax <- stripPrefix "d_" nm, ax `elem` mAxes m =
-          Just ("coordinate derivative must be written ∂" ++ ax
-                ++ "; ∂_" ++ ax ++ " and d_" ++ ax ++ " are not part of Formurae")
-      | Just ax <- stripPrefix "d2_" nm, ax `elem` mAxes m =
-          Just ("d2 is not an operator; write ∂ 2 1 " ++ ax
-                ++ " u for the compact second difference: " ++ nm)
-      | take 3 nm == "d2_" =
-          Just ("d2 is not an operator; write ∂ 2 1 a u for the compact second difference: " ++ nm)
+          Just "coordinate derivative must be written with subscript notation, e.g. ∂_x u, ∂^2_x u, or ∂'^2_x u"
       | ("delta" : ps) <- splitOn '_' nm, any ((> 1) . length) ps =
           Just ("Kronecker delta takes one index per mark (delta~i_j): " ++ nm)
     checkTok _ = Nothing
@@ -1068,31 +1061,17 @@ lbExpansion m =
     | a <- axisRange m ]
   ++ ") / sg)"
 
-derivativeOpParts :: String -> Maybe (Int, Int, String)
-derivativeOpParts nm = do
-  rest0 <- stripPrefix "pd" nm
-  let (mDigits, rest1) = span isDigit rest0
-  if null mDigits then Nothing else do
-    rest2 <- stripPrefix "r" rest1
-    let (rDigits, rest3) = span isDigit rest2
-    ax <- stripPrefix "_" rest3
-    if null rDigits || null ax
-      then Nothing
-      else Just (read mDigits, read rDigits, ax)
-
 invalidDerivativeOp :: Model -> String -> Maybe String
-invalidDerivativeOp m nm =
+invalidDerivativeOp _ nm =
   case derivativeOpParts nm of
     Nothing -> Nothing
-    Just (ordr, radius, ax)
-      | ax `notElem` mAxes m ->
-          Just ("unknown coordinate derivative axis in " ++ nm)
+    Just (ordr, radius, part)
       | ordr < 1 ->
           Just ("coordinate derivative order must be at least 1: " ++ nm)
       | radius < 1 ->
           Just ("coordinate derivative stencil radius must be at least 1: " ++ nm)
       | ordr >= 2 * radius + 1 ->
-          Just ("coordinate derivative ∂" ++ show ordr ++ "," ++ show radius ++ ax
+          Just ("coordinate derivative ∂" ++ show ordr ++ "," ++ show radius ++ ixName part
                 ++ " has too few stencil points")
       | otherwise -> Nothing
 
@@ -1174,7 +1153,7 @@ hasIndexSyntax m = any indexedTok . itok
     isIndexPart (IxPart _ [c]) = isAlpha c || isDigit c
     isIndexPart _ = False
     isAxisDerivative nm parts =
-      (take 2 nm == "d_" || take 3 nm == "d2_")
+      take 2 nm == "d_"
       && all (\p -> ixName p `elem` mAxes m) parts
 
 -- ---------------------------------------------------------------- emitter
@@ -1804,60 +1783,73 @@ emit m = do
     rawGridPoint = "[" ++ intercalate "," (internalIndexNames m) ++ "]"
 
 -- Unicode input: Greek letters transliterate to their ASCII names.  A
--- partial-derivative sign followed by `order radius axis` is a coordinate
--- derivative: `∂ 2 1 x u`, `∂ 2 2 x u`.  The compact spelling `∂x` is
--- kept as the first-derivative shorthand.  A marked partial (`∂_i` or
--- `∂~i`) is the indexed derivative.  `∂_x` is therefore rejected when x is a
--- declared axis.  A bare partial sign still becomes d.  The small delta
--- becomes the codifferential, and the minus sign becomes '-'.
+-- decorated partial-derivative sign is a coordinate derivative:
+-- `∂_x u`, `∂^2_x u`, `∂'^2_x u`.  A plain marked partial (`∂_i` or
+-- `∂~i`) remains the indexed derivative when the mark is not a declared
+-- axis.  A bare partial sign still becomes d.  The small delta becomes the
+-- codifferential, and the minus sign becomes '-'.
 transliterate :: String -> String
 transliterate = go
   where
     go [] = []
-    go ('\8706':'_':cs) = "d_" ++ go cs
     go ('\8706':cs) =
       case coordDerivative cs of
-        Just ((ordr, radius, ax), rest) ->
-          "pd" ++ show ordr ++ "r" ++ show radius ++ "_"
-          ++ concatMap tr ax ++ go rest
+        Just ((ordr, radius, part), rest) ->
+          "pd" ++ show ordr ++ "r" ++ show radius
+          ++ renderDerivativePart part ++ go rest
         Nothing | oldCompactDerivative cs ->
           "badPartialDerivative " ++ go cs
-        Nothing -> "d" ++ go cs
+        Nothing ->
+          case cs of
+            '_':rest -> "d_" ++ go rest
+            '~':rest -> "d~" ++ go rest
+            _ -> "d" ++ go cs
     go (c:cs) = tr c ++ go cs
 
     coordDerivative cs =
-      spacedDerivative cs `orElse` firstDerivativeShorthand cs
-
-    firstDerivativeShorthand cs =
-      case cs of
-        c:_ | isAlpha c ->
-          let (ax, rest) = span isW cs
-          in Just ((1 :: Int, 1 :: Int, ax), rest)
-        _ -> Nothing
+      decoratedDerivative cs
 
     oldCompactDerivative cs =
-      case dropWhile isSpace cs of
-        c:_ -> isDigit c
-        _ -> False
+      case cs of
+        c:_ | isAlpha c || c == '^' || c == '\'' -> True
+        _ ->
+          case dropWhile isSpace cs of
+            c:_ -> isDigit c
+            _ -> False
 
-    spacedDerivative cs = do
-      let r0 = dropWhile isSpace cs
-      (mDigits, r1) <- digits r0
-      let r2 = dropWhile isSpace r1
-      (rDigits, r3) <- digits r2
-      let r4 = dropWhile isSpace r3
-      case r4 of
-        a:_ | isAlpha a ->
-          let (ax, rest) = span isW r4
-          in Just ((read mDigits, read rDigits, ax), rest)
+    decoratedDerivative cs = do
+      let (quotes, r0) = span (== '\'') cs
+          radius = length quotes + 1
+      (ordr, r1, hasOrder) <- orderPart r0
+      if null quotes && not hasOrder then Nothing else do
+        (part, rest) <- markedDerivativeAxis r1
+        Just ((ordr, radius, part), rest)
+
+    orderPart ('^':rest) = do
+      (ds, rest') <- digits rest
+      Just (read ds, rest', True)
+    orderPart rest = Just (1 :: Int, rest, False)
+
+    markedDerivativeAxis ('_':rest) = markedAxis VDown rest
+    markedDerivativeAxis ('~':rest) = markedAxis VUp rest
+    markedDerivativeAxis _ = Nothing
+
+    markedAxis variance rest =
+      case rest of
+        c:_ | isAlpha c ->
+          let (ax, rest') = span isW rest
+          in Just (IxPart variance ax, rest')
         _ -> Nothing
+
+    renderDerivativePart (IxPart variance nm) =
+      (case variance of
+         VUp -> "~"
+         VDown -> "_")
+      ++ concatMap tr nm
 
     digits s =
       let (ds, rest) = span isDigit s
       in if null ds then Nothing else Just (ds, rest)
-
-    orElse (Just x) _ = Just x
-    orElse Nothing y = y
 
     tr '\952' = "theta"    -- θ
     tr '\966' = "phi"      -- φ

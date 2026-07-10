@@ -6,18 +6,19 @@ Formura のラテン語風複数形で *formulae*(数式)への掛詞 — 「数
 (「Formura 2」は本体の現行バージョン 2.3.2 と紛れるため回避)。
 
 **v1.24(2026-07-09): 微分プリミティブの明示化と `Δ`/`Δ4` の通常定義化** —
-`∂ 2 1 x e` を2階中心差分、`∂ m r x e` を m 階微分・半径 r の中心 stencil
-として追加した。例えば `∂ 2 2 x e` は `[-2,-1,0,1,2]` の5点 stencil で、
+`∂^2_x e` を2階中心差分、`∂'^m_x e` を m 階微分・半径2の中心 stencil
+として追加した。一般に `∂` 直後のクォート数 + 1 を stencil radius と読む。
+例えば `∂'^2_x e` は `[-2,-1,0,1,2]` の5点 stencil で、
 係数は `taylorStencil` が Taylor 条件から導出する。これにより `Δ` と `Δ4`
 は組み込みではなく `.fme` 側で
-`def Δ u = ∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u`、
-`def Δ4 u = ∂ 2 2 x u + ∂ 2 2 y u + ∂ 2 2 z u` のように書く方針へ移した。
+`def Δ u = ∂^2_x u + ∂^2_y u + ∂^2_z u`、
+`def Δ4 u = ∂'^2_x u + ∂'^2_y u + ∂'^2_z u` のように書く方針へ移した。
 計量つきモデルでは `def Δ u = lb u` と書く。暗黙の `use exterior-calculus { Δ }`、
-`∂x (∂x u)` の融合、`δ (d u)` のスカラー Laplacian 降下、
+`∂_x (∂_x u)` の融合、`δ (d u)` のスカラー Laplacian 降下、
 `∇×`/`∇·`/`∇²` の alias は撤去した。
 
 **v1.25(2026-07-09): 生成文脈の `lap` 削除と 2D `divg` 検証** —
-平坦格子の Laplacian は `def Δ u = ∂ 2 1 x u + ...` と `.fme` 側で定義する方針に
+平坦格子の Laplacian は `def Δ u = ∂^2_x u + ...` と `.fme` 側で定義する方針に
 合わせ、生成 `.egi` の座標文脈から未使用の `lap` 定義を外した。
 `dGrad`/`divg` はすでに `feDim` を使って任意の 1D/2D/3D 文脈で生成されるため、
 `examples/divergence2d` を追加し、`use vector-calculus { divg }` が 2D で
@@ -33,7 +34,7 @@ Formura のラテン語風複数形で *formulae*(数式)への掛詞 — 「数
 同じ上下添字が現れただけでは総和しない。縮約は `contractWith` と、
 その上にユーザ定義された `.` だけが行う。
 平坦 Laplacian は `metric g` のもとで `g~i~j . ∂_i ∂_j u` から
-`∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u`、さらに通常の3点二階差分へ下りる。
+`∂^2_x u + ∂^2_y u + ∂^2_z u`、さらに通常の3点二階差分へ下りる。
 
 **v1.27(2026-07-09): `δ` と metric 名の分離** —
 `δ` は Kronecker delta の mixed identity `δ~i_j` に限定し、
@@ -213,7 +214,7 @@ Laplace-Beltrami 係数場も次元数ぶんだけ生成する(1D なら `ca,sg`
 
 **v1.8(2026-07-08): Unicode と基本演算子** — ギリシャ文字識別子(θ, φ, …
 → fec が ASCII へ字訳)・∂=d・δ=codiff・−=-・Δ=幾何のラプラシアン
-(平坦 lap/計量 lb)。`∂x (∂x u)` は compact 2階差分に融合、スカラーへの
+(平坦 lap/計量 lb)。`∂_x (∂_x u)` は compact 2階差分に融合、スカラーへの
 `δ (d u)` は −Δ へ降下 — いずれも生成 .fmr バイト一致で検証
 (metric_torus=θφΔ・maxwell_dec=δ・ks3d=二階微分2回・hyperbolic=−δd)。
 Egison 側の function symbol 改良(functionSymbol 構築子・quote 透過
@@ -440,7 +441,7 @@ step:
    添字和で yee/acoustic、ユーザ定義ヘルパ(def)で MHD。
 5. ✅ v1.7(2026-07-10): **数式演算子と strict 添字記法** — レビュー指摘
    「dC2 のような関数でなく数式どおりに」を受け、.fme の座標軸微分は
-   `∂x` と `∂ m r x` 形式を許す(dC/dC2/dTaylor は .fme から撤去)。
+   `∂_x` と `∂'^m_x` 形式を許す(dC/dC2/dTaylor は .fme から撤去)。
    現在は `field v~i @ staggered`・`field σ{~i~j} @ staggered` のように
    添字仕様から field layout を推論し、**テンソル添字方程式**が書ける:
    `v'~i = v~i + (dt/rho0) * contractWith (+) (∂_j σ~i~j)` /

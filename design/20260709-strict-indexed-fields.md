@@ -353,7 +353,7 @@ s'~i~j
 - `∂_i`
 - let tensor 参照
 
-スカラー関数名や coordinate derivative `∂x` は添字出現に含めない。
+スカラー関数名や coordinate derivative `∂_x` は添字出現に含めない。
 
 ### Step 5: strict Einstein 検査を入れる
 

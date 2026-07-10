@@ -167,8 +167,8 @@ def divg (X: Vector MathValue) : MathValue := trace (dGrad X)
 
 ```text
 def square u = u * u
-def Δ u = ∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u
-def Δ4 u = ∂ 2 2 x u + ∂ 2 2 y u + ∂ 2 2 z u
+def Δ u = ∂^2_x u + ∂^2_y u + ∂^2_z u
+def Δ4 u = ∂'^2_x u + ∂'^2_y u + ∂'^2_z u
 ```
 
 body に新しい自由添字を持つ定義は、Formurae の通常 `def` としては扱わない。

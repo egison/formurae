@@ -14,7 +14,7 @@ raw gauss1 = fun(x) exp(-((x-(total_grid_x*dx/2))/(8*dx))**2)
 field E_i
 field B_i
 
-def curl X = withSymbols [i] delta_i~1 * (∂ 1 1 y X_3 - ∂ 1 1 z X_2) + delta_i~2 * (∂ 1 1 z X_1 - ∂ 1 1 x X_3) + delta_i~3 * (∂ 1 1 x X_2 - ∂ 1 1 y X_1)
+def curl X = withSymbols [i] delta_i~1 * (∂_y X_3 - ∂_z X_2) + delta_i~2 * (∂_z X_1 - ∂_x X_3) + delta_i~3 * (∂_x X_2 - ∂_y X_1)
 
 init:
   E_i = [| 0, gauss1(i*dx), 0 |]_i

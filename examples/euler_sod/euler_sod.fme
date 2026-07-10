@@ -27,6 +27,6 @@ step:
   local pr = (2 / 5) * (en - mx * mx / (2 * ρ))
   local fm = mx * mx / ρ + pr
   local fe = (en + pr) * mx / ρ
-  ρ' = ρ - dt * ∂x mx + dt * λ * ∂ 2 1 x ρ
-  mx' = mx - dt * ∂x fm + dt * λ * ∂ 2 1 x mx
-  en' = en - dt * ∂x fe + dt * λ * ∂ 2 1 x en
+  ρ' = ρ - dt * ∂_x mx + dt * λ * ∂^2_x ρ
+  mx' = mx - dt * ∂_x fm + dt * λ * ∂^2_x mx
+  en' = en - dt * ∂_x fe + dt * λ * ∂^2_x en

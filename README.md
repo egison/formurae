@@ -27,7 +27,7 @@ axes x, y, z
 field E_i
 field B_i
 
-def curl X = withSymbols [i] delta_i~1 * (∂ 1 1 y X_3 - ∂ 1 1 z X_2) + delta_i~2 * (∂ 1 1 z X_1 - ∂ 1 1 x X_3) + delta_i~3 * (∂ 1 1 x X_2 - ∂ 1 1 y X_1)
+def curl X = withSymbols [i] delta_i~1 * (∂_y X_3 - ∂_z X_2) + delta_i~2 * (∂_z X_1 - ∂_x X_3) + delta_i~3 * (∂_x X_2 - ∂_y X_1)
 
 init:
   E_i = [| 0, gauss1(i*dx), 0 |]_i
@@ -67,11 +67,11 @@ u' = u + dt * Δ u
 `Δ` は組み込みではなく、この例では `def Δ u = lb u` として定義している。
 生成 `.fmr` でも `axes :: theta,phi,z` となり、格子幅や C ドライバの名前も
 `dtheta`、`dphi`、`space_interval_theta` のように宣言した軸名に追随する。
-基本演算子だけでも書ける: `∂x u` は1階中心差分、`∂ 2 1 x u` は2階中心差分、
-`∂ 2 2 x u` は半径2の5点 stencil で導出される2階差分になる。
+基本演算子だけでも書ける: `∂_x u` は1階中心差分、`∂^2_x u` は2階中心差分、
+`∂'^2_x u` は半径2の5点 stencil で導出される2階差分になる。
 平坦格子の Laplacian は、例えば `metric g` を宣言して
 `def Δ u = g~i~j . ∂_i ∂_j u` と
-添字縮約で書ける。これは生成時に `∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u` へ下りる。
+添字縮約で書ける。これは生成時に `∂^2_x u + ∂^2_y u + ∂^2_z u` へ下りる。
 
 `dimension` は 1、2、3 を指定できる。スカラー、ベクトル、添字付き rank-1、
 対称/反対称/full rank-2 field、微分形式 `k-form` は宣言次元に応じた成分数で
@@ -86,8 +86,8 @@ Maxwell 方程式の場合、`.fme` 側で定義した `curl` は展開され、
 def E_i := generateTensor (\[i] -> function (x, y, z)) [3]   -- E はベクトル場(1行)
 def B_i := generateTensor (\[i] -> function (x, y, z)) [3]
 
-def feqE2 := E_2 + dt * (∂ 1 1 z B_1 - ∂ 1 1 x B_3)
-def feqB2 := B_2 - dt * (∂ 1 1 z E'_1 - ∂ 1 1 x E'_3)
+def feqE2 := E_2 + dt * (∂_z B_1 - ∂_x B_3)
+def feqB2 := B_2 - dt * (∂_z E'_1 - ∂_x E'_3)
 ```
 
 ここから6本の更新式が全自動で展開される(生成物の1本):
@@ -128,9 +128,9 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
 | `fec/` + `fec.cabal` | **Formurae コンパイラ**: 表層言語 Formurae(.fme;`field E_i`・`def curl X = ...`・`E'_i = E_i + dt * curl B_i`・`B' = B - dt * d E'`)を埋め込み形 .egi に変換。Haskell(base のみ)、リポジトリ直下で `cabal build` / `cabal run -v0 fec -- model.fme`。意味論は Egison 側に一本化した薄い変換層 |
 | `lib/fmrgen.egi` | 生成コア: Taylor 条件から係数を導出する **`taylorStencil`**、quote cleanup、形式補助などの座標非依存基盤 |
 | `lib/fmrlegacy3d.egi` | まだ `.fme` 化していない手書き `.egi` 例のための 3D 互換文脈。`.fme` 由来の生成物では使わない |
-| `examples/diffusion1d/` | 1D 拡散方程式。`def Δ u = ∂ 2 1 x u` と書き、check driver が質量保存とピーク減衰を検査 |
+| `examples/diffusion1d/` | 1D 拡散方程式。`def Δ u = ∂^2_x u` と書き、check driver が質量保存とピーク減衰を検査 |
 | `examples/diffusion2d/` | 2D 拡散方程式。`dimension 2` と `axes x, y` に応じて Formura/C の配列・Navi・Laplacian が2次元化される |
-| `examples/divergence2d/` | 2D 発散演算子の smoke test。`.fme` 内の `def divg X = ∂ 1 1 x X_1 + ∂ 1 1 y X_2` がステップ式へ展開され、中心差分の離散記号と一致することを検査 |
+| `examples/divergence2d/` | 2D 発散演算子の smoke test。`.fme` 内の `def divg X = ∂_x X_1 + ∂_y X_2` がステップ式へ展開され、中心差分の離散記号と一致することを検査 |
 | `examples/diffusion3d/` | 3D 拡散方程式(`metric g` と `def Δ u = g~i~j . ∂_i ∂_j u` で Laplacian を定義し、物理は `u' = u + dt * κ * Δ u` の1行) |
 | `examples/maxwell3d/` | Maxwell 方程式(**E・B が添字付きベクトル場**。`.fme` 内で `def curl X = ...` と直接定義し、更新2本から collocated 格子コードを生成) |
 | `examples/maxwell3d_yee/` | **Yee-FDTD**(E=辺・B=面のスタガード格子+leapfrog。場ごとの配置オフセット宣言から教科書どおりの FDTD を生成) |
@@ -220,7 +220,7 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
   1D は 100 格子 × 120 step で質量保存 **1.0e-15**、ピーク 1.0 → 0.5857。
   2D は 100² 格子 × 100 step で質量保存 **6.5e-15**、ピーク 1.0 → 0.3850。
 - **2D 発散演算子**: `.fme` 内で定義した `divg` が
-  `∂ 1 1 x V_1 + ∂ 1 1 y V_2` へ展開されることを検査。正弦ベクトル場の中心差分離散記号と
+  `∂_x V_1 + ∂_y V_2` へ展開されることを検査。正弦ベクトル場の中心差分離散記号と
   相対誤差 **2.8e-15** で一致。
 - **Maxwell**(128×16×16、dt = 0.1dx、100 step、修正版コンパイラ): エネルギードリフト
   **4.8e-5**・パルス伝播 **+9.9 セル(理想 +10)**。2ランク実 MPI ではパルスがランク境界を
@@ -233,7 +233,7 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
 - **Pearson 反応拡散(Formura 論文 Listing 1 の再現)**(64³、dt = 200s、40,000 step、TB4):
   実行 78 秒。FHPC'16 と同一の方程式・パラメタ(Fu=1/86400 等)。値は範囲内・NaN なし・
   V コロニーが自己複製し、論文 Figure 7 と同じ Gray-Scott スポットパターンが創発。
-  物理の記述は2行で、Laplacian は `.fme` 側の `def Δ u = ∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u` と同じ形。
+  物理の記述は2行で、Laplacian は `.fme` 側の `def Δ u = ∂^2_x u + ∂^2_y u + ∂^2_z u` と同じ形。
 - **Burgers**(128×8×8、ν=0.05、5000 step、TB4): **Cole–Hopf 厳密解と max 誤差 3.5e-5**
   (離散化誤差オーダー)。非線形積項 u·∂u の生成を解析解で機械検証。0.4 秒。
 - **Cahn–Hilliard**(64×64×32、25,000 step): 質量(reduces 経由)**12桁保存**、
@@ -279,14 +279,14 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
   mirror 壁(Neumann)+周期 φ。独立参照実装と **5.6e-16**・Σ√g·u 保存 **3.6e-15**・
   最大値原理成立 — 計量と境界条件の合わせ技の最初の例。
 - **双曲平面(Poincaré 半平面)**(128×64、5,000 step): 曲率 −1 の真の非ユークリッド幾何。
-  Δ_H² = y²(∂xx+∂yy) を `metric scale` から導出。参照実装と **6.7e-16**・保存 **9.8e-16**。
+  Δ_H² = y²(∂^2_x+∂^2_y) を `metric scale` から導出。参照実装と **6.7e-16**・保存 **9.8e-16**。
 - **Kuramoto–Sivashinsky**(L=22、64 格子、600,000 step = t=90): Lyapunov 時間内
   (t=5)は独立参照実装と **max 差 3.6e-14**、その後は時空カオスへ —
   アトラクタ統計(rms=0.916 ∈ [0.8,2.2]、|u|max=1.81 有界)で検証。
   保存形の非線形項+望遠鏡和により **Σu ドリフト 5.4e-12**(60万 step 後)。7 秒。
 - **4次精度スキーム自動導出**(64×8×8、100 step): 5点係数 (−1/12, 4/3, −5/2, 4/3, −1/12)
-  は**ソースのどこにも書かれておらず**、`.fme` の `def Δ4 u = ∂ 2 2 x u + ∂ 2 2 y u + ∂ 2 2 z u`
-  から生成される Egison 式 `∂ 2 2 x u` が `taylorStencil 2 [-2..2]` を呼び、Taylor 条件の連立を
+  は**ソースのどこにも書かれておらず**、`.fme` の `def Δ4 u = ∂'^2_x u + ∂'^2_y u + ∂'^2_z u`
+  から生成される Egison 式 `∂'^2_x u` が `taylorStencil 2 [-2..2]` を呼び、Taylor 条件の連立を
   厳密有理数のガウス消去で解いて導出(.fmr ヘッダに導出値をコメント出力)。単一 Fourier
   モードの振幅比が導出ステンシルの厳密離散シンボル (1+λ₄dt)ⁿ と **4.4e-16 で一致**、
   残差 \|λ₄+k²\| = 4.17e-3 は4次理論値 k⁶h⁴/90 = 4.23e-3 の 98.6%(2次の 1/49)。0.1 秒。

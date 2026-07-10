@@ -497,7 +497,7 @@ A~i . B_i          -- desugar 後に contractWith (+) (A~i * B_i)
 11. `∂_i`、metric、staggered placement を Formura scalar stencil へ lowering
 12. Formura `.fmr` 用の Egison code を出力
 
-ポイントは、`∂_i` をすぐ `∂ 2 1 x` へ落とさないことである。
+ポイントは、`∂_i` をすぐ `∂^2_x` へ落とさないことである。
 先に tensor operator を展開し、最後に成分が決まった段階で axis と placement を決める。
 
 ## 12. 実装ステップ
@@ -610,7 +610,7 @@ step:
 ユークリッド 3 次元なら、期待値は
 
 ```formurae
-∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u
+∂^2_x u + ∂^2_y u + ∂^2_z u
 ```
 
 である。

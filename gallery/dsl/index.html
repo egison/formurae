@@ -60,7 +60,7 @@
      Formura が MPI+temporal blocking つき C に落とします。カードのコードは
      <b>.fme(既定で展開表示)→ 中間 .egi → 生成 .fmr</b> の3段。意味保存は .fmr 比較で検証済み
      (手書き版とバイト一致 or 整形差のみで同値検証)、全例 <code>make &lt;name&gt;</code> green。
-     現在は <code>∂x</code> / <code>∂ 2 1 x</code> 形式の座標微分、<code>contractWith (+) A~i_i</code> や
+     現在は <code>∂_x</code> / <code>∂^2_x</code> / <code>∂'^2_x</code> 形式の座標微分、<code>contractWith (+) A~i_i</code> や
      <code>epsilon~i~j~k . ∂_j X_k</code> のような明示縮約、
      <code>withSymbols</code> を使うユーザ定義テンソル演算子、<code>contractWith</code> や <code>.</code> による明示縮約、<code>sin</code>/<code>exp</code> などのスカラー関数の
      自動 extern と成分ごとの lift をサポートしています。Yee/音響・LBM・MHD の一部は総合ギャラリーに直接 Egison 版として残っています。
@@ -305,7 +305,7 @@ param κ = 1.0
 param dt = 0.1*dx*dx
 
 extern exp
-def Δ u = ∂ 2 1 x u
+def Δ u = ∂^2_x u
 raw gauss = fun(x) exp(-((x-(total_grid_x*dx/2))/(5*dx))**2)
 
 field u : scalar
@@ -497,7 +497,7 @@ param κ = 1.0
 param dt = 0.1*dx*dx
 
 extern exp
-def Δ u = ∂ 2 1 x u + ∂ 2 1 y u
+def Δ u = ∂^2_x u + ∂^2_y u
 raw gauss = fun(x,y) exp(-((x-(total_grid_x*dx/2))/(5*dx))**2 - ((y-(total_grid_y*dy/2))/(5*dy))**2)
 
 field u : scalar
@@ -688,7 +688,7 @@ end function</pre></details>
 <div class="card">
   <h3>2D 発散演算子(divg)</h3>
   <div class="math">q = ∇·V,&nbsp;&nbsp; V = (sin 2πx, sin 2πy)</div>
-  <div class="dslbox"><b>.fme</b>: <code>def divg X = ∂ 1 1 x X_1 + ∂ 1 1 y X_2</code>。
+  <div class="dslbox"><b>.fme</b>: <code>def divg X = ∂_x X_1 + ∂_y X_2</code>。
     ユーザ定義した発散演算子がステップ式へ展開され、中心差分の離散記号と一致することを検証する。</div>
   <details class="codebox" data-fme="divergence2d/divergence2d.fme" open><summary>Formurae ソース全文(divergence2d.fme・23 行)</summary>
 <pre><span class="c">-- 2D divergence smoke test with a user-defined tensor operator.</span>
@@ -705,7 +705,7 @@ raw sy = fun(y) sin(6.283185307179586*y/(total_grid_y*dy))
 field V_i
 field q : scalar
 
-def divg X = ∂ 1 1 x X_1 + ∂ 1 1 y X_2
+def divg X = ∂_x X_1 + ∂_y X_2
 
 init:
   V_i = [| sx(i*dx), sy(j*dy) |]_i
@@ -930,7 +930,7 @@ param κ = 1.0
 param dt = 0.0005
 
 extern sin
-def Δ4 u = ∂ 2 2 x u + ∂ 2 2 y u + ∂ 2 2 z u
+def Δ4 u = ∂'^2_x u + ∂'^2_y u + ∂'^2_z u
 
 field u : scalar
 
@@ -1142,7 +1142,7 @@ param κ = 1.0
 param dt = 0.00002
 
 extern sin
-def Δ u = ∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u
+def Δ u = ∂^2_x u + ∂^2_y u + ∂^2_z u
 raw # fundamental Dirichlet mode: nodes at the ghost walls i = -1, i = 64
 
 field u : scalar
@@ -1364,7 +1364,7 @@ raw gauss1 = fun(x) exp(-((x-(total_grid_x*dx/2))/(8*dx))**2)
 field E_i
 field B_i
 
-def curl X = withSymbols [i] delta_i~1 * (∂ 1 1 y X_3 - ∂ 1 1 z X_2) + delta_i~2 * (∂ 1 1 z X_1 - ∂ 1 1 x X_3) + delta_i~3 * (∂ 1 1 x X_2 - ∂ 1 1 y X_1)
+def curl X = withSymbols [i] delta_i~1 * (∂_y X_3 - ∂_z X_2) + delta_i~2 * (∂_z X_1 - ∂_x X_3) + delta_i~3 * (∂_x X_2 - ∂_y X_1)
 
 init:
   E_i = [| 0, gauss1(i*dx), 0 |]_i
@@ -2220,9 +2220,9 @@ end function</pre></details>
   <h3>非線形 Klein–Gordon(φ⁴ キンク)</h3>
   <div class="math">∂<sub>t</sub>w = ∂<sub>x</sub>∂<sub>x</sub>φ + φ − φ³,&nbsp;&nbsp;
     ∂<sub>t</sub>φ = w</div>
-  <div class="dslbox"><b>.fme</b>: 2階微分は <code>∂ 2 1 x φ</code> と
-    書く。1階は <code>∂x</code> も許し、一般の座標微分は
-    <code>∂ order radius axis expr</code> の形を使う。
+  <div class="dslbox"><b>.fme</b>: 2階微分は <code>∂^2_x φ</code> と
+    書く。1階は <code>∂_x</code>、広幅 stencil は
+    <code>∂'^m_x</code> の形を使う。
     <code>φ' = φ + dt * w'</code> の <code>w'</code> は更新後の w への参照 =
     kick–drift のシンプレクティック形。</div>
   <details class="codebox" data-fme="kleingordon/kleingordon.fme" open><summary>Formurae ソース全文(kleingordon.fme・25 行)</summary>
@@ -2249,7 +2249,7 @@ init:
   w = 0.0 - 0.14433756729740645*(1.0/cosh(0.7216878364870323*(i*dx - 16.0)))**2 - 0.14433756729740645*(1.0/cosh(0.7216878364870323*(i*dx - 48.0)))**2
 
 step:
-  w' = w + dt * (∂ 2 1 x φ + φ - φ * φ * φ)
+  w' = w + dt * (∂^2_x φ + φ - φ * φ * φ)
   φ' = φ + dt * w'</pre></details>
   <details class="codebox" data-egi="kleingordon/kleingordon.egi"><summary>生成された Egison(中間形・fec 出力)(kleingordon.egi・164 行)</summary>
 <pre><span class="c">--</span>
@@ -2450,7 +2450,7 @@ end function</pre></details>
 <div class="card">
   <h3>Burgers 方程式</h3>
   <div class="math">∂<sub>t</sub>u + u&thinsp;∂<sub>x</sub>u = ν∇²u</div>
-  <div class="dslbox"><b>.fme</b>: <code>u' = u + dt * (ν * Δ u - u * ∂x u)</code> の1行。
+  <div class="dslbox"><b>.fme</b>: <code>u' = u + dt * (ν * Δ u - u * ∂_x u)</code> の1行。
     Cole–Hopf 厳密解との比較が、非線形項の生成の機械検証になっている。</div>
   <details class="codebox" data-fme="burgers3d/burgers3d.fme" open><summary>Formurae ソース全文(burgers3d.fme・23 行)</summary>
 <pre><span class="c">-- Viscous Burgers equation: du/dt = nu lap u - u du/dx</span>
@@ -2467,7 +2467,7 @@ param k0 = 6.283185307179586
 
 extern sin
 extern cos
-def Δ u = ∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u
+def Δ u = ∂^2_x u + ∂^2_y u + ∂^2_z u
 
 field u : scalar
 
@@ -2475,7 +2475,7 @@ init:
   u = 2.0*0.05*k0*sin(k0*i*dx)/(2.0 + cos(k0*i*dx))
 
 step:
-  u' = u + dt * (ν * Δ u - u * ∂x u)</pre></details>
+  u' = u + dt * (ν * Δ u - u * ∂_x u)</pre></details>
   <details class="codebox" data-egi="burgers3d/burgers3d.egi"><summary>生成された Egison(中間形・fec 出力)(burgers3d.egi・159 行)</summary>
 <pre><span class="c">--</span>
 <span class="c">-- GENERATED by fec (the Formurae compiler) from burgers3d.fme -- edit the .fme, not this file</span>
@@ -2696,9 +2696,9 @@ step:
   local fmxx = mx * mx / h + g * h * h / 2
   local fmxy = mx * my / h
   local fmyy = my * my / h + g * h * h / 2
-  h' = h - dt * (∂x mx + ∂y my) + dt * λ * (∂ 2 1 x h + ∂ 2 1 y h)
-  mx' = mx - dt * (∂x fmxx + ∂y fmxy) + dt * λ * (∂ 2 1 x mx + ∂ 2 1 y mx)
-  my' = my - dt * (∂x fmxy + ∂y fmyy) + dt * λ * (∂ 2 1 x my + ∂ 2 1 y my)</pre></details>
+  h' = h - dt * (∂_x mx + ∂_y my) + dt * λ * (∂^2_x h + ∂^2_y h)
+  mx' = mx - dt * (∂_x fmxx + ∂_y fmxy) + dt * λ * (∂^2_x mx + ∂^2_y mx)
+  my' = my - dt * (∂_x fmxy + ∂_y fmyy) + dt * λ * (∂^2_x my + ∂^2_y my)</pre></details>
   <details class="codebox" data-egi="shallowwater/shallowwater.egi"><summary>生成された Egison(中間形・fec 出力)(shallowwater.egi・165 行)</summary>
 <pre><span class="c">--</span>
 <span class="c">-- GENERATED by fec (the Formurae compiler) from shallowwater.fme -- edit the .fme, not this file</span>
@@ -2901,7 +2901,7 @@ end function</pre></details>
     ∂<sub>t</sub>m<sub>x</sub> + ∂<sub>x</sub>(m<sub>x</sub>²/ρ + p) = λ∂<sub>x</sub>∂<sub>x</sub>m<sub>x</sub>,&nbsp;
     ∂<sub>t</sub>en + ∂<sub>x</sub>((en + p)&thinsp;m<sub>x</sub>/ρ) = λ∂<sub>x</sub>∂<sub>x</sub>en</div>
   <div class="dslbox"><b>.fme</b>: 圧力と流束を <code>local</code> 3本(<code>pr</code>/<code>fm</code>/<code>fe</code>)、
-    更新は保存形+Lax–Friedrichs 粘性 <code>λ * ∂ 2 1 x ·</code>。
+    更新は保存形+Lax–Friedrichs 粘性 <code>λ * ∂^2_x ·</code>。
     周期格子用の二重ダイアフラムは raw ヘルパ1行。厳密 Riemann 解と L1 比較。</div>
   <details class="codebox" data-fme="euler_sod/euler_sod.fme" open><summary>Formurae ソース全文(euler_sod.fme・32 行)</summary>
 <pre><span class="c">-- Compressible Euler (1D flow), Sod shock tube.  Conservation form</span>
@@ -2933,9 +2933,9 @@ step:
   local pr = (2 / 5) * (en - mx * mx / (2 * ρ))
   local fm = mx * mx / ρ + pr
   local fe = (en + pr) * mx / ρ
-  ρ' = ρ - dt * ∂x mx + dt * λ * ∂ 2 1 x ρ
-  mx' = mx - dt * ∂x fm + dt * λ * ∂ 2 1 x mx
-  en' = en - dt * ∂x fe + dt * λ * ∂ 2 1 x en</pre></details>
+  ρ' = ρ - dt * ∂_x mx + dt * λ * ∂^2_x ρ
+  mx' = mx - dt * ∂_x fm + dt * λ * ∂^2_x mx
+  en' = en - dt * ∂_x fe + dt * λ * ∂^2_x en</pre></details>
   <details class="codebox" data-egi="euler_sod/euler_sod.egi"><summary>生成された Egison(中間形・fec 出力)(euler_sod.egi・167 行)</summary>
 <pre><span class="c">--</span>
 <span class="c">-- GENERATED by fec (the Formurae compiler) from euler_sod.fme -- edit the .fme, not this file</span>
@@ -3140,7 +3140,7 @@ end function</pre></details>
   <div class="math">w = ∂<sub>x</sub>∂<sub>x</sub>u,&nbsp;&nbsp;
     ∂<sub>t</sub>u = −∂<sub>x</sub>(u²/2) − w − ∂<sub>x</sub>∂<sub>x</sub>w</div>
   <div class="dslbox"><b>.fme</b>: 4階微分は中間格子場
-    <code>local w = ∂ 2 1 x u</code> の2段重ね —
+    <code>local w = ∂^2_x u</code> の2段重ね —
     ステンシルが袖幅1×2に分かれ、temporal blocking と安全に噛み合う。</div>
   <details class="codebox" data-fme="ks3d/ks3d.fme" open><summary>Formurae ソース全文(ks3d.fme・21 行)</summary>
 <pre><span class="c">-- Kuramoto-Sivashinsky: u_t = -(u^2/2)_x - u_xx - u_xxxx</span>
@@ -3162,8 +3162,8 @@ init:
   u = cos(0.28559933214452665*i*dx) + 0.1*cos(0.5711986642890533*i*dx)
 
 step:
-  local w = ∂ 2 1 x u
-  u' = u - dt * (∂x (u * u / 2) + w + ∂ 2 1 x w)</pre></details>
+  local w = ∂^2_x u
+  u' = u - dt * (∂_x (u * u / 2) + w + ∂^2_x w)</pre></details>
   <details class="codebox" data-egi="ks3d/ks3d.egi"><summary>生成された Egison(中間形・fec 出力)(ks3d.egi・160 行)</summary>
 <pre><span class="c">--</span>
 <span class="c">-- GENERATED by fec (the Formurae compiler) from ks3d.fme -- edit the .fme, not this file</span>
@@ -3375,7 +3375,7 @@ param Dv = 6.1e-11
 param dt = 200.0
 
 extern fabs
-def Δ u = ∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u
+def Δ u = ∂^2_x u + ∂^2_y u + ∂^2_z u
 raw isCenter = fun(i,j,k,w) (fabs(total_grid_x/2-i) &lt; w) &amp;&amp; (fabs(total_grid_y/2-j) &lt; w) &amp;&amp; (fabs(total_grid_z/2-k) &lt; w)
 
 field U : scalar
@@ -3600,7 +3600,7 @@ param mob = 1.0
 param dt = 0.004
 
 extern sin
-def Δ u = ∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u
+def Δ u = ∂^2_x u + ∂^2_y u + ∂^2_z u
 
 field c : scalar
 
@@ -3812,7 +3812,7 @@ axes x, y, z
 param dt = 0.05
 
 extern sin
-def Δ u = ∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u
+def Δ u = ∂^2_x u + ∂^2_y u + ∂^2_z u
 
 field a : scalar
 field b : scalar

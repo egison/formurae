@@ -12,7 +12,7 @@ raw sy = fun(y) sin(6.283185307179586*y/(total_grid_y*dy))
 field V_i
 field q : scalar
 
-def divg X = ∂ 1 1 x X_1 + ∂ 1 1 y X_2
+def divg X = ∂_x X_1 + ∂_y X_2
 
 init:
   V_i = [| sx(i*dx), sy(j*dy) |]_i

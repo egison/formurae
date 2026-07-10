@@ -236,20 +236,10 @@ preprocessTensorAst m expr =
     TEApply (TEIdent "compose" []) [f, g] ->
       keep (TEDot [pre f, pre g])
     TEApply (TEIdent fn fnParts) args
-      | Just (ordr, radius, axis) <- derivativeOpParts (fn ++ concatMap ixSuffix fnParts)
-      , Just axis' <- lookup axis axmap ->
+      | Just (ordr, radius, part) <- derivativeOpParts (fn ++ concatMap ixSuffix fnParts)
+      , Just axis' <- lookup (ixName part) axmap ->
           keep (TEApply (TEIdent "∂" [])
                   (TENumber (show ordr) : TENumber (show radius)
-                   : TEIdent axis' [] : map pre args))
-      | Just axis <- stripPrefix "pd2_" (fn ++ concatMap ixSuffix fnParts)
-      , Just axis' <- lookup axis axmap ->
-          keep (TEApply (TEIdent "∂" [])
-                  (TENumber "2" : TENumber "1"
-                   : TEIdent axis' [] : map pre args))
-      | Just axis <- stripPrefix "pd_" (fn ++ concatMap ixSuffix fnParts)
-      , Just axis' <- lookup axis axmap ->
-          keep (TEApply (TEIdent "∂" [])
-                  (TENumber "1" : TENumber "1"
                    : TEIdent axis' [] : map pre args))
     TEApply f args ->
       keep (TEApply (pre f) (map pre args))
@@ -261,8 +251,11 @@ preprocessTensorAst m expr =
       keep (TEWithSymbols names (pre body))
     TEContractWith reducer body ->
       keep (TEContractWith reducer (pre body))
-    TEDerivative parts body ->
-      keep (TEDerivative parts (pre body))
+    TEDerivative parts body
+      | Just lowered <- lowerAxisDerivatives parts (pre body) ->
+          keep lowered
+      | otherwise ->
+          keep (TEDerivative parts (pre body))
     TEDot parts ->
       keep (TEDot (map pre parts))
     TEBinary op lhs rhs ->
@@ -273,23 +266,17 @@ preprocessTensorAst m expr =
     pre = preprocessTensorAst m
     keep = setTensorSpan (tensorExprSpan expr)
     axmap = zip (mAxes m) (internalCoordNames m)
+    lowerAxisDerivatives parts body = do
+      axes <- mapM (\p -> lookup (ixName p) axmap) parts
+      return (foldr axisDerivative body axes)
+    axisDerivative axis body =
+      TEApply (TEIdent "∂" [])
+        [TENumber "1", TENumber "1", TEIdent axis [], body]
     renameAxisIdent base parts
       | null parts
       , (nm, 0) <- fieldBaseOf base
       , Just nm' <- lookup nm axmap = nm'
       | otherwise = base
-
-derivativeOpParts :: String -> Maybe (Int, Int, String)
-derivativeOpParts nm = do
-  rest0 <- stripPrefix "pd" nm
-  let (mDigits, rest1) = span isDigit rest0
-  if null mDigits then Nothing else do
-    rest2 <- stripPrefix "r" rest1
-    let (rDigits, rest3) = span isDigit rest2
-    ax <- stripPrefix "_" rest3
-    if null rDigits || null ax
-      then Nothing
-      else Just (read mDigits, read rDigits, ax)
 
 elaborateTensorExpr :: Model -> [String] -> [IxPart] -> TensorExpr -> IO ElaboratedTensorExpr
 elaborateTensorExpr m lets lhs expr = do
@@ -378,6 +365,8 @@ indexedIdentOccurrences m lets base0 parts w =
              kroneckerIdentOccurrences parts w
          | base == "d", not (null parts) ->
              derivativeIdentOccurrences parts w
+         | Just (_, _, part) <- derivativeOpParts w ->
+             derivativeIdentOccurrences [part] w
          | fieldDeclOf m base /= Nothing && not (null parts) -> do
              validateFieldRefParts m lets w
              return (symbolicIxParts parts)
@@ -1332,10 +1321,18 @@ ixExpand m lets env anchor expr = do
           fn <- expandAst env' f
           as <- mapM (expandAst env') args
           return (fn ++ "(" ++ intercalate ", " as ++ ")")
-        TEApply f args -> do
-          fn <- expandAst env' f
-          as <- mapM (expandAst env') args
-          return (unwords (fn : map renderApplyText as))
+        TEApply f args ->
+          case (f, args) of
+            (TEIdent fn fnParts, [arg])
+              | Just (ordr, radius, part) <- derivativeOpParts (fn ++ concatMap ixSuffix fnParts) ->
+                  expandCoordinateIndexDerivativeAst env' ordr radius part arg
+            (TEIdent fn fnParts, _)
+              | Just _ <- derivativeOpParts (fn ++ concatMap ixSuffix fnParts) ->
+                  fatal ("coordinate derivative takes one operand: " ++ expr)
+            _ -> do
+              fn <- expandAst env' f
+              as <- mapM (expandAst env') args
+              return (unwords (fn : map renderApplyText as))
         TEIf c t e -> do
           c' <- expandAst env' c
           t' <- expandAst env' t
@@ -1398,6 +1395,13 @@ ixExpand m lets env anchor expr = do
       ns <- mapM (need env' . ixName) parts'
       ref <- derivativeOperandAst env' label body'
       let (e, _) = deriveChain ns anchor ref
+      return e
+
+    expandCoordinateIndexDerivativeAst env' ordr radius part body = do
+      let label = "pd" ++ show ordr ++ "r" ++ show radius ++ ixSuffix part
+      n <- need env' (ixName part)
+      ref <- derivativeOperandAst env' label body
+      (e, _) <- deriveCoordinateDerivative ordr radius n anchor ref
       return e
 
     derivativeOperandAst env' _ (TEIdent base parts) =
@@ -1583,6 +1587,19 @@ ixExpand m lets env anchor expr = do
           innerRef = deriveChain ns innerTarget ref
           e = derivAt n target innerRef
       in (e, target)
+
+    deriveCoordinateDerivative ordr radius n target ref@(_, src)
+      | ordr < 1 =
+          return (error "coordinate derivative order must be positive")
+      | radius < 1 =
+          return (error "coordinate derivative radius must be positive")
+      | radius == 1 =
+          return (deriveChain (replicate ordr n) target ref)
+      | target == src =
+          return ("∂ " ++ show ordr ++ " " ++ show radius ++ " "
+                  ++ axisSymbol n ++ " " ++ operandExpr (fst ref), target)
+      | otherwise =
+          fatal ("higher-radius indexed derivative requires a colocated field operand: " ++ expr)
 
     naturalPlace ns src = foldl (flip togglePlace) src ns
 

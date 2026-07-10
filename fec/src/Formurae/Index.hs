@@ -1,7 +1,7 @@
 module Formurae.Index where
 
-import Data.Char (isAlpha, isAlphaNum, isSpace)
-import Data.List (intercalate, sort)
+import Data.Char (isAlpha, isAlphaNum, isDigit, isSpace)
+import Data.List (intercalate, sort, stripPrefix)
 
 import Formurae.Common (fatal, reservedInternalPrefix, validSurfaceName)
 import Formurae.Syntax
@@ -66,6 +66,18 @@ parseMarkedPrefix = go []
 ixSuffix :: IxPart -> String
 ixSuffix (IxPart VUp nm) = "~" ++ nm
 ixSuffix (IxPart VDown nm) = "_" ++ nm
+
+derivativeOpParts :: String -> Maybe (Int, Int, IxPart)
+derivativeOpParts nm = do
+  rest0 <- stripPrefix "pd" nm
+  let (mDigits, rest1) = span isDigit rest0
+  if null mDigits then Nothing else do
+    rest2 <- stripPrefix "r" rest1
+    let (rDigits, rest3) = span isDigit rest2
+    case parseMarkedPrefix rest3 of
+      Just ([part], "") | not (null rDigits) ->
+        Just (read mDigits, read rDigits, part)
+      _ -> Nothing
 
 showIxParts :: [IxPart] -> String
 showIxParts = concatMap ixSuffix

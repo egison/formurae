@@ -161,6 +161,91 @@ assert_contains "$out" 'max(A_1_1, A_2_2)' 'contractWith function reducer'
 
 f=$(tmp_fme)
 write_case "$f" \
+  'dimension 3' \
+  'axes x,y,z' \
+  'field u : scalar' \
+  'step:' \
+  "  u' = ∂^2_x u + ∂'^2_x u"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" '∂ 2 1 x u' 'decorated second derivative'
+assert_contains "$out" '∂ 2 2 x u' 'quoted stencil-radius derivative'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'dimension 2' \
+  'axes x,y' \
+  'field u : scalar' \
+  'step:' \
+  "  u' = ∂_x u + ∂_y u"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" '∂ 1 1 x u + ∂ 1 1 y u' 'subscript first derivative'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'dimension 2' \
+  'axes x,y' \
+  'field u : scalar' \
+  'field q_i' \
+  'step:' \
+  "  q'_i = ∂^2_i u"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" 'def feqq1 := ∂ 2 1 x u' 'decorated indexed derivative component 1'
+assert_contains "$out" 'def feqq2 := ∂ 2 1 y u' 'decorated indexed derivative component 2'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'dimension 2' \
+  'axes x,y' \
+  'field u : scalar' \
+  'field q_i' \
+  'step:' \
+  "  q'_i = ∂'^2_i u"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" 'def feqq1 := ∂ 2 2 x u' 'quoted indexed derivative component 1'
+assert_contains "$out" 'def feqq2 := ∂ 2 2 y u' 'quoted indexed derivative component 2'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'dimension 2' \
+  'axes x,y' \
+  'field u : scalar' \
+  'step:' \
+  "  u' = ∂ 2 1 x u"
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+rm -f "$f"
+if [ "$status" -eq 0 ]; then
+  printf 'legacy coordinate derivative unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_contains "$out" 'coordinate derivative must be written with subscript notation' 'legacy coordinate derivative rejection'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'dimension 2' \
+  'axes x,y' \
+  'field u : scalar' \
+  'step:' \
+  "  u' = ∂x u"
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+rm -f "$f"
+if [ "$status" -eq 0 ]; then
+  printf 'compact coordinate derivative unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_contains "$out" 'coordinate derivative must be written with subscript notation' 'compact coordinate derivative rejection'
+
+f=$(tmp_fme)
+write_case "$f" \
   'dimension 2' \
   'axes x,y' \
   'field v~i' \

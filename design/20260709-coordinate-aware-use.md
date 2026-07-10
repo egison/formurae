@@ -7,7 +7,7 @@ Date: 2026-07-09
 - 2026-07-09: `use exterior-calculus { Δ }` はその後撤去し、
   `Δ`/`Δ4` は `.fme` 側の通常の `def` で書く方針へ移行済み。
   平坦格子用の生成 `.egi` 文脈からも `lap` は外し、
-  `∂ 2 1 x`/`∂ m r x` と `dTaylor` を低水準プリミティブとして使う。
+  `∂^2_x`/`∂'^m_x` と `dTaylor` を低水準プリミティブとして使う。
   `use vector-calculus { divg }` については 2D 例 `examples/divergence2d` で検証済み。
 - 2026-07-09: `use exterior-calculus { Δ }` を実装済み。
   `Δ` は暗黙 prelude ではなく `use` で有効化される。
@@ -376,7 +376,7 @@ field ...
 
 - `extern`: Formura/C 側のスカラー関数
 - `use`: 座標文脈つき数学演算子
-- `∂x`: Formurae 組み込みの座標軸微分構文
+- `∂_x`: Formurae 組み込みの座標軸微分構文
 - `∂_i`: Formurae 組み込みの添字微分構文
 - `def`: ユーザ定義演算子
 

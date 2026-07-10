@@ -381,7 +381,7 @@ Formurae の lowering は次の順に行う。
 8. `contractWith reducer` が supersubscript 軸を指定された reducer で畳み込む
 9. 最後に `∂_i`、metric、staggered 配置を Formura stencil へ落とす
 
-ポイントは、`∂ 2 1 x` などの低水準 stencil へ落とすのを最後まで遅らせること。
+ポイントは、`∂^2_x` などの低水準 stencil へ落とすのを最後まで遅らせること。
 これにより、`grad`、`div`、`Δ`、`stress` のような演算子を Formurae/prelude 側で
 普通に定義できる。
 
@@ -442,7 +442,7 @@ step:
 期待 lowering:
 
 ```formurae
-∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u
+∂^2_x u + ∂^2_y u + ∂^2_z u
 ```
 
 rank-2 例:

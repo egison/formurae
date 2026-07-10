@@ -54,7 +54,7 @@ tensor contraction:
   . / contractWith
 
 coordinate derivative:
-  ∂x, ∂y, ∂z, ∂theta, ...
+  ∂_x, ∂_y, ∂_z, ∂_theta, ...
 
 indexed derivative:
   ∂_i, ∂~i

@@ -54,7 +54,7 @@ Formurae source
 ```
 
 この順序の重要点は、`∂_i`、metric、`contractWith`、`.` をすぐに
-`∂ 2 1 x` や `dYee` へ落とさないことである。
+`∂^2_x` や `dYee` へ落とさないことである。
 添字構造を保ったまま関数合成・縮約・自由添字推論を済ませ、最後の段階でだけ
 Formura の配列・stencil 計算へ変換する。
 
@@ -217,7 +217,7 @@ u' = u + dt * κ * lap u
 3. `contractWith (+) (∂_i (withSymbols [j] ∂_j u)~i)`
 4. `contractWith (+) (∂_i ∂~i u)` 相当の添字式
 5. Euclidean metric または mixed identity により各軸成分へ特殊化
-6. `∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u`
+6. `∂^2_x u + ∂^2_y u + ∂^2_z u`
 
 実装上は、`grad u` の結果添字と `div` が要求する `X~i` の添字付加を
 IR 上で解決する必要がある。
