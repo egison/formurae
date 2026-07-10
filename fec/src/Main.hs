@@ -142,7 +142,7 @@ scalarIntrinsics =
 -- of their semantics.
 standardNames :: [String]
 standardNames =
-  [ ".", "wedge", "outer", "inner", "trace", "matmul", "sym", "antisym"
+  [ ".", "wedge", "trace", "sym", "antisym"
   , "norm2", "hessian", "grad", "dGrad", "divg", "curl", "lap", "Δ"
   ]
 

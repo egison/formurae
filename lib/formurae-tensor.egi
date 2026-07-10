@@ -31,16 +31,9 @@ def (.) {Ring a} (t1: Tensor a) (t2: Tensor a) : Tensor a :=
   foldl1 (+) (contract (t1 * t2))
 
 def wedge {Ring a} (a: Tensor a) (b: Tensor a) : Tensor a := a !. b
-def outer {Ring a} (a: Tensor a) (b: Tensor a) : Tensor a := a !. b
-
-def inner {Ring a} (a: Tensor a) (b: Tensor a) : a :=
-  withSymbols [i] (a~i . b_i)
 
 def trace {Ring a} (a: Tensor a) : a :=
   withSymbols [i] sum (contract a~i_i)
-
-def matmul {Ring a} (a: Tensor a) (b: Tensor a) : Tensor a :=
-  withSymbols [i, j] (a~i_k . b~k_j)
 
 def sym {Ring a} (a: Tensor a) : Tensor a :=
   withSymbols [i, j]

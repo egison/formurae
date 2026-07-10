@@ -217,20 +217,6 @@ write_case "$f" \
   'mode collocated' \
   'dimension 2' \
   'axes x,y' \
-  'field A~i_j' \
-  'field B~i_j' \
-  'field C~i_j' \
-  'step:' \
-  "  C'~i_j = matmul A B...~i_j"
-out=$(compile_fme "$f")
-rm -f "$f"
-assert_contains "$out" 'def feqC11 := (matmul A B)_1_1' 'Egison matmul bridge'
-
-f=$(tmp_fme)
-write_case "$f" \
-  'mode collocated' \
-  'dimension 2' \
-  'axes x,y' \
   'field A_i_j' \
   'field S_i_j' \
   'step:' \
