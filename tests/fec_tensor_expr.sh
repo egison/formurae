@@ -182,6 +182,43 @@ f=$(tmp_fe)
 write_case "$f" \
   'dimension 2' \
   'axes x,y' \
+  'field A_i' \
+  'field q_i' \
+  'step:' \
+  "  q'_i = @ + A_i"
+set +e
+out=$(compile_fe "$f" 2>&1)
+status=$?
+set -e
+rm -f "$f"
+if [ "$status" -eq 0 ]; then
+  printf 'unsupported tensor parser atom unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_contains "$out" 'bad tensor expression: unsupported scalar expression atom near: @ in: @ + A_i' 'tensor parser diagnostic'
+
+f=$(tmp_fe)
+write_case "$f" \
+  'dimension 2' \
+  'axes x,y' \
+  'field u : scalar' \
+  'step:' \
+  "  u' = withSymbols [i ∂_i u"
+set +e
+out=$(compile_fe "$f" 2>&1)
+status=$?
+set -e
+rm -f "$f"
+if [ "$status" -eq 0 ]; then
+  printf 'unbalanced withSymbols expression unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_contains "$out" 'unbalanced bracketed expression in: withSymbols [i d_i u' 'unbalanced bracket diagnostic'
+
+f=$(tmp_fe)
+write_case "$f" \
+  'dimension 2' \
+  'axes x,y' \
   'field A~i_j' \
   'field p : scalar' \
   'step:' \

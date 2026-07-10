@@ -49,7 +49,8 @@ warning にする。添字なし `g` はスカラー名、添字つき `g_i_j` /
 Kronecker delta `δ~i_j`、`epsilon~i~j~k`、添字微分 `∂_i` を同じ lowering 経路へ通し、
 全 `.fe` 例の変換と `diffusion3d`/`elastic3d` の実行検証を green にした。
 scalar 式全体も `TENumber`、`TEUnary`、`TECall`、`TEApply`、`TEIf`、`TEBinary`
-などの AST へ構文木化するようにした。source span つき診断は次の整理対象である。
+などの AST へ構文木化するようにした。parser error は式全体と失敗近傍を表示する
+`Either` 経路へ移し、source span つき診断は次の整理対象である。
 
 **v1.13(2026-07-09): 座標文脈つき `use` 宣言の導入** —
 `extern` は Formura/C 側のスカラー関数、`use` は Formurae が座標文脈から
@@ -482,7 +483,7 @@ Formura 出力に必要な storage 名と境界だけであり、テンソル演
 
 5. **残課題**
    scalar 式は演算子優先順位を持つ TensorExpr AST として保持するようになった。
-   次は source span つき診断、parser error の精密化、
+   parser error は式全体と失敗近傍を返すようになったため、次は source span つき診断と
    Egison 本体の添字規則との差分を小さくするテスト群を追加する。
    この整理が終わると、Formurae の新規性は「Egison の数式記法と CAS を、
    座標文脈つきの分散ステンシルコード生成へ接続する薄い表層言語」にさらに集中する。
