@@ -1,6 +1,6 @@
 --
 -- fmrlegacy3d.egi : fixed 3D compatibility context for hand-written .egi
--- examples that have not yet moved to Formurae (.fe).
+-- examples that have not yet moved to Formurae (.fme).
 --
 
 declare symbol x, y, z, hx, hy, hz

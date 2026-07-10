@@ -1,6 +1,6 @@
 # Formurae 設計メモ — Egison 流の添字記法・微分形式をもつステンシル DSL
 
-**命名(2026-07-10 確定)**: 表層言語(.fe)の名前は **Formurae**(フォーミュレ)。
+**命名(2026-07-10 確定)**: 表層言語(.fme)の名前は **Formurae**(フォーミュレ)。
 Formura のラテン語風複数形で *formulae*(数式)への掛詞 — 「数式のまま書く」という
 本言語の主題が名前になっている。Formura 設計者・村主崇行氏への敬意を込めた継承でもある
 (「Formura 2」は本体の現行バージョン 2.3.2 と紛れるため回避)。
@@ -9,7 +9,7 @@ Formura のラテン語風複数形で *formulae*(数式)への掛詞 — 「数
 `∂ 2 1 x e` を2階中心差分、`∂ m r x e` を m 階微分・半径 r の中心 stencil
 として追加した。例えば `∂ 2 2 x e` は `[-2,-1,0,1,2]` の5点 stencil で、
 係数は `taylorStencil` が Taylor 条件から導出する。これにより `Δ` と `Δ4`
-は組み込みではなく `.fe` 側で
+は組み込みではなく `.fme` 側で
 `def Δ u = ∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u`、
 `def Δ4 u = ∂ 2 2 x u + ∂ 2 2 y u + ∂ 2 2 z u` のように書く方針へ移した。
 計量つきモデルでは `def Δ u = lb u` と書く。暗黙の `use exterior-calculus { Δ }`、
@@ -17,14 +17,14 @@ Formura のラテン語風複数形で *formulae*(数式)への掛詞 — 「数
 `∇×`/`∇·`/`∇²` の alias は撤去した。
 
 **v1.25(2026-07-09): 生成文脈の `lap` 削除と 2D `divg` 検証** —
-平坦格子の Laplacian は `def Δ u = ∂ 2 1 x u + ...` と `.fe` 側で定義する方針に
+平坦格子の Laplacian は `def Δ u = ∂ 2 1 x u + ...` と `.fme` 側で定義する方針に
 合わせ、生成 `.egi` の座標文脈から未使用の `lap` 定義を外した。
 `dGrad`/`divg` はすでに `feDim` を使って任意の 1D/2D/3D 文脈で生成されるため、
 `examples/divergence2d` を追加し、`use vector-calculus { divg }` が 2D で
 中心差分の離散記号と一致することを check driver で検証した。
 
 **v1.26(2026-07-09): Egison 型のユーザ定義テンソル演算子と明示縮約** —
-`.fe` の `def` は Egison と同様に結果添字を書かない。
+`.fme` の `def` は Egison と同様に結果添字を書かない。
 例えば `def grad u = withSymbols [i] ∂_i u`、
 `def div X = contractWith (+) (∂_i X~i)`、
 `def (.) A B = contractWith (+) (A * B)`、
@@ -47,7 +47,7 @@ warning にする。添字なし `g` はスカラー名、添字つき `g_i_j` /
 旧来の文字列置換ベースの添字 lowering ではなく、添字式は TensorExpr AST として扱う。
 `withSymbols`、`contractWith`、ユーザ定義可能な `.`、metric `g`、
 Kronecker delta `δ~i_j`、`epsilon~i~j~k`、添字微分 `∂_i` を同じ lowering 経路へ通し、
-全 `.fe` 例の変換と `diffusion3d`/`elastic3d` の実行検証を green にした。
+全 `.fme` 例の変換と `diffusion3d`/`elastic3d` の実行検証を green にした。
 scalar 式全体も `TENumber`、`TEUnary`、`TECall`、`TEApply`、`TEIf`、`TEBinary`
 などの AST へ構文木化するようにした。parser error は式全体、失敗近傍、column を表示する
 `Either` 経路へ移し、source span つき診断は次の整理対象である。
@@ -67,14 +67,14 @@ scalar 式全体も `TENumber`、`TEUnary`、`TECall`、`TEApply`、`TEIf`、`TE
 `curl`・`divg`・`dGrad` を `use vector-calculus` 側の演算子として扱い始めた。
 `curl` は `use vector-calculus { curl }`、`divg` は
 `use vector-calculus { divg }` なしでは `.fmr` 生成前にエラーにする。
-`maxwell3d.fe` には `use vector-calculus { curl }` を明示し、生成 .egi は
+`maxwell3d.fme` には `use vector-calculus { curl }` を明示し、生成 .egi は
 バイト一致。当初は定義本体に `lib/fmrgen.egi` の `curl`/`divg` を使ったが、
 v1.17 で生成 `.egi` 側の座標文脈つき定義へ移した。
 次は `d`/`δ` の use 化、または `lib/fmrgen.egi` の座標文脈つき定義生成へ進む。
 
 **v1.15(2026-07-09): `use exterior-calculus { d, δ }` の第一段階** —
 ユーザが直接書いた `d`・`δ`・`codiff`・`dForm` を `use exterior-calculus`
-必須にした。`maxwell_dec.fe` と `hyperbolic.fe` に `use exterior-calculus { d, δ }`
+必須にした。`maxwell_dec.fme` と `hyperbolic.fme` に `use exterior-calculus { d, δ }`
 を明示し、生成 .egi はバイト一致。`Δ` の内部定義 `δ (d u)` は
 `use exterior-calculus { Δ }` の依存として扱い、`Δ` 単独 use は引き続き動く。
 当初は定義本体に `lib/fmrgen.egi` の `dForm`/`codiff` を使ったが、
@@ -86,7 +86,7 @@ v1.17 で生成 `.egi` 側の座標文脈つき定義へ移した。
 `embedding` から計量を導出する `feGd`/`feGo` は `[x, y, z]` の直書きではなく
 `feCoords_a` を参照し、計量係数場の半セル評価も `feCoords_a`/`feHsteps_a`
 を使う。これはまだ `lib/fmrgen.egi` の `coords`/`hsteps` 本体置換ではないが、
-座標文脈つきライブラリ生成へ進むための足場になる。生成 `.fmr` は全 `.fe` 例で
+座標文脈つきライブラリ生成へ進むための足場になる。生成 `.fmr` は全 `.fme` 例で
 バイト一致。
 
 **v1.17(2026-07-09): 座標文脈つき数学プリミティブ生成** —
@@ -96,15 +96,15 @@ v1.17 で生成 `.egi` 側の座標文脈つき定義へ移した。
 `use exterior-calculus { d, δ }` や `assert-dd-zero` では `dYee`・`curlYee`・
 `sigmaC`・`hodge`・`dForm`・`codiff` も生成する。計量つき `Δ` では保存流束に
 必要な Yee プリミティブだけを生成する。`hodge` も `use exterior-calculus { hodge }`
-なしではエラーにした。全 `.fe` 例の `.fmr` はバイト一致。
+なしではエラーにした。全 `.fme` 例の `.fmr` はバイト一致。
 
 **v1.18(2026-07-09): `.egi` への出力層生成と `fmrgen` core 化** —
 固定の `lib/fmrgen.egi` から座標依存の数学演算子と `.fmr` プリンタを外し、
-`.fe` から生成される `.egi` が毎回 `feDim`/`feAxes`/`feCoords`/`feHsteps`、
+`.fme` から生成される `.egi` が毎回 `feDim`/`feAxes`/`feCoords`/`feHsteps`、
 ステンシル・Yee/DEC 演算子、`showFmr`/`fmrEq`/`emitModelOn` まで含むようにした。
 `lib/fmrgen.egi` は `taylorStencil`・quote cleanup・形式補助などの座標非依存 core に縮小。
-まだ `.fe` 化していない手書き `.egi` 例だけは `lib/fmrlegacy3d.egi` の 3D 互換文脈を読む。
-全 `.fe` 例と手書き `.egi` 例で生成 `.fmr` はバイト一致。
+まだ `.fme` 化していない手書き `.egi` 例だけは `lib/fmrlegacy3d.egi` の 3D 互換文脈を読む。
+全 `.fme` 例と手書き `.egi` 例で生成 `.fmr` はバイト一致。
 
 **v1.19(2026-07-09): 上下添字を保持し、`metric NAME` で計量名を宣言** —
 step 式で `~i` を `_i` に正規化する処理をやめ、添字展開器が `Up`/`Down` を
@@ -136,13 +136,13 @@ Formura 出力 layout を添字仕様から推論する。`{...}` は対称、`[
 strict 検査され、自由添字は LHS と上下まで一致する。同じ上下添字が残る式は
 diagonal tensor であり、scalar にするには `contractWith` または `.` が必要である。
 添字の上げ下げは自動化せず、常に `g_i_j . v~j` のように
-metric と縮約を明示する。`elastic3d.fe` は `metric g` と対称反変応力
+metric と縮約を明示する。`elastic3d.fme` は `metric g` と対称反変応力
 `σ{~i~j}` を使う記法へ移行し、初期値も `v~i = [| ... |]~i` /
 `σ~i~j = [| ... |]~i~j` のように同じ添字 suffix を要求する。
 P/S 波速検証は green。
 
 **v1.21(2026-07-09): Formura 軸名の透過と軸非依存な成分 storage 名** —
-`.fe` の `axes` 宣言を Formura 出力にもそのまま渡すようにし、
+`.fme` の `axes` 宣言を Formura 出力にもそのまま渡すようにし、
 `axes θ, φ, z` は `axes :: theta,phi,z`、`axes r, θ, φ` は
 `axes :: r,theta,phi` を生成する。格子幅・ドライバ側のナビゲーション名も
 `dtheta`、`dphi`、`space_interval_theta`、`lower_phi` のように軸名へ追随する。
@@ -178,7 +178,7 @@ raw initializer は上三角 off-diagonal rows
 生成 `.egi` 側の `componentEqs names values` に統合している。
 
 **v1.23(2026-07-09): Formurae 生成経路の 1D/2D/3D 対応** —
-`.fe` の `dimension` は 1、2、3 を受け付けるようになった。CAS 内部の
+`.fme` の `dimension` は 1、2、3 を受け付けるようになった。CAS 内部の
 正規座標は宣言次元ぶんだけ `x,y,z` から取り、Formura 出力の `axes ::`、
 格子参照、raw init の `[i]`/`[i,j]`/`[i,j,k]` も宣言次元へ追随する。
 スカラー、vector、staggered rank-1、対称/反対称/full rank-2 field は
@@ -328,7 +328,7 @@ def Bn_i := withSymbols [i] B_i - dt * (curl En_#)_i
 
 ## 4. v1(次): スタンドアロン表層構文
 
-ファイル例(仮拡張子 .fe;名称候補は要相談):
+ファイル例(仮拡張子 .fme;名称候補は要相談):
 
 ```
 dim 3
@@ -373,7 +373,7 @@ step:
 ### アーキテクチャ
 
 ```
-.fe(表層構文)
+.fme(表層構文)
   → パーサ(薄い変換層)
   → 座標文脈・演算子・プリンタを含む生成 .egi
   → Egison CAS が添字・微分形式・計量を展開
@@ -383,7 +383,7 @@ step:
 
 - **意味論は生成される Egison コードに一本化**する。`lib/fmrgen.egi` は
   `taylorStencil` や quote cleanup などの座標非依存 core に縮小し、
-  座標文脈つき演算子と `.fmr` プリンタは `.fe` ごとの `.egi` に出す。
+  座標文脈つき演算子と `.fmr` プリンタは `.fme` ごとの `.egi` に出す。
   バイト一致テストを意味のアンカーとして維持する。
 - パーサ実装は2案: (a) Egison の文字列パターンマッチ(ドッグフーディング、
   ただし式文法+優先順位は重い)、(b) Haskell(megaparsec; Formura fork と
@@ -404,21 +404,21 @@ step:
 1. ✅ v0: 旧 fmrdsl + 添字つき関数族 + 成分名変換(maxwell3d で実証、バイト一致、現在は生成 `.egi` 側へ統合済み)
 2. ✅ v0.5: elastic(対称テンソルビュー+添字導出スタガー)・maxwell_dec・
    metric_torus・kleingordon・diffusion3d を v0 様式へ移行(3例バイト一致)。
-3. ✅ v1: **.fe 表層構文+コンパイラ実装済(2026-07-10)**。まず Python
+3. ✅ v1: **.fme 表層構文+コンパイラ実装済(2026-07-10)**。まず Python
    (fec.py)でプロトタイプし、同日 **Haskell 版に置換**(レビュー指摘)。
    現在は cabal パッケージ `fec`(ルート fec.cabal、ソース fec/src/Main.hs、
    base のみ)で、`cabal build` / `cabal run -v0 fec --` で使う。
    置換時に全5例で両実装の .egi 出力バイト一致を確認してから fec.py を撤去。移行済 = maxwell3d・maxwell_dec・
-   diffusion3d・kleingordon・ks3d の5例、**うち4例は .fe → .egi → .fmr が
+   diffusion3d・kleingordon・ks3d の5例、**うち4例は .fme → .egi → .fmr が
    バイト一致**(ks は整形差のみ)、全例 make green。.egi は生成中間物になった
-   (ヘッダに GENERATED 印、ギャラリーは .fe → .egi → .fmr の3段表示)。
+   (ヘッダに GENERATED 印、ギャラリーは .fme → .egi → .fmr の3段表示)。
    文法は fec.py 冒頭のコメント参照(dimension/axes/field/param/extern/raw/
    init:/step:/let/local/assert-dd-zero、`:=` = CAS init、`=` = raw init)。
    **init もベクトルで書ける**: `E = [| 0, gauss1(i*dx), 0 |]`(成分展開は fec)。
    **ベクトル方程式は添字なしで書ける**: `E' = E + dt * curl B` /
    `B' = B - dt * curl E'`(X' は更新済み配列への参照 = symplectic かつ袖幅1;
    fec が成分化して withSymbols [i] 形に変換)。dimension/axes は必須で、
-   現在の `.fe` 生成経路は 1D/2D/3D を扱う。CAS 内部の座標シンボルは
+   現在の `.fme` 生成経路は 1D/2D/3D を扱う。CAS 内部の座標シンボルは
    宣言次元ぶんだけ `x,y,z` に正規化するが、
    Formura 出力の `axes ::` と `d<axis>`/`lower_<axis>` 系の名前は宣言軸を使う。
 4. ✅ v1.5/v1.6(2026-07-10): **計量サポート実装済** —
@@ -439,15 +439,15 @@ step:
    残り = indexed family(`field f : family 19`)で LBM、ε_ijk とスカラー対象の
    添字和で yee/acoustic、ユーザ定義ヘルパ(def)で MHD。
 5. ✅ v1.7(2026-07-10): **数式演算子と strict 添字記法** — レビュー指摘
-   「dC2 のような関数でなく数式どおりに」を受け、.fe の座標軸微分は
-   `∂x` と `∂ m r x` 形式を許す(dC/dC2/dTaylor は .fe から撤去)。
+   「dC2 のような関数でなく数式どおりに」を受け、.fme の座標軸微分は
+   `∂x` と `∂ m r x` 形式を許す(dC/dC2/dTaylor は .fme から撤去)。
    現在は `field v~i @ staggered`・`field σ{~i~j} @ staggered` のように
    添字仕様から field layout を推論し、**テンソル添字方程式**が書ける:
    `v'~i = v~i + (dt/rho0) * contractWith (+) (∂_j σ~i~j)` /
    `σ'~i~j = σ~i~j + dt * (la * g~i~j * contractWith (+) (∂_k v'~k) + mu * (g~i~k . ∂_k v'~j + g~j~k . ∂_k v'~i))`。
    同じ上下添字が現れただけでは総和せず、縮約は `contractWith` または `.` で明示する。
    `metric g` 下の g~i~j は Euclidean 計量、∂_a は対象成分の配置にアンカーされた半セル差分
-   (dYee)に落ち、対称成分は正準化(sigma_2_1 = sigma_1_2)。elastic3d.fe の生成
+   (dYee)に落ち、対称成分は正準化(sigma_2_1 = sigma_1_2)。elastic3d.fme の生成
    .fmr は P/S 波速検証で green。
 6. v2: 変数別境界条件、多段時間積分スキーム、Christoffel 一般計量、
    2D curl、4D 以上の Formura backend

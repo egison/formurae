@@ -6,9 +6,9 @@ license-file:       LICENSE
 author:             Satoshi Egi
 maintainer:         satoshi.egi@rakuten.com
 copyright:          2026 Satoshi Egi
-synopsis:           The Formurae (.fe) compiler: mathematical stencil language to embedded Egison
+synopsis:           The Formurae (.fme) compiler: mathematical stencil language to embedded Egison
 description:
-    Translates Formurae, the .fe surface language (field declarations plus
+    Translates Formurae, the .fme surface language (field declarations plus
     index-notation and differential-form equations), into the embedded DSL form: an Egison
     program over lib/fmrgen.egi.  All semantics (tensor
     index expansion, DEC, the CAS, the .fmr printer) live on the Egison

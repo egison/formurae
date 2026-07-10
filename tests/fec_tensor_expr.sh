@@ -3,11 +3,11 @@ set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 
-compile_fe() {
+compile_fme() {
   (cd "$ROOT" && cabal run -v0 fec -- "$1")
 }
 
-tmp_fe() {
+tmp_fme() {
   mktemp "${TMPDIR:-/tmp}/formurae-fec-test.XXXXXX"
 }
 
@@ -30,7 +30,7 @@ write_case() {
   done
 }
 
-f=$(tmp_fe)
+f=$(tmp_fme)
 write_case "$f" \
   'dimension 3' \
   'axes x,y,z' \
@@ -42,11 +42,11 @@ write_case "$f" \
   '  u = 0.0' \
   'step:' \
   "  u' = lap u"
-out=$(compile_fe "$f")
+out=$(compile_fme "$f")
 rm -f "$f"
 assert_contains "$out" '∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u' 'lap = div grad'
 
-f=$(tmp_fe)
+f=$(tmp_fme)
 write_case "$f" \
   'dimension 3' \
   'axes x,y,z' \
@@ -56,11 +56,11 @@ write_case "$f" \
   '  u = 0.0' \
   'step:' \
   "  u' = lap u"
-out=$(compile_fe "$f")
+out=$(compile_fme "$f")
 rm -f "$f"
 assert_contains "$out" '∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u' 'raised indexed derivative'
 
-f=$(tmp_fe)
+f=$(tmp_fme)
 write_case "$f" \
   'dimension 3' \
   'axes x,y,z' \
@@ -71,11 +71,11 @@ write_case "$f" \
   '  u = 0.0' \
   'step:' \
   "  u' = Δ u"
-out=$(compile_fe "$f")
+out=$(compile_fme "$f")
 rm -f "$f"
 assert_contains "$out" '∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u' 'metric dot laplacian'
 
-f=$(tmp_fe)
+f=$(tmp_fme)
 write_case "$f" \
   'dimension 2' \
   'axes x,y' \
@@ -84,11 +84,11 @@ write_case "$f" \
   'def trace A = contractWith (+) A~i_i' \
   'step:' \
   "  p' = trace A~p_q"
-out=$(compile_fe "$f")
+out=$(compile_fme "$f")
 rm -f "$f"
 assert_contains "$out" 'A_1_1 + A_2_2' 'trace'
 
-f=$(tmp_fe)
+f=$(tmp_fme)
 write_case "$f" \
   'dimension 2' \
   'axes x,y' \
@@ -97,11 +97,11 @@ write_case "$f" \
   'field C~i_j' \
   'step:' \
   "  C'~i_j = A~i_k . B~k_j"
-out=$(compile_fe "$f")
+out=$(compile_fme "$f")
 rm -f "$f"
 assert_contains "$out" 'A_1_1 * B_1_1 + A_1_2 * B_2_1' 'prelude dot'
 
-f=$(tmp_fe)
+f=$(tmp_fme)
 write_case "$f" \
   'dimension 2' \
   'axes x,y' \
@@ -111,11 +111,11 @@ write_case "$f" \
   'def (.) A B = A + B' \
   'step:' \
   "  C'~i_j = A~i_j . B~i_j"
-out=$(compile_fe "$f")
+out=$(compile_fme "$f")
 rm -f "$f"
 assert_contains "$out" 'A_1_1 + B_1_1' 'user-defined dot shadowing'
 
-f=$(tmp_fe)
+f=$(tmp_fme)
 write_case "$f" \
   'dimension 2' \
   'axes x,y' \
@@ -126,11 +126,11 @@ write_case "$f" \
   '  u = 0.0' \
   'step:' \
   "  q'_j = grad u"
-out=$(compile_fe "$f")
+out=$(compile_fme "$f")
 rm -f "$f"
 assert_contains "$out" 'def feqq2 := dYee 2' 'withSymbols alpha-renaming'
 
-f=$(tmp_fe)
+f=$(tmp_fme)
 write_case "$f" \
   'dimension 2' \
   'axes x,y' \
@@ -139,12 +139,12 @@ write_case "$f" \
   'def shaped X = withSymbols [i] exp(0 - X_i^2) + sin(X_i)' \
   'step:' \
   "  q'_i = shaped A_i"
-out=$(compile_fe "$f")
+out=$(compile_fme "$f")
 rm -f "$f"
 assert_contains "$out" 'exp(0 - (A_1 ^ 2)) + sin(A_1)' 'scalar call and power AST'
 assert_contains "$out" 'exp(0 - (A_2 ^ 2)) + sin(A_2)' 'scalar call and power AST component 2'
 
-f=$(tmp_fe)
+f=$(tmp_fme)
 write_case "$f" \
   'dimension 2' \
   'axes x,y' \
@@ -154,12 +154,12 @@ write_case "$f" \
   'step:' \
   "  p' = contractWith (*) A~i_i" \
   "  q' = contractWith max A~i_i"
-out=$(compile_fe "$f")
+out=$(compile_fme "$f")
 rm -f "$f"
 assert_contains "$out" 'A_1_1 * A_2_2' 'contractWith product reducer'
 assert_contains "$out" 'max(A_1_1, A_2_2)' 'contractWith function reducer'
 
-f=$(tmp_fe)
+f=$(tmp_fme)
 write_case "$f" \
   'dimension 2' \
   'axes x,y' \
@@ -168,7 +168,7 @@ write_case "$f" \
   'step:' \
   "  p' = v"
 set +e
-out=$(compile_fe "$f" 2>&1)
+out=$(compile_fme "$f" 2>&1)
 status=$?
 set -e
 rm -f "$f"
@@ -178,7 +178,7 @@ if [ "$status" -eq 0 ]; then
 fi
 assert_contains "$out" 'must be referenced with indices' 'bare indexed tensor field error'
 
-f=$(tmp_fe)
+f=$(tmp_fme)
 write_case "$f" \
   'dimension 2' \
   'axes x,y' \
@@ -187,7 +187,7 @@ write_case "$f" \
   'step:' \
   "  q'_i = @ + A_i"
 set +e
-out=$(compile_fe "$f" 2>&1)
+out=$(compile_fme "$f" 2>&1)
 status=$?
 set -e
 rm -f "$f"
@@ -197,7 +197,7 @@ if [ "$status" -eq 0 ]; then
 fi
 assert_contains "$out" 'bad tensor expression: unsupported scalar expression atom near: @ at column 1 in: @ + A_i' 'tensor parser diagnostic'
 
-f=$(tmp_fe)
+f=$(tmp_fme)
 write_case "$f" \
   'dimension 2' \
   'axes x,y' \
@@ -205,7 +205,7 @@ write_case "$f" \
   'step:' \
   "  u' = withSymbols [i ∂_i u"
 set +e
-out=$(compile_fe "$f" 2>&1)
+out=$(compile_fme "$f" 2>&1)
 status=$?
 set -e
 rm -f "$f"
@@ -215,7 +215,7 @@ if [ "$status" -eq 0 ]; then
 fi
 assert_contains "$out" 'withSymbols needs a bracketed symbol list at column 1 in: withSymbols [i d_i u' 'unbalanced bracket diagnostic'
 
-f=$(tmp_fe)
+f=$(tmp_fme)
 write_case "$f" \
   'dimension 2' \
   'axes x,y' \
@@ -224,7 +224,7 @@ write_case "$f" \
   'step:' \
   "  p' = A~i_i"
 set +e
-out=$(compile_fe "$f" 2>&1)
+out=$(compile_fme "$f" 2>&1)
 status=$?
 set -e
 rm -f "$f"

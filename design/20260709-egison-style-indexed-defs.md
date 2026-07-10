@@ -163,7 +163,7 @@ def divg (X: Vector MathValue) : MathValue := trace (dGrad X)
 
 ## 5. `def` の扱い
 
-`.fe` の `def` は、第一段階では scalar 関数と座標軸 stencil の定義に寄せる。
+`.fme` の `def` は、第一段階では scalar 関数と座標軸 stencil の定義に寄せる。
 
 ```text
 def square u = u * u

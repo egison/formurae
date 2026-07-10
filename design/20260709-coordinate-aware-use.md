@@ -5,7 +5,7 @@ Date: 2026-07-09
 ## 実装状況
 
 - 2026-07-09: `use exterior-calculus { Δ }` はその後撤去し、
-  `Δ`/`Δ4` は `.fe` 側の通常の `def` で書く方針へ移行済み。
+  `Δ`/`Δ4` は `.fme` 側の通常の `def` で書く方針へ移行済み。
   平坦格子用の生成 `.egi` 文脈からも `lap` は外し、
   `∂ 2 1 x`/`∂ m r x` と `dTaylor` を低水準プリミティブとして使う。
   `use vector-calculus { divg }` については 2D 例 `examples/divergence2d` で検証済み。
@@ -28,7 +28,7 @@ Date: 2026-07-09
   `use exterior-calculus { d, δ }` や `assert-dd-zero` では
   `dYee`、`curlYee`、`sigmaC`、`hodge`、`dForm`、`codiff` を生成する。
   計量つき `Δ` は保存流束に必要な Yee プリミティブを生成する。
-  生成 `.fmr` は全 `.fe` 例でバイト一致。
+  生成 `.fmr` は全 `.fme` 例でバイト一致。
 - 2026-07-09: `showFmr`、`fmrEq`、`fmrInit`、`emitModelOn` などの出力層も
   生成 `.egi` 側へ移した。`lib/fmrgen.egi` は `taylorStencil`、quote cleanup、
   形式補助だけの座標非依存 core になった。手書き `.egi` 例は移行まで
@@ -188,7 +188,7 @@ fec: error: curl requires dimension 3
    showFmr, fmrEq, fmrInit, scalarEq, componentEqs, emitModelOn など
 ```
 
-`.fe` から生成される `.egi` は `lib/fmrgen.egi` だけを読む。まだ `.fe` 化していない
+`.fme` から生成される `.egi` は `lib/fmrgen.egi` だけを読む。まだ `.fme` 化していない
 手書き `.egi` 例は互換用に `lib/fmrlegacy3d.egi` も読む。
 
 `lib/fmrgen.egi` からは
@@ -315,7 +315,7 @@ def δ := codiff
 
 ## 10. examples の移行
 
-各 `.fe` の冒頭に、使う数学演算子を明示する。
+各 `.fme` の冒頭に、使う数学演算子を明示する。
 
 例:
 
@@ -354,7 +354,7 @@ use exterior-calculus { d, δ }
 
 ## 11. 最終的な仕様イメージ
 
-最終的には、`.fe` の top-level は次の責務分担になる。
+最終的には、`.fme` の top-level は次の責務分担になる。
 
 ```text
 dimension 3

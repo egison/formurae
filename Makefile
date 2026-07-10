@@ -2,7 +2,7 @@
 #
 #   make setup        : fetch + patch + build Formura (vendor/, bin/formura)
 #   cabal build       : build the Formurae compiler (fec)
-#   make <example>    : .fe -> fec -> Egison -> Formura -> cc -> check
+#   make <example>    : .fme -> fec -> Egison -> Formura -> cc -> check
 #   make all          : every example (each check exits nonzero on failure)
 #   make fec-tensor-tests : compiler regression tests for indexed tensor exprs
 #
@@ -23,13 +23,13 @@ EGISON_RUN = cd $(EGISON_DIR) && cabal run -v0 egison --
 
 # ---------------------------------------------------------------- examples
 #
-# FE_EXAMPLES: written in Formurae (.fe) (dir = base name; the
-# recipe compiles .fe -> .egi -> .fmr -> C and runs the check driver).
+# FME_EXAMPLES: written in Formurae (.fme) (dir = base name; the
+# recipe compiles .fme -> .egi -> .fmr -> C and runs the check driver).
 # EGI_EXAMPLES: still written directly in the embedded Egison form
 # (staggered families / indexed families / custom helpers pending
-# .fe support).
+# .fme support).
 
-FE_EXAMPLES  := diffusion1d diffusion2d divergence2d diffusion3d maxwell3d maxwell_dec kleingordon ks3d \
+FME_EXAMPLES := diffusion1d diffusion2d divergence2d diffusion3d maxwell3d maxwell_dec kleingordon ks3d \
                 burgers3d pearson3d cahnhilliard3d tdgl3d shallowwater \
                 euler_sod highorder4 dirichlet_diffusion elastic3d \
                 metric_torus metric_sphere hyperbolic polar2d spherical3d
@@ -78,9 +78,9 @@ define BUILD_AND_CHECK
 	cd examples/$(1) && ./check $(RUNARGS_$(1))
 endef
 
-define FE_RULE
+define FME_RULE
 $(1):
-	$$(FEC_RUN) $$(abspath examples/$(1)/$(1).fe) > $$(abspath examples/$(1)/$(1).egi)
+	$$(FEC_RUN) $$(abspath examples/$(1)/$(1).fme) > $$(abspath examples/$(1)/$(1).egi)
 	$$(EGISON_RUN) -l $$(FMRGEN) $$(abspath examples/$(1)/$(1).egi) \
 	  > $$(abspath examples/$(1)/$(1).fmr)
 	$$(call BUILD_AND_CHECK,$(1))
@@ -93,14 +93,14 @@ $(1):
 	$$(call BUILD_AND_CHECK,$(1))
 endef
 
-$(foreach e,$(FE_EXAMPLES),$(eval $(call FE_RULE,$(e))))
+$(foreach e,$(FME_EXAMPLES),$(eval $(call FME_RULE,$(e))))
 $(foreach e,$(EGI_EXAMPLES),$(eval $(call EGI_RULE,$(e))))
 $(foreach a,$(ALIASES),$(eval $(word 1,$(subst :, ,$(a))): $(word 2,$(subst :, ,$(a)))))
 
-.PHONY: all setup clean fec-tensor-tests $(FE_EXAMPLES) $(EGI_EXAMPLES) \
+.PHONY: all setup clean fec-tensor-tests $(FME_EXAMPLES) $(EGI_EXAMPLES) \
         $(foreach a,$(ALIASES),$(word 1,$(subst :, ,$(a))))
 
-all: $(FE_EXAMPLES) $(EGI_EXAMPLES)
+all: $(FME_EXAMPLES) $(EGI_EXAMPLES)
 
 fec-tensor-tests:
 	sh tests/fec_tensor_expr.sh
@@ -110,5 +110,5 @@ setup:
 
 clean:
 	rm -f examples/*/check examples/*/*.o examples/*/run examples/*/viz
-	rm -f $(foreach e,$(FE_EXAMPLES) $(EGI_EXAMPLES),examples/$(e)/$(e).c examples/$(e)/$(e).h)
+	rm -f $(foreach e,$(FME_EXAMPLES) $(EGI_EXAMPLES),examples/$(e)/$(e).c examples/$(e)/$(e).h)
 	rm -f examples/pearson3d/pearson_V.pgm examples/mhd_ot/mhd_rho.pgm

@@ -382,7 +382,7 @@ v_i  error
 
 ### Step 7: elastic3d を strict 記法へ移行する
 
-`examples/elastic3d/elastic3d.fe` を次の形へ移行する。
+`examples/elastic3d/elastic3d.fme` を次の形へ移行する。
 
 ```text
 metric g

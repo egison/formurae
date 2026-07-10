@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 # Fill the gallery's full-source blocks: in index.html,
+#   <details class="codebox" data-fme="<path under examples/>">...</details>
 #   <details class="codebox" data-egi="<path under examples/>">...</details>
 #   <details class="codebox" data-fmr="<path under examples/>">...</details>
 # get their bodies replaced with the current content of that file
@@ -29,12 +30,12 @@ def egi(m):
             % (rel, label, os.path.basename(rel), n, body))
 
 
-def fe(m):
+def fme(m):
     rel = m.group('rel')
     attrs = m.group('attrs') or ''
     state = ' data-closed' if 'data-closed' in attrs else ' open'
     body, n = load(rel, r'(?m)^(--.*)$')
-    return ('<details class="codebox" data-fe="%s"%s><summary>Formurae ソース全文'
+    return ('<details class="codebox" data-fme="%s"%s><summary>Formurae ソース全文'
             '(%s・%d 行)</summary>\n<pre>%s</pre></details>'
             % (rel, state, os.path.basename(rel), n, body))
 
@@ -49,8 +50,8 @@ for page in [INDEX, os.path.join(GALLERY, 'dsl', 'index.html')]:
     if not os.path.exists(page):
         continue
     s = io.open(page, encoding='utf-8').read()
-    s, n0 = re.subn(r'<details class="codebox" data-fe="(?P<rel>[^"]+)"(?P<attrs>[^>]*)>.*?</details>', fe, s, flags=re.S)
+    s, n0 = re.subn(r'<details class="codebox" data-fme="(?P<rel>[^"]+)"(?P<attrs>[^>]*)>.*?</details>', fme, s, flags=re.S)
     s, n1 = re.subn(r'<details class="codebox" data-egi="(?P<rel>[^"]+)">.*?</details>', egi, s, flags=re.S)
     s, n2 = re.subn(r'<details class="codebox" data-fmr="(?P<rel>[^"]+)">.*?</details>', fmr, s, flags=re.S)
     io.open(page, 'w', encoding='utf-8').write(s)
-    print('%s: embedded %d .fe + %d .egi + %d .fmr' % (os.path.relpath(page, GALLERY), n0, n1, n2))
+    print('%s: embedded %d .fme + %d .egi + %d .fmr' % (os.path.relpath(page, GALLERY), n0, n1, n2))
