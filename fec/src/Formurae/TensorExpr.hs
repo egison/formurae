@@ -21,7 +21,7 @@ module Formurae.TensorExpr
   ) where
 
 import Data.Char (isAlphaNum, isDigit, isSpace)
-import Data.List (intercalate, nub, stripPrefix)
+import Data.List (intercalate, isPrefixOf, nub, stripPrefix)
 import Control.Monad (foldM)
 
 import Formurae.Common (fatal, strip, validSurfaceName)
@@ -471,13 +471,27 @@ parseIfExprE src ts0 =
 
 parseError :: String -> [ITok] -> String -> Either String a
 parseError src ts msg =
-  Left (msg ++ near ++ " in: " ++ src)
+  Left (msg ++ near ++ column ++ " in: " ++ src)
   where
     frag = renderIToks (trimTensorIToks ts)
     near
       | null frag = " at end"
       | frag == strip src = ""
       | otherwise = " near: " ++ frag
+    column =
+      case sourceColumn src frag of
+        Just n -> " at column " ++ show n
+        Nothing -> ""
+
+sourceColumn :: String -> String -> Maybe Int
+sourceColumn src frag
+  | null frag = Just (length src + 1)
+  | otherwise = go (1 :: Int) src
+  where
+    go _ [] = Nothing
+    go n s@(_:rest)
+      | frag `isPrefixOf` s = Just n
+      | otherwise = go (n + 1) rest
 
 renderReducer :: String -> String
 renderReducer "+" = "(+)"

@@ -195,7 +195,7 @@ if [ "$status" -eq 0 ]; then
   printf 'unsupported tensor parser atom unexpectedly succeeded\n' >&2
   exit 1
 fi
-assert_contains "$out" 'bad tensor expression: unsupported scalar expression atom near: @ in: @ + A_i' 'tensor parser diagnostic'
+assert_contains "$out" 'bad tensor expression: unsupported scalar expression atom near: @ at column 1 in: @ + A_i' 'tensor parser diagnostic'
 
 f=$(tmp_fe)
 write_case "$f" \
