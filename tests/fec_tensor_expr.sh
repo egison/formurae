@@ -186,6 +186,76 @@ f=$(tmp_fme)
 write_case "$f" \
   'dimension 2' \
   'axes x,y' \
+  'field V_i @ staggered' \
+  'field q : scalar' \
+  'def divg X = ∂_x X_1 + ∂_y X_2' \
+  'step:' \
+  "  V'_i = V_i" \
+  "  q' = divg V_i"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" 'dYee 1 [0, 0] (V_1, [1 / 2, 0])' 'staggered coordinate derivative x'
+assert_contains "$out" 'dYee 2 [0, 0] (V_2, [0, 1 / 2])' 'staggered coordinate derivative y'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'dimension 3' \
+  'axes x,y,z' \
+  'use vector-calculus { curl }' \
+  'field E_i' \
+  'field B_i' \
+  'step:' \
+  "  E'_i = curl B_i"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" 'def feqE1 := (1 * (∂ 1 1 y B_3 - ∂ 1 1 z B_2))' 'standard curl expands for indexed fields'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'dimension 3' \
+  'axes x,y,z' \
+  'use vector-calculus { curl }' \
+  'field E : vector' \
+  'field B : vector' \
+  'step:' \
+  "  E' = curl B"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" 'def feqE1 := (1 * (∂ 1 1 y B_3 - ∂ 1 1 z B_2))' 'standard curl expands for legacy vector equation'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'dimension 3' \
+  'axes x,y,z' \
+  'use vector-calculus { curl }' \
+  'field X_i @ staggered' \
+  'field C_i @ staggered' \
+  'step:' \
+  "  C'_i = curl X_i"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" 'dYee 2 [1 / 2, 0, 0] (X_3, [0, 0, 1 / 2])' 'standard curl uses staggered derivative'
+assert_contains "$out" 'dYee 3 [1 / 2, 0, 0] (X_2, [0, 1 / 2, 0])' 'standard curl uses staggered derivative second term'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'dimension 2' \
+  'axes x,y' \
+  'use vector-calculus { divg }' \
+  'field V_i @ staggered' \
+  'field q : scalar' \
+  'step:' \
+  "  V'_i = V_i" \
+  "  q' = divg V_i"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" 'dYee 1 [0, 0] (V_1, [1 / 2, 0])' 'standard divg uses staggered coordinate derivative x'
+assert_contains "$out" 'dYee 2 [0, 0] (V_2, [0, 1 / 2])' 'standard divg uses staggered coordinate derivative y'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'dimension 2' \
+  'axes x,y' \
   'field u : scalar' \
   'field q_i' \
   'step:' \

@@ -100,11 +100,8 @@
 -- `metric NAME` lowers to generated tensors according to variance:
 -- NAME~i~j, NAME~i_j, NAME_i~j, NAME_i_j.  The fused delta_ij is rejected.
 --
--- A vector update may be written without indices (E' = E + dt * curl B).
--- fec lowers it to component extraction from Egison vector values, while
--- the mathematical definition of curl/divg itself stays in generated Egison
--- code.  X' in a RHS refers to the updated field (Formura's primed array),
--- so B' = B - dt * curl E' is the symplectic pair.
+-- X' in a RHS refers to the updated field (Formura's primed array), so
+-- B' = B - dt * curl E' is the symplectic pair.
 
 import Data.Char (isAlpha, isAlphaNum, isDigit, isSpace)
 import Data.List (dropWhileEnd, intercalate, permutations, sort, nub, stripPrefix)
@@ -127,9 +124,8 @@ import Formurae.TensorExpr
   , zeroPlaceB
   )
 
-vecOps, vecRet, deltaOps :: [String]
-vecOps = ["d", "delta", "codiff", "\948", "curl", "divg", "dGrad"]
-vecRet = ["curl"]
+formOps, deltaOps :: [String]
+formOps = ["d", "delta", "codiff", "\948"]
 deltaOps = ["delta", "codiff", "\948"]
 
 -- Scalar functions supported as Formura/C extern functions.  In Egison's
@@ -143,10 +139,44 @@ scalarIntrinsics =
   , "exp", "log", "sqrt", "pow", "fabs"
   ]
 
-standardDefs :: [Def]
-standardDefs =
+standardDefs :: Model -> [Def]
+standardDefs m =
   [ Def "." ["A", "B"] "contractWith (+) (A * B)"
   ]
+  ++ vectorCalculusDefs m
+
+vectorCalculusDefs :: Model -> [Def]
+vectorCalculusDefs m =
+  [ Def "dGrad" ["X"] "withSymbols [i, j] ∂_i X_j"
+  | hasUse m "vector-calculus" "dGrad"
+  ]
+  ++
+  [ Def "curl" ["X"] curlBody
+  | hasUse m "vector-calculus" "curl"
+  ]
+  ++
+  [ Def "divg" ["X"] (divgBody m)
+  | hasUse m "vector-calculus" "divg"
+  ]
+  where
+    axis :: Int -> String
+    axis n = mAxes m !! (n - 1)
+    p :: Int -> String
+    p n = "X_" ++ show n
+    d :: Int -> Int -> String
+    d a n = "∂_" ++ axis a ++ " " ++ p n
+    curlBody =
+      "withSymbols [i] "
+      ++ "delta_i~1 * (" ++ d 2 3 ++ " - " ++ d 3 2 ++ ")"
+      ++ " + delta_i~2 * (" ++ d 3 1 ++ " - " ++ d 1 3 ++ ")"
+      ++ " + delta_i~3 * (" ++ d 1 2 ++ " - " ++ d 2 1 ++ ")"
+
+divgBody :: Model -> String
+divgBody m =
+  intercalate " + "
+    [ "∂_" ++ axis ++ " X_" ++ show a
+    | (axis, a) <- zip (mAxes m) (axisRange m)
+    ]
 
 -- ---------------------------------------------------------------- model
 
@@ -475,9 +505,9 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
           mapM_ (checkInitUse mUse) (mInits mUse)
           -- resolve user-defined operators (definition order; a body may
           -- use only operators defined before it) and expand all uses.
-          -- The tensor dot is a standard prelude operator, not a core
-          -- primitive; a user definition later in the file shadows it.
-          defs <- resolveDefs mUse (standardDefs ++ reverse (mDefs mUse))
+          -- Prelude operators are ordinary defs; a user definition later in
+          -- the file shadows the prelude name.
+          defs <- resolveDefs mUse (standardDefs mUse ++ reverse (mDefs mUse))
           tensorDefs <- resolveTensorDefs mUse defs (reverse (mTensorDefs mUse))
           let mDef = mUse { mDefs = defs, mTensorDefs = tensorDefs }
           steps' <- mapM (\st -> do ex0 <- preprocessTensorExpr mUse (sEx st)
@@ -1008,19 +1038,38 @@ indexDefs m lets st = do
       e <- ixExpand m lets env anchor ex'
       return ("def " ++ defnm ++ " := " ++ e)
 
+implicitVectorDefs :: Model -> [String] -> Step -> IO [String]
+implicitVectorDefs m lets st = do
+  ex0 <- expandTensorDefs m (sEx st)
+  ex <- preprocessTensorExpr m ex0
+  if hasIndexSyntax m ex
+    then do
+      strictEinstein m lets [lhsIx] ex
+      mapM (comp ex) (axisRange m)
+    else do
+      mapM scalarComp (axisRange m)
+  where
+    lhsIx = IxPart VDown "i"
+    anchor = zeroPlaceB m
+    comp ex' a = do
+      e <- ixExpand m lets [(ixName lhsIx, a)] anchor ex'
+      return ("def feq" ++ sNm st ++ show a ++ " := " ++ e)
+    scalarComp a = do
+      e <- rewrite m lets (Just (show a)) (sEx st)
+      return ("def feq" ++ sNm st ++ show a ++ " := " ++ e)
+
 -- names X whose updated value X' is referenced in some step RHS
 primedRefs :: Model -> [String]
 primedRefs m = sort (nub [nm | st <- mSteps m, TId nm True <- tokenize (sEx st)
                              , kindOf m nm /= Nothing])
 
-opPass :: Model -> [String] -> [Tok] -> [Elem]
-opPass m lets = go
+opPass :: Model -> [Tok] -> [Elem]
+opPass m = go
   where
     forms = [(n, d) | (n, Form d) <- mFlds m]
-    vecs = [n | (n, Vector False) <- mFlds m]
     go [] = []
     go (TId op False : ts)
-      | op `elem` vecOps
+      | op `elem` formOps
       , (sp@(_:_), ts1) <- span isSpaceTok ts
       , (TId nm pr : ts2) <- ts1 =
           case lookup nm forms of
@@ -1028,13 +1077,8 @@ opPass m lets = go
               let fn = if op `elem` deltaOps then "codiff" else "dForm"
                   tag = nm ++ (if pr then "fN" else "f")
               in EMarkL ("formComps (" ++ fn ++ " " ++ tag ++ ")") : go ts2
-            Nothing
-              | op == "d" || op `elem` deltaOps ->
-                  EId op False : map toElem sp ++ go ts1
-              | nm `elem` vecs || nm `elem` lets ->
-                  let core = op ++ " " ++ nm ++ (if pr then "'" else "") ++ "_#"
-                  in (if op `elem` vecRet then EMarkV core else ERaw core) : go ts2
-              | otherwise -> EId op False : map toElem sp ++ go ts1
+            Nothing ->
+              EId op False : map toElem sp ++ go ts1
     go (t : ts) = toElem t : go ts
     isSpaceTok (TC c) = isSpace c
     isSpaceTok _ = False
@@ -1081,7 +1125,7 @@ rewrite m lets mk expr = do
   exprT <- preprocessTensorExpr m exprT0
   fmap concat (mapM render (attach (elems exprT)))
   where
-    elems exprT = lbPass (opPass m lets (tokenize exprT))
+    elems exprT = lbPass (opPass m (tokenize exprT))
     lbPass [] = []
     lbPass (EId "lb" False : rest0) =
       case dropWhile isSp rest0 of
@@ -1108,10 +1152,6 @@ rewrite m lets mk expr = do
         _ -> return (nm ++ (if pr then "'" else ""))
     render (EC c, _) = return [c]
     render (ERaw t, _) = return t
-    render (EMarkV t, _) =
-      case mk of
-        Just k -> return ("(" ++ t ++ ")_" ++ k)
-        Nothing -> return ("(" ++ t ++ ")")
     render (EMarkL t, _) =
       case mk of
         Just "i" -> fatal ("forms cannot appear in an unindexed vector equation: " ++ expr)
@@ -1215,8 +1255,6 @@ emit m = do
                 | xs <- basisSignInputs]
                 "0"
       hasExt names = any (hasUse m "exterior-calculus") names
-      hasVec names = any (hasUse m "vector-calculus") names
-      needsVectorContext = hasVec ["dGrad", "curl", "divg"]
       needsFormContext = hasExt ["d", "delta", "codiff", "dForm", "hodge"] || mDd m /= Nothing
       needsStaggeredContext =
         any (\(_, k) -> k == Vector True || k == SymM || k == AntiM || k == Tensor2 True) (mFlds m)
@@ -1246,10 +1284,11 @@ emit m = do
       isIndexedDerivative (II w) =
         case parseIndexedIdent w of
           ("d", [_]) -> True
+          _ | Just (_, _, part) <- derivativeOpParts w ->
+                not (ixName part `elem` mAxes m || ixName part `elem` internalCoordNames m)
           _ -> False
       isIndexedDerivative _ = False
       contextMathDecls = scalarContextDecls
-                         ++ (if needsVectorContext then vectorContextDecls else [])
                          ++ (if needsYeeContext then yeeContextDecls else [])
                          ++ (if needsFormContext then formContextDecls else [])
       scalarContextDecls =
@@ -1278,21 +1317,6 @@ emit m = do
                , "      else if m = 2 && r = 1 then dC2 a u"
                , "      else dTaylor m (between (0 - r) r) a u"
                ]
-      vectorContextDecls =
-            dGradDecls
-            ++ (if hasUse m "vector-calculus" "curl" then curlDecls else [])
-            ++ (if hasUse m "vector-calculus" "divg" then divgDecls else [])
-      dGradDecls =
-            [ "def dGrad (X: Vector MathValue) : Matrix MathValue :="
-            , "  generateTensor (\\[a, b] -> dC a X_b) [feDim, feDim]"
-            ]
-      curlDecls =
-            [ "def curl (X: Vector MathValue) : Vector MathValue :="
-            , "  withSymbols [i, j, k] (\949 3)~i~j~k . (dGrad X)_j_k"
-            ]
-      divgDecls =
-            [ "def divg (X: Vector MathValue) : MathValue := trace (dGrad X)"
-            ]
       yeeContextDecls =
             [ "def feIndexPairs : [(Integer, Integer)] := " ++ axisPairList
             , "def yeeRef (sT: [MathValue]) (fld: (MathValue, [MathValue])) (disp: [MathValue]) : MathValue :="
@@ -1680,8 +1704,7 @@ emit m = do
             e <- rewrite m lets Nothing (sEx st)
             return ["def feq" ++ sNm st ++ "_i := withSymbols [i] " ++ e]
         | kindOf m (sNm st) == Just (Vector False) && null (sIdx st) -> do
-            e <- rewrite m lets (Just "i") (sEx st)
-            return ["def feq" ++ sNm st ++ "_i := withSymbols [i] " ++ e]
+            implicitVectorDefs m lets st
       _ -> return []
     stepItem lets st = case sk st of
       KLet -> return Nothing
@@ -1723,7 +1746,7 @@ emit m = do
             let nm = sNm st
                 names = egiStringList (componentStorageNamesOf m nm)
             in return (Just ("componentEqs " ++ names ++ " "
-                             ++ egiMathList ["feq" ++ nm ++ "_" ++ show a
+                             ++ egiMathList ["feq" ++ nm ++ show a
                                             | a <- axisRange m]))
         | Just (Form _) <- kindOf m (sNm st) -> do
             let names = componentStorageNamesOf m (sNm st)

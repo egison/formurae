@@ -237,10 +237,9 @@ preprocessTensorAst m expr =
       keep (TEDot [pre f, pre g])
     TEApply (TEIdent fn fnParts) args
       | Just (ordr, radius, part) <- derivativeOpParts (fn ++ concatMap ixSuffix fnParts)
-      , Just axis' <- lookup (ixName part) axmap ->
-          keep (TEApply (TEIdent "∂" [])
-                  (TENumber (show ordr) : TENumber (show radius)
-                   : TEIdent axis' [] : map pre args))
+      , let part' = renameDerivativePart part ->
+          keep (TEApply (TEIdent ("pd" ++ show ordr ++ "r" ++ show radius) [part'])
+                  (map pre args))
     TEApply f args ->
       keep (TEApply (pre f) (map pre args))
     TEIf c t e ->
@@ -252,10 +251,8 @@ preprocessTensorAst m expr =
     TEContractWith reducer body ->
       keep (TEContractWith reducer (pre body))
     TEDerivative parts body
-      | Just lowered <- lowerAxisDerivatives parts (pre body) ->
-          keep lowered
       | otherwise ->
-          keep (TEDerivative parts (pre body))
+          keep (foldr lowerDerivativePart (pre body) parts)
     TEDot parts ->
       keep (TEDot (map pre parts))
     TEBinary op lhs rhs ->
@@ -266,12 +263,16 @@ preprocessTensorAst m expr =
     pre = preprocessTensorAst m
     keep = setTensorSpan (tensorExprSpan expr)
     axmap = zip (mAxes m) (internalCoordNames m)
-    lowerAxisDerivatives parts body = do
-      axes <- mapM (\p -> lookup (ixName p) axmap) parts
-      return (foldr axisDerivative body axes)
-    axisDerivative axis body =
-      TEApply (TEIdent "∂" [])
-        [TENumber "1", TENumber "1", TEIdent axis [], body]
+    renameDerivativePart (IxPart v nm) =
+      case lookup nm axmap of
+        Just axis' -> IxPart v axis'
+        Nothing -> IxPart v nm
+    lowerDerivativePart part body =
+      case lookup (ixName part) axmap of
+        Just axis' ->
+          TEApply (TEIdent "pd1r1" [IxPart (ixVariance part) axis']) [body]
+        Nothing ->
+          TEDerivative [part] body
     renameAxisIdent base parts
       | null parts
       , (nm, 0) <- fieldBaseOf base
@@ -366,7 +367,9 @@ indexedIdentOccurrences m lets base0 parts w =
          | base == "d", not (null parts) ->
              derivativeIdentOccurrences parts w
          | Just (_, _, part) <- derivativeOpParts w ->
-             derivativeIdentOccurrences [part] w
+             if isCoordinatePart part
+               then return []
+               else derivativeIdentOccurrences [part] w
          | fieldDeclOf m base /= Nothing && not (null parts) -> do
              validateFieldRefParts m lets w
              return (symbolicIxParts parts)
@@ -378,6 +381,9 @@ indexedIdentOccurrences m lets base0 parts w =
              metricIdentOccurrences metricNm parts w
          | otherwise ->
              return []
+  where
+    isCoordinatePart (IxPart _ nm) =
+      nm `elem` mAxes m || nm `elem` internalCoordNames m
 
 metricIdentOccurrences :: String -> [IxPart] -> String -> IO [IxPart]
 metricIdentOccurrences metricNm parts w =
@@ -1239,7 +1245,10 @@ validateFieldRefParts m lets w =
       case (fdIndex fd, parts) of
         (Nothing, []) -> return ()
         (Nothing, _ : _) ->
-          fatal ("field " ++ fdName fd ++ " has no declared index variance; use the indexed field syntax in its declaration")
+          case kindOf m (fdName fd) of
+            Just kind | componentRank kind == length parts -> return ()
+            _ ->
+              fatal ("field " ++ fdName fd ++ " has no declared index variance; use the indexed field syntax in its declaration")
         (Just _, []) ->
           fatal ("indexed tensor field " ++ fdName fd
                  ++ " must be referenced with indices")
@@ -1393,25 +1402,60 @@ ixExpand m lets env anchor expr = do
               k0:_ -> "d_" ++ ixName k0
               [] -> "indexed derivative"
       ns <- mapM (need env' . ixName) parts'
-      ref <- derivativeOperandAst env' label body'
+      ref <- requireDerivativeOperandAst env' label body'
       let (e, _) = deriveChain ns anchor ref
       return e
 
     expandCoordinateIndexDerivativeAst env' ordr radius part body = do
       let label = "pd" ++ show ordr ++ "r" ++ show radius ++ ixSuffix part
-      n <- need env' (ixName part)
-      ref <- derivativeOperandAst env' label body
-      (e, _) <- deriveCoordinateDerivative ordr radius n anchor ref
-      return e
+      (n, isCoord) <- derivativeAxis env' part
+      if isCoord
+        then do
+          mref <- derivativeOperandAst env' body
+          case mref of
+            Just ref -> do
+              (e, _) <- deriveCoordinateDerivative True ordr radius n anchor ref
+              return e
+            Nothing -> do
+              e <- expandAst env' body
+              return ("∂ " ++ show ordr ++ " " ++ show radius ++ " "
+                      ++ axisSymbol n ++ " " ++ operandExpr e)
+        else do
+          ref <- requireDerivativeOperandAst env' label body
+          (e, _) <- deriveCoordinateDerivative False ordr radius n anchor ref
+          return e
 
-    derivativeOperandAst env' _ (TEIdent base parts) =
-      fieldRefParts env' base parts
-    derivativeOperandAst env' label (TEGroup e) =
-      derivativeOperandAst env' label e
-    derivativeOperandAst env' label (TEAppendIndexed e parts) =
-      derivativeOperandAst env' label (appendIndexedAst e parts)
-    derivativeOperandAst _ label _ =
-      fatal (label ++ " needs a field operand: " ++ expr)
+    derivativeAxis env' (IxPart _ nm) =
+      case lookup nm (zip (internalCoordNames m) (axisRange m)) of
+        Just n -> return (n, True)
+        Nothing -> do
+          n <- need env' nm
+          return (n, False)
+
+    requireDerivativeOperandAst env' label body = do
+      mref <- derivativeOperandAst env' body
+      case mref of
+        Just ref -> return ref
+        Nothing -> fatal (label ++ " needs a field operand: " ++ expr)
+
+    derivativeOperandAst env' (TEIdent base parts)
+      | isFieldOperand base parts =
+          Just <$> fieldRefParts env' base parts
+      | otherwise =
+          return Nothing
+    derivativeOperandAst env' (TEGroup e) =
+      derivativeOperandAst env' e
+    derivativeOperandAst env' (TEAppendIndexed e parts) =
+      derivativeOperandAst env' (appendIndexedAst e parts)
+    derivativeOperandAst _ _ =
+      return Nothing
+
+    isFieldOperand base0 parts =
+      let (fname, _) = fieldBaseOf base0
+      in case kindOf m fname of
+           Just Scalar -> null parts
+           Just _ -> not (null parts)
+           Nothing -> fname `elem` lets && not (null parts)
 
     resolveIdentAst env' base0 parts =
       let w = base0 ++ concatMap ixSuffix parts
@@ -1588,11 +1632,14 @@ ixExpand m lets env anchor expr = do
           e = derivAt n target innerRef
       in (e, target)
 
-    deriveCoordinateDerivative ordr radius n target ref@(_, src)
+    deriveCoordinateDerivative isCoord ordr radius n target ref@(_, src)
       | ordr < 1 =
           return (error "coordinate derivative order must be positive")
       | radius < 1 =
           return (error "coordinate derivative radius must be positive")
+      | isCoord && target == src =
+          return ("∂ " ++ show ordr ++ " " ++ show radius ++ " "
+                  ++ axisSymbol n ++ " " ++ operandExpr (fst ref), target)
       | radius == 1 =
           return (deriveChain (replicate ordr n) target ref)
       | target == src =
@@ -1614,7 +1661,24 @@ ixExpand m lets env anchor expr = do
 
     operandExpr e
       | all (\c -> isAlphaNum c || c == '_' || c == '\'') e = e
+      | parenthesized e = e
       | otherwise = "(" ++ e ++ ")"
+
+    parenthesized s =
+      case strip s of
+        t@('(':_) | last t == ')' -> closesAtEnd 0 t
+        _ -> False
+
+    closesAtEnd :: Int -> String -> Bool
+    closesAtEnd 1 [')'] = True
+    closesAtEnd depth (c:cs) =
+      let depth' =
+            case c of
+              '(' -> depth + 1
+              ')' -> depth - 1
+              _ -> depth
+      in depth' > 0 && closesAtEnd depth' cs
+    closesAtEnd _ [] = False
 
     renderApplyText e
       | all (\c -> isAlphaNum c || c == '_' || c == '\'' || c == '.' || c == '~') e = e

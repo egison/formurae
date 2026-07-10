@@ -109,8 +109,7 @@ closeParenT n (TC ')' : ts) acc
   | otherwise = closeParenT (n - 1) ts (TC ')' : acc)
 closeParenT n (t : ts) acc = closeParenT n ts (t : acc)
 
-data Elem = EId String Bool | EC Char | ERaw String
-          | EMarkV String | EMarkL String
+data Elem = EId String Bool | EC Char | ERaw String | EMarkL String
 
 kindOf :: Model -> String -> Maybe Kind
 kindOf m nm = lookup nm (mFlds m)
