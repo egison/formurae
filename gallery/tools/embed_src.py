@@ -32,17 +32,15 @@ def egi(m):
 
 def fme(m):
     rel = m.group('rel')
-    attrs = m.group('attrs') or ''
-    state = ' data-closed' if 'data-closed' in attrs else ' open'
     body, n = load(rel, r'(?m)^(--.*)$')
-    return ('<details class="codebox" data-fme="%s"%s><summary>Formurae ソース全文'
+    return ('<details class="codebox" data-fme="%s" open><summary>Formurae ソース全文'
             '(%s・%d 行)</summary>\n<pre>%s</pre></details>'
-            % (rel, state, os.path.basename(rel), n, body))
+            % (rel, os.path.basename(rel), n, body))
 
 def fmr(m):
     rel = m.group('rel')
     body, n = load(rel, r'(?m)^(#.*)$')
-    return ('<details class="codebox" data-fmr="%s" open><summary>生成された Formura 全文'
+    return ('<details class="codebox" data-fmr="%s"><summary>生成された Formura 全文'
             '(%s・%d 行)</summary>\n<pre>%s</pre></details>'
             % (rel, os.path.basename(rel), n, body))
 
@@ -52,6 +50,6 @@ for page in [INDEX, os.path.join(GALLERY, 'dsl', 'index.html')]:
     s = io.open(page, encoding='utf-8').read()
     s, n0 = re.subn(r'<details class="codebox" data-fme="(?P<rel>[^"]+)"(?P<attrs>[^>]*)>.*?</details>', fme, s, flags=re.S)
     s, n1 = re.subn(r'<details class="codebox" data-egi="(?P<rel>[^"]+)">.*?</details>', egi, s, flags=re.S)
-    s, n2 = re.subn(r'<details class="codebox" data-fmr="(?P<rel>[^"]+)">.*?</details>', fmr, s, flags=re.S)
+    s, n2 = re.subn(r'<details class="codebox" data-fmr="(?P<rel>[^"]+)"[^>]*>.*?</details>', fmr, s, flags=re.S)
     io.open(page, 'w', encoding='utf-8').write(s)
     print('%s: embedded %d .fme + %d .egi + %d .fmr' % (os.path.relpath(page, GALLERY), n0, n1, n2))
