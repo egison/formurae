@@ -14,6 +14,28 @@
 #include <math.h>
 #include HDR
 
+/* The same dumper is used for 1D, 2D, and 3D examples.  Existing gallery
+ * calls default to 3D; low-dimensional calls pass -DDIM=1 or -DDIM=2 so the
+ * compiler does not refer to navigation fields absent from their headers. */
+#ifndef DIM
+#define DIM 3
+#endif
+#ifndef AXIS_X
+#define AXIS_X x
+#endif
+#ifndef AXIS_Y
+#define AXIS_Y y
+#endif
+#ifndef AXIS_Z
+#define AXIS_Z z
+#endif
+
+#define CAT2(a, b) a##b
+#define CAT(a, b) CAT2(a, b)
+#define NAV_FIELD2(n, prefix, axis) n.prefix##axis
+#define NAV_FIELD(n, prefix, axis) NAV_FIELD2(n, prefix, axis)
+#define AXIS_FUNC(prefix, axis) CAT(prefix, axis)
+
 #ifdef F3
 #define NF 3
 #elif defined(F2)
@@ -25,37 +47,57 @@
 #define MAXN 1024
 
 static int lx(Formura_Navi n, int i) {
-  int N = n.total_grid_x;
-  int c = (int)floor(to_pos_x(i, n) / n.space_interval_x + 0.5);
+  int N = NAV_FIELD(n, total_grid_, AXIS_X);
+  int c = (int)floor(AXIS_FUNC(to_pos_, AXIS_X)(i, n)
+                      / NAV_FIELD(n, space_interval_, AXIS_X) + 0.5);
   return ((c % N) + N) % N;
 }
+#if DIM >= 2
 static int ly(Formura_Navi n, int j) {
-  int N = n.total_grid_y;
-  int c = (int)floor(to_pos_y(j, n) / n.space_interval_y + 0.5);
+  int N = NAV_FIELD(n, total_grid_, AXIS_Y);
+  int c = (int)floor(AXIS_FUNC(to_pos_, AXIS_Y)(j, n)
+                      / NAV_FIELD(n, space_interval_, AXIS_Y) + 0.5);
   return ((c % N) + N) % N;
 }
+#endif
+#if DIM >= 3
 static int lz(Formura_Navi n, int k) {
-  int N = n.total_grid_z;
-  int c = (int)floor(to_pos_z(k, n) / n.space_interval_z + 0.5);
+  int N = NAV_FIELD(n, total_grid_, AXIS_Z);
+  int c = (int)floor(AXIS_FUNC(to_pos_, AXIS_Z)(k, n)
+                      / NAV_FIELD(n, space_interval_, AXIS_Z) + 0.5);
   return ((c % N) + N) % N;
 }
+#endif
 
+#if DIM >= 2
 static int midJ(Formura_Navi n) {
-  for (int j = n.lower_y; j < n.upper_y; j++)
-    if (ly(n, j) == n.total_grid_y / 2) return j;
-  return n.lower_y;
+  for (int j = NAV_FIELD(n, lower_, AXIS_Y);
+       j < NAV_FIELD(n, upper_, AXIS_Y); j++)
+    if (ly(n, j) == NAV_FIELD(n, total_grid_, AXIS_Y) / 2) return j;
+  return NAV_FIELD(n, lower_, AXIS_Y);
 }
+#endif
+#if DIM >= 3
 static int midK(Formura_Navi n) {
-  for (int k = n.lower_z; k < n.upper_z; k++)
-    if (lz(n, k) == n.total_grid_z / 2) return k;
-  return n.lower_z;
+  for (int k = NAV_FIELD(n, lower_, AXIS_Z);
+       k < NAV_FIELD(n, upper_, AXIS_Z); k++)
+    if (lz(n, k) == NAV_FIELD(n, total_grid_, AXIS_Z) / 2) return k;
+  return NAV_FIELD(n, lower_, AXIS_Z);
 }
+#endif
 
 static double a1[MAXN], a2[MAXN], a3[MAXN];
 
 static void gatherLine(Formura_Navi n) {
-  int j = midJ(n), k = midK(n);
-  for (int i = n.lower_x; i < n.upper_x; i++) {
+  int j = 0, k = 0;
+#if DIM >= 2
+  j = midJ(n);
+#endif
+#if DIM >= 3
+  k = midK(n);
+#endif
+  for (int i = NAV_FIELD(n, lower_, AXIS_X);
+       i < NAV_FIELD(n, upper_, AXIS_X); i++) {
     int c = lx(n, i);
     a1[c] = F1;
 #if NF > 1
@@ -72,8 +114,8 @@ static void dumpLine(Formura_Navi n, int t) {
   snprintf(fn, sizeof fn, "%s/%s_t%d.txt", OUTDIR, NAME, t);
   FILE *f = fopen(fn, "w");
   gatherLine(n);
-  for (int c = 0; c < n.total_grid_x; c++) {
-    fprintf(f, "%.10g %.16g", c * n.space_interval_x, a1[c]);
+  for (int c = 0; c < NAV_FIELD(n, total_grid_, AXIS_X); c++) {
+    fprintf(f, "%.10g %.16g", c * NAV_FIELD(n, space_interval_, AXIS_X), a1[c]);
 #if NF > 1
     fprintf(f, " %.16g", a2[c]);
 #endif
@@ -85,7 +127,7 @@ static void dumpLine(Formura_Navi n, int t) {
   fclose(f);
 }
 
-#ifdef SLICEX
+#if DIM >= 3 && defined(SLICEX)
 static double m2[MAXN][MAXN];
 
 /* matrix over (axis2 rows, axis3 cols) at the outermost interior x */
@@ -93,12 +135,14 @@ static void dumpSliceX(Formura_Navi n, int t) {
   char fn[512];
   snprintf(fn, sizeof fn, "%s/%s_x_t%d.mat", OUTDIR, NAME, t);
   FILE *f = fopen(fn, "w");
-  int i = n.upper_x - 1;
-  for (int j = n.lower_y; j < n.upper_y; j++)
-    for (int k = n.lower_z; k < n.upper_z; k++)
+  int i = NAV_FIELD(n, upper_, AXIS_X) - 1;
+  for (int j = NAV_FIELD(n, lower_, AXIS_Y);
+       j < NAV_FIELD(n, upper_, AXIS_Y); j++)
+    for (int k = NAV_FIELD(n, lower_, AXIS_Z);
+         k < NAV_FIELD(n, upper_, AXIS_Z); k++)
       m2[ly(n, j)][lz(n, k)] = F1;
-  for (int cy = 0; cy < n.total_grid_y; cy++) {
-    for (int cz = 0; cz < n.total_grid_z; cz++)
+  for (int cy = 0; cy < NAV_FIELD(n, total_grid_, AXIS_Y); cy++) {
+    for (int cz = 0; cz < NAV_FIELD(n, total_grid_, AXIS_Z); cz++)
       fprintf(f, "%.10g ", m2[cy][cz]);
     fputc('\n', f);
   }
@@ -106,19 +150,23 @@ static void dumpSliceX(Formura_Navi n, int t) {
 }
 #endif
 
-#ifdef SLICE
+#if DIM >= 2 && defined(SLICE)
 static double m1[MAXN][MAXN];
 
 static void dumpSlice(Formura_Navi n, int t) {
   char fn[512];
   snprintf(fn, sizeof fn, "%s/%s_t%d.mat", OUTDIR, NAME, t);
   FILE *f = fopen(fn, "w");
+#if DIM >= 3
   int k = midK(n);
-  for (int i = n.lower_x; i < n.upper_x; i++)
-    for (int j = n.lower_y; j < n.upper_y; j++)
+#endif
+  for (int i = NAV_FIELD(n, lower_, AXIS_X);
+       i < NAV_FIELD(n, upper_, AXIS_X); i++)
+    for (int j = NAV_FIELD(n, lower_, AXIS_Y);
+         j < NAV_FIELD(n, upper_, AXIS_Y); j++)
       m1[ly(n, j)][lx(n, i)] = F1;
-  for (int cy = 0; cy < n.total_grid_y; cy++) {
-    for (int cx = 0; cx < n.total_grid_x; cx++)
+  for (int cy = 0; cy < NAV_FIELD(n, total_grid_, AXIS_Y); cy++) {
+    for (int cx = 0; cx < NAV_FIELD(n, total_grid_, AXIS_X); cx++)
       fprintf(f, "%.10g ", m1[cy][cx]);
     fputc('\n', f);
   }
@@ -136,7 +184,8 @@ int main(int argc, char **argv) {
   FILE *f = fopen(fn, "w");
   for (;;) {
     gatherLine(n);
-    for (int c = 0; c < n.total_grid_x; c++) fprintf(f, "%.10g ", a1[c]);
+    for (int c = 0; c < NAV_FIELD(n, total_grid_, AXIS_X); c++)
+      fprintf(f, "%.10g ", a1[c]);
     fputc('\n', f);
     if (n.time_step >= STEPS) break;
     int next = n.time_step + STRIDE;

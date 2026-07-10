@@ -69,7 +69,7 @@
 <div class="grid">
 
 <div class="card">
-  <h3>拡散方程式</h3>
+  <h3>拡散方程式(3D)</h3>
   <div class="math">∂<sub>t</sub>u = κ∇²u</div>
   <details class="codebox" data-fme="diffusion3d/diffusion3d.fme" open><summary>Formurae ソース全文(diffusion3d.fme・21 行)</summary>
 <pre><span class="c">-- The 3D diffusion equation: du/dt = kappa * laplacian(u)</span>
@@ -286,7 +286,7 @@ def feInits :=
 def feSteps := scalarEq "u" (u + (dt * kappa * ((∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u))))
 
 def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feComps feInits feSteps)</pre></details>
-  <details class="codebox" data-fmr="diffusion3d/diffusion3d.fmr"><summary>生成された Formura 全文(diffusion3d.fmr・17 行)</summary>
+  <details class="codebox" data-fmr="diffusion3d/diffusion3d.fmr" open><summary>生成された Formura 全文(diffusion3d.fmr・17 行)</summary>
 <pre>dimension :: 3
 axes :: x,y,z
 
@@ -306,6 +306,12 @@ begin function u' = step(u)
 end function</pre></details>
   <div class="imgs two"><img src="img/diffusion_t0.png" alt="t=0"><img src="img/diffusion_t100.png" alt="t=T"></div>
   <div class="cap">z 中央断面: t=0 のガウス塊(左)が等方に拡散(右、100 step)</div>
+  <div class="facts">100³格子・temporal blocking 5 で 0.19 秒、質量保存 <b>6.4e-13</b>。</div>
+</div>
+
+<div class="card">
+  <h3>拡散方程式(1D)</h3>
+  <div class="math">∂<sub>t</sub>u = κ∂<sub>xx</sub>u</div>
   <details class="codebox" data-fme="diffusion1d/diffusion1d.fme" data-closed><summary>Formurae ソース全文(diffusion1d.fme・20 行)</summary>
 <pre><span class="c">-- The 1D diffusion equation: du/dt = kappa * laplacian(u)</span>
 
@@ -510,7 +516,7 @@ def feInits :=
 def feSteps := scalarEq "u" (u + (dt * kappa * ∂ 2 1 x u))
 
 def main (args: [String]) : IO () := print (emitModelOn 1 ["x"] feParams feHelpers feComps feInits feSteps)</pre></details>
-  <details class="codebox" data-fmr="diffusion1d/diffusion1d.fmr"><summary>生成された Formura 全文(diffusion1d.fmr・17 行)</summary>
+  <details class="codebox" data-fmr="diffusion1d/diffusion1d.fmr" open><summary>生成された Formura 全文(diffusion1d.fmr・17 行)</summary>
 <pre>dimension :: 1
 axes :: x
 
@@ -528,6 +534,14 @@ end function
 begin function u' = step(u)
   u' = u[i] + (-2)*dt*kappa*u[i]/(dx**2) + dt*kappa*u[i-1]/(dx**2) + dt*kappa*u[i+1]/(dx**2)
 end function</pre></details>
+  <div class="imgs"><img src="img/diffusion1d.svg" alt="1D diffusion"></div>
+  <div class="cap">ガウス塊の拡散とピーク減衰(100 step)</div>
+  <div class="facts">質量保存とピーク減衰を検査。</div>
+</div>
+
+<div class="card">
+  <h3>拡散方程式(2D)</h3>
+  <div class="math">∂<sub>t</sub>u = κ(∂<sub>xx</sub> + ∂<sub>yy</sub>)u</div>
   <details class="codebox" data-fme="diffusion2d/diffusion2d.fme" data-closed><summary>Formurae ソース全文(diffusion2d.fme・20 行)</summary>
 <pre><span class="c">-- The 2D diffusion equation: du/dt = kappa * laplacian(u)</span>
 
@@ -735,7 +749,7 @@ def feInits :=
 def feSteps := scalarEq "u" (u + (dt * kappa * (∂ 2 1 x u + ∂ 2 1 y u)))
 
 def main (args: [String]) : IO () := print (emitModelOn 2 ["x", "y"] feParams feHelpers feComps feInits feSteps)</pre></details>
-  <details class="codebox" data-fmr="diffusion2d/diffusion2d.fmr"><summary>生成された Formura 全文(diffusion2d.fmr・17 行)</summary>
+  <details class="codebox" data-fmr="diffusion2d/diffusion2d.fmr" open><summary>生成された Formura 全文(diffusion2d.fmr・17 行)</summary>
 <pre>dimension :: 2
 axes :: x,y
 
@@ -753,7 +767,9 @@ end function
 begin function u' = step(u)
   u' = u[i,j] + (-2)*dt*kappa*u[i,j]/(dy**2) + dt*kappa*u[i,j-1]/(dy**2) + dt*kappa*u[i,j+1]/(dy**2) + (-2)*dt*kappa*u[i,j]/(dx**2) + dt*kappa*u[i-1,j]/(dx**2) + dt*kappa*u[i+1,j]/(dx**2)
 end function</pre></details>
-  <div class="facts">3D は 100³格子・temporal blocking 5 で 0.19 秒、質量保存 <b>6.4e-13</b>。1D/2D 例も質量保存とピーク減衰を検査。</div>
+  <div class="imgs two"><img src="img/diffusion2d_t0.png" alt="t=0"><img src="img/diffusion2d_t100.png" alt="t=T"></div>
+  <div class="cap">中央断面: t=0 のガウス塊(左)が等方に拡散(右、100 step)</div>
+  <div class="facts">質量保存とピーク減衰を検査。</div>
 </div>
 
 <div class="card">
@@ -983,7 +999,7 @@ def feInits :=
 def feSteps := componentEqs ["V_down1", "V_down2"] [feqV1, feqV2] ++ scalarEq "q" (∂ 1 1 x V_1 + ∂ 1 1 y V_2)
 
 def main (args: [String]) : IO () := print (emitModelOn 2 ["x", "y"] feParams feHelpers feComps feInits feSteps)</pre></details>
-  <details class="codebox" data-fmr="divergence2d/divergence2d.fmr"><summary>生成された Formura 全文(divergence2d.fmr・21 行)</summary>
+  <details class="codebox" data-fmr="divergence2d/divergence2d.fmr" open><summary>生成された Formura 全文(divergence2d.fmr・21 行)</summary>
 <pre>dimension :: 2
 axes :: x,y
 
@@ -1005,6 +1021,8 @@ begin function (V_down1',V_down2',q') = step(V_down1,V_down2,q)
   V_down2' = V_down2[i,j]
   q' = (-1)*V_down2[i,j-1]/(2*dy) + V_down2[i,j+1]/(2*dy) + (-1)*V_down1[i-1,j]/(2*dx) + V_down1[i+1,j]/(2*dx)
 end function</pre></details>
+  <div class="imgs"><img src="img/divergence.png" alt="divergence field"></div>
+  <div class="cap">正弦ベクトル場の離散発散 q を可視化</div>
   <div class="facts">ユーザ定義 <code>def divg X = ∂_x X_1 + ∂_y X_2</code> を検証。中心差分の離散記号と相対誤差 <b>2.8e-15</b> で一致。</div>
 </div>
 
@@ -1225,7 +1243,7 @@ def feInits :=
 def feSteps := scalarEq "u" (u + (dt * kappa * (∂ 2 2 x u + ∂ 2 2 y u + ∂ 2 2 z u)))
 
 def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feComps feInits feSteps)</pre></details>
-  <details class="codebox" data-fmr="highorder4/highorder4.fmr"><summary>生成された Formura 全文(highorder4.fmr・16 行)</summary>
+  <details class="codebox" data-fmr="highorder4/highorder4.fmr" open><summary>生成された Formura 全文(highorder4.fmr・16 行)</summary>
 <pre>dimension :: 3
 axes :: x,y,z
 
@@ -1467,7 +1485,7 @@ def feInits :=
 def feSteps := scalarEq "u" (u + (dt * kappa * (∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u)))
 
 def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feComps feInits feSteps)</pre></details>
-  <details class="codebox" data-fmr="dirichlet_diffusion/dirichlet_diffusion.fmr"><summary>生成された Formura 全文(dirichlet_diffusion.fmr・17 行)</summary>
+  <details class="codebox" data-fmr="dirichlet_diffusion/dirichlet_diffusion.fmr" open><summary>生成された Formura 全文(dirichlet_diffusion.fmr・17 行)</summary>
 <pre>dimension :: 3
 axes :: x,y,z
 
@@ -1750,7 +1768,7 @@ def feInits :=
 def feSteps := componentEqs ["E_down1", "E_down2", "E_down3"] [feqE1, feqE2, feqE3] ++ componentEqs ["B_down1", "B_down2", "B_down3"] [feqB1, feqB2, feqB3]
 
 def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feComps feInits feSteps)</pre></details>
-  <details class="codebox" data-fmr="maxwell3d/maxwell3d.fmr"><summary>生成された Formura 全文(maxwell3d.fmr・26 行)</summary>
+  <details class="codebox" data-fmr="maxwell3d/maxwell3d.fmr" open><summary>生成された Formura 全文(maxwell3d.fmr・26 行)</summary>
 <pre>dimension :: 3
 axes :: x,y,z
 
@@ -1854,7 +1872,7 @@ def prog : [String] :=
   ]
 
 def main (args: [String]) : IO () := print (S.intercalate "\n" prog)</pre></details>
-  <details class="codebox" data-fmr="maxwell3d_yee/maxwell3d_yee.fmr"><summary>生成された Formura 全文(maxwell3d_yee.fmr・26 行)</summary>
+  <details class="codebox" data-fmr="maxwell3d_yee/maxwell3d_yee.fmr" open><summary>生成された Formura 全文(maxwell3d_yee.fmr・26 行)</summary>
 <pre>dimension :: 3
 axes :: x,y,z
 
@@ -2177,7 +2195,7 @@ def feSteps := componentEqs ["E_1", "E_2", "E_3"] [(E_1 + (dt * nth 1 (formComps
 
 def main (args: [String]) : IO () :=
   if feDD = 0 then (print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feComps feInits feSteps)) else print "# ERROR: d . d /= 0 on this grid -- refusing to generate"</pre></details>
-  <details class="codebox" data-fmr="maxwell_dec/maxwell_dec.fmr"><summary>生成された Formura 全文(maxwell_dec.fmr・26 行)</summary>
+  <details class="codebox" data-fmr="maxwell_dec/maxwell_dec.fmr" open><summary>生成された Formura 全文(maxwell_dec.fmr・26 行)</summary>
 <pre>dimension :: 3
 axes :: x,y,z
 
@@ -2274,7 +2292,7 @@ def prog : [String] :=
   ]
 
 def main (args: [String]) : IO () := print (S.intercalate "\n" prog)</pre></details>
-  <details class="codebox" data-fmr="acoustic3d/acoustic3d.fmr"><summary>生成された Formura 全文(acoustic3d.fmr・25 行)</summary>
+  <details class="codebox" data-fmr="acoustic3d/acoustic3d.fmr" open><summary>生成された Formura 全文(acoustic3d.fmr・25 行)</summary>
 <pre>dimension :: 3
 axes :: x,y,z
 
@@ -2608,7 +2626,7 @@ def feInits :=
 def feSteps := componentEqs ["v_up1", "v_up2", "v_up3"] [feqv1, feqv2, feqv3] ++ componentEqs ["sigma_up1_up1", "sigma_up2_up2", "sigma_up3_up3", "sigma_up1_up2", "sigma_up1_up3", "sigma_up2_up3"] [feqsigma11, feqsigma22, feqsigma33, feqsigma12, feqsigma13, feqsigma23]
 
 def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feComps feInits feSteps)</pre></details>
-  <details class="codebox" data-fmr="elastic3d/elastic3d.fmr"><summary>生成された Formura 全文(elastic3d.fmr・36 行)</summary>
+  <details class="codebox" data-fmr="elastic3d/elastic3d.fmr" open><summary>生成された Formura 全文(elastic3d.fmr・36 行)</summary>
 <pre>dimension :: 3
 axes :: x,y,z
 
@@ -2876,7 +2894,7 @@ def feInits :=
 def feSteps := scalarEq "w" (w + (dt * ((∂ 2 1 x phi + phi) - (phi * phi * phi)))) ++ scalarEq "phi" (phi + (dt * w'))
 
 def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feComps feInits feSteps)</pre></details>
-  <details class="codebox" data-fmr="kleingordon/kleingordon.fmr"><summary>生成された Formura 全文(kleingordon.fmr・20 行)</summary>
+  <details class="codebox" data-fmr="kleingordon/kleingordon.fmr" open><summary>生成された Formura 全文(kleingordon.fmr・20 行)</summary>
 <pre>dimension :: 3
 axes :: x,y,z
 
@@ -3125,7 +3143,7 @@ def feInits :=
 def feSteps := scalarEq "u" (u + (dt * ((nu * (∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u)) - (u * ∂ 1 1 x u))))
 
 def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feComps feInits feSteps)</pre></details>
-  <details class="codebox" data-fmr="burgers3d/burgers3d.fmr"><summary>生成された Formura 全文(burgers3d.fmr・18 行)</summary>
+  <details class="codebox" data-fmr="burgers3d/burgers3d.fmr" open><summary>生成された Formura 全文(burgers3d.fmr・18 行)</summary>
 <pre>dimension :: 3
 axes :: x,y,z
 
@@ -3381,7 +3399,7 @@ def feInits :=
 def feSteps := [fmrEq "fmxx" (((mx * mx) / h) + ((g * h * h) / 2))] ++ [fmrEq "fmxy" ((mx * my) / h)] ++ [fmrEq "fmyy" (((my * my) / h) + ((g * h * h) / 2))] ++ scalarEq "h" ((h - (dt * (∂ 1 1 x mx + ∂ 1 1 y my))) + (dt * lambda * (∂ 2 1 x h + ∂ 2 1 y h))) ++ scalarEq "mx" ((mx - (dt * (∂ 1 1 x fmxx + ∂ 1 1 y fmxy))) + (dt * lambda * (∂ 2 1 x mx + ∂ 2 1 y mx))) ++ scalarEq "my" ((my - (dt * (∂ 1 1 x fmxy + ∂ 1 1 y fmyy))) + (dt * lambda * (∂ 2 1 x my + ∂ 2 1 y my)))
 
 def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feComps feInits feSteps)</pre></details>
-  <details class="codebox" data-fmr="shallowwater/shallowwater.fmr"><summary>生成された Formura 全文(shallowwater.fmr・24 行)</summary>
+  <details class="codebox" data-fmr="shallowwater/shallowwater.fmr" open><summary>生成された Formura 全文(shallowwater.fmr・24 行)</summary>
 <pre>dimension :: 3
 axes :: x,y,z
 
@@ -3648,7 +3666,7 @@ def feInits :=
 def feSteps := [fmrEq "pr" ((2 / 5) * (en - ((mx * mx) / (2 * rho))))] ++ [fmrEq "fm" (((mx * mx) / rho) + pr)] ++ [fmrEq "fe" (((en + pr) * mx) / rho)] ++ scalarEq "rho" ((rho - (dt * ∂ 1 1 x mx)) + (dt * lambda * ∂ 2 1 x rho)) ++ scalarEq "mx" ((mx - (dt * ∂ 1 1 x fm)) + (dt * lambda * ∂ 2 1 x mx)) ++ scalarEq "en" ((en - (dt * ∂ 1 1 x fe)) + (dt * lambda * ∂ 2 1 x en))
 
 def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feComps feInits feSteps)</pre></details>
-  <details class="codebox" data-fmr="euler_sod/euler_sod.fmr"><summary>生成された Formura 全文(euler_sod.fmr・25 行)</summary>
+  <details class="codebox" data-fmr="euler_sod/euler_sod.fmr" open><summary>生成された Formura 全文(euler_sod.fmr・25 行)</summary>
 <pre>dimension :: 3
 axes :: x,y,z
 
@@ -3804,7 +3822,7 @@ def prog : [String] :=
   ]
 
 def main (args: [String]) : IO () := print (S.intercalate "\n" prog)</pre></details>
-  <details class="codebox" data-fmr="mhd_ot/mhd_ot.fmr"><summary>生成された Formura 全文(mhd_ot.fmr・51 行)</summary>
+  <details class="codebox" data-fmr="mhd_ot/mhd_ot.fmr" open><summary>生成された Formura 全文(mhd_ot.fmr・51 行)</summary>
 <pre>dimension :: 3
 axes :: x,y,z
 
@@ -3977,7 +3995,7 @@ def prog : [String] :=
   ]
 
 def main (args: [String]) : IO () := print (S.intercalate "\n" prog)</pre></details>
-  <details class="codebox" data-fmr="lbm_d3q19/lbm_d3q19.fmr"><summary>生成された Formura 全文(lbm_d3q19.fmr・78 行)</summary>
+  <details class="codebox" data-fmr="lbm_d3q19/lbm_d3q19.fmr" open><summary>生成された Formura 全文(lbm_d3q19.fmr・78 行)</summary>
 <pre>dimension :: 3
 axes :: x,y,z
 
@@ -4278,7 +4296,7 @@ def feInits :=
 def feSteps := [fmrEq "w" (∂ 2 1 x u)] ++ scalarEq "u" (u - (dt * (∂ 1 1 x ((u * u) / 2) + w + ∂ 2 1 x w)))
 
 def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feComps feInits feSteps)</pre></details>
-  <details class="codebox" data-fmr="ks3d/ks3d.fmr"><summary>生成された Formura 全文(ks3d.fmr・17 行)</summary>
+  <details class="codebox" data-fmr="ks3d/ks3d.fmr" open><summary>生成された Formura 全文(ks3d.fmr・17 行)</summary>
 <pre>dimension :: 3
 axes :: x,y,z
 
@@ -4531,7 +4549,7 @@ def feInits :=
 def feSteps := scalarEq "U" (U + (dt * (((Fu * (1 - U)) - (Fe * U * (V ^ 2))) + (Du * (∂ 2 1 x U + ∂ 2 1 y U + ∂ 2 1 z U))))) ++ scalarEq "V" (V + (dt * (((Fe * U * (V ^ 2)) - (Fv * V)) + (Dv * (∂ 2 1 x V + ∂ 2 1 y V + ∂ 2 1 z V)))))
 
 def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feComps feInits feSteps)</pre></details>
-  <details class="codebox" data-fmr="pearson3d/pearson3d.fmr"><summary>生成された Formura 全文(pearson3d.fmr・23 行)</summary>
+  <details class="codebox" data-fmr="pearson3d/pearson3d.fmr" open><summary>生成された Formura 全文(pearson3d.fmr・23 行)</summary>
 <pre>dimension :: 3
 axes :: x,y,z
 
@@ -4779,7 +4797,7 @@ def feInits :=
 def feSteps := [fmrEq "mu" (((c ^ 3) - c) - (kap * (∂ 2 1 x c + ∂ 2 1 y c + ∂ 2 1 z c)))] ++ scalarEq "c" (c + (dt * mob * (∂ 2 1 x mu + ∂ 2 1 y mu + ∂ 2 1 z mu)))
 
 def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feComps feInits feSteps)</pre></details>
-  <details class="codebox" data-fmr="cahnhilliard3d/cahnhilliard3d.fmr"><summary>生成された Formura 全文(cahnhilliard3d.fmr・18 行)</summary>
+  <details class="codebox" data-fmr="cahnhilliard3d/cahnhilliard3d.fmr" open><summary>生成された Formura 全文(cahnhilliard3d.fmr・18 行)</summary>
 <pre>dimension :: 3
 axes :: x,y,z
 
@@ -5021,7 +5039,7 @@ def feInits :=
 def feSteps := scalarEq "a" (a + (dt * ((a - (((a ^ 2) + (b ^ 2)) * a)) + ∂ 2 1 x a + ∂ 2 1 y a + ∂ 2 1 z a))) ++ scalarEq "b" (b + (dt * ((b - (((a ^ 2) + (b ^ 2)) * b)) + ∂ 2 1 x b + ∂ 2 1 y b + ∂ 2 1 z b)))
 
 def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feComps feInits feSteps)</pre></details>
-  <details class="codebox" data-fmr="tdgl3d/tdgl3d.fmr"><summary>生成された Formura 全文(tdgl3d.fmr・17 行)</summary>
+  <details class="codebox" data-fmr="tdgl3d/tdgl3d.fmr" open><summary>生成された Formura 全文(tdgl3d.fmr・17 行)</summary>
 <pre>dimension :: 3
 axes :: x,y,z
 
@@ -5306,7 +5324,7 @@ def feSteps := [fmrEq "f1" (ca * dYee 1 [1 / 2, 0, 0] (u, [0, 0, 0]))] ++ [fmrEq
 
 def main (args: [String]) : IO () :=
   if feGo 1 2 = 0 &amp;&amp; feGo 1 3 = 0 &amp;&amp; feGo 2 3 = 0 then (print (emitModelOn 3 ["r", "phi", "z"] feParams feHelpers feComps feInits feSteps)) else print "# ERROR: the embedding is not orthogonal (off-diagonal metric terms must vanish symbolically); general metrics are not supported yet"</pre></details>
-  <details class="codebox" data-fmr="polar2d/polar2d.fmr"><summary>生成された Formura 全文(polar2d.fmr・28 行)</summary>
+  <details class="codebox" data-fmr="polar2d/polar2d.fmr" open><summary>生成された Formura 全文(polar2d.fmr・28 行)</summary>
 <pre>dimension :: 3
 axes :: r,phi,z
 
@@ -5599,7 +5617,7 @@ def feSteps := [fmrEq "f1" (ca * dYee 1 [1 / 2, 0, 0] (u, [0, 0, 0]))] ++ [fmrEq
 
 def main (args: [String]) : IO () :=
   if feGo 1 2 = 0 &amp;&amp; feGo 1 3 = 0 &amp;&amp; feGo 2 3 = 0 then (print (emitModelOn 3 ["r", "theta", "phi"] feParams feHelpers feComps feInits feSteps)) else print "# ERROR: the embedding is not orthogonal (off-diagonal metric terms must vanish symbolically); general metrics are not supported yet"</pre></details>
-  <details class="codebox" data-fmr="spherical3d/spherical3d.fmr"><summary>生成された Formura 全文(spherical3d.fmr・29 行)</summary>
+  <details class="codebox" data-fmr="spherical3d/spherical3d.fmr" open><summary>生成された Formura 全文(spherical3d.fmr・29 行)</summary>
 <pre>dimension :: 3
 axes :: r,theta,phi
 
@@ -5897,7 +5915,7 @@ def feSteps := [fmrEq "f1" (ca * dYee 1 [1 / 2, 0, 0] (u, [0, 0, 0]))] ++ [fmrEq
 
 def main (args: [String]) : IO () :=
   if feGo 1 2 = 0 &amp;&amp; feGo 1 3 = 0 &amp;&amp; feGo 2 3 = 0 then (print (emitModelOn 3 ["theta", "phi", "z"] feParams feHelpers feComps feInits feSteps)) else print "# ERROR: the embedding is not orthogonal (off-diagonal metric terms must vanish symbolically); general metrics are not supported yet"</pre></details>
-  <details class="codebox" data-fmr="metric_torus/metric_torus.fmr"><summary>生成された Formura 全文(metric_torus.fmr・28 行)</summary>
+  <details class="codebox" data-fmr="metric_torus/metric_torus.fmr" open><summary>生成された Formura 全文(metric_torus.fmr・28 行)</summary>
 <pre>dimension :: 3
 axes :: theta,phi,z
 
@@ -6193,7 +6211,7 @@ def feSteps := [fmrEq "f1" (ca * dYee 1 [1 / 2, 0, 0] (u, [0, 0, 0]))] ++ [fmrEq
 
 def main (args: [String]) : IO () :=
   if feGo 1 2 = 0 &amp;&amp; feGo 1 3 = 0 &amp;&amp; feGo 2 3 = 0 then (print (emitModelOn 3 ["theta", "phi", "z"] feParams feHelpers feComps feInits feSteps)) else print "# ERROR: the embedding is not orthogonal (off-diagonal metric terms must vanish symbolically); general metrics are not supported yet"</pre></details>
-  <details class="codebox" data-fmr="metric_sphere/metric_sphere.fmr"><summary>生成された Formura 全文(metric_sphere.fmr・29 行)</summary>
+  <details class="codebox" data-fmr="metric_sphere/metric_sphere.fmr" open><summary>生成された Formura 全文(metric_sphere.fmr・29 行)</summary>
 <pre>dimension :: 3
 axes :: theta,phi,z
 
@@ -6477,7 +6495,7 @@ def feInits :=
 def feSteps := [fmrEq "f1" (ca * dYee 1 [1 / 2, 0, 0] (u, [0, 0, 0]))] ++ [fmrEq "f2" (cb * dYee 2 [0, 1 / 2, 0] (u, [0, 0, 0]))] ++ [fmrEq "f3" (cc * dYee 3 [0, 0, 1 / 2] (u, [0, 0, 0]))] ++ scalarEq "u" (u + (dt * ((dYee 1 [0, 0, 0] (f1, [1 / 2, 0, 0]) + dYee 2 [0, 0, 0] (f2, [0, 1 / 2, 0]) + dYee 3 [0, 0, 0] (f3, [0, 0, 1 / 2])) / sg))) ++ scalarEq "ca" (ca) ++ scalarEq "cb" (cb) ++ scalarEq "cc" (cc) ++ scalarEq "sg" (sg)
 
 def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feComps feInits feSteps)</pre></details>
-  <details class="codebox" data-fmr="hyperbolic/hyperbolic.fmr"><summary>生成された Formura 全文(hyperbolic.fmr・27 行)</summary>
+  <details class="codebox" data-fmr="hyperbolic/hyperbolic.fmr" open><summary>生成された Formura 全文(hyperbolic.fmr・27 行)</summary>
 <pre>dimension :: 3
 axes :: x,y,z
 

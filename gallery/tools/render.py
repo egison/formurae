@@ -227,8 +227,21 @@ def main():
     # 1 diffusion: slices t0 / t100
     heatmap(mat('diffusion_t0.mat'), os.path.join(IMG, 'diffusion_t0.png'))
     heatmap(mat('diffusion_t100.mat'), os.path.join(IMG, 'diffusion_t100.png'))
+    d10, d11 = cols('diffusion1d_t0.txt'), cols('diffusion1d_t100.txt')
+    svg_plot(os.path.join(IMG, 'diffusion1d.svg'),
+             [{'x': d10[0], 'y': d10[1], 'color': '#999999', 'label': 'u (t=0)', 'dash': True},
+              {'x': d11[0], 'y': d11[1], 'color': C1, 'label': 'u (t=100)'}],
+             title='1D diffusion: Gaussian peak decays', xlabel='x', ylabel='u')
+    heatmap(mat('diffusion2d_t0.mat'), os.path.join(IMG, 'diffusion2d_t0.png'))
+    heatmap(mat('diffusion2d_t100.mat'), os.path.join(IMG, 'diffusion2d_t100.png'))
 
-    # 2 maxwell + yee: Ey pulse before/after
+    # 2 divergence smoke test: the q field is the discrete divergence of the
+    # fixed sinusoidal vector field and is therefore a useful 2D image even
+    # though the check itself only compares its Fourier symbol numerically.
+    heatmap(mat('divergence_t100.mat'), os.path.join(IMG, 'divergence.png'),
+            DIVERGE, sym=True)
+
+    # 3 maxwell + yee: Ey pulse before/after
     line_panel('maxwell.svg', ['maxwell_t0.txt', 'maxwell_t100.txt'],
                ['Ey (t=0)', 'Ey (t=100dt)'], ['#999999', C1],
                'Maxwell (collocated): pulse propagation', 'Ey', dashes=[True, False])
@@ -236,10 +249,10 @@ def main():
                ['Ey (t=0)', 'Ey (t=100dt)'], ['#999999', C1],
                'Yee-FDTD: pulse +50 cells', 'Ey', dashes=[True, False])
 
-    # 3 pearson (PGM from the check run)
+    # 4 pearson (PGM from the check run)
     heatmap(pgm('pearson_V.pgm'), os.path.join(IMG, 'pearson.png'))
 
-    # 4 burgers vs Cole-Hopf
+    # 5 burgers vs Cole-Hopf
     nu, k = 0.05, 2.0 * math.pi
     c0, c1 = cols('burgers_t0.txt'), cols('burgers_t5000.txt')
     E = math.exp(-nu * k * k * 0.5)
@@ -250,16 +263,16 @@ def main():
               {'x': c1[0], 'y': ex, 'color': C2, 'label': 'Cole-Hopf exact', 'dash': True}],
              title='Burgers vs Cole-Hopf exact (max err 3.5e-5)', xlabel='x', ylabel='u')
 
-    # 5 cahn-hilliard
+    # 6 cahn-hilliard
     heatmap(mat('cahnhilliard_t25000.mat'), os.path.join(IMG, 'ch.png'), DIVERGE, sym=True)
 
-    # 6 tdgl |psi|^2
+    # 7 tdgl |psi|^2
     heatmap(mat('tdgl_t4000.mat'), os.path.join(IMG, 'tdgl.png'))
 
-    # 7 mhd rho
+    # 8 mhd rho
     heatmap(mat('mhd_t1250.mat'), os.path.join(IMG, 'mhd.png'))
 
-    # 8 elastic P/S
+    # 9 elastic P/S
     ce = cols('elastic_t600.txt'); ce0 = cols('elastic_t0.txt')
     svg_plot(os.path.join(IMG, 'elastic.svg'),
              [{'x': ce0[0], 'y': ce0[1], 'color': '#999999', 'label': 'vx (t=0)', 'dash': True},
@@ -267,11 +280,11 @@ def main():
               {'x': ce[0], 'y': ce[2], 'color': C2, 'label': 'vy : S wave (vs=1)'}],
              title='Elastic (Virieux): P and S pulses separate', xlabel='x', ylabel='v')
 
-    # 9 metric torus
+    # 10 metric torus
     heatmap(mat('metric_t0.mat'), os.path.join(IMG, 'metric_t0.png'))
     heatmap(mat('metric_t3000.mat'), os.path.join(IMG, 'metric_t3000.png'))
 
-    # 10 klein-gordon kinks
+    # 11 klein-gordon kinks
     k0, k1, k2 = cols('kg_t0.txt'), cols('kg_t400.txt'), cols('kg_t800.txt')
     svg_plot(os.path.join(IMG, 'kg.svg'),
              [{'x': k0[0], 'y': k0[1], 'color': '#bbbbbb', 'label': 'phi (t=0)'},
@@ -279,28 +292,28 @@ def main():
               {'x': k2[0], 'y': k2[1], 'color': C1, 'label': 'phi (t=40)'}],
              title='phi^4 kink-antikink at v=+-0.2', xlabel='x', ylabel='phi')
 
-    # 11 shallow water
+    # 12 shallow water
     s0, s1 = cols('sw_t0.txt'), cols('sw_t400.txt')
     svg_plot(os.path.join(IMG, 'sw.svg'),
              [{'x': s0[0], 'y': s0[1], 'color': '#999999', 'label': 'h (t=0)', 'dash': True},
               {'x': s1[0], 'y': s1[1], 'color': C1, 'label': 'h (t=20)'}],
              title='Shallow water: bump splits at c=sqrt(gh)=1', xlabel='x', ylabel='h')
 
-    # 12 lbm shear wave decay
+    # 13 lbm shear wave decay
     l0, l1 = cols('lbm_t0.txt'), cols('lbm_t1000.txt')
     svg_plot(os.path.join(IMG, 'lbm.svg'),
              [{'x': l0[0], 'y': l0[1], 'color': '#999999', 'label': 'rho*u_y (t=0)', 'dash': True},
               {'x': l1[0], 'y': l1[1], 'color': C1, 'label': 'rho*u_y (t=1000)'}],
              title='LBM D3Q19 shear wave: decay -> nu=0.10010', xlabel='x', ylabel='rho u_y')
 
-    # 13 acoustic
+    # 14 acoustic
     a0, a1 = cols('acoustic_t0.txt'), cols('acoustic_t600.txt')
     svg_plot(os.path.join(IMG, 'acoustic.svg'),
              [{'x': a0[0], 'y': a0[1], 'color': '#999999', 'label': 'p (t=0)', 'dash': True},
               {'x': a1[0], 'y': a1[1], 'color': C1, 'label': 'p (t=0.3)'}],
              title='Acoustics: impedance-matched pulse, c=1', xlabel='x', ylabel='p')
 
-    # 14 sod vs exact riemann
+    # 15 sod vs exact riemann
     def rho_exact(xi):
         cL, tail = 1.18322, -0.07027
         if xi < -cL: return 1.0
@@ -319,11 +332,11 @@ def main():
               {'x': sd[0], 'y': sd[3], 'color': C4, 'label': 'u'}],
              title='Sod shock tube at t=1.2 (right diaphragm)', xlabel='x', ylabel='')
 
-    # 15 KS space-time
+    # 16 KS space-time
     km = mat('ks_strip.mat')
     heatmap(km, os.path.join(IMG, 'ks.png'), DIVERGE, sym=True, target=480)
 
-    # 16 dirichlet profiles
+    # 17 dirichlet profiles
     dm = mat('dirichlet_strip.mat')
     h = 1.0 / 64
     xs = [i * h for i in range(len(dm[0]))]
@@ -333,7 +346,7 @@ def main():
     svg_plot(os.path.join(IMG, 'dirichlet.svg'), series,
              title='Dirichlet walls: eigenmode decays as (1+lam dt)^n', xlabel='x', ylabel='u')
 
-    # 17 high-order symbol errors
+    # 18 high-order symbol errors
     hh = 2 * math.pi / 64
     ks_ = [0.25 * i for i in range(2, 81)]
     e2, e4 = [], []
@@ -347,7 +360,7 @@ def main():
               {'x': ks_, 'y': e4, 'color': C1, 'label': '4th order (CAS-derived)'}],
              title='Laplacian symbol error |lam(k)+k^2|', xlabel='k', ylabel='log10 error')
 
-    # 18 curved geometries rendered on their actual surfaces
+    # 19 curved geometries rendered on their actual surfaces
     tor = mat('metric_t3000.mat')
     tny, tnx = len(tor), len(tor[0])
     def torus_embed(cx, cy):

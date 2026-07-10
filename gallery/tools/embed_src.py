@@ -42,7 +42,7 @@ def fme(m):
 def fmr(m):
     rel = m.group('rel')
     body, n = load(rel, r'(?m)^(#.*)$')
-    return ('<details class="codebox" data-fmr="%s"><summary>生成された Formura 全文'
+    return ('<details class="codebox" data-fmr="%s" open><summary>生成された Formura 全文'
             '(%s・%d 行)</summary>\n<pre>%s</pre></details>'
             % (rel, os.path.basename(rel), n, body))
 

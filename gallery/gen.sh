@@ -29,13 +29,17 @@ run cahnhilliard cahnhilliard3d cahnhilliard3d -DSLICE -DDUMPS='{0,25000}' \
 CHPID=$!
 
 run diffusion diffusion3d diffusion3d -DSLICE -DDUMPS='{0,100}' -DF1="$U.u[i][j][k]"
+run diffusion1d diffusion1d diffusion1d -DDIM=1 -DDUMPS='{0,100}' -DF1="$U.u[i]"
+run diffusion2d diffusion2d diffusion2d -DDIM=2 -DSLICE -DDUMPS='{0,100}' -DF1="$U.u[i][j]"
+run divergence divergence2d divergence2d -DDIM=2 -DSLICE -DDUMPS='{100}' -DF1="$U.q[i][j]"
 run maxwell maxwell3d maxwell3d -DDUMPS='{0,100}' -DF1="$U.E_down2[i][j][k]" -DF2="$U.B_down3[i][j][k]"
 run yee maxwell3d_yee maxwell3d_yee -DDUMPS='{0,100}' -DF1="$U.Ey[i][j][k]" -DF2="$U.Bz[i][j][k]"
 run burgers burgers3d burgers3d -DDUMPS='{0,5000}' -DF1="$U.u[i][j][k]"
 run tdgl tdgl3d tdgl3d -DSLICE -DDUMPS='{0,4000}' \
   -DF1="$U.a[i][j][k]*$U.a[i][j][k]+$U.b[i][j][k]*$U.b[i][j][k]"
 run elastic elastic3d elastic3d -DDUMPS='{0,600}' -DF1="$U.v_up1[i][j][k]" -DF2="$U.v_up2[i][j][k]"
-run metric metric_torus metric_torus -DSLICE -DDUMPS='{0,1000,3000}' -DF1="$U.u[i][j][k]"
+run metric metric_torus metric_torus -DAXIS_X=theta -DAXIS_Y=phi -DAXIS_Z=z \
+  -DSLICE -DDUMPS='{0,1000,3000}' -DF1="$U.u[i][j][k]"
 run kg kleingordon kleingordon -DDUMPS='{0,400,800}' -DF1="$U.phi[i][j][k]"
 run sw shallowwater shallowwater -DDUMPS='{0,400}' -DF1="$U.h[i][j][k]" -DF2="$U.mx[i][j][k]"
 run lbm lbm_d3q19 lbm_d3q19 -DDUMPS='{0,1000}' \
@@ -48,10 +52,13 @@ run ks ks3d ks3d -DSTRIP -DSTRIDE=4000 -DSTEPS=600000 -DF1="$U.u[i][j][k]"
 run dirichlet dirichlet_diffusion dirichlet_diffusion -DSTRIP -DSTRIDE=2500 -DSTEPS=10000 \
   -DF1="$U.u[i][j][k]"
 run mhd mhd_ot mhd_ot -DSLICE -DDUMPS='{0,1250}' -DF1="$U.rho[i][j][k]"
-run sphere metric_sphere metric_sphere -DSLICE -DDUMPS='{0,2000}' -DF1="$U.u[i][j][k]"
+run sphere metric_sphere metric_sphere -DAXIS_X=theta -DAXIS_Y=phi -DAXIS_Z=z \
+  -DSLICE -DDUMPS='{0,2000}' -DF1="$U.u[i][j][k]"
 run hyp hyperbolic hyperbolic -DSLICE -DDUMPS='{0,5000}' -DF1="$U.u[i][j][k]"
-run polar polar2d polar2d -DSLICE -DDUMPS='{0,2000}' -DF1="$U.u[i][j][k]"
-run shell spherical3d spherical3d -DSLICE -DSLICEX -DDUMPS='{0,1000}' -DF1="$U.u[i][j][k]"
+run polar polar2d polar2d -DAXIS_X=r -DAXIS_Y=phi -DAXIS_Z=z \
+  -DSLICE -DDUMPS='{0,2000}' -DF1="$U.u[i][j][k]"
+run shell spherical3d spherical3d -DAXIS_X=r -DAXIS_Y=theta -DAXIS_Z=phi \
+  -DSLICE -DSLICEX -DDUMPS='{0,1000}' -DF1="$U.u[i][j][k]"
 
 # pearson: reuse the PGM the check driver wrote during `make all`
 cp "$ROOT/examples/pearson3d/pearson_V.pgm" "$DATA/pearson_V.pgm" 2>/dev/null || \
