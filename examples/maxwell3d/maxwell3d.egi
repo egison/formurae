@@ -164,12 +164,12 @@ def FormuraeInternalTensorBDown_i := B_i
 def FormuraeInternalTensorEUp'_i := E'_i
 def FormuraeInternalTensorEDown'_i := E'_i
 
-def feqE1 := E_1 + dt * ((1 * (∂ 1 1 y B_3 - ∂ 1 1 z B_2)))
-def feqE2 := E_2 + dt * ((0 * (∂ 1 1 y B_3 - ∂ 1 1 z B_2)) + (1 * (∂ 1 1 z B_1 - ∂ 1 1 x B_3)))
-def feqE3 := E_3 + dt * ((0 * (∂ 1 1 y B_3 - ∂ 1 1 z B_2)) + (1 * (∂ 1 1 x B_2 - ∂ 1 1 y B_1)))
-def feqB1 := B_1 - dt * ((1 * (∂ 1 1 y E'_3 - ∂ 1 1 z E'_2)))
-def feqB2 := B_2 - dt * ((0 * (∂ 1 1 y E'_3 - ∂ 1 1 z E'_2)) + (1 * (∂ 1 1 z E'_1 - ∂ 1 1 x E'_3)))
-def feqB3 := B_3 - dt * ((0 * (∂ 1 1 y E'_3 - ∂ 1 1 z E'_2)) + (1 * (∂ 1 1 x E'_2 - ∂ 1 1 y E'_1)))
+def feqE1 := E_1 + (dt * ((1 * (∂ 1 1 y B_3 - ∂ 1 1 z B_2))))
+def feqE2 := E_2 + (dt * ((0 * (∂ 1 1 y B_3 - ∂ 1 1 z B_2)) + (1 * (∂ 1 1 z B_1 - ∂ 1 1 x B_3))))
+def feqE3 := E_3 + (dt * ((0 * (∂ 1 1 y B_3 - ∂ 1 1 z B_2)) + (1 * (∂ 1 1 x B_2 - ∂ 1 1 y B_1))))
+def feqB1 := B_1 - (dt * ((1 * (∂ 1 1 y E'_3 - ∂ 1 1 z E'_2))))
+def feqB2 := B_2 - (dt * ((0 * (∂ 1 1 y E'_3 - ∂ 1 1 z E'_2)) + (1 * (∂ 1 1 z E'_1 - ∂ 1 1 x E'_3))))
+def feqB3 := B_3 - (dt * ((0 * (∂ 1 1 y E'_3 - ∂ 1 1 z E'_2)) + (1 * (∂ 1 1 x E'_2 - ∂ 1 1 y E'_1))))
 
 def feParams := [("dt", "0.1*dx")]
 def feHelpers :=

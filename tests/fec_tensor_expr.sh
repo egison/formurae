@@ -128,7 +128,7 @@ write_case "$f" \
   "  q'_j = grad u"
 out=$(compile_fe "$f")
 rm -f "$f"
-assert_contains "$out" 'def feqq2 := (dYee 2' 'withSymbols alpha-renaming'
+assert_contains "$out" 'def feqq2 := dYee 2' 'withSymbols alpha-renaming'
 
 f=$(tmp_fe)
 write_case "$f" \
@@ -213,7 +213,7 @@ if [ "$status" -eq 0 ]; then
   printf 'unbalanced withSymbols expression unexpectedly succeeded\n' >&2
   exit 1
 fi
-assert_contains "$out" 'unbalanced bracketed expression in: withSymbols [i d_i u' 'unbalanced bracket diagnostic'
+assert_contains "$out" 'withSymbols needs a bracketed symbol list at column 1 in: withSymbols [i d_i u' 'unbalanced bracket diagnostic'
 
 f=$(tmp_fe)
 write_case "$f" \

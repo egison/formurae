@@ -153,6 +153,6 @@ def feComps : [String] := ["u"]
 def feInits :=
   [ "  u[i,j,k] = sin(4.0*i*dx)"
   ]
-def feSteps := scalarEq "u" (u + dt * kappa * (∂ 2 2 x u + ∂ 2 2 y u + ∂ 2 2 z u))
+def feSteps := scalarEq "u" (u + (dt * kappa * (∂ 2 2 x u + ∂ 2 2 y u + ∂ 2 2 z u)))
 
 def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feComps feInits feSteps)

@@ -264,7 +264,7 @@ def feComps : [String] := ["u"]
 def feInits :=
   [ "  u[i,j,k] = gauss(i*dx,j*dy,k*dz)"
   ]
-def feSteps := scalarEq "u" (u + dt * kappa * (((∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u))))
+def feSteps := scalarEq "u" (u + (dt * kappa * (∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u)))
 
 def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feComps feInits feSteps)</pre></details>
   <details class="codebox" data-fmr="diffusion3d/diffusion3d.fmr"><summary>生成された Formura 全文(diffusion3d.fmr・17 行)</summary>
@@ -458,7 +458,7 @@ def feComps : [String] := ["u"]
 def feInits :=
   [ "  u[i] = gauss(i*dx)"
   ]
-def feSteps := scalarEq "u" (u + dt * kappa * (∂ 2 1 x u))
+def feSteps := scalarEq "u" (u + (dt * kappa * ∂ 2 1 x u))
 
 def main (args: [String]) : IO () := print (emitModelOn 1 ["x"] feParams feHelpers feComps feInits feSteps)</pre></details>
   <details class="codebox" data-fmr="diffusion1d/diffusion1d.fmr"><summary>生成された Formura 全文(diffusion1d.fmr・17 行)</summary>
@@ -653,7 +653,7 @@ def feComps : [String] := ["u"]
 def feInits :=
   [ "  u[i,j] = gauss(i*dx,j*dy)"
   ]
-def feSteps := scalarEq "u" (u + dt * kappa * (∂ 2 1 x u + ∂ 2 1 y u))
+def feSteps := scalarEq "u" (u + (dt * kappa * (∂ 2 1 x u + ∂ 2 1 y u)))
 
 def main (args: [String]) : IO () := print (emitModelOn 2 ["x", "y"] feParams feHelpers feComps feInits feSteps)</pre></details>
   <details class="codebox" data-fmr="diffusion2d/diffusion2d.fmr"><summary>生成された Formura 全文(diffusion2d.fmr・17 行)</summary>
@@ -870,7 +870,7 @@ def feInits :=
   , "  V_down2[i,j] = sy(j*dy)"
   , "  q[i,j] = 0.0"
   ]
-def feSteps := componentEqs ["V_down1", "V_down2"] [feqV1, feqV2] ++ scalarEq "q" ((∂ 1 1 x V_1 + ∂ 1 1 y V_2))
+def feSteps := componentEqs ["V_down1", "V_down2"] [feqV1, feqV2] ++ scalarEq "q" (∂ 1 1 x V_1 + ∂ 1 1 y V_2)
 
 def main (args: [String]) : IO () := print (emitModelOn 2 ["x", "y"] feParams feHelpers feComps feInits feSteps)</pre></details>
   <details class="codebox" data-fmr="divergence2d/divergence2d.fmr"><summary>生成された Formura 全文(divergence2d.fmr・21 行)</summary>
@@ -1082,7 +1082,7 @@ def feComps : [String] := ["u"]
 def feInits :=
   [ "  u[i,j,k] = sin(4.0*i*dx)"
   ]
-def feSteps := scalarEq "u" (u + dt * kappa * (∂ 2 2 x u + ∂ 2 2 y u + ∂ 2 2 z u))
+def feSteps := scalarEq "u" (u + (dt * kappa * (∂ 2 2 x u + ∂ 2 2 y u + ∂ 2 2 z u)))
 
 def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feComps feInits feSteps)</pre></details>
   <details class="codebox" data-fmr="highorder4/highorder4.fmr"><summary>生成された Formura 全文(highorder4.fmr・16 行)</summary>
@@ -1294,7 +1294,7 @@ def feComps : [String] := ["u"]
 def feInits :=
   [ "  u[i,j,k] = sin(3.141592653589793*(i + 1.0)/65.0)"
   ]
-def feSteps := scalarEq "u" (u + dt * kappa * (∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u))
+def feSteps := scalarEq "u" (u + (dt * kappa * (∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u)))
 
 def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feComps feInits feSteps)</pre></details>
   <details class="codebox" data-fmr="dirichlet_diffusion/dirichlet_diffusion.fmr"><summary>生成された Formura 全文(dirichlet_diffusion.fmr・17 行)</summary>
@@ -1522,12 +1522,12 @@ def FormuraeInternalTensorBDown_i := B_i
 def FormuraeInternalTensorEUp'_i := E'_i
 def FormuraeInternalTensorEDown'_i := E'_i
 
-def feqE1 := E_1 + dt * ((1 * (∂ 1 1 y B_3 - ∂ 1 1 z B_2)))
-def feqE2 := E_2 + dt * ((0 * (∂ 1 1 y B_3 - ∂ 1 1 z B_2)) + (1 * (∂ 1 1 z B_1 - ∂ 1 1 x B_3)))
-def feqE3 := E_3 + dt * ((0 * (∂ 1 1 y B_3 - ∂ 1 1 z B_2)) + (1 * (∂ 1 1 x B_2 - ∂ 1 1 y B_1)))
-def feqB1 := B_1 - dt * ((1 * (∂ 1 1 y E'_3 - ∂ 1 1 z E'_2)))
-def feqB2 := B_2 - dt * ((0 * (∂ 1 1 y E'_3 - ∂ 1 1 z E'_2)) + (1 * (∂ 1 1 z E'_1 - ∂ 1 1 x E'_3)))
-def feqB3 := B_3 - dt * ((0 * (∂ 1 1 y E'_3 - ∂ 1 1 z E'_2)) + (1 * (∂ 1 1 x E'_2 - ∂ 1 1 y E'_1)))
+def feqE1 := E_1 + (dt * ((1 * (∂ 1 1 y B_3 - ∂ 1 1 z B_2))))
+def feqE2 := E_2 + (dt * ((0 * (∂ 1 1 y B_3 - ∂ 1 1 z B_2)) + (1 * (∂ 1 1 z B_1 - ∂ 1 1 x B_3))))
+def feqE3 := E_3 + (dt * ((0 * (∂ 1 1 y B_3 - ∂ 1 1 z B_2)) + (1 * (∂ 1 1 x B_2 - ∂ 1 1 y B_1))))
+def feqB1 := B_1 - (dt * ((1 * (∂ 1 1 y E'_3 - ∂ 1 1 z E'_2))))
+def feqB2 := B_2 - (dt * ((0 * (∂ 1 1 y E'_3 - ∂ 1 1 z E'_2)) + (1 * (∂ 1 1 z E'_1 - ∂ 1 1 x E'_3))))
+def feqB3 := B_3 - (dt * ((0 * (∂ 1 1 y E'_3 - ∂ 1 1 z E'_2)) + (1 * (∂ 1 1 x E'_2 - ∂ 1 1 y E'_1))))
 
 def feParams := [("dt", "0.1*dx")]
 def feHelpers :=
@@ -1941,7 +1941,7 @@ def feInits :=
   , "  B_1_3[i,j,k] = 0"
   , "  B_2_3[i,j,k] = 0"
   ]
-def feSteps := componentEqs ["E_1", "E_2", "E_3"] [(E_1 + dt * nth 1 (formComps (codiff Bf))), (E_2 + dt * nth 2 (formComps (codiff Bf))), (E_3 + dt * nth 3 (formComps (codiff Bf)))] ++ componentEqs ["B_1_2", "B_1_3", "B_2_3"] [(B_1_2 - dt * nth 1 (formComps (dForm EfN))), (B_1_3 - dt * nth 2 (formComps (dForm EfN))), (B_2_3 - dt * nth 3 (formComps (dForm EfN)))]
+def feSteps := componentEqs ["E_1", "E_2", "E_3"] [(E_1 + (dt * nth 1 (formComps (codiff Bf)))), (E_2 + (dt * nth 2 (formComps (codiff Bf)))), (E_3 + (dt * nth 3 (formComps (codiff Bf))))] ++ componentEqs ["B_1_2", "B_1_3", "B_2_3"] [(B_1_2 - (dt * nth 1 (formComps (dForm EfN)))), (B_1_3 - (dt * nth 2 (formComps (dForm EfN)))), (B_2_3 - (dt * nth 3 (formComps (dForm EfN))))]
 
 def main (args: [String]) : IO () :=
   if feDD = 0 then (print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feComps feInits feSteps)) else print "# ERROR: d . d /= 0 on this grid -- refusing to generate"</pre></details>
@@ -2313,15 +2313,15 @@ def FormuraeInternalMetricContra_i_j := generateTensor (\[i, j] -&gt; if i = j t
 def FormuraeInternalMetricMixedUpDown_i_j := generateTensor (\[i, j] -&gt; if i = j then 1 else 0) [feDim, feDim]
 def FormuraeInternalMetricMixedDownUp_i_j := generateTensor (\[i, j] -&gt; if i = j then 1 else 0) [feDim, feDim]
 
-def feqv1 := v_1 + (dt / rho0) * (dYee 1 [1 / 2, 0, 0] (sigma_1_1, [0, 0, 0]) + dYee 2 [1 / 2, 0, 0] (sigma_1_2, [1 / 2, 1 / 2, 0]) + dYee 3 [1 / 2, 0, 0] (sigma_1_3, [1 / 2, 0, 1 / 2]))
-def feqv2 := v_2 + (dt / rho0) * (dYee 1 [0, 1 / 2, 0] (sigma_1_2, [1 / 2, 1 / 2, 0]) + dYee 2 [0, 1 / 2, 0] (sigma_2_2, [0, 0, 0]) + dYee 3 [0, 1 / 2, 0] (sigma_2_3, [0, 1 / 2, 1 / 2]))
-def feqv3 := v_3 + (dt / rho0) * (dYee 1 [0, 0, 1 / 2] (sigma_1_3, [1 / 2, 0, 1 / 2]) + dYee 2 [0, 0, 1 / 2] (sigma_2_3, [0, 1 / 2, 1 / 2]) + dYee 3 [0, 0, 1 / 2] (sigma_3_3, [0, 0, 0]))
-def feqsigma11 := sigma_1_1 + dt * (lambda * 1 * (dYee 1 [0, 0, 0] (v'_1, [1 / 2, 0, 0]) + dYee 2 [0, 0, 0] (v'_2, [0, 1 / 2, 0]) + dYee 3 [0, 0, 0] (v'_3, [0, 0, 1 / 2])) + mu * ((dYee 1 [0, 0, 0] (v'_1, [1 / 2, 0, 0])) + (dYee 1 [0, 0, 0] (v'_1, [1 / 2, 0, 0]))))
-def feqsigma22 := sigma_2_2 + dt * (lambda * 1 * (dYee 1 [0, 0, 0] (v'_1, [1 / 2, 0, 0]) + dYee 2 [0, 0, 0] (v'_2, [0, 1 / 2, 0]) + dYee 3 [0, 0, 0] (v'_3, [0, 0, 1 / 2])) + mu * ((dYee 2 [0, 0, 0] (v'_2, [0, 1 / 2, 0])) + (dYee 2 [0, 0, 0] (v'_2, [0, 1 / 2, 0]))))
-def feqsigma33 := sigma_3_3 + dt * (lambda * 1 * (dYee 1 [0, 0, 0] (v'_1, [1 / 2, 0, 0]) + dYee 2 [0, 0, 0] (v'_2, [0, 1 / 2, 0]) + dYee 3 [0, 0, 0] (v'_3, [0, 0, 1 / 2])) + mu * ((dYee 3 [0, 0, 0] (v'_3, [0, 0, 1 / 2])) + (dYee 3 [0, 0, 0] (v'_3, [0, 0, 1 / 2]))))
-def feqsigma12 := sigma_1_2 + dt * (mu * ((dYee 1 [1 / 2, 1 / 2, 0] (v'_2, [0, 1 / 2, 0])) + (dYee 2 [1 / 2, 1 / 2, 0] (v'_1, [1 / 2, 0, 0]))))
-def feqsigma13 := sigma_1_3 + dt * (mu * ((dYee 1 [1 / 2, 0, 1 / 2] (v'_3, [0, 0, 1 / 2])) + (dYee 3 [1 / 2, 0, 1 / 2] (v'_1, [1 / 2, 0, 0]))))
-def feqsigma23 := sigma_2_3 + dt * (mu * ((dYee 2 [0, 1 / 2, 1 / 2] (v'_3, [0, 0, 1 / 2])) + (dYee 3 [0, 1 / 2, 1 / 2] (v'_2, [0, 1 / 2, 0]))))
+def feqv1 := v_1 + ((dt / rho0) * (dYee 1 [1 / 2, 0, 0] (sigma_1_1, [0, 0, 0]) + dYee 2 [1 / 2, 0, 0] (sigma_1_2, [1 / 2, 1 / 2, 0]) + dYee 3 [1 / 2, 0, 0] (sigma_1_3, [1 / 2, 0, 1 / 2])))
+def feqv2 := v_2 + ((dt / rho0) * (dYee 1 [0, 1 / 2, 0] (sigma_1_2, [1 / 2, 1 / 2, 0]) + dYee 2 [0, 1 / 2, 0] (sigma_2_2, [0, 0, 0]) + dYee 3 [0, 1 / 2, 0] (sigma_2_3, [0, 1 / 2, 1 / 2])))
+def feqv3 := v_3 + ((dt / rho0) * (dYee 1 [0, 0, 1 / 2] (sigma_1_3, [1 / 2, 0, 1 / 2]) + dYee 2 [0, 0, 1 / 2] (sigma_2_3, [0, 1 / 2, 1 / 2]) + dYee 3 [0, 0, 1 / 2] (sigma_3_3, [0, 0, 0])))
+def feqsigma11 := sigma_1_1 + (dt * ((lambda * 1 * (dYee 1 [0, 0, 0] (v'_1, [1 / 2, 0, 0]) + dYee 2 [0, 0, 0] (v'_2, [0, 1 / 2, 0]) + dYee 3 [0, 0, 0] (v'_3, [0, 0, 1 / 2]))) + (mu * ((dYee 1 [0, 0, 0] (v'_1, [1 / 2, 0, 0])) + (dYee 1 [0, 0, 0] (v'_1, [1 / 2, 0, 0]))))))
+def feqsigma22 := sigma_2_2 + (dt * ((lambda * 1 * (dYee 1 [0, 0, 0] (v'_1, [1 / 2, 0, 0]) + dYee 2 [0, 0, 0] (v'_2, [0, 1 / 2, 0]) + dYee 3 [0, 0, 0] (v'_3, [0, 0, 1 / 2]))) + (mu * ((dYee 2 [0, 0, 0] (v'_2, [0, 1 / 2, 0])) + (dYee 2 [0, 0, 0] (v'_2, [0, 1 / 2, 0]))))))
+def feqsigma33 := sigma_3_3 + (dt * ((lambda * 1 * (dYee 1 [0, 0, 0] (v'_1, [1 / 2, 0, 0]) + dYee 2 [0, 0, 0] (v'_2, [0, 1 / 2, 0]) + dYee 3 [0, 0, 0] (v'_3, [0, 0, 1 / 2]))) + (mu * ((dYee 3 [0, 0, 0] (v'_3, [0, 0, 1 / 2])) + (dYee 3 [0, 0, 0] (v'_3, [0, 0, 1 / 2]))))))
+def feqsigma12 := sigma_1_2 + (dt * ((mu * ((dYee 1 [1 / 2, 1 / 2, 0] (v'_2, [0, 1 / 2, 0])) + (dYee 2 [1 / 2, 1 / 2, 0] (v'_1, [1 / 2, 0, 0]))))))
+def feqsigma13 := sigma_1_3 + (dt * ((mu * ((dYee 1 [1 / 2, 0, 1 / 2] (v'_3, [0, 0, 1 / 2])) + (dYee 3 [1 / 2, 0, 1 / 2] (v'_1, [1 / 2, 0, 0]))))))
+def feqsigma23 := sigma_2_3 + (dt * ((mu * ((dYee 2 [0, 1 / 2, 1 / 2] (v'_3, [0, 0, 1 / 2])) + (dYee 3 [0, 1 / 2, 1 / 2] (v'_2, [0, 1 / 2, 0]))))))
 
 def feParams := [("lambda", "2.0"), ("mu", "1.0"), ("rho0", "1.0"), ("dt", "0.0005")]
 def feHelpers :=
@@ -2579,7 +2579,7 @@ def feInits :=
   [ "  phi[i,j,k] = tanh(0.7216878364870323*(i*dx - 16.0)) - tanh(0.7216878364870323*(i*dx - 48.0)) - 1.0"
   , "  w[i,j,k] = 0.0 - 0.14433756729740645*(1.0/cosh(0.7216878364870323*(i*dx - 16.0)))**2 - 0.14433756729740645*(1.0/cosh(0.7216878364870323*(i*dx - 48.0)))**2"
   ]
-def feSteps := scalarEq "w" (w + dt * (∂ 2 1 x phi + phi - phi * phi * phi)) ++ scalarEq "phi" (phi + dt * w')
+def feSteps := scalarEq "w" (w + (dt * ((∂ 2 1 x phi + phi) - (phi * phi * phi)))) ++ scalarEq "phi" (phi + (dt * w'))
 
 def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feComps feInits feSteps)</pre></details>
   <details class="codebox" data-fmr="kleingordon/kleingordon.fmr"><summary>生成された Formura 全文(kleingordon.fmr・20 行)</summary>
@@ -2798,7 +2798,7 @@ def feComps : [String] := ["u"]
 def feInits :=
   [ "  u[i,j,k] = 2.0*0.05*k0*sin(k0*i*dx)/(2.0 + cos(k0*i*dx))"
   ]
-def feSteps := scalarEq "u" (u + dt * (nu * (∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u) - u * ∂ 1 1 x u))
+def feSteps := scalarEq "u" (u + (dt * ((nu * (∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u)) - (u * ∂ 1 1 x u))))
 
 def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feComps feInits feSteps)</pre></details>
   <details class="codebox" data-fmr="burgers3d/burgers3d.fmr"><summary>生成された Formura 全文(burgers3d.fmr・18 行)</summary>
@@ -3024,7 +3024,7 @@ def feInits :=
   , "  mx[i,j,k] = 0.0"
   , "  my[i,j,k] = 0.0"
   ]
-def feSteps := [fmrEq "fmxx" (mx * mx / h + g * h * h / 2)] ++ [fmrEq "fmxy" (mx * my / h)] ++ [fmrEq "fmyy" (my * my / h + g * h * h / 2)] ++ scalarEq "h" (h - dt * (∂ 1 1 x mx + ∂ 1 1 y my) + dt * lambda * (∂ 2 1 x h + ∂ 2 1 y h)) ++ scalarEq "mx" (mx - dt * (∂ 1 1 x fmxx + ∂ 1 1 y fmxy) + dt * lambda * (∂ 2 1 x mx + ∂ 2 1 y mx)) ++ scalarEq "my" (my - dt * (∂ 1 1 x fmxy + ∂ 1 1 y fmyy) + dt * lambda * (∂ 2 1 x my + ∂ 2 1 y my))
+def feSteps := [fmrEq "fmxx" (((mx * mx) / h) + ((g * h * h) / 2))] ++ [fmrEq "fmxy" ((mx * my) / h)] ++ [fmrEq "fmyy" (((my * my) / h) + ((g * h * h) / 2))] ++ scalarEq "h" ((h - (dt * (∂ 1 1 x mx + ∂ 1 1 y my))) + (dt * lambda * (∂ 2 1 x h + ∂ 2 1 y h))) ++ scalarEq "mx" ((mx - (dt * (∂ 1 1 x fmxx + ∂ 1 1 y fmxy))) + (dt * lambda * (∂ 2 1 x mx + ∂ 2 1 y mx))) ++ scalarEq "my" ((my - (dt * (∂ 1 1 x fmxy + ∂ 1 1 y fmyy))) + (dt * lambda * (∂ 2 1 x my + ∂ 2 1 y my)))
 
 def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feComps feInits feSteps)</pre></details>
   <details class="codebox" data-fmr="shallowwater/shallowwater.fmr"><summary>生成された Formura 全文(shallowwater.fmr・24 行)</summary>
@@ -3261,7 +3261,7 @@ def feInits :=
   , "  mx[i,j,k] = 0.0"
   , "  en[i,j,k] = (0.1 + 0.9*sod(i*dx))/0.4"
   ]
-def feSteps := [fmrEq "pr" ((2 / 5) * (en - mx * mx / (2 * rho)))] ++ [fmrEq "fm" (mx * mx / rho + pr)] ++ [fmrEq "fe" ((en + pr) * mx / rho)] ++ scalarEq "rho" (rho - dt * ∂ 1 1 x mx + dt * lambda * ∂ 2 1 x rho) ++ scalarEq "mx" (mx - dt * ∂ 1 1 x fm + dt * lambda * ∂ 2 1 x mx) ++ scalarEq "en" (en - dt * ∂ 1 1 x fe + dt * lambda * ∂ 2 1 x en)
+def feSteps := [fmrEq "pr" ((2 / 5) * (en - ((mx * mx) / (2 * rho))))] ++ [fmrEq "fm" (((mx * mx) / rho) + pr)] ++ [fmrEq "fe" (((en + pr) * mx) / rho)] ++ scalarEq "rho" ((rho - (dt * ∂ 1 1 x mx)) + (dt * lambda * ∂ 2 1 x rho)) ++ scalarEq "mx" ((mx - (dt * ∂ 1 1 x fm)) + (dt * lambda * ∂ 2 1 x mx)) ++ scalarEq "en" ((en - (dt * ∂ 1 1 x fe)) + (dt * lambda * ∂ 2 1 x en))
 
 def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feComps feInits feSteps)</pre></details>
   <details class="codebox" data-fmr="euler_sod/euler_sod.fmr"><summary>生成された Formura 全文(euler_sod.fmr・25 行)</summary>
@@ -3861,7 +3861,7 @@ def feComps : [String] := ["u"]
 def feInits :=
   [ "  u[i,j,k] = cos(0.28559933214452665*i*dx) + 0.1*cos(0.5711986642890533*i*dx)"
   ]
-def feSteps := [fmrEq "w" (∂ 2 1 x u)] ++ scalarEq "u" (u - dt * (∂ 1 1 x (u * u / 2) + w + ∂ 2 1 x w))
+def feSteps := [fmrEq "w" (∂ 2 1 x u)] ++ scalarEq "u" (u - (dt * (∂ 1 1 x ((u * u) / 2) + w + ∂ 2 1 x w)))
 
 def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feComps feInits feSteps)</pre></details>
   <details class="codebox" data-fmr="ks3d/ks3d.fmr"><summary>生成された Formura 全文(ks3d.fmr・17 行)</summary>
@@ -4084,7 +4084,7 @@ def feInits :=
   [ "  U[i,j,k] = if isCenter(i,j,k,4) then 0.5 else 1.0"
   , "  V[i,j,k] = if isCenter(i,j,k,4) then 0.25 else 0.0"
   ]
-def feSteps := scalarEq "U" (U + dt * (Fu * (1 - U) - Fe * U * V^2 + Du * (∂ 2 1 x U + ∂ 2 1 y U + ∂ 2 1 z U))) ++ scalarEq "V" (V + dt * (Fe * U * V^2 - Fv * V + Dv * (∂ 2 1 x V + ∂ 2 1 y V + ∂ 2 1 z V)))
+def feSteps := scalarEq "U" (U + (dt * (((Fu * (1 - U)) - (Fe * U * (V ^ 2))) + (Du * (∂ 2 1 x U + ∂ 2 1 y U + ∂ 2 1 z U))))) ++ scalarEq "V" (V + (dt * (((Fe * U * (V ^ 2)) - (Fv * V)) + (Dv * (∂ 2 1 x V + ∂ 2 1 y V + ∂ 2 1 z V)))))
 
 def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feComps feInits feSteps)</pre></details>
   <details class="codebox" data-fmr="pearson3d/pearson3d.fmr"><summary>生成された Formura 全文(pearson3d.fmr・23 行)</summary>
@@ -4302,7 +4302,7 @@ def feComps : [String] := ["c"]
 def feInits :=
   [ "  c[i,j,k] = 0.05*(sin(0.29*i)*sin(0.31*j)*sin(0.37*k) + sin(0.23*i + 0.41*j) + sin(0.19*k + 0.13*i))"
   ]
-def feSteps := [fmrEq "mu" (c^3 - c - kap * (∂ 2 1 x c + ∂ 2 1 y c + ∂ 2 1 z c))] ++ scalarEq "c" (c + dt * mob * (∂ 2 1 x mu + ∂ 2 1 y mu + ∂ 2 1 z mu))
+def feSteps := [fmrEq "mu" (((c ^ 3) - c) - (kap * (∂ 2 1 x c + ∂ 2 1 y c + ∂ 2 1 z c)))] ++ scalarEq "c" (c + (dt * mob * (∂ 2 1 x mu + ∂ 2 1 y mu + ∂ 2 1 z mu)))
 
 def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feComps feInits feSteps)</pre></details>
   <details class="codebox" data-fmr="cahnhilliard3d/cahnhilliard3d.fmr"><summary>生成された Formura 全文(cahnhilliard3d.fmr・18 行)</summary>
@@ -4514,7 +4514,7 @@ def feInits :=
   [ "  a[i,j,k] = 0.1*(sin(0.31*i)*sin(0.27*j) + sin(0.17*i + 0.23*j))"
   , "  b[i,j,k] = 0.1*(sin(0.29*i + 1.0)*sin(0.33*j) + sin(0.21*i + 0.19*j + 2.0))"
   ]
-def feSteps := scalarEq "a" (a + dt * (a - (a^2 + b^2) * a + (∂ 2 1 x a + ∂ 2 1 y a + ∂ 2 1 z a))) ++ scalarEq "b" (b + dt * (b - (a^2 + b^2) * b + (∂ 2 1 x b + ∂ 2 1 y b + ∂ 2 1 z b)))
+def feSteps := scalarEq "a" (a + (dt * ((a - (((a ^ 2) + (b ^ 2)) * a)) + ∂ 2 1 x a + ∂ 2 1 y a + ∂ 2 1 z a))) ++ scalarEq "b" (b + (dt * ((b - (((a ^ 2) + (b ^ 2)) * b)) + ∂ 2 1 x b + ∂ 2 1 y b + ∂ 2 1 z b)))
 
 def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feComps feInits feSteps)</pre></details>
   <details class="codebox" data-fmr="tdgl3d/tdgl3d.fmr"><summary>生成された Formura 全文(tdgl3d.fmr・17 行)</summary>
@@ -4763,13 +4763,13 @@ def feHelpers :=
   ]
 def feComps : [String] := ["u", "ca", "cb", "cc", "sg"]
 def feInits :=
-  [ fmrInit "u" (exp (0 - 4 * (x - 1 / 2) ^ 2) * exp (cos y - 1))
+  [ fmrInit "u" (exp (0 - (4 * ((x - (1 / 2)) ^ 2))) * exp (cos y - 1))
   , fmrInit "ca" (substitute [(feCoords_1, feCoords_1 + feHsteps_1 / 2)] ((feH1) * (feH2) * (feH3) / ((feH1) ^ 2)))
   , fmrInit "cb" (substitute [(feCoords_2, feCoords_2 + feHsteps_2 / 2)] ((feH1) * (feH2) * (feH3) / ((feH2) ^ 2)))
   , fmrInit "cc" (substitute [(feCoords_3, feCoords_3 + feHsteps_3 / 2)] ((feH1) * (feH2) * (feH3) / ((feH3) ^ 2)))
   , fmrInit "sg" ((feH1) * (feH2) * (feH3))
   ]
-def feSteps := [fmrEq "f1" (ca * dYee 1 [1 / 2, 0, 0] (u, [0, 0, 0]))] ++ [fmrEq "f2" (cb * dYee 2 [0, 1 / 2, 0] (u, [0, 0, 0]))] ++ [fmrEq "f3" (cc * dYee 3 [0, 0, 1 / 2] (u, [0, 0, 0]))] ++ scalarEq "u" (u + dt * (((dYee 1 [0, 0, 0] (f1, [1 / 2, 0, 0]) + dYee 2 [0, 0, 0] (f2, [0, 1 / 2, 0]) + dYee 3 [0, 0, 0] (f3, [0, 0, 1 / 2])) / sg))) ++ scalarEq "ca" (ca) ++ scalarEq "cb" (cb) ++ scalarEq "cc" (cc) ++ scalarEq "sg" (sg)
+def feSteps := [fmrEq "f1" (ca * dYee 1 [1 / 2, 0, 0] (u, [0, 0, 0]))] ++ [fmrEq "f2" (cb * dYee 2 [0, 1 / 2, 0] (u, [0, 0, 0]))] ++ [fmrEq "f3" (cc * dYee 3 [0, 0, 1 / 2] (u, [0, 0, 0]))] ++ scalarEq "u" (u + (dt * ((dYee 1 [0, 0, 0] (f1, [1 / 2, 0, 0]) + dYee 2 [0, 0, 0] (f2, [0, 1 / 2, 0]) + dYee 3 [0, 0, 0] (f3, [0, 0, 1 / 2])) / sg))) ++ scalarEq "ca" (ca) ++ scalarEq "cb" (cb) ++ scalarEq "cc" (cc) ++ scalarEq "sg" (sg)
 
 def main (args: [String]) : IO () :=
   if feGo 1 2 = 0 &amp;&amp; feGo 1 3 = 0 &amp;&amp; feGo 2 3 = 0 then (print (emitModelOn 3 ["r", "phi", "z"] feParams feHelpers feComps feInits feSteps)) else print "# ERROR: the embedding is not orthogonal (off-diagonal metric terms must vanish symbolically); general metrics are not supported yet"</pre></details>
@@ -5027,13 +5027,13 @@ def feHelpers :=
   ]
 def feComps : [String] := ["u", "ca", "cb", "cc", "sg"]
 def feInits :=
-  [ fmrInit "u" (exp (0 - 4 * (x - 1 / 2) ^ 2) * exp (0 - 4 * (y - 1 / 2) ^ 2) * exp (cos z - 1))
+  [ fmrInit "u" (exp (0 - (4 * ((x - (1 / 2)) ^ 2))) * exp (0 - (4 * ((y - (1 / 2)) ^ 2))) * exp (cos z - 1))
   , fmrInit "ca" (substitute [(feCoords_1, feCoords_1 + feHsteps_1 / 2)] ((feH1) * (feH2) * (feH3) / ((feH1) ^ 2)))
   , fmrInit "cb" (substitute [(feCoords_2, feCoords_2 + feHsteps_2 / 2)] ((feH1) * (feH2) * (feH3) / ((feH2) ^ 2)))
   , fmrInit "cc" (substitute [(feCoords_3, feCoords_3 + feHsteps_3 / 2)] ((feH1) * (feH2) * (feH3) / ((feH3) ^ 2)))
   , fmrInit "sg" ((feH1) * (feH2) * (feH3))
   ]
-def feSteps := [fmrEq "f1" (ca * dYee 1 [1 / 2, 0, 0] (u, [0, 0, 0]))] ++ [fmrEq "f2" (cb * dYee 2 [0, 1 / 2, 0] (u, [0, 0, 0]))] ++ [fmrEq "f3" (cc * dYee 3 [0, 0, 1 / 2] (u, [0, 0, 0]))] ++ scalarEq "u" (u + dt * (((dYee 1 [0, 0, 0] (f1, [1 / 2, 0, 0]) + dYee 2 [0, 0, 0] (f2, [0, 1 / 2, 0]) + dYee 3 [0, 0, 0] (f3, [0, 0, 1 / 2])) / sg))) ++ scalarEq "ca" (ca) ++ scalarEq "cb" (cb) ++ scalarEq "cc" (cc) ++ scalarEq "sg" (sg)
+def feSteps := [fmrEq "f1" (ca * dYee 1 [1 / 2, 0, 0] (u, [0, 0, 0]))] ++ [fmrEq "f2" (cb * dYee 2 [0, 1 / 2, 0] (u, [0, 0, 0]))] ++ [fmrEq "f3" (cc * dYee 3 [0, 0, 1 / 2] (u, [0, 0, 0]))] ++ scalarEq "u" (u + (dt * ((dYee 1 [0, 0, 0] (f1, [1 / 2, 0, 0]) + dYee 2 [0, 0, 0] (f2, [0, 1 / 2, 0]) + dYee 3 [0, 0, 0] (f3, [0, 0, 1 / 2])) / sg))) ++ scalarEq "ca" (ca) ++ scalarEq "cb" (cb) ++ scalarEq "cc" (cc) ++ scalarEq "sg" (sg)
 
 def main (args: [String]) : IO () :=
   if feGo 1 2 = 0 &amp;&amp; feGo 1 3 = 0 &amp;&amp; feGo 2 3 = 0 then (print (emitModelOn 3 ["r", "theta", "phi"] feParams feHelpers feComps feInits feSteps)) else print "# ERROR: the embedding is not orthogonal (off-diagonal metric terms must vanish symbolically); general metrics are not supported yet"</pre></details>
@@ -5296,13 +5296,13 @@ def feHelpers :=
   ]
 def feComps : [String] := ["u", "ca", "cb", "cc", "sg"]
 def feInits :=
-  [ fmrInit "u" (exp (cos x + cos y - 2))
+  [ fmrInit "u" (exp ((cos x + cos y) - 2))
   , fmrInit "ca" (substitute [(feCoords_1, feCoords_1 + feHsteps_1 / 2)] ((feH1) * (feH2) * (feH3) / ((feH1) ^ 2)))
   , fmrInit "cb" (substitute [(feCoords_2, feCoords_2 + feHsteps_2 / 2)] ((feH1) * (feH2) * (feH3) / ((feH2) ^ 2)))
   , fmrInit "cc" (substitute [(feCoords_3, feCoords_3 + feHsteps_3 / 2)] ((feH1) * (feH2) * (feH3) / ((feH3) ^ 2)))
   , fmrInit "sg" ((feH1) * (feH2) * (feH3))
   ]
-def feSteps := [fmrEq "f1" (ca * dYee 1 [1 / 2, 0, 0] (u, [0, 0, 0]))] ++ [fmrEq "f2" (cb * dYee 2 [0, 1 / 2, 0] (u, [0, 0, 0]))] ++ [fmrEq "f3" (cc * dYee 3 [0, 0, 1 / 2] (u, [0, 0, 0]))] ++ scalarEq "u" (u + dt * (((dYee 1 [0, 0, 0] (f1, [1 / 2, 0, 0]) + dYee 2 [0, 0, 0] (f2, [0, 1 / 2, 0]) + dYee 3 [0, 0, 0] (f3, [0, 0, 1 / 2])) / sg))) ++ scalarEq "ca" (ca) ++ scalarEq "cb" (cb) ++ scalarEq "cc" (cc) ++ scalarEq "sg" (sg)
+def feSteps := [fmrEq "f1" (ca * dYee 1 [1 / 2, 0, 0] (u, [0, 0, 0]))] ++ [fmrEq "f2" (cb * dYee 2 [0, 1 / 2, 0] (u, [0, 0, 0]))] ++ [fmrEq "f3" (cc * dYee 3 [0, 0, 1 / 2] (u, [0, 0, 0]))] ++ scalarEq "u" (u + (dt * ((dYee 1 [0, 0, 0] (f1, [1 / 2, 0, 0]) + dYee 2 [0, 0, 0] (f2, [0, 1 / 2, 0]) + dYee 3 [0, 0, 0] (f3, [0, 0, 1 / 2])) / sg))) ++ scalarEq "ca" (ca) ++ scalarEq "cb" (cb) ++ scalarEq "cc" (cc) ++ scalarEq "sg" (sg)
 
 def main (args: [String]) : IO () :=
   if feGo 1 2 = 0 &amp;&amp; feGo 1 3 = 0 &amp;&amp; feGo 2 3 = 0 then (print (emitModelOn 3 ["theta", "phi", "z"] feParams feHelpers feComps feInits feSteps)) else print "# ERROR: the embedding is not orthogonal (off-diagonal metric terms must vanish symbolically); general metrics are not supported yet"</pre></details>
@@ -5563,13 +5563,13 @@ def feHelpers :=
   ]
 def feComps : [String] := ["u", "ca", "cb", "cc", "sg"]
 def feInits :=
-  [ fmrInit "u" (exp (0 - 4 * (x - 1 / 2) ^ 2) * exp (cos y - 1))
+  [ fmrInit "u" (exp (0 - (4 * ((x - (1 / 2)) ^ 2))) * exp (cos y - 1))
   , fmrInit "ca" (substitute [(feCoords_1, feCoords_1 + feHsteps_1 / 2)] ((feH1) * (feH2) * (feH3) / ((feH1) ^ 2)))
   , fmrInit "cb" (substitute [(feCoords_2, feCoords_2 + feHsteps_2 / 2)] ((feH1) * (feH2) * (feH3) / ((feH2) ^ 2)))
   , fmrInit "cc" (substitute [(feCoords_3, feCoords_3 + feHsteps_3 / 2)] ((feH1) * (feH2) * (feH3) / ((feH3) ^ 2)))
   , fmrInit "sg" ((feH1) * (feH2) * (feH3))
   ]
-def feSteps := [fmrEq "f1" (ca * dYee 1 [1 / 2, 0, 0] (u, [0, 0, 0]))] ++ [fmrEq "f2" (cb * dYee 2 [0, 1 / 2, 0] (u, [0, 0, 0]))] ++ [fmrEq "f3" (cc * dYee 3 [0, 0, 1 / 2] (u, [0, 0, 0]))] ++ scalarEq "u" (u + dt * (((dYee 1 [0, 0, 0] (f1, [1 / 2, 0, 0]) + dYee 2 [0, 0, 0] (f2, [0, 1 / 2, 0]) + dYee 3 [0, 0, 0] (f3, [0, 0, 1 / 2])) / sg))) ++ scalarEq "ca" (ca) ++ scalarEq "cb" (cb) ++ scalarEq "cc" (cc) ++ scalarEq "sg" (sg)
+def feSteps := [fmrEq "f1" (ca * dYee 1 [1 / 2, 0, 0] (u, [0, 0, 0]))] ++ [fmrEq "f2" (cb * dYee 2 [0, 1 / 2, 0] (u, [0, 0, 0]))] ++ [fmrEq "f3" (cc * dYee 3 [0, 0, 1 / 2] (u, [0, 0, 0]))] ++ scalarEq "u" (u + (dt * ((dYee 1 [0, 0, 0] (f1, [1 / 2, 0, 0]) + dYee 2 [0, 0, 0] (f2, [0, 1 / 2, 0]) + dYee 3 [0, 0, 0] (f3, [0, 0, 1 / 2])) / sg))) ++ scalarEq "ca" (ca) ++ scalarEq "cb" (cb) ++ scalarEq "cc" (cc) ++ scalarEq "sg" (sg)
 
 def main (args: [String]) : IO () :=
   if feGo 1 2 = 0 &amp;&amp; feGo 1 3 = 0 &amp;&amp; feGo 2 3 = 0 then (print (emitModelOn 3 ["theta", "phi", "z"] feParams feHelpers feComps feInits feSteps)) else print "# ERROR: the embedding is not orthogonal (off-diagonal metric terms must vanish symbolically); general metrics are not supported yet"</pre></details>
@@ -5819,13 +5819,13 @@ def feHelpers :=
   ]
 def feComps : [String] := ["u", "ca", "cb", "cc", "sg"]
 def feInits :=
-  [ fmrInit "u" (exp (cos x - 1) * exp (0 - 4 * (y - 1 / 2) ^ 2))
+  [ fmrInit "u" (exp (cos x - 1) * exp (0 - (4 * ((y - (1 / 2)) ^ 2))))
   , fmrInit "ca" (substitute [(feCoords_1, feCoords_1 + feHsteps_1 / 2)] ((1 / (1 + y)) * (1 / (1 + y)) * (1) / ((1 / (1 + y)) ^ 2)))
   , fmrInit "cb" (substitute [(feCoords_2, feCoords_2 + feHsteps_2 / 2)] ((1 / (1 + y)) * (1 / (1 + y)) * (1) / ((1 / (1 + y)) ^ 2)))
   , fmrInit "cc" (substitute [(feCoords_3, feCoords_3 + feHsteps_3 / 2)] ((1 / (1 + y)) * (1 / (1 + y)) * (1) / ((1) ^ 2)))
   , fmrInit "sg" ((1 / (1 + y)) * (1 / (1 + y)) * (1))
   ]
-def feSteps := [fmrEq "f1" (ca * dYee 1 [1 / 2, 0, 0] (u, [0, 0, 0]))] ++ [fmrEq "f2" (cb * dYee 2 [0, 1 / 2, 0] (u, [0, 0, 0]))] ++ [fmrEq "f3" (cc * dYee 3 [0, 0, 1 / 2] (u, [0, 0, 0]))] ++ scalarEq "u" (u + dt * (((dYee 1 [0, 0, 0] (f1, [1 / 2, 0, 0]) + dYee 2 [0, 0, 0] (f2, [0, 1 / 2, 0]) + dYee 3 [0, 0, 0] (f3, [0, 0, 1 / 2])) / sg))) ++ scalarEq "ca" (ca) ++ scalarEq "cb" (cb) ++ scalarEq "cc" (cc) ++ scalarEq "sg" (sg)
+def feSteps := [fmrEq "f1" (ca * dYee 1 [1 / 2, 0, 0] (u, [0, 0, 0]))] ++ [fmrEq "f2" (cb * dYee 2 [0, 1 / 2, 0] (u, [0, 0, 0]))] ++ [fmrEq "f3" (cc * dYee 3 [0, 0, 1 / 2] (u, [0, 0, 0]))] ++ scalarEq "u" (u + (dt * ((dYee 1 [0, 0, 0] (f1, [1 / 2, 0, 0]) + dYee 2 [0, 0, 0] (f2, [0, 1 / 2, 0]) + dYee 3 [0, 0, 0] (f3, [0, 0, 1 / 2])) / sg))) ++ scalarEq "ca" (ca) ++ scalarEq "cb" (cb) ++ scalarEq "cc" (cc) ++ scalarEq "sg" (sg)
 
 def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feComps feInits feSteps)</pre></details>
   <details class="codebox" data-fmr="hyperbolic/hyperbolic.fmr"><summary>生成された Formura 全文(hyperbolic.fmr・27 行)</summary>

@@ -148,6 +148,6 @@ def feComps : [String] := ["u"]
 def feInits :=
   [ "  u[i] = gauss(i*dx)"
   ]
-def feSteps := scalarEq "u" (u + dt * kappa * (∂ 2 1 x u))
+def feSteps := scalarEq "u" (u + (dt * kappa * ∂ 2 1 x u))
 
 def main (args: [String]) : IO () := print (emitModelOn 1 ["x"] feParams feHelpers feComps feInits feSteps)

@@ -120,6 +120,7 @@ import Formurae.TensorExpr
   , placeSB
   , placeText
   , placeVB
+  , preprocessTensorExpr
   , strictEinstein
   , validateFieldRefParts
   , zeroPlaceB
@@ -478,7 +479,8 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
           defs <- resolveDefs mUse (standardDefs ++ reverse (mDefs mUse))
           tensorDefs <- resolveTensorDefs mUse defs (reverse (mTensorDefs mUse))
           let mDef = mUse { mDefs = defs, mTensorDefs = tensorDefs }
-          steps' <- mapM (\st -> do ex <- expandDefs defs (sEx st)
+          steps' <- mapM (\st -> do ex0 <- preprocessTensorExpr mUse (sEx st)
+                                    ex <- expandDefs defs ex0
                                     return st { sEx = ex })
                          (reverse (mSteps mUse))
           inits' <- mapM (expandInit mUse defs) (reverse (mInits mUse))
@@ -528,7 +530,8 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
         allNames = map defName ds
         goD acc [] = return acc
         goD acc (df : more) = do
-          body' <- expandDefs acc (mathOps mUse (defBody df))
+          body0 <- preprocessTensorExpr mUse (defBody df)
+          body' <- expandDefs acc body0
           case [w | TId w _ <- tokenize body', w `elem` allNames] of
             (w:_) -> fatal ("def " ++ defName df ++ " uses " ++ w
                             ++ " which is not defined before it")
@@ -537,13 +540,16 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
     resolveTensorDefs mUse defs = mapM resolveOne
       where
         resolveOne td = do
-          body' <- expandDefs defs (mathOps mUse (tdBody td))
+          body0 <- preprocessTensorExpr mUse (tdBody td)
+          body' <- expandDefs defs body0
           return td { tdBody = body' }
 
     expandInit mUse defs it = case it of
-      ICas nm ex -> do ex' <- expandDefs defs (mathOps mUse ex)
+      ICas nm ex -> do ex0 <- preprocessTensorExpr mUse ex
+                       ex' <- expandDefs defs ex0
                        return (ICas nm ex')
-      ICasIndex nm ix ex -> do ex' <- expandDefs defs (mathOps mUse ex)
+      ICasIndex nm ix ex -> do ex0 <- preprocessTensorExpr mUse ex
+                               ex' <- expandDefs defs ex0
                                return (ICasIndex nm ix ex')
       _ -> return it
 
@@ -966,7 +972,7 @@ lbTarget m = case concatMap scan (mSteps m) of
                (nm:_) -> Just nm
                [] -> Nothing
   where
-    scan st = go (tokenize (stepPre m (sEx st)))
+    scan st = go (tokenize (sEx st))
     go (TId "lb" False : ts) =
       case dropWhile isSp ts of
         (TId nm False : rest) | kindOf m nm == Just Scalar -> nm : go rest
@@ -983,7 +989,8 @@ lbTarget m = case concatMap scan (mSteps m) of
 indexDefs :: Model -> [String] -> Step -> IO [String]
 indexDefs m lets st = do
   validateFieldRefParts m lets (sNm st ++ concatMap ixSuffix (sIdx st))
-  ex <- expandTensorDefs m (sEx st)
+  ex0 <- expandTensorDefs m (sEx st)
+  ex <- preprocessTensorExpr m ex0
   strictEinstein m lets (sIdx st) ex
   case (kindOf m (sNm st), sIdx st) of
     (Just (Vector staggered), [fi]) ->
@@ -1061,25 +1068,6 @@ lbExpansion m =
     | a <- axisRange m ]
   ++ ") / sg)"
 
--- mathematical derivative operators, resolved by axis name
-mathOps :: Model -> String -> String
-mathOps m = concatMap out . tokenize
-  where
-    axmap = zip (mAxes m) (internalCoordNames m)
-    out (TId nm pr)
-      | not pr, Just (ordr, radius, ax) <- derivativeOpParts nm
-      , Just axis <- lookup ax axmap =
-          derivativeCall ordr radius axis
-      | not pr, Just rest <- stripPrefix "pd2_" nm, Just axis <- lookup rest axmap =
-          derivativeCall 2 1 axis
-      | not pr, Just rest <- stripPrefix "pd_" nm, Just axis <- lookup rest axmap =
-          derivativeCall 1 1 axis
-      | otherwise = nm ++ (if pr then "'" else "")
-    out (TC c) = [c]
-    derivativeCall :: Int -> Int -> String -> String
-    derivativeCall ordr radius axis =
-      "∂ " ++ show ordr ++ " " ++ show radius ++ " " ++ axis
-
 derivativeOpParts :: String -> Maybe (Int, Int, String)
 derivativeOpParts nm = do
   rest0 <- stripPrefix "pd" nm
@@ -1108,33 +1096,13 @@ invalidDerivativeOp m nm =
                 ++ " has too few stencil points")
       | otherwise -> Nothing
 
--- shared step-expression preprocessing: rename axes, then resolve the
--- small coordinate derivative primitives.
-stepPre :: Model -> String -> String
-stepPre m = mathOps m . rewriteCompose . renameAxes m
-
-rewriteCompose :: String -> String
-rewriteCompose = untok . go . tokenize
-  where
-    go [] = []
-    go (TId "compose" False : rest) =
-      let (_, rest1) = span isSpTok rest
-      in case rest1 of
-           TId f fp : restF ->
-             let (_, rest2) = span isSpTok restF
-             in case rest2 of
-                  TId g gp : restG ->
-                    TC '(' : TId f fp : TC '.' : TId g gp : TC ')' : go restG
-                  _ -> TId "compose" False : go rest
-           _ -> TId "compose" False : go rest
-    go (t : rest) = t : go rest
-
 rewrite :: Model -> [String] -> Maybe String -> String -> IO String
 rewrite m lets mk expr = do
-  exprT <- expandTensorDefs m expr
+  exprT0 <- expandTensorDefs m expr
+  exprT <- preprocessTensorExpr m exprT0
   fmap concat (mapM render (attach (elems exprT)))
   where
-    elems exprT = lbPass (opPass m lets (tokenize (stepPre m exprT)))
+    elems exprT = lbPass (opPass m lets (tokenize exprT))
     lbPass [] = []
     lbPass (EId "lb" False : rest0) =
       case dropWhile isSp rest0 of
@@ -1187,7 +1155,7 @@ rewrite m lets mk expr = do
 rewriteScalar :: Model -> [String] -> String -> IO String
 rewriteScalar m lets expr = do
   exprT <- expandTensorDefs m expr
-  let pre = stepPre m exprT
+  pre <- preprocessTensorExpr m exprT
   if hasIndexSyntax m pre
     then strictEinstein m lets [] pre
          >> ixExpand m lets [] (zeroPlaceB m) pre
@@ -1804,7 +1772,7 @@ emit m = do
 
     indexedInitLines lets nm lhsIx ex = do
       exT <- expandTensorDefs m ex
-      let pre = stepPre m exT
+      pre <- preprocessTensorExpr m exT
       strictEinstein m lets lhsIx pre
       case (kindOf m nm, lhsIx) of
         (Just (Vector staggered), [fi]) ->

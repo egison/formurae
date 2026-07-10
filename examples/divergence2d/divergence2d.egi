@@ -163,6 +163,6 @@ def feInits :=
   , "  V_down2[i,j] = sy(j*dy)"
   , "  q[i,j] = 0.0"
   ]
-def feSteps := componentEqs ["V_down1", "V_down2"] [feqV1, feqV2] ++ scalarEq "q" ((∂ 1 1 x V_1 + ∂ 1 1 y V_2))
+def feSteps := componentEqs ["V_down1", "V_down2"] [feqV1, feqV2] ++ scalarEq "q" (∂ 1 1 x V_1 + ∂ 1 1 y V_2)
 
 def main (args: [String]) : IO () := print (emitModelOn 2 ["x", "y"] feParams feHelpers feComps feInits feSteps)

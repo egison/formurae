@@ -159,6 +159,6 @@ def feInits :=
   [ "  phi[i,j,k] = tanh(0.7216878364870323*(i*dx - 16.0)) - tanh(0.7216878364870323*(i*dx - 48.0)) - 1.0"
   , "  w[i,j,k] = 0.0 - 0.14433756729740645*(1.0/cosh(0.7216878364870323*(i*dx - 16.0)))**2 - 0.14433756729740645*(1.0/cosh(0.7216878364870323*(i*dx - 48.0)))**2"
   ]
-def feSteps := scalarEq "w" (w + dt * (∂ 2 1 x phi + phi - phi * phi * phi)) ++ scalarEq "phi" (phi + dt * w')
+def feSteps := scalarEq "w" (w + (dt * ((∂ 2 1 x phi + phi) - (phi * phi * phi)))) ++ scalarEq "phi" (phi + (dt * w'))
 
 def main (args: [String]) : IO () := print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feComps feInits feSteps)

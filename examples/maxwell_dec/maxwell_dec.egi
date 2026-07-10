@@ -223,7 +223,7 @@ def feInits :=
   , "  B_1_3[i,j,k] = 0"
   , "  B_2_3[i,j,k] = 0"
   ]
-def feSteps := componentEqs ["E_1", "E_2", "E_3"] [(E_1 + dt * nth 1 (formComps (codiff Bf))), (E_2 + dt * nth 2 (formComps (codiff Bf))), (E_3 + dt * nth 3 (formComps (codiff Bf)))] ++ componentEqs ["B_1_2", "B_1_3", "B_2_3"] [(B_1_2 - dt * nth 1 (formComps (dForm EfN))), (B_1_3 - dt * nth 2 (formComps (dForm EfN))), (B_2_3 - dt * nth 3 (formComps (dForm EfN)))]
+def feSteps := componentEqs ["E_1", "E_2", "E_3"] [(E_1 + (dt * nth 1 (formComps (codiff Bf)))), (E_2 + (dt * nth 2 (formComps (codiff Bf)))), (E_3 + (dt * nth 3 (formComps (codiff Bf))))] ++ componentEqs ["B_1_2", "B_1_3", "B_2_3"] [(B_1_2 - (dt * nth 1 (formComps (dForm EfN)))), (B_1_3 - (dt * nth 2 (formComps (dForm EfN)))), (B_2_3 - (dt * nth 3 (formComps (dForm EfN))))]
 
 def main (args: [String]) : IO () :=
   if feDD = 0 then (print (emitModelOn 3 ["x", "y", "z"] feParams feHelpers feComps feInits feSteps)) else print "# ERROR: d . d /= 0 on this grid -- refusing to generate"
