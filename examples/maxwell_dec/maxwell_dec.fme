@@ -4,13 +4,13 @@
 -- No grid placements appear anywhere: the form degrees determine the
 -- Yee lattice, and generation is gated on the CAS reducing d(dE') to 0.
 
+mode dec
 dimension 3
 axes x, y, z
 
 param dt = 0.5*dx
 
 extern exp
-use exterior-calculus { d, δ }
 raw gauss1 = fun(x) exp(-((x-(total_grid_x*dx/2))/(8*dx))**2)
 
 field E : 1-form

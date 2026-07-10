@@ -164,6 +164,12 @@ metricInternalBase VUp VDown = reservedInternalPrefix ++ "MetricMixedUpDown"
 metricInternalBase VDown VUp = reservedInternalPrefix ++ "MetricMixedDownUp"
 metricInternalBase VDown VDown = reservedInternalPrefix ++ "MetricCov"
 
+-- Hygienic Cartesian identity metric used by collocated prelude definitions.
+-- It intentionally stays Euclidean even when a separate metric/embedding is
+-- present for operators such as lb. Surface programs cannot capture the name.
+metricPreludeName :: String
+metricPreludeName = reservedInternalPrefix ++ "CartesianMetric"
+
 plOf :: [Bool] -> String
 plOf hs = "[" ++ intercalate ", " [if h then "1 / 2" else "0" | h <- hs] ++ "]"
 

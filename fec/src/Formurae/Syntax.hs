@@ -2,6 +2,17 @@ module Formurae.Syntax where
 
 import Data.Char (isAlpha, isAlphaNum, isSpace)
 
+data Mode = CollocatedMode | DecMode
+  deriving (Eq, Show)
+
+data ModeOrigin = ExplicitMode | LegacyUseMode | DefaultMode
+  deriving (Eq, Show)
+
+data ModeSelection = ModeSelection
+  { modeValue  :: Mode
+  , modeOrigin :: ModeOrigin
+  } deriving (Eq, Show)
+
 data Kind = Scalar | Vector Bool | Form Int | SymM | AntiM | Tensor2 Bool
   deriving (Eq, Show)
 
@@ -61,6 +72,7 @@ data Model = Model
   { mName   :: String
   , mDim    :: Int
   , mAxes   :: [String]
+  , mMode   :: Maybe ModeSelection
   , mMetricName :: Maybe String
   , mUses   :: [(String, [String])]
   , mParams :: [(String, String)]
@@ -75,6 +87,13 @@ data Model = Model
   , mTensorDefs :: [TensorDef]
   , mDefs   :: [Def]
   }
+
+selectedMode :: Model -> Mode
+selectedMode m = maybe CollocatedMode modeValue (mMode m)
+
+modeSurfaceName :: Mode -> String
+modeSurfaceName CollocatedMode = "collocated"
+modeSurfaceName DecMode = "dec"
 
 data Tok = TId String Bool | TC Char
 

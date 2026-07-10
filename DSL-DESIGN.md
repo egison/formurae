@@ -5,6 +5,23 @@ Formura のラテン語風複数形で *formulae*(数式)への掛詞 — 「数
 本言語の主題が名前になっている。Formura 設計者・村主崇行氏への敬意を込めた継承でもある
 (「Formura 2」は本体の現行バージョン 2.3.2 と紛れるため回避)。
 
+**v1.29(2026-07-10): `mode collocated` / `mode dec` と通常 prelude** —
+ファイル全体の空間離散化を `mode` で明示する。省略時は互換性のため
+`collocated`、旧 `use vector-calculus` / `use exterior-calculus` は warning 付きで
+対応モードを推論する。明示 mode と矛盾する `use`、複数の mode 宣言、
+collocated mode の form field / `assert-dd-zero` はエラーにする。
+collocated mode は `grad`、`dGrad`、`divg`、`curl`、`lap`、`Δ` を自動ロードする。
+これらは個別の Haskell 特殊展開ではなく、`withSymbols`、`contractWith`、`.`、
+内部 Cartesian metric、`epsilon`、`∂_i` だけからなる通常の TensorExpr `Def` である。
+例えば `curl` は
+`withSymbols [i,j,k] (epsilon_i~j~k . ∂_j X_k)` と定義される。
+同一点配置の添字微分は中心差分、source/target placement が異なるときだけ
+`dYee` へ下りる。DEC mode は `dForm` / `hodge` / `codiff` context を自動生成し、
+`def lapForm a = codiff (d a)` のような form operator の合成も lowering する。
+現在の form 値は積分 cochain ではなく structured Yee 格子上の sampled component
+であるため、真の incidence-only cochain DEC と区別する。vector/form 間の
+`flat` / `sharp` は再構成・補間規約が決まるまで未実装として明示診断する。
+
 **v1.24(2026-07-09): 微分プリミティブの明示化と `Δ`/`Δ4` の通常定義化** —
 `∂^2_x e` を2階中心差分、`∂'^m_x e` を m 階微分・半径2の中心 stencil
 として追加した。一般に `∂` 直後のクォート数 + 1 を stencil radius と読む。

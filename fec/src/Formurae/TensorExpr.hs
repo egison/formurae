@@ -351,6 +351,10 @@ indexedIdentOccurrences m lets base0 parts w =
   let (base, _) = fieldBaseOf base0
   in case () of
        _
+         | base == metricPreludeName
+         , length parts == 2
+         , all isIndexedMetricPart parts ->
+             metricIdentOccurrences "internal metric" parts w
          | Just metricNm <- mMetricName m
          , base == metricNm
          , length parts == 2
@@ -1274,13 +1278,15 @@ ixExpand m lets env anchor expr = do
   parsedExpr <- parseTensorExprIO "bad tensor expression" expr
   expandAst env parsedExpr
   where
-    euclideanDeclaredMetric =
-      mMetricName m /= Nothing && mMetric m == Nothing && mEmbed m == Nothing
+    euclideanMetric =
+      mMetric m == Nothing && mEmbed m == Nothing
 
     metricIdent (base, parts) =
-      case mMetricName m of
-        Just metricNm | base == metricNm -> Just (metricNm, parts)
-        _ -> Nothing
+      if base == metricPreludeName
+        then Just (metricPreludeName, parts)
+        else case mMetricName m of
+               Just metricNm | base == metricNm -> Just (metricNm, parts)
+               _ -> Nothing
 
     isMixedPair (IxPart VUp _) (IxPart VDown _) = True
     isMixedPair (IxPart VDown _) (IxPart VUp _) = True
@@ -1288,8 +1294,9 @@ ixExpand m lets env anchor expr = do
 
     indexedMetricPart (IxPart _ nm) = all isAlphaNum nm && not (null nm)
 
-    metricRef (IxPart v1 _) (IxPart v2 _) a b
-      | euclideanDeclaredMetric = if a == b then "1" else "0"
+    metricRef metricNm (IxPart v1 _) (IxPart v2 _) a b
+      | metricNm == metricPreludeName || euclideanMetric =
+          if a == b then "1" else "0"
       | otherwise = metricInternalBase v1 v2 ++ "_" ++ show a ++ "_" ++ show b
 
     expandAst env' ast =
@@ -1462,11 +1469,11 @@ ixExpand m lets env anchor expr = do
           splitIdentW = (base0, parts)
       in case () of
            _
-             | Just (_, [p, q]) <- metricIdent splitIdentW
+             | Just (metricNm, [p, q]) <- metricIdent splitIdentW
              , indexedMetricPart p, indexedMetricPart q -> do
                  pv <- need env' (ixName p)
                  qv <- need env' (ixName q)
-                 return (metricRef p q pv qv)
+                 return (metricRef metricNm p q pv qv)
              | ("epsilon", [p, q, r]) <- splitIdentW
              , all isSingleAlphaIx [p, q, r] -> do
                  if mDim m /= 3
@@ -1560,9 +1567,14 @@ ixExpand m lets env anchor expr = do
             ("delta", [p, q])
               | all indexedMetricPart [p, q], isMixedPair p q ->
                   resolvedDifferent p q
+            ("epsilon", [p, q, r])
+              | all isSingleAlphaIx [p, q, r] ->
+                  case mapM (resolveIx env' . ixName) [p, q, r] of
+                    Just vals -> leviCivita3 vals == 0
+                    Nothing -> False
             _
-              | euclideanDeclaredMetric
-              , Just _ <- metricIdent (base, parts)
+              | Just (metricNm, _) <- metricIdent (base, parts)
+              , metricNm == metricPreludeName || euclideanMetric
               , [p, q] <- parts
               , indexedMetricPart p
               , indexedMetricPart q ->
@@ -1573,7 +1585,17 @@ ixExpand m lets env anchor expr = do
       case filter (/= "0") (map dropOneFactor parts) of
         [] -> "0"
         [p] -> p
-        ps -> "(" ++ intercalate " + " ps ++ ")"
+        p:ps -> "(" ++ firstTerm p ++ concatMap nextTerm ps ++ ")"
+      where
+        negativeFactor p = stripPrefix "-1 * " (strip p)
+        firstTerm p =
+          case negativeFactor p of
+            Just rest -> "0 - " ++ rest
+            Nothing -> p
+        nextTerm p =
+          case negativeFactor p of
+            Just rest -> " - " ++ rest
+            Nothing -> " + " ++ p
 
     foldReducerText reducer parts =
       case reducer of
@@ -1620,9 +1642,8 @@ ixExpand m lets env anchor expr = do
       Nothing -> fatal ("unresolved index '" ++ l ++ "' in: " ++ expr)
 
     deriveChain [] _ _ = error "empty derivative chain"
-    deriveChain [n1, n2] target ref@(_, src)
-      | n1 == n2 && target == src =
-          ("∂ 2 1 " ++ axisSymbol n1 ++ " " ++ operandExpr (fst ref), target)
+    deriveChain ns target ref@(_, src)
+      | target == src = (collocatedChain ns (fst ref), target)
     deriveChain [n] target ref =
       let e = derivAt n target ref
       in (e, target)
@@ -1631,6 +1652,12 @@ ixExpand m lets env anchor expr = do
           innerRef = deriveChain ns innerTarget ref
           e = derivAt n target innerRef
       in (e, target)
+
+    collocatedChain [n1, n2] comp
+      | n1 == n2 = "∂ 2 1 " ++ axisSymbol n1 ++ " " ++ operandExpr comp
+    collocatedChain ns comp =
+      foldr (\n inner -> "∂ 1 1 " ++ axisSymbol n ++ " " ++ operandExpr inner)
+            comp ns
 
     deriveCoordinateDerivative isCoord ordr radius n target ref@(_, src)
       | ordr < 1 =

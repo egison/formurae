@@ -14,6 +14,7 @@
 --   egison -l lib/fmrgen.egi model.egi > model.fmr
 --
 -- Formurae grammar (v1):
+--   mode collocated|dec             spatial discretization and standard prelude
 --   -- comment                      (kept out of the output)
 --   dimension 1|2|3                 (REQUIRED; Formura grid dimension)
 --   axes x[, y[, z]]                (REQUIRED; fixes the coordinate frame
@@ -125,7 +126,7 @@ import Formurae.TensorExpr
   )
 
 formOps, deltaOps :: [String]
-formOps = ["d", "delta", "codiff", "\948"]
+formOps = ["d", "dForm", "delta", "codiff", "\948", "hodge"]
 deltaOps = ["delta", "codiff", "\948"]
 
 -- Scalar functions supported as Formura/C extern functions.  In Egison's
@@ -143,40 +144,29 @@ standardDefs :: Model -> [Def]
 standardDefs m =
   [ Def "." ["A", "B"] "contractWith (+) (A * B)"
   ]
-  ++ vectorCalculusDefs m
+  ++ modeStandardDefs m
 
-vectorCalculusDefs :: Model -> [Def]
-vectorCalculusDefs m =
-  [ Def "dGrad" ["X"] "withSymbols [i, j] ∂_i X_j"
-  | hasUse m "vector-calculus" "dGrad"
-  ]
-  ++
-  [ Def "curl" ["X"] curlBody
-  | hasUse m "vector-calculus" "curl"
-  ]
-  ++
-  [ Def "divg" ["X"] (divgBody m)
-  | hasUse m "vector-calculus" "divg"
-  ]
-  where
-    axis :: Int -> String
-    axis n = mAxes m !! (n - 1)
-    p :: Int -> String
-    p n = "X_" ++ show n
-    d :: Int -> Int -> String
-    d a n = "∂_" ++ axis a ++ " " ++ p n
-    curlBody =
-      "withSymbols [i] "
-      ++ "delta_i~1 * (" ++ d 2 3 ++ " - " ++ d 3 2 ++ ")"
-      ++ " + delta_i~2 * (" ++ d 3 1 ++ " - " ++ d 1 3 ++ ")"
-      ++ " + delta_i~3 * (" ++ d 1 2 ++ " - " ++ d 2 1 ++ ")"
+modeStandardDefs :: Model -> [Def]
+modeStandardDefs m =
+  case selectedMode m of
+    CollocatedMode -> collocatedPreludeDefs
+    DecMode -> []
 
-divgBody :: Model -> String
-divgBody m =
-  intercalate " + "
-    [ "∂_" ++ axis ++ " X_" ++ show a
-    | (axis, a) <- zip (mAxes m) (axisRange m)
-    ]
+-- These are ordinary TensorExpr definitions rather than special lowering
+-- cases.  In particular curl and divg are expressed only with indexed
+-- derivatives, context tensors, withSymbols, and explicit contraction.
+collocatedPreludeDefs :: [Def]
+collocatedPreludeDefs =
+  [ Def "grad" ["u"] "withSymbols [i] (∂_i u)"
+  , Def "dGrad" ["X"] "withSymbols [i, j] (∂_i X_j)"
+  , Def "divg" ["X"]
+      ("withSymbols [i, j] (" ++ metricPreludeName ++ "~i~j . ∂_i X_j)")
+  , Def "curl" ["X"]
+      "withSymbols [i, j, k] (epsilon_i~j~k . ∂_j X_k)"
+  , Def "lap" ["u"]
+      ("withSymbols [i, j] (" ++ metricPreludeName ++ "~i~j . ∂_i ∂_j u)")
+  , Def "Δ" ["u"] "lap u"
+  ]
 
 -- ---------------------------------------------------------------- model
 
@@ -397,12 +387,6 @@ normalizeUses uses =
   | modName <- nub (map fst uses)
   ]
 
-hasUse :: Model -> String -> String -> Bool
-hasUse m modName nm =
-  case lookup modName (mUses m) of
-    Just names -> nm `elem` names
-    Nothing -> False
-
 validateUses :: Model -> IO ()
 validateUses m = mapM_ validateModule (mUses m)
   where
@@ -417,8 +401,46 @@ validateUses m = mapM_ validateModule (mUses m)
           fatal "curl requires dimension 3"
       | otherwise = return ()
 
+resolveMode :: Model -> IO Model
+resolveMode m = do
+  selection <-
+    case mMode m of
+      Just explicit -> return explicit
+      Nothing ->
+        case (hasModule "vector-calculus", hasModule "exterior-calculus") of
+          (True, True) ->
+            fatal "legacy use declarations select conflicting modes; add either mode collocated or mode dec and remove the incompatible use"
+          (True, False) -> return (ModeSelection CollocatedMode LegacyUseMode)
+          (False, True) -> return (ModeSelection DecMode LegacyUseMode)
+          (False, False) -> return (ModeSelection CollocatedMode DefaultMode)
+  validateCompatibility selection
+  mapM_ (warnDeprecatedUse selection) (mUses m)
+  return m { mMode = Just selection }
+  where
+    hasModule modName = any ((== modName) . fst) (mUses m)
+    validateCompatibility selection =
+      case modeValue selection of
+        CollocatedMode
+          | hasModule "exterior-calculus" ->
+              fatal "mode collocated cannot be combined with use exterior-calculus"
+        DecMode
+          | hasModule "vector-calculus" ->
+              fatal "mode dec cannot be combined with use vector-calculus"
+        _ -> return ()
+    warnDeprecatedUse selection (modName, _) =
+      hPutStrLn stderr
+        ("fec: warning: use " ++ modName ++ " is deprecated; mode "
+         ++ modeSurfaceName (modeValue selection)
+         ++ " loads its standard operators automatically")
+
 validateDimensionFeatures :: Model -> IO ()
 validateDimensionFeatures m
+  | selectedMode m == CollocatedMode
+  , any isFormField (mFlds m) =
+      fatal "differential-form fields require mode dec"
+  | selectedMode m == CollocatedMode
+  , mDd m /= Nothing =
+      fatal "assert-dd-zero requires mode dec"
   | any isAntiField (mFlds m) && mDim m < 2 =
       fatal "antisymmetric rank-2 fields require dimension at least 2"
   | Just k <- firstBadFormDegree =
@@ -427,13 +449,15 @@ validateDimensionFeatures m
   where
     isAntiField (_, AntiM) = True
     isAntiField _ = False
+    isFormField (_, Form _) = True
+    isFormField _ = False
     firstBadFormDegree =
       case [k | (_, Form k) <- mFlds m, k < 0 || k > mDim m] of
         k:_ -> Just k
         [] -> Nothing
 
-missingUse :: Model -> String -> Maybe String
-missingUse m s = go (tokenize s)
+unavailableOperator :: Model -> String -> Maybe String
+unavailableOperator m s = go (tokenize s)
   where
     userDefined nm =
       any ((== nm) . defName) (mDefs m)
@@ -443,25 +467,46 @@ missingUse m s = go (tokenize s)
     check (TId "d" _) rest
       | indexedAfter rest = Nothing
       | userDefined "d" = Nothing
-      | not (hasUse m "exterior-calculus" "d") =
-      Just "d requires use exterior-calculus { d }"
+      | selectedMode m /= DecMode =
+      Just "exterior derivative d requires mode dec"
     check (TId "delta" _) rest
       | indexedAfter rest = Nothing
       | userDefined "delta" = Nothing
-      | not (hasUse m "exterior-calculus" "delta") =
-      Just "δ requires use exterior-calculus { δ }"
-    check (TId "codiff" _) _ | not (userDefined "codiff" || hasUse m "exterior-calculus" "codiff") =
-      Just "codiff requires use exterior-calculus { codiff }"
-    check (TId "dForm" _) _ | not (userDefined "dForm" || hasUse m "exterior-calculus" "dForm") =
-      Just "dForm requires use exterior-calculus { dForm }"
-    check (TId "hodge" _) _ | not (userDefined "hodge" || hasUse m "exterior-calculus" "hodge") =
-      Just "hodge requires use exterior-calculus { hodge }"
-    check (TId "curl" _) _ | not (userDefined "curl" || hasUse m "vector-calculus" "curl") =
-      Just "curl requires use vector-calculus { curl }"
-    check (TId "divg" _) _ | not (userDefined "divg" || hasUse m "vector-calculus" "divg") =
-      Just "divg requires use vector-calculus { divg }"
-    check (TId "dGrad" _) _ | not (userDefined "dGrad" || hasUse m "vector-calculus" "dGrad") =
-      Just "dGrad requires use vector-calculus { dGrad }"
+      | selectedMode m /= DecMode =
+      Just "δ requires mode dec"
+    check (TId "codiff" _) _
+      | not (userDefined "codiff") && selectedMode m /= DecMode =
+      Just "codiff requires mode dec"
+    check (TId "dForm" _) _
+      | not (userDefined "dForm") && selectedMode m /= DecMode =
+      Just "dForm requires mode dec"
+    check (TId "hodge" _) _
+      | not (userDefined "hodge") && selectedMode m /= DecMode =
+      Just "hodge requires mode dec"
+    check (TId "curl" _) _
+      | not (userDefined "curl") && selectedMode m /= CollocatedMode =
+      Just "vector curl is currently available only in mode collocated"
+      | not (userDefined "curl") && mDim m /= 3 =
+      Just "curl requires dimension 3"
+    check (TId "divg" _) _
+      | not (userDefined "divg") && selectedMode m /= CollocatedMode =
+      Just "vector divg is currently available only in mode collocated"
+    check (TId "dGrad" _) _
+      | not (userDefined "dGrad") && selectedMode m /= CollocatedMode =
+      Just "dGrad is currently available only in mode collocated"
+    check (TId "grad" _) _
+      | not (userDefined "grad") && selectedMode m /= CollocatedMode =
+      Just "vector grad is currently available only in mode collocated"
+    check (TId "lap" _) _
+      | not (userDefined "lap") && selectedMode m /= CollocatedMode =
+      Just "lap is currently available only in mode collocated"
+    check (TId "\916" _) _
+      | not (userDefined "\916") && selectedMode m /= CollocatedMode =
+      Just "Δ is currently available only in mode collocated"
+    check (TId "flat" _) _ | not (userDefined "flat") =
+      Just "flat is not implemented yet; discrete vector/form conversion needs an explicit reconstruction policy"
+    check (TId "sharp" _) _ | not (userDefined "sharp") =
+      Just "sharp is not implemented yet; discrete vector/form conversion needs an explicit reconstruction policy"
     check _ _ = Nothing
     indexedAfter rest =
       case dropWhile isSpTok rest of
@@ -472,9 +517,28 @@ missingUse m s = go (tokenize s)
     orElse Nothing y = y
 
 parseFe :: String -> String -> IO Model
-parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing Nothing Nothing [] [])
+parseFe name txt = go STop initialModel
                       (zip [1 :: Int ..] (lines txt))
   where
+    initialModel = Model
+      { mName = name
+      , mDim = 0
+      , mAxes = []
+      , mMode = Nothing
+      , mMetricName = Nothing
+      , mUses = []
+      , mParams = []
+      , mHelp = []
+      , mFlds = []
+      , mFieldDecls = []
+      , mInits = []
+      , mSteps = []
+      , mDd = Nothing
+      , mMetric = Nothing
+      , mEmbed = Nothing
+      , mTensorDefs = []
+      , mDefs = []
+      }
     -- dimension and axes are required: they fix the coordinate frame
     -- that gives the operators their meaning (which axis ∂_theta is,
     -- what an index letter in ∂_j ranges over)
@@ -486,7 +550,8 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
                  ++ " names for dimension " ++ show (mDim m))
       | otherwise = do
           let uses = normalizeUses (reverse (mUses m))
-              mUse = m { mUses = uses }
+              mUsesNormalized = m { mUses = uses }
+          mUse <- resolveMode mUsesNormalized
           validateMetricName mUse
           validateUses mUse
           validateDimensionFeatures mUse
@@ -588,7 +653,7 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
       case surfaceBanned m' locals body of
         Just bad -> fatal (bad ++ " " ++ context)
         Nothing ->
-          case missingUse m' body of
+          case unavailableOperator m' body of
             Just bad -> fatal (bad ++ " " ++ context)
             Nothing -> return ()
 
@@ -613,6 +678,12 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
                 in (t ++ " " ++ more, rest')
 
     top ln s m
+      | Just r <- stripPrefix "mode " s =
+          case strip r of
+            "collocated" -> setMode CollocatedMode
+            "dec" -> setMode DecMode
+            bad -> fatal ("unknown mode " ++ bad ++ " (line " ++ show ln
+                          ++ "); expected mode collocated or mode dec")
       | Just r <- stripPrefix "def " s =
           case defForm r of
             Just df -> do
@@ -669,6 +740,10 @@ parseFe name txt = go STop (Model name 0 [] Nothing [] [] [] [] [] [] [] Nothing
           return m { mAxes = map strip (splitTop ',' r) }
       | otherwise = fatal ("unrecognized: " ++ s ++ " (line " ++ show ln ++ ")")
       where
+        setMode mode =
+          case mMode m of
+            Nothing -> return m { mMode = Just (ModeSelection mode ExplicitMode) }
+            Just _ -> fatal ("mode may be declared only once (line " ++ show ln ++ ")")
         addField fd =
           return m { mFlds = (fdName fd, kindFromFieldDecl fd) : mFlds m
                    , mFieldDecls = fd : mFieldDecls m }
@@ -1068,18 +1143,36 @@ opPass m = go
   where
     forms = [(n, d) | (n, Form d) <- mFlds m]
     go [] = []
-    go (TId op False : ts)
+    go input@(TId op False : _)
       | op `elem` formOps
-      , (sp@(_:_), ts1) <- span isSpaceTok ts
-      , (TId nm pr : ts2) <- ts1 =
-          case lookup nm forms of
-            Just _ ->
-              let fn = if op `elem` deltaOps then "codiff" else "dForm"
-                  tag = nm ++ (if pr then "fN" else "f")
-              in EMarkL ("formComps (" ++ fn ++ " " ++ tag ++ ")") : go ts2
-            Nothing ->
-              EId op False : map toElem sp ++ go ts1
+      , Just (formValue, rest) <- parseFormValue input =
+          EMarkL ("formComps (" ++ formValue ++ ")") : go rest
     go (t : ts) = toElem t : go ts
+
+    parseFormValue (TId nm pr : rest)
+      | Just _ <- lookup nm forms =
+          Just (nm ++ (if pr then "fN" else "f"), rest)
+    parseFormValue (TId op False : rest)
+      | op `elem` formOps
+      , (_ : _, operand) <- span isSpaceTok rest
+      , Just (value, remaining) <- parseFormValue operand =
+          Just (formFunction op ++ " " ++ parenthesizeFormValue value, remaining)
+      | op `elem` formOps = Nothing
+    parseFormValue (TC '(' : rest) = do
+      (inside, remaining) <- closeParenT 1 rest []
+      (value, insideRest) <- parseFormValue (dropWhile isSpaceTok inside)
+      if all isSpaceTok insideRest
+        then Just (value, remaining)
+        else Nothing
+    parseFormValue _ = Nothing
+
+    formFunction op
+      | op `elem` deltaOps = "codiff"
+      | op == "hodge" = "hodge"
+      | otherwise = "dForm"
+    parenthesizeFormValue value
+      | all isAlphaNum value = value
+      | otherwise = "(" ++ value ++ ")"
     isSpaceTok (TC c) = isSpace c
     isSpaceTok _ = False
     toElem (TId n p) = EId n p
@@ -1254,13 +1347,10 @@ emit m = do
         ifChain [("xs = " ++ egiIntList xs, show (permSign xs))
                 | xs <- basisSignInputs]
                 "0"
-      hasExt names = any (hasUse m "exterior-calculus") names
-      needsFormContext = hasExt ["d", "delta", "codiff", "dForm", "hodge"] || mDd m /= Nothing
+      needsFormContext = selectedMode m == DecMode
       needsStaggeredContext =
         any (\(_, k) -> k == Vector True || k == SymM || k == AntiM || k == Tensor2 True) (mFlds m)
-      needsIndexedDerivativeContext = any usesIndexedDerivative (modelExprTexts m)
       needsYeeContext = mtx /= Nothing || needsFormContext || needsStaggeredContext
-                        || needsIndexedDerivativeContext
       symbolCase sym repl = "    | #\"" ++ sym ++ "\" -> \"" ++ repl ++ "\""
       contextDecls =
             [ symbolDecl
@@ -1279,15 +1369,6 @@ emit m = do
             ++ [ symbolCase c ("(" ++ ix ++ "*" ++ g ++ ")")
                | (c, ix, g) <- zip3 internalCoords internalIndexVars internalGridSteps ]
             ++ [ "    | _ -> v" ]
-      usesIndexedDerivative s =
-        any isIndexedDerivative (itok s)
-      isIndexedDerivative (II w) =
-        case parseIndexedIdent w of
-          ("d", [_]) -> True
-          _ | Just (_, _, part) <- derivativeOpParts w ->
-                not (ixName part `elem` mAxes m || ixName part `elem` internalCoordNames m)
-          _ -> False
-      isIndexedDerivative _ = False
       contextMathDecls = scalarContextDecls
                          ++ (if needsYeeContext then yeeContextDecls else [])
                          ++ (if needsFormContext then formContextDecls else [])
@@ -1374,9 +1455,9 @@ emit m = do
             , "def \948 := codiff"
             ]
       metricContextDecls =
-            case mMetricName m of
-              Nothing -> []
-              Just _ ->
+            case (mMetricName m, mMetric m, mEmbed m) of
+              (Nothing, Nothing, Nothing) -> []
+              _ ->
                 let identity = "if i = j then 1 else 0"
                     gen nm expr =
                       "def " ++ nm ++ "_i_j := generateTensor (\\[i, j] -> "
@@ -1559,6 +1640,7 @@ emit m = do
         [ "--"
         , "-- GENERATED by fec (the Formurae compiler) from " ++ mName m
             ++ ".fme -- edit the .fme, not this file"
+        , "-- mode " ++ modeSurfaceName (selectedMode m)
         , "--"
         , "" ] ++
         (if null (mParams m) then []

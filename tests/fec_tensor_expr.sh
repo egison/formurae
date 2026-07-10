@@ -15,7 +15,7 @@ assert_contains() {
   haystack=$1
   needle=$2
   label=$3
-  if ! printf '%s\n' "$haystack" | grep -F "$needle" >/dev/null; then
+  if ! printf '%s\n' "$haystack" | grep -F -- "$needle" >/dev/null; then
     printf 'missing expected output for %s:\n%s\n' "$label" "$needle" >&2
     exit 1
   fi
@@ -128,7 +128,7 @@ write_case "$f" \
   "  q'_j = grad u"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'def feqq2 := dYee 2' 'withSymbols alpha-renaming'
+assert_contains "$out" 'def feqq2 := ∂ 1 1 y u' 'withSymbols alpha-renaming'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -208,7 +208,7 @@ write_case "$f" \
   "  E'_i = curl B_i"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'def feqE1 := (1 * (∂ 1 1 y B_3 - ∂ 1 1 z B_2))' 'standard curl expands for indexed fields'
+assert_contains "$out" 'def feqE1 := ((∂ 1 1 y B_3 - ∂ 1 1 z B_2))' 'standard curl expands for indexed fields'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -221,7 +221,7 @@ write_case "$f" \
   "  E' = curl B"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'def feqE1 := (1 * (∂ 1 1 y B_3 - ∂ 1 1 z B_2))' 'standard curl expands for legacy vector equation'
+assert_contains "$out" 'def feqE1 := ((∂ 1 1 y B_3 - ∂ 1 1 z B_2))' 'standard curl expands for legacy vector equation'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -251,6 +251,112 @@ out=$(compile_fme "$f")
 rm -f "$f"
 assert_contains "$out" 'dYee 1 [0, 0] (V_1, [1 / 2, 0])' 'standard divg uses staggered coordinate derivative x'
 assert_contains "$out" 'dYee 2 [0, 0] (V_2, [0, 1 / 2])' 'standard divg uses staggered coordinate derivative y'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 3' \
+  'axes x,y,z' \
+  'field E_i' \
+  'field B_i' \
+  'step:' \
+  "  E'_i = curl B_i"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" '-- mode collocated' 'explicit collocated mode metadata'
+assert_contains "$out" '∂ 1 1 y B_3 - ∂ 1 1 z B_2' 'collocated prelude is automatic'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field u : scalar' \
+  'step:' \
+  "  u' = lap u"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" '∂ 2 1 x u + ∂ 2 1 y u' 'metric-backed lap prelude'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode dec' \
+  'dimension 3' \
+  'axes x,y,z' \
+  'field E : 1-form' \
+  'field B : 2-form' \
+  'step:' \
+  "  E' = E + dt * δ B" \
+  "  B' = B - dt * d E'"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" '-- mode dec' 'explicit dec mode metadata'
+assert_contains "$out" 'def dForm (f:' 'dec exterior derivative is automatic'
+assert_contains "$out" 'formComps (codiff Bf)' 'dec codifferential is automatic'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode dec' \
+  'dimension 2' \
+  'axes x,y' \
+  'field u : 0-form' \
+  'field q : 0-form' \
+  'def lapForm a = codiff (d a)' \
+  'step:' \
+  "  q' = lapForm u"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" 'formComps (codiff (dForm uf))' 'composed dec operators in user def'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'dimension 3' \
+  'axes x,y,z' \
+  'use exterior-calculus { d, δ }' \
+  'field E : 1-form' \
+  'field B : 2-form' \
+  'step:' \
+  "  E' = E + dt * δ B" \
+  "  B' = B - dt * d E'"
+out=$(compile_fme "$f" 2>&1)
+rm -f "$f"
+assert_contains "$out" 'use exterior-calculus is deprecated; mode dec' 'legacy use infers dec mode'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 3' \
+  'axes x,y,z' \
+  'use exterior-calculus { d }' \
+  'field u : scalar'
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+rm -f "$f"
+if [ "$status" -eq 0 ]; then
+  printf 'conflicting mode/use unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_contains "$out" 'mode collocated cannot be combined with use exterior-calculus' 'mode/use conflict'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'mode dec' \
+  'dimension 2' \
+  'axes x,y' \
+  'field u : scalar'
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+rm -f "$f"
+if [ "$status" -eq 0 ]; then
+  printf 'duplicate mode unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_contains "$out" 'mode may be declared only once' 'duplicate mode'
 
 f=$(tmp_fme)
 write_case "$f" \
