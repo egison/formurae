@@ -1,8 +1,7 @@
 -- Maxwell's equations in vacuum (c = 1), collocated grid
 --   dE/dt =  curl B
 --   dB/dt = -curl E'     (the B update uses the updated E': symplectic)
--- curl is an ordinary Formurae definition; its tensor meaning is supplied
--- by the Egison tensor bridge.
+-- curl is supplied by mode collocated as an ordinary TensorExpr prelude Def.
 
 mode collocated
 dimension 3
@@ -15,8 +14,6 @@ raw gauss1 = fun(x) exp(-((x-(total_grid_x*dx/2))/(8*dx))**2)
 
 field E_i
 field B_i
-
-def curl X = withSymbols [i, j, k] (epsilon_i~j~k . ∂_j X_k)
 
 init:
   E_i = [| 0, gauss1(i*dx), 0 |]_i

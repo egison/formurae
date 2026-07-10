@@ -290,6 +290,22 @@ write_case "$f" \
   'mode collocated' \
   'dimension 2' \
   'axes x,y' \
+  'field A_i' \
+  'field B_j' \
+  'field C_i_j' \
+  'step:' \
+  "  A'_i = A_i" \
+  "  C'_i_j = wedge A' B..._i_j"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" "def A' := A'_#" 'bare primed tensor alias retained for runtime wedge'
+assert_contains "$out" "def feqC12 := (wedge A' B)_1_2" 'primed bare tensor reaches Egison bridge'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
   'field A~i_j' \
   'field p : scalar' \
   'field q : scalar' \
@@ -350,10 +366,13 @@ write_case "$f" \
   'field E_i' \
   'field B_i' \
   'step:' \
-  "  E'_i = curl B_i"
+  "  E'_i = curl B_i" \
+  "  B'_i = curl E'_i"
 out=$(compile_fme "$f")
 rm -f "$f"
 assert_contains "$out" '∂ 1 1 y B_3 - ∂ 1 1 z B_2' 'standard curl component expansion'
+assert_contains "$out" "def E'_i := generateTensor" 'primed component family is retained'
+assert_not_contains "$out" "def E' := E'_#" 'primed component references do not retain a bare tensor alias'
 assert_not_contains "$out" 'def curl ' 'standard curl is not emitted'
 
 f=$(tmp_fme)

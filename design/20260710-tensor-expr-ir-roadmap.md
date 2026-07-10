@@ -20,7 +20,8 @@ Date: 2026-07-10
 - `def swap A_i_j = ...` のような固定長 indexed parameter と、
   `X...` の rank-polymorphic marker を受け付ける。
 - `wedge`、`trace`、`sym`、`antisym`、`norm2` は Egison bridge に残し、
-  残余式が Tensor 値を参照するときだけ生成側に bare field alias を出す。
+  残余式が Tensor 全体を参照するときだけ生成側に bare field alias を出す。
+  `E'_i` のような直接成分参照は alias の依存とは数えない。
 
 ## 目的
 

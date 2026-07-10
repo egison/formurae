@@ -125,7 +125,7 @@ make diffusion3d
 <tr><th>構文</th><th>意味</th></tr>
 <tr><td><code>mode collocated</code> / <code>mode dec</code></td><td>空間離散化と生成 Egison context を選ぶ宣言(<b>必須・top-level で1回</b>)。テンソル primitive は <code>lib/formurae-tensor.egi</code> から共通にロードする</td></tr>
 <tr><td><code>dimension 1</code> / <code>dimension 2</code> / <code>dimension 3</code></td><td>次元(<b>必須</b>)。scalar/vector/rank-2 field と <code>k-form</code> は 1D/2D/3D に対応。<code>curl</code> と <code>epsilon~i~j~k</code> は3次元専用として検査する</td></tr>
-<tr><td><code>curl X</code> / <code>divg X</code> / <code>grad u</code></td><td>collocated mode の Egison-side operator。生成座標 context の差分 hook をテンソルとして返し、成分は <code>grad u..._i</code> のように選ぶ</td></tr>
+<tr><td><code>curl X</code> / <code>divg X</code> / <code>grad u</code></td><td>collocated mode の通常の TensorExpr prelude <code>Def</code>。呼び出し側の field 成分と配置へコンパイル時に特殊化する</td></tr>
 <tr><td><code>d ω</code> / <code>δ ω</code></td><td>dec mode の標準 form 演算子。形式場では生成 .egi の <code>dForm</code>/<code>codiff</code> へ接続する</td></tr>
 <tr><td><code>metric g</code> + <code>def Δ u = g~i~j . ∂_i ∂_j u</code></td><td><b>ユーザ定義演算子</b>(ファイルスコープ・使用箇所で展開。本文は先に定義された演算子のみ参照可、再帰不可)。平坦格子の Laplacian は metric と <code>.</code> による明示縮約で定義でき、生成時に <code>∂^2_x u + ∂^2_y u + ∂^2_z u</code> へ下りる</td></tr>
 <tr><td><code>def Δ u = lb u</code></td><td>計量宣言下の Laplace-Beltrami を <code>Δ</code> として使う例。<code>lb</code> は計量係数場を生成する低水準プリミティブ</td></tr>
@@ -137,7 +137,7 @@ make diffusion3d
 <tr><td><code>transpose [j, i] A</code></td><td>引数の添字列を指定順に並べ替える primitive。<code>sym</code>/<code>antisym</code> のような通常の演算子定義で使える</td></tr>
 <tr><td><code>grad u..._i</code></td><td>Egison の tensor-valued operator の結果成分を呼び出し側で選ぶ。<code>...</code> は演算子の結果へ添字を付けるための Formurae 表層記法で、生成 Egison では <code>(grad u)_1</code> のようになる</td></tr>
 <tr><td><code>A !. B</code></td><td>縮約しない disjoint tensor product。<code>.</code> と違って上下添字を畳み込まず、添字が衝突する場合は右辺を hygienic に改名する</td></tr>
-<tr><td><code>trace</code> / <code>wedge</code> / <code>sym</code> / <code>antisym</code> / <code>hessian</code> / <code>norm2</code></td><td><code>lib/formurae-tensor.egi</code> の通常の Egison 定義。Tensor primitive と同じ評価経路を使う</td></tr>
+<tr><td><code>trace</code> / <code>wedge</code> / <code>sym</code> / <code>antisym</code> / <code>norm2</code></td><td><code>lib/formurae-tensor.egi</code> の通常の Egison 定義。Tensor primitive と同じ評価経路を使う。<code>hessian</code> は TensorExpr prelude である</td></tr>
 <tr><td><code>axes r, θ, φ</code></td><td>軸名(<b>必須</b>)。<code>∂_θ</code> の解決や添字文字の走る範囲=座標系を確定させる宣言。生成 Formura の <code>axes ::</code>、格子幅 <code>dr</code>/<code>dtheta</code>、C ドライバの <code>space_interval_r</code>/<code>lower_theta</code> まで宣言名を使う。CAS 内部だけは正規座標 <code>x,y,z</code> に写像する</td></tr>
 <tr><td><code>param dt = 0.5*dx</code></td><td>Formura パラメタ(<code>double :: dt = …</code>)。値は Formura 式</td></tr>
 <tr><td><code>extern exp</code></td><td><code>extern function :: exp</code>。<code>sin</code>, <code>cos</code>, <code>exp</code>, <code>sqrt</code>, <code>fabs</code> など Formura が扱えるスカラー関数は、式や raw ヘルパで使われたら不足分を自動 extern する。明示 <code>extern</code> も従来通り可</td></tr>
@@ -238,7 +238,7 @@ def fmrEq := FMR.eq fePrinterContext
 <p><b>添字</b>: 添字方程式では上付き <code>~i</code> と下付き <code>_i</code> を常に区別します。添字つき field は <code>field v~i @ staggered</code>、<code>field σ{~i~j} @ staggered</code>、<code>field A[_i_j] @ staggered</code> のように宣言し、rank・上下・対称性・Formura 出力 layout は添字仕様から推論します。初期値も <code>v~i = [| ... |]~i</code>、<code>σ~i~j = [| ... |]~i~j</code>、<code>σ~i~j := g~i~j * exp(x)</code> のように同じ添字 suffix を明示します。<code>{...}</code> は対称、<code>[...]</code> は反対称です。反対称 field は <code>A_j_i = -A_i_j</code>、<code>A_i_i = 0</code> に正準化されます。右辺の各項は strict 検査され、自由添字は LHS と上下まで一致します。同じ上下添字が残る式は diagonal tensor であり、scalar にするには <code>contractWith</code> または <code>.</code> が必要です。添字の上げ下げは自動化しないため、必要なら <code>g_i_j . v~j</code> のように metric を明示します。<code>metric g</code> で宣言した計量名は <code>g~i~j</code>/<code>g~i_j</code>/<code>g_i~j</code>/<code>g_i_j</code> のうち参照された variance だけを内部計量へ下ろします(Euclidean は成分式へ inline)。Kronecker delta は <code>δ~i_j</code> のような mixed identity としてだけ書けます(融合形 <code>delta_ij</code> は不可)。例(弾性波):
 <code>v'~i = v~i + (dt / ρ0) * contractWith (+) (∂_j σ~i~j)</code></p>
 
-<p><b>内部名</b>: 非 Euclidean metric の参照成分は必要に応じて <code>FormuraeInternalMetricContra</code>、<code>FormuraeInternalMetricMixedUpDown</code>、<code>FormuraeInternalMetricMixedDownUp</code>、<code>FormuraeInternalMetricCov</code> の該当 family へ下ります。field 成分は storage 名へ直接特殊化し、旧 <code>FormuraeInternalTensor...</code> alias は生成しません。<code>FormuraeInternal</code> prefix は予約済みで、ユーザ定義名には使えません。</p>
+<p><b>内部名</b>: 非 Euclidean metric の参照成分は必要に応じて <code>FormuraeInternalMetricContra</code>、<code>FormuraeInternalMetricMixedUpDown</code>、<code>FormuraeInternalMetricMixedDownUp</code>、<code>FormuraeInternalMetricCov</code> の該当 family へ下ります。field 成分は storage 名へ直接特殊化し、旧 <code>FormuraeInternalTensor...</code> alias は生成しません。<code>wedge E' B</code> のように Tensor 全体が残るときだけ <code>E' := E'_#</code> を生成し、<code>E'_1</code> のような直接成分参照では生成しません。<code>FormuraeInternal</code> prefix は予約済みで、ユーザ定義名には使えません。</p>
 
 <p><b>Unicode</b>: ギリシャ文字(θ, φ, ρ, τ, κ, μ, λ, …)は識別子として使え、
 fec が Formura 向けに ASCII 名(theta, phi, …)へ字訳します。

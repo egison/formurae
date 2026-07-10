@@ -17,6 +17,8 @@ Egison Tensor 値のための field alias を必要時に限って生成し、DE
 `mode dec` で選択する。これにより
 `dF`/`dB`、生成側 `curlYee`、`FormuraeInternalTensor...` alias、重複プリンタ、
 旧 `TensorDef` 展開経路を撤去し、中間 Egison を「モデル固有の残余計算」に縮小した。
+`E'_1` のような直接成分参照は裸の tensor 利用とは数えず、`wedge E' B` のように
+tensor 全体が Egison に残る場合だけ `E' := E'_#` を生成する。
 
 **v1.29(2026-07-10): `mode collocated` / `mode dec` と通常 prelude** —
 ファイル全体の空間離散化を `mode` で明示する。`mode` は必須であり、複数の mode 宣言、

@@ -1227,6 +1227,25 @@ egiStringPairs pairs =
     | (source, target) <- pairs]
   ++ "]"
 
+-- References such as E'_3 are component accesses, not uses of the whole E'
+-- tensor.  Keep a separate view of residual identifiers for deciding whether
+-- an Egison-level whole-tensor alias (E' := E'_#) is actually required.
+bareValueRefs :: [Tok] -> [(String, Bool)]
+bareValueRefs = go Nothing
+  where
+    go _ [] = []
+    go prev (tok : rest) =
+      case tok of
+        TId name primed
+          | not (afterIndexMark prev)
+          , not (beforeIndexMark rest) ->
+              (name, primed) : go (Just tok) rest
+        _ -> go (Just tok) rest
+    afterIndexMark (Just (TC mark)) = mark == '_' || mark == '~'
+    afterIndexMark _ = False
+    beforeIndexMark (TC mark : _) = mark == '_' || mark == '~'
+    beforeIndexMark _ = False
+
 emit :: Model -> IO String
 emit m = do
   if length (mAxes m) /= mDim m
@@ -1460,7 +1479,9 @@ emit m = do
       residualText = unlines
         (concat body ++ concat inits ++ mtInits ++ stepItems ++ embDefs ++ ddDef
          ++ map fst gates)
-      residualIds = [(name, primed) | TId name primed <- tokenize residualText]
+      residualTokens = tokenize residualText
+      residualIds = [(name, primed) | TId name primed <- residualTokens]
+      residualBareValues = bareValueRefs residualTokens
       residualNames = map fst residualIds
       usesResidualName names = any (`elem` residualNames) names
       needsScalarContext =
@@ -1478,7 +1499,7 @@ emit m = do
             residualNames
       liveMetricContextDecls =
         [decl | (name, decl) <- metricContextDecls, usesResidualFamily name]
-      needsBareValue name primed = (name, primed) `elem` residualIds
+      needsBareValue name primed = (name, primed) `elem` residualBareValues
       bodyWithBareLets = zipWith addBareLetAlias (mSteps m) body
       addBareLetAlias st decls
         | sk st == KLet

@@ -26,8 +26,6 @@ axes x, y, z
 field E_i
 field B_i
 
-def curl X = withSymbols [i, j, k] (epsilon_i~j~k . ∂_j X_k)
-
 init:
   E_i = [| 0, gauss1(i*dx), 0 |]_i
   B_i = [| 0, 0, gauss1(i*dx) |]_i
@@ -96,7 +94,7 @@ Formura storage へ展開される。形式の storage 名は昇順の軸組で
 `B_1_2`、`B_1_3`、`B_2_3` のように決まる。`curl` と `epsilon~i~j~k` は
 3D 専用として検査する。
 
-Maxwell 方程式の場合、`.fme` 側で定義した `curl` は展開され、Egison 側の更新式は
+Maxwell 方程式の場合、`mode collocated` の標準 `curl` prelude が展開され、Egison 側の更新式は
 成分ごとの式になる:
 
 ```egison
@@ -151,7 +149,7 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
 | `examples/diffusion2d/` | 2D 拡散方程式。`dimension 2` と `axes x, y` に応じて Formura/C の配列・Navi・Laplacian が2次元化される |
 | `examples/divergence2d/` | 2D 発散演算子の smoke test。collocated prelude の `divg` とユーザー定義版が中心差分の離散記号と一致することを検査 |
 | `examples/diffusion3d/` | 3D 拡散方程式(`metric g` と `def Δ u = g~i~j . ∂_i ∂_j u` で Laplacian を定義し、物理は `u' = u + dt * κ * Δ u` の1行) |
-| `examples/maxwell3d/` | Maxwell 方程式(**E・B が添字付きベクトル場**。標準 `curl` と同形のユーザー `def` で prelude shadowing も検証し、更新2本から collocated 格子コードを生成) |
+| `examples/maxwell3d/` | Maxwell 方程式(**E・B が添字付きベクトル場**。`mode collocated` の標準 `curl` prelude と更新2本から collocated 格子コードを生成) |
 | `examples/maxwell3d_yee/` | **Yee-FDTD**(E=辺・B=面のスタガード格子+leapfrog。場ごとの配置オフセット宣言から教科書どおりの FDTD を生成) |
 | `examples/maxwell_dec/` | **Maxwell(微分形式/DEC)**(`mode dec` で外微分・余微分を自動ロード。E=1-form・B=2-form の**次数宣言だけ**で Yee 配置を導出。B の storage は `B_1_2,B_1_3,B_2_3` の幾何基底名。d∘d=0 を CAS が生成時に検査し、check driver がエネルギー・伝播・divB を検証) |
 | `examples/pearson3d/` | **Formura 論文の看板シミュレーション再現**(菌根菌 mycorrhiza の Pearson 反応拡散系。FHPC'16 と同じ方程式・パラメタ。自己複製スポットパターンが創発) |
