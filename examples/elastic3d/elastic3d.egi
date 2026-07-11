@@ -18,21 +18,6 @@ def dC (a: Integer) (u: MathValue) : MathValue :=
   (shift a 1 u - shift a (-1) u) / (2 * feHsteps_a)
 def dC2 (a: Integer) (u: MathValue) : MathValue :=
   (shift a 1 u - 2 * u + shift a (-1) u) / ((feHsteps_a) ^ 2)
-def dTaylor (m: Integer) (ks: [MathValue]) (a: Integer) (u: MathValue) : MathValue :=
-  sum (map (\(c, k) -> c * shift a k u) (zip (taylorStencil m ks) ks)) / (feHsteps_a ^ m)
-def axisId (axis: MathValue) : Integer :=
-  match axis as mathValue with
-    | symbol $v _ ->
-        match v as string with
-          | #"x" -> 1
-          | #"y" -> 2
-          | #"z" -> 3
-          | _ -> 0
-def ∂ (m: Integer) (r: Integer) (axis: MathValue) (u: MathValue) : MathValue :=
-  let a := axisId axis
-   in if m = 1 && r = 1 then dC a u
-      else if m = 2 && r = 1 then dC2 a u
-      else dTaylor m (between (0 - r) r) a u
 def yeeRef (sT: [MathValue]) (fld: (MathValue, [MathValue])) (disp: [MathValue]) : MathValue :=
   let (fF, sF) := fld
    in substitute
@@ -54,7 +39,7 @@ def feFieldDescriptors :=
   , ("sigma", Primal, [3, 3], ["up", "up"], "symmetric", [[1, 1], [2, 2], [3, 3], [1, 2], [1, 3], [2, 3]], [([1, 1], "sigma_up1_up1"), ([2, 2], "sigma_up2_up2"), ([3, 3], "sigma_up3_up3"), ([1, 2], "sigma_up1_up2"), ([1, 3], "sigma_up1_up3"), ([2, 3], "sigma_up2_up3")])
   ]
 def feSymbolNames : [(String, String)] := [("hx", "dx"), ("hy", "dy"), ("hz", "dz"), ("x", "(i*dx)"), ("y", "(j*dy)"), ("z", "(k*dz)")]
-def feFieldNames : [(String, String)] := concat (map FMR.fieldNameMappings feFieldDescriptors)
+def feFieldNames : [(String, String)] := concat (map FMR.fieldNameMappings feFieldDescriptors) ++ []
 def feFieldPolicies : [(String, GridPolicy)] := map (\(name, policy, _, _, _, _, _) -> (name, policy)) feFieldDescriptors
 def feIndexNames : [String] := ["i", "j", "k"]
 def fePrinterContext := (feSymbolNames, feFieldNames, feIndexNames, feCoords, feHsteps, feAxisIds)
@@ -62,6 +47,7 @@ def fmrEq : String -> MathValue -> String := FMR.eq fePrinterContext
 def fmrInit : String -> MathValue -> String := FMR.init fePrinterContext
 def componentEqs : [String] -> [MathValue] -> [String] := FMR.componentEqs fePrinterContext
 def fieldEqs descriptor value := FMR.fieldEqs fePrinterContext descriptor value
+def fieldInits descriptor value := FMR.fieldInits fePrinterContext descriptor value
 def scalarEq : String -> MathValue -> [String] := FMR.scalarEq fePrinterContext
 
 def v := generateTensor (\[i] -> function (x, y, z)) [3]
@@ -70,10 +56,10 @@ def sigma := generateTensor (\[i, j] -> if i <= j then FE.tensorComponentAt Form
 def v' := generateTensor (\[i] -> function (x, y, z)) [3]
 def FormuraeInternalMetricContra := FE.metricTensor feDim (\i j -> if i = j then 1 else 0)
 
-def feqvAt (feTargetBasis: [Integer]) : Tensor MathValue := withSymbols [i, j] (FE.checkedTensorSignature "tensor signature mismatch for v" [3] ["up"] ((v~i + ((((dt / rho0)) * contractWith (+) (((FE.partialChainTensor (feTensorDerivative Primal Primal) feTargetBasis feAxisIds 1 (sigma))_j~i~j)))))))
-def feqv := generateTensor (\feTargetBasis -> FE.tensorComponentAt (feqvAt feTargetBasis) feTargetBasis) [3]
-def feqsigmaAt (feTargetBasis: [Integer]) : Tensor MathValue := withSymbols [i, j, k] (FE.checkedTensorSignature "tensor signature mismatch for sigma" [3,3] ["up","up"] (transpose [i, j] ((sigma~i~j + ((dt * (((((lambda * FormuraeInternalMetricContra~i~j) * contractWith (+) (((FE.partialChainTensor (feTensorDerivative Primal Primal) feTargetBasis feAxisIds 1 (v'))_k~k)))) + ((mu * ((((FormuraeInternalMetricContra~i~k) . ((FE.partialChainTensor (feTensorDerivative Primal Primal) feTargetBasis feAxisIds 1 (v'))_k~j)) + ((FormuraeInternalMetricContra~j~k) . ((FE.partialChainTensor (feTensorDerivative Primal Primal) feTargetBasis feAxisIds 1 (v'))_k~i))))))))))))))
-def feqsigma := generateTensor (\feTargetBasis -> FE.tensorComponentAt (feqsigmaAt feTargetBasis) feTargetBasis) [3,3]
+def FormuraeInternalEquationAtv (FormuraeInternalTargetBasis: [Integer]) : Tensor MathValue := withSymbols [FormuraeInternalIndex1, FormuraeInternalIndex2] (FE.checkedTensorSignature "tensor signature mismatch for v" [3] ["up"] ((v~FormuraeInternalIndex1 + ((dt / rho0) * contractWith (+) (((FE.partialChainTensor (feTensorDerivative Primal Primal) FormuraeInternalTargetBasis feAxisIds 1 (sigma))_FormuraeInternalIndex2~FormuraeInternalIndex1~FormuraeInternalIndex2))))))
+def feqv := generateTensor (\FormuraeInternalTargetBasis -> FE.tensorComponentAt (FormuraeInternalEquationAtv FormuraeInternalTargetBasis) FormuraeInternalTargetBasis) [3]
+def FormuraeInternalEquationAtsigma (FormuraeInternalTargetBasis: [Integer]) : Tensor MathValue := withSymbols [FormuraeInternalIndex1, FormuraeInternalIndex2, FormuraeInternalIndex3] (FE.checkedTensorSignature "tensor signature mismatch for sigma" [3,3] ["up","up"] (transpose [FormuraeInternalIndex1, FormuraeInternalIndex2] ((sigma~FormuraeInternalIndex1~FormuraeInternalIndex2 + (dt * (((lambda * FormuraeInternalMetricContra~FormuraeInternalIndex1~FormuraeInternalIndex2) * contractWith (+) (((FE.partialChainTensor (feTensorDerivative Primal Primal) FormuraeInternalTargetBasis feAxisIds 1 (v'))_FormuraeInternalIndex3~FormuraeInternalIndex3))) + (mu * ((FormuraeInternalMetricContra~FormuraeInternalIndex1~FormuraeInternalIndex3) . ((FE.partialChainTensor (feTensorDerivative Primal Primal) FormuraeInternalTargetBasis feAxisIds 1 (v'))_FormuraeInternalIndex3~FormuraeInternalIndex2) + (FormuraeInternalMetricContra~FormuraeInternalIndex2~FormuraeInternalIndex3) . ((FE.partialChainTensor (feTensorDerivative Primal Primal) FormuraeInternalTargetBasis feAxisIds 1 (v'))_FormuraeInternalIndex3~FormuraeInternalIndex1)))))))))
+def feqsigma := generateTensor (\FormuraeInternalTargetBasis -> FE.tensorComponentAt (FormuraeInternalEquationAtsigma FormuraeInternalTargetBasis) FormuraeInternalTargetBasis) [3,3]
 
 def feParams := [("lambda", "2.0"), ("mu", "1.0"), ("rho0", "1.0"), ("dt", "0.0005")]
 def feHelpers :=
@@ -82,17 +68,7 @@ def feHelpers :=
   , "gp = fun(x) exp(-((x - 0.3)/0.02)*((x - 0.3)/0.02))"
   ]
 def feComps : [String] := ["v_up1", "v_up2", "v_up3", "sigma_up1_up1", "sigma_up2_up2", "sigma_up3_up3", "sigma_up1_up2", "sigma_up1_up3", "sigma_up2_up3"]
-def feInits :=
-  [ "  v_up1[i,j,k] = gp((i + 0.5)*dx)"
-  , "  v_up2[i,j,k] = gp(i*dx)"
-  , "  v_up3[i,j,k] = 0.0"
-  , "  sigma_up1_up1[i,j,k] = 0.0 - 2.0*gp(i*dx)"
-  , "  sigma_up2_up2[i,j,k] = 0.0"
-  , "  sigma_up3_up3[i,j,k] = 0.0"
-  , "  sigma_up1_up2[i,j,k] = 0.0 - 1.0*gp((i + 0.5)*dx)"
-  , "  sigma_up1_up3[i,j,k] = 0.0"
-  , "  sigma_up2_up3[i,j,k] = 0.0"
-  ]
+def feInits := ["  v_up1[i,j,k] = gp((i + 0.5)*dx)"] ++ ["  v_up2[i,j,k] = gp(i*dx)"] ++ ["  v_up3[i,j,k] = 0.0"] ++ ["  sigma_up1_up1[i,j,k] = 0.0 - 2.0*gp(i*dx)"] ++ ["  sigma_up2_up2[i,j,k] = 0.0"] ++ ["  sigma_up3_up3[i,j,k] = 0.0"] ++ ["  sigma_up1_up2[i,j,k] = 0.0 - 1.0*gp((i + 0.5)*dx)"] ++ ["  sigma_up1_up3[i,j,k] = 0.0"] ++ ["  sigma_up2_up3[i,j,k] = 0.0"]
 def feSteps := fieldEqs (nth 1 feFieldDescriptors) (Primal, feqv) ++ fieldEqs (nth 2 feFieldDescriptors) (Primal, feqsigma)
 
 def main (args: [String]) : IO () := print (FMR.emitModelOn feDim feAxes feParams feHelpers feComps feInits feSteps)

@@ -18,21 +18,6 @@ def dC (a: Integer) (u: MathValue) : MathValue :=
   (shift a 1 u - shift a (-1) u) / (2 * feHsteps_a)
 def dC2 (a: Integer) (u: MathValue) : MathValue :=
   (shift a 1 u - 2 * u + shift a (-1) u) / ((feHsteps_a) ^ 2)
-def dTaylor (m: Integer) (ks: [MathValue]) (a: Integer) (u: MathValue) : MathValue :=
-  sum (map (\(c, k) -> c * shift a k u) (zip (taylorStencil m ks) ks)) / (feHsteps_a ^ m)
-def axisId (axis: MathValue) : Integer :=
-  match axis as mathValue with
-    | symbol $v _ ->
-        match v as string with
-          | #"x" -> 1
-          | #"y" -> 2
-          | #"z" -> 3
-          | _ -> 0
-def ∂ (m: Integer) (r: Integer) (axis: MathValue) (u: MathValue) : MathValue :=
-  let a := axisId axis
-   in if m = 1 && r = 1 then dC a u
-      else if m = 2 && r = 1 then dC2 a u
-      else dTaylor m (between (0 - r) r) a u
 def yeeRef (sT: [MathValue]) (fld: (MathValue, [MathValue])) (disp: [MathValue]) : MathValue :=
   let (fF, sF) := fld
    in substitute
@@ -54,7 +39,7 @@ def feFieldDescriptors :=
   , ("B", Dual, [3], ["down"], "vector", [[1], [2], [3]], [([1], "B_down1"), ([2], "B_down2"), ([3], "B_down3")])
   ]
 def feSymbolNames : [(String, String)] := [("hx", "dx"), ("hy", "dy"), ("hz", "dz"), ("x", "(i*dx)"), ("y", "(j*dy)"), ("z", "(k*dz)")]
-def feFieldNames : [(String, String)] := concat (map FMR.fieldNameMappings feFieldDescriptors)
+def feFieldNames : [(String, String)] := concat (map FMR.fieldNameMappings feFieldDescriptors) ++ []
 def feFieldPolicies : [(String, GridPolicy)] := map (\(name, policy, _, _, _, _, _) -> (name, policy)) feFieldDescriptors
 def feIndexNames : [String] := ["i", "j", "k"]
 def fePrinterContext := (feSymbolNames, feFieldNames, feIndexNames, feCoords, feHsteps, feAxisIds)
@@ -62,14 +47,15 @@ def fmrEq : String -> MathValue -> String := FMR.eq fePrinterContext
 def fmrInit : String -> MathValue -> String := FMR.init fePrinterContext
 def componentEqs : [String] -> [MathValue] -> [String] := FMR.componentEqs fePrinterContext
 def fieldEqs descriptor value := FMR.fieldEqs fePrinterContext descriptor value
+def fieldInits descriptor value := FMR.fieldInits fePrinterContext descriptor value
 def scalarEq : String -> MathValue -> [String] := FMR.scalarEq fePrinterContext
 
 def E := generateTensor (\[i] -> function (x, y, z)) [3]
 def B := generateTensor (\[i] -> function (x, y, z)) [3]
 def E' := generateTensor (\[i] -> function (x, y, z)) [3]
 
-def feqE := withSymbols [i] (FE.checkedTensorSignature "tensor signature mismatch for E" [3] ["down"] (((E + ((dt * FE.curl (feTensorDerivative Primal Dual) feAxisIds B))))_i))
-def feqB := withSymbols [i] (FE.checkedTensorSignature "tensor signature mismatch for B" [3] ["down"] (((B - ((dt * FE.curl (feTensorDerivative Dual Primal) feAxisIds E'))))_i))
+def feqE := withSymbols [FormuraeInternalIndex1] (FE.checkedTensorSignature "tensor signature mismatch for E" [3] ["down"] (((E + ((dt * FE.curl (feTensorDerivative Primal Dual) feAxisIds B))))_FormuraeInternalIndex1))
+def feqB := withSymbols [FormuraeInternalIndex1] (FE.checkedTensorSignature "tensor signature mismatch for B" [3] ["down"] (((B - ((dt * FE.curl (feTensorDerivative Dual Primal) feAxisIds E'))))_FormuraeInternalIndex1))
 
 def feParams := [("dt", "0.5*dx")]
 def feHelpers :=
@@ -77,14 +63,7 @@ def feHelpers :=
   , "gauss1 = fun(x) exp(-((x-(total_grid_x*dx/2))/(8*dx))**2)"
   ]
 def feComps : [String] := ["E_down1", "E_down2", "E_down3", "B_down1", "B_down2", "B_down3"]
-def feInits :=
-  [ "  E_down1[i,j,k] = 0"
-  , "  E_down2[i,j,k] = gauss1(i*dx)"
-  , "  E_down3[i,j,k] = 0"
-  , "  B_down1[i,j,k] = 0"
-  , "  B_down2[i,j,k] = 0"
-  , "  B_down3[i,j,k] = gauss1((i+0.5)*dx)"
-  ]
+def feInits := ["  E_down1[i,j,k] = 0"] ++ ["  E_down2[i,j,k] = gauss1(i*dx)"] ++ ["  E_down3[i,j,k] = 0"] ++ ["  B_down1[i,j,k] = 0"] ++ ["  B_down2[i,j,k] = 0"] ++ ["  B_down3[i,j,k] = gauss1((i+0.5)*dx)"]
 def feSteps := fieldEqs (nth 1 feFieldDescriptors) (Primal, feqE) ++ fieldEqs (nth 2 feFieldDescriptors) (Dual, feqB)
 
 def main (args: [String]) : IO () := print (FMR.emitModelOn feDim feAxes feParams feHelpers feComps feInits feSteps)

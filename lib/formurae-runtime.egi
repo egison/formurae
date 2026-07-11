@@ -65,6 +65,17 @@ def FMR.gridRef
          S.intercalate "," (map (\(a, arg) -> FMR.gridIndex ctx a arg) (zip axisIds args)),
          "]"]
 
+def FMR.hasSourceName
+      (name: String) (names: [(String, String)]) : Bool :=
+  not (filter (\(source, _) -> source = name) names = [])
+
+def FMR.functionCall
+      (ctx: ([(String, String)], [(String, String)], [String],
+             Vector MathValue, Vector MathValue, [Integer]))
+      (g: MathValue) (args: [MathValue]) : String :=
+  S.concat
+    [show g, "(", S.intercalate "," (map (FMR.show ctx) args), ")"]
+
 def FMR.wrapNeg (s: String) : String :=
   if S.head s = '-' then S.concat ["(", s, ")"] else s
 
@@ -74,9 +85,12 @@ def FMR.showFactor
       (ctx: ([(String, String)], [(String, String)], [String],
              Vector MathValue, Vector MathValue, [Integer]))
       (f: MathValue) : String :=
-  let (symbolNames, _, _, _, _, _) := ctx
+  let (symbolNames, fieldNames, _, _, _, _) := ctx
    in match f as mathValue with
-        | func $g $args -> FMR.gridRef ctx g args
+        | func $g $args ->
+            if FMR.hasSourceName (show g) fieldNames
+              then FMR.gridRef ctx g args
+              else FMR.functionCall ctx g args
         | apply1 $g $a1 -> S.concat [FMR.applyName g, "(", FMR.show ctx a1, ")"]
         | quote $e -> S.concat ["(", FMR.show ctx e, ")"]
         | symbol $v _ -> FMR.lookupOr v symbolNames

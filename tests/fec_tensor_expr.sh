@@ -94,7 +94,12 @@ write_case "$f" \
   "  u' = lap u"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" '∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u' 'lap = div grad'
+assert_contains "$out" 'FE.partialChainTensor (feTensorDerivative Collocated Collocated) [] feAxisIds 2' 'lap = div grad keeps the second derivative tensor-valued'
+assert_contains "$out" 'contractWith (+)' 'lap = div grad contracts in Egison'
+typecheck_generated "$out"
+fmr=$(run_generated "$out")
+assert_contains "$fmr" 'u[i-1,j,k]/(dx**2)' 'runtime scalar contraction emits the x second-difference stencil'
+assert_contains "$fmr" 'u[i,j-1,k]/(dy**2)' 'runtime scalar contraction emits the y second-difference stencil'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -109,7 +114,9 @@ write_case "$f" \
   "  u' = lap u"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" '∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u' 'raised indexed derivative'
+assert_contains "$out" ')_FormuraeInternalIndex1~FormuraeInternalIndex1' 'raised indexed derivative preserves its hygienic mixed diagonal indices'
+assert_contains "$out" 'feAxisIds 2' 'raised indexed derivative passes the fused axis pair to Egison'
+typecheck_generated "$out"
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -125,8 +132,10 @@ write_case "$f" \
   "  u' = Δ u"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" '∂ 2 1 x u + ∂ 2 1 y u + ∂ 2 1 z u' 'metric dot laplacian'
-assert_not_contains "$out" 'FormuraeInternalMetric' 'Euclidean metric is specialized away'
+assert_contains "$out" 'def FormuraeInternalMetricContra := FE.metricTensor feDim' 'Euclidean metric is one shared runtime tensor'
+assert_contains "$out" 'FormuraeInternalMetricContra~FormuraeInternalIndex1~FormuraeInternalIndex2' 'metric dot laplacian keeps hygienic metric indices'
+assert_contains "$out" 'feAxisIds 2' 'metric dot laplacian keeps the fused derivative tensor'
+typecheck_generated "$out"
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -415,7 +424,7 @@ out=$(compile_fme "$f")
 rm -f "$f"
 typecheck_generated "$out"
 assert_contains "$out" 'def feLbResult : MathValue :=' 'structural lb request result binding'
-assert_contains "$out" '1 + (2 * feLbResult)' 'nested and parenthesized lb lowering'
+assert_contains "$out" '2 * feLbResult' 'nested and parenthesized lb lowering'
 assert_not_contains "$out" 'lb (u)' 'no unresolved parenthesized lb application'
 
 f=$(tmp_fme)
@@ -708,7 +717,12 @@ write_case "$f" \
   "  p' = trace A~p_q"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'A_1_1 + A_2_2' 'trace'
+assert_contains "$out" 'contractWith (+) (A~FormuraeInternalIndex1_FormuraeInternalIndex1)' 'trace remains a hygienically indexed Egison contraction'
+typecheck_generated "$out"
+fmr=$(run_generated "$out")
+assert_contains "$fmr" "p' =" 'trace emits a scalar equation'
+assert_contains "$fmr" 'A_up1_down1' 'trace projects the first diagonal component'
+assert_contains "$fmr" 'A_up2_down2' 'trace projects the second diagonal component'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -722,9 +736,9 @@ write_case "$f" \
   "  C'~i_j = A~i_k . B~k_j"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'def feqCAt (feTargetBasis: [Integer])' 'prelude dot uses one runtime tensor evaluator'
-assert_contains "$out" 'A~i_k' 'prelude dot keeps the left tensor indexed'
-assert_contains "$out" 'B~k_j' 'prelude dot keeps the right tensor indexed'
+assert_contains "$out" 'def FormuraeInternalEquationAtC (FormuraeInternalTargetBasis: [Integer])' 'prelude dot uses one hygienic runtime tensor evaluator'
+assert_contains "$out" 'A~FormuraeInternalIndex1_FormuraeInternalIndex3' 'prelude dot keeps the left tensor hygienically indexed'
+assert_contains "$out" 'B~FormuraeInternalIndex3_FormuraeInternalIndex2' 'prelude dot keeps the right tensor hygienically indexed'
 assert_not_contains "$out" 'def feqC11 :=' 'prelude dot is not component-expanded by fec'
 typecheck_generated "$out"
 
@@ -741,7 +755,7 @@ write_case "$f" \
   "  C'~i_j = A~i_j . B~i_j"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'A~i_j + B~i_j' 'user-defined dot shadowing remains tensor-valued'
+assert_contains "$out" 'A~FormuraeInternalIndex1_FormuraeInternalIndex2 + B~FormuraeInternalIndex1_FormuraeInternalIndex2' 'user-defined dot shadowing remains tensor-valued'
 assert_not_contains "$out" 'def feqC11 :=' 'user-defined dot has no component helpers'
 typecheck_generated "$out"
 
@@ -756,7 +770,7 @@ write_case "$f" \
   "  u' = lap u"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'def feSteps := scalarEq "u" (7 * u)' 'user-defined standard operator shadowing'
+assert_contains "$out" '7 * u' 'user-defined standard operator shadowing'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -773,7 +787,7 @@ write_case "$f" \
 out=$(compile_fme "$f")
 rm -f "$f"
 assert_contains "$out" 'FE.partialChainTensor (feTensorDerivative Collocated Collocated)' 'withSymbols derivative is evaluated as a tensor in Egison'
-assert_contains "$out" ')_j' 'withSymbols local free index is alpha-renamed to the LHS index'
+assert_contains "$out" ')_FormuraeInternalIndex1' 'withSymbols local free index is alpha-renamed to the hygienic LHS index'
 assert_not_contains "$out" 'def feqq1 :=' 'withSymbols derivative has no component helpers'
 typecheck_generated "$out"
 
@@ -791,7 +805,7 @@ out=$(compile_fme "$f")
 rm -f "$f"
 assert_contains "$out" 'exp(' 'scalar call remains in the runtime tensor expression'
 assert_contains "$out" 'sin(' 'second scalar call remains in the runtime tensor expression'
-assert_contains "$out" 'A_i' 'scalar calls consume the indexed tensor operand'
+assert_contains "$out" 'A_FormuraeInternalIndex1' 'scalar calls consume the hygienically indexed tensor operand'
 assert_not_contains "$out" 'def feqq1 :=' 'componentwise scalar calls have no component helpers'
 typecheck_generated "$out"
 
@@ -807,7 +821,7 @@ write_case "$f" \
   "  q'_i = mapExp A"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'tensorMap (exp) (A_i)' 'explicit tensorMap materializes the indexed operand in Egison'
+assert_contains "$out" 'tensorMap (exp) (A_FormuraeInternalIndex1)' 'explicit tensorMap materializes the hygienically indexed operand in Egison'
 assert_not_contains "$out" 'def feqq1 :=' 'tensorMap has no component helpers'
 typecheck_generated "$out"
 
@@ -823,7 +837,7 @@ write_case "$f" \
   "  q'_i = copy A"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'subrefs (A) [i]' 'subrefs uses Egison dynamic tensor refs'
+assert_contains "$out" 'subrefs (A) [FormuraeInternalIndex1]' 'subrefs uses hygienic Egison dynamic tensor refs'
 assert_not_contains "$out" 'def feqq1 :=' 'subrefs has no component helpers'
 typecheck_generated "$out"
 
@@ -839,7 +853,7 @@ write_case "$f" \
   "  q'~i_j = copy A"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'subrefs (suprefs (A) [i]) [j]' 'mixed dynamic refs preserve each requested variance'
+assert_contains "$out" 'subrefs (suprefs (A) [FormuraeInternalIndex1]) [FormuraeInternalIndex2]' 'mixed dynamic refs preserve each requested variance hygienically'
 typecheck_generated "$out"
 
 f=$(tmp_fme)
@@ -854,7 +868,7 @@ write_case "$f" \
   "  C'_i_j = transpose2 A"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'transpose [i, j] (A_j_i)' 'transpose is reordered into LHS index order before projection'
+assert_contains "$out" 'transpose [FormuraeInternalIndex1, FormuraeInternalIndex2] (A_FormuraeInternalIndex2_FormuraeInternalIndex1)' 'transpose is reordered into hygienic LHS index order before projection'
 assert_not_contains "$out" 'def feqC11 :=' 'transpose has no component helpers'
 typecheck_generated "$out"
 fmr=$(run_generated "$out")
@@ -875,7 +889,7 @@ out=$(compile_fme "$f")
 rm -f "$f"
 typecheck_generated "$out"
 fmr=$(run_generated "$out")
-assert_contains "$out" 'transpose [i, j] (if' 'runtime result normalizes the selected conditional branch order'
+assert_contains "$out" 'transpose [FormuraeInternalIndex1, FormuraeInternalIndex2] (if' 'runtime result normalizes the selected conditional branch order'
 assert_contains "$fmr" "C_down1_down2' = A_down2_down1" 'false conditional branch preserves transposed component order'
 assert_contains "$fmr" "C_down2_down1' = A_down1_down2" 'false conditional branch preserves reverse component order'
 assert_contains "$fmr" "D_down1_down2' = A_down2_down1" 'true conditional branch preserves transposed component order'
@@ -909,8 +923,8 @@ write_case "$f" \
   "  C'~i_j = A~i !. B_j"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'A~i' 'disjoint product keeps its contravariant operand indexed'
-assert_contains "$out" 'B_j' 'disjoint product keeps its covariant operand indexed'
+assert_contains "$out" 'A~FormuraeInternalIndex1' 'disjoint product keeps its contravariant operand hygienically indexed'
+assert_contains "$out" 'B_FormuraeInternalIndex2' 'disjoint product keeps its covariant operand hygienically indexed'
 assert_contains "$out" ' !. ' 'disjoint product is evaluated by Egison'
 assert_not_contains "$out" 'def feqC11 :=' 'disjoint product has no component helpers'
 typecheck_generated "$out"
@@ -987,7 +1001,9 @@ write_case "$f" \
   "  C'_i_j = wedge A T..._i_j"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'def T := withSymbols [i] B_i' 'indexed let is generated as a bare tensor binding'
+assert_contains "$out" 'def FormuraeInternalLetAtT ' 'indexed let uses one runtime tensor evaluator'
+assert_contains "$out" 'def T := generateTensor' 'indexed let is materialized as one bare tensor binding'
+assert_contains "$out" 'B_FormuraeInternalIndex1' 'indexed let preserves its hygienic operand index'
 assert_not_contains "$out" 'def T_i := withSymbols' 'indexed let binding is not retained'
 assert_not_contains "$out" 'def T := T_#' 'indexed let needs no alias'
 
@@ -1004,8 +1020,32 @@ write_case "$f" \
   "  q' = contractWith max A~i_i"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'A_1_1 * A_2_2' 'contractWith product reducer'
-assert_contains "$out" 'max(A_1_1, A_2_2)' 'contractWith function reducer'
+assert_contains "$out" 'contractWith (*) (A~FormuraeInternalIndex1_FormuraeInternalIndex1)' 'contractWith product reducer remains an Egison contraction'
+assert_contains "$out" 'contractWith (FE.symbolicBinary "max") (A~FormuraeInternalIndex1_FormuraeInternalIndex1)' 'contractWith function reducer remains a symbolic Egison contraction'
+typecheck_generated "$out"
+fmr=$(run_generated "$out")
+assert_contains "$fmr" "p' = A_up1_down1[i,j]*A_up2_down2[i,j]" 'product reducer executes in Egison'
+assert_contains "$fmr" "q' = max(A_up1_down1[i,j],A_up2_down2[i,j])" 'named reducer prints as a backend function call'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field A_i' \
+  'field q : scalar' \
+  'step:' \
+  "  q' = A_long"
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+rm -f "$f"
+if [ "$status" -eq 0 ]; then
+  printf 'multi-character free index unexpectedly bypassed scalar validation\n' >&2
+  exit 1
+fi
+assert_contains "$out" 'index long is free but not on the left-hand side' 'multi-character scalar index validation'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -1017,8 +1057,8 @@ write_case "$f" \
   "  u' = ∂^2_x u + ∂'^2_x u"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" '∂ 2 1 x u' 'decorated second derivative'
-assert_contains "$out" '∂ 2 2 x u' 'quoted stencil-radius derivative'
+assert_contains "$out" 'FE.partialChainTensor (feTensorDerivative Collocated Collocated) [] feAxisIds 2' 'decorated second derivative uses the tensor derivative bridge'
+assert_contains "$out" '∂ 2 2 x (u)' 'quoted stencil-radius derivative'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -1030,7 +1070,8 @@ write_case "$f" \
   "  u' = ∂_x u + ∂_y u"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" '∂ 1 1 x u + ∂ 1 1 y u' 'subscript first derivative'
+assert_contains "$out" 'feAxisIds 1 (FE.scalarTensor (u)))_1' 'x first derivative is selected from the runtime derivative tensor'
+assert_contains "$out" 'feAxisIds 1 (FE.scalarTensor (u)))_2' 'y first derivative is selected from the runtime derivative tensor'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -1045,8 +1086,9 @@ write_case "$f" \
   "  q' = divg V_i"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'dYee 1 (FE.componentPlacement feDim Collocated []) (V_1, (FE.componentPlacement feDim Primal [1]))' 'primal coordinate derivative x'
-assert_contains "$out" 'dYee 2 (FE.componentPlacement feDim Collocated []) (V_2, (FE.componentPlacement feDim Primal [2]))' 'primal coordinate derivative y'
+assert_contains "$out" 'FE.partialChainTensor (feTensorDerivative Collocated Primal) [] feAxisIds 1 (V)' 'primal vector derivatives share the runtime tensor bridge'
+assert_contains "$out" ')_1_1' 'primal coordinate derivative x selects the x diagonal'
+assert_contains "$out" ')_2_2' 'primal coordinate derivative y selects the y diagonal'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -1116,10 +1158,10 @@ write_case "$f" \
   'dimension 2' \
   'axes x,y' \
   'field u : scalar' \
-  'field X~i' \
+  'field X_i' \
   'field q : vector' \
   'step:' \
-  "  q' = grad u + X~i"
+  "  q' = grad u + X"
 out=$(compile_fme "$f")
 rm -f "$f"
 assert_contains "$out" 'FE.grad ' 'implicit vector native equation bypasses the legacy signature oracle'
@@ -1133,13 +1175,35 @@ write_case "$f" \
   'dimension 2' \
   'axes x,y' \
   'field u : scalar' \
+  'field X~i' \
+  'field q : vector' \
+  'step:' \
+  "  q' = grad u + X~i"
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+rm -f "$f"
+if [ "$status" -eq 0 ]; then
+  printf 'implicit lower vector target unexpectedly erased an explicit upper index\n' >&2
+  exit 1
+fi
+assert_contains "$out" 'wrong variance' 'implicit vector target preserves explicit source variance'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field u : scalar' \
   'field q_i' \
   'init:' \
   '  u = x' \
   '  q_i := grad u'
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'fmrInit "q_down1" (' 'standard grad is valid in an indexed CAS initializer'
+assert_contains "$out" 'fieldInits (nth 2 feFieldDescriptors)' 'standard grad uses one whole-tensor indexed initializer'
+assert_not_contains "$out" 'FE.relativePlacement' 'same-lattice indexed initializer needs no resampling'
 assert_not_contains "$out" 'FormuraeInternalNativeGrad' 'indexed initializer emits no native marker'
 typecheck_generated "$out"
 
@@ -1189,6 +1253,24 @@ out=$(compile_fme "$f")
 rm -f "$f"
 assert_contains "$out" 'if (a > 0) then FE.grad ' 'native if validates branch signatures independently'
 typecheck_generated "$out"
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field u : scalar' \
+  'field A_i_j' \
+  'field C_i_j' \
+  'step:' \
+  "  C'_i_j = if 1 > 2 then hessian u else A_j_i"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_not_contains "$out" 'def feqC12 :=' 'native mixed branch uses no component fallback helpers'
+assert_contains "$out" 'transpose [FormuraeInternalIndex1, FormuraeInternalIndex2] (if' 'native mixed branch preserves the direct tensor index order'
+typecheck_generated "$out"
+fmr=$(run_generated "$out")
+assert_contains "$fmr" "C_down1_down2' = A_down2_down1" 'native mixed false branch preserves its transpose'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -1368,7 +1450,8 @@ write_case "$f" \
   "  u' = lap u + X_1"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" '∂ 2 1 x u + X_1' 'fixed component basis uses exact legacy placement lowering'
+assert_contains "$out" 'FE.partialChainTensor (feTensorDerivative Dual Dual) [] feAxisIds 2' 'fixed component basis keeps the derivative tensor-valued'
+assert_contains "$out" '+ X_1' 'fixed component basis remains explicit beside the runtime contraction'
 assert_not_contains "$out" 'FE.lap ' 'fixed component basis does not enter the compact native policy summary'
 typecheck_generated "$out"
 
@@ -1427,8 +1510,46 @@ write_case "$f" \
   '  V_i := X_i'
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'nth a (FE.componentPlacement feDim Dual [1]) * feHsteps_a' 'dual component 1 CAS initializer placement'
-assert_contains "$out" 'nth a (FE.componentPlacement feDim Dual [2]) * feHsteps_a' 'dual component 2 CAS initializer placement'
+assert_contains "$out" 'FE.componentPlacement feDim Dual FormuraeInternalTargetBasis' 'dual indexed initializer derives every component placement from its runtime basis'
+assert_contains "$out" 'FE.relativePlacement' 'cross-lattice indexed initializer subtracts its RHS placement'
+typecheck_generated "$out"
+fmr=$(run_generated "$out")
+assert_contains "$fmr" 'V_down1[i,j] = X_down1[i,j+(1 / 2)]' 'dual component 1 initializer uses its y half-cell placement'
+assert_contains "$fmr" 'V_down2[i,j] = X_down2[i+(1 / 2),j]' 'dual component 2 initializer uses its x half-cell placement'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field X_i @ primal' \
+  'field V_i @ primal' \
+  'init:' \
+  '  V_i := X_i'
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_not_contains "$out" 'FE.relativePlacement' 'same-policy indexed field initializer has zero relative offset'
+typecheck_generated "$out"
+fmr=$(run_generated "$out")
+assert_contains "$fmr" 'V_down1[i,j] = X_down1[i,j]' 'same-policy indexed initializer does not double-shift component 1'
+assert_contains "$fmr" 'V_down2[i,j] = X_down2[i,j]' 'same-policy indexed initializer does not double-shift component 2'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode dec' \
+  'dimension 2' \
+  'axes x,y' \
+  'metric scale [2, 3]' \
+  'field A : 1-form @ primal' \
+  'field X~i @ primal' \
+  'init:' \
+  '  X~i := sharp A'
+out=$(compile_fme "$f")
+rm -f "$f"
+typecheck_generated "$out"
+fmr=$(run_generated "$out")
+assert_contains "$fmr" 'X_up1[i,j] = A_1[i,j]/(4)' 'sharp initializer shares the source lattice in component 1'
+assert_contains "$fmr" 'X_up2[i,j] = A_2[i,j]/(9)' 'sharp initializer shares the source lattice in component 2'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -1463,6 +1584,42 @@ write_case "$f" \
   'mode collocated' \
   'dimension 2' \
   'axes x,y' \
+  'field v : scalar @ dual' \
+  'field u : scalar @ dual' \
+  'init:' \
+  '  u := v'
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_not_contains "$out" 'FE.relativePlacement' 'same-policy scalar initializer has zero relative offset'
+typecheck_generated "$out"
+fmr=$(run_generated "$out")
+assert_contains "$fmr" 'u[i,j] = v[i,j]' 'same-policy scalar initializer does not double-shift its source'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field v : scalar @ dual' \
+  'field u : scalar @ dual' \
+  'init:' \
+  '  u := v + x'
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+rm -f "$f"
+if [ "$status" -eq 0 ]; then
+  printf 'mixed physical-coordinate and staggered-field initializer unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_contains "$out" 'cannot mix explicit coordinates with a staggered field-valued expression' 'mixed-coordinate initializer is rejected instead of being sampled incorrectly'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
   'field u : scalar' \
   'field v : scalar @ dual' \
   'step:' \
@@ -1476,7 +1633,7 @@ if [ "$status" -eq 0 ]; then
   printf 'cross-policy scalar assignment unexpectedly succeeded\n' >&2
   exit 1
 fi
-assert_contains "$out" 'grid policy mismatch in scalar equation' 'cross-policy scalar assignment rejection'
+assert_contains "$out" 'grid placement mismatch' 'cross-policy scalar assignment rejection'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -1863,7 +2020,11 @@ write_case "$f" \
   "  q'_i = ∂^2_i u"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'def feqq := [| ∂ 2 1 x u, ∂ 2 1 y u |]' 'decorated indexed derivative tensor RHS'
+assert_contains "$out" 'FE.diagonalCoordinateDerivative (feTensorDerivative Collocated Collocated) ∂ feCoords feAxisIds 2 1' 'decorated indexed derivative remains one runtime tensor'
+typecheck_generated "$out"
+fmr=$(run_generated "$out")
+assert_contains "$fmr" "q_down1' = (-2)*u[i,j]/(dx**2)" 'decorated indexed derivative emits the x diagonal stencil'
+assert_contains "$fmr" "q_down2' = (-2)*u[i,j]/(dy**2)" 'decorated indexed derivative emits the y diagonal stencil'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -1876,7 +2037,78 @@ write_case "$f" \
   "  q'_i = ∂'^2_i u"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'def feqq := [| ∂ 2 2 x u, ∂ 2 2 y u |]' 'quoted indexed derivative tensor RHS'
+assert_contains "$out" 'FE.diagonalCoordinateDerivative (feTensorDerivative Collocated Collocated) ∂ feCoords feAxisIds 2 2' 'quoted indexed derivative remains one runtime tensor'
+typecheck_generated "$out"
+fmr=$(run_generated "$out")
+assert_contains "$fmr" 'u[i-2,j]/(12*dx**2)' 'quoted indexed derivative emits the wide x stencil'
+assert_contains "$fmr" 'u[i,j-2]/(12*dy**2)' 'quoted indexed derivative emits the wide y stencil'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 1' \
+  'axes x' \
+  'field u : scalar' \
+  'step:' \
+  "  u' = ∂_x (u * u / 2)"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" 'FE.partialChainTensor' 'fixed-axis derivative materializes a compound scalar in Egison'
+typecheck_generated "$out"
+fmr=$(run_generated "$out")
+assert_contains "$fmr" 'u[i+1]**2' 'compound scalar derivative emits its positive centered sample'
+assert_contains "$fmr" 'u[i-1]**2' 'compound scalar derivative emits its negative centered sample'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field A_i @ primal' \
+  'field q_i @ primal' \
+  'step:' \
+  "  q'_i = ∂_x (A_i * 2)"
+out=$(compile_fme "$f")
+rm -f "$f"
+typecheck_generated "$out"
+fmr=$(run_generated "$out")
+assert_contains "$fmr" "q_down1' = (-1)*A_down1[i-1,j]/(dx) + A_down1[i+1,j]/(dx)" 'compound indexed derivative preserves its staggered source basis'
+assert_contains "$fmr" "q_down2' = (-1)*A_down2[i-1,j]/(dx) + A_down2[i+1,j]/(dx)" 'compound indexed derivative preserves the transverse component basis'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field A~j @ primal' \
+  'field q_i~j @ primal' \
+  'step:' \
+  "  q'_i~j = ∂_i (A~j * 2)"
+out=$(compile_fme "$f")
+rm -f "$f"
+typecheck_generated "$out"
+fmr=$(run_generated "$out")
+assert_contains "$fmr" "q_down1_up1' = 2*A_up1[i,j]/(dx) + (-2)*A_up1[i-1,j]/(dx)" 'indexed compound derivative applies its derivative axis to source placement'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field A~j @ primal' \
+  'field q_i~j @ primal' \
+  'step:' \
+  "  q'_i~j = ∂_i (A * 2)"
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+rm -f "$f"
+if [ "$status" -eq 0 ]; then
+  printf 'bare tensor inside a compound derivative unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_contains "$out" 'must be referenced with indices' 'compound derivative requires an explicit tensor component basis'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -2012,6 +2244,365 @@ if [ "$status" -eq 0 ]; then
   exit 1
 fi
 assert_contains "$out" "value name 'contractWith' is reserved for generated Egison code (field)" 'bare field/generated helper collision'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field X_i' \
+  'field XAt_i' \
+  'step:' \
+  "  X'_i = X_i" \
+  "  XAt'_i = XAt_i"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" 'def FormuraeInternalEquationAtX ' 'runtime evaluator uses the reserved internal namespace'
+assert_contains "$out" 'def FormuraeInternalEquationAtXAt ' 'runtime evaluator names remain injective across X and XAt'
+typecheck_generated "$out"
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field A_i~j' \
+  'field q_i' \
+  'step:' \
+  "  q'_i = contractWith (+) (∂_FormuraeInternalTargetBasis A_i~FormuraeInternalTargetBasis)"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" 'FormuraeInternalTargetBasis: [Integer]' 'runtime basis binder remains separate from hygienic symbolic indices'
+assert_contains "$out" 'withSymbols [FormuraeInternalIndex1, FormuraeInternalIndex2]' 'the user dummy index is alpha-renamed without capture'
+typecheck_generated "$out"
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field u : scalar' \
+  'field q_i' \
+  'step:' \
+  '  let T_i = ∂_i u' \
+  "  q'_i = T_i"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" 'def FormuraeInternalLetAtT ' 'indexed derivative let uses a runtime evaluator'
+assert_not_contains "$out" 'withSymbols [i] d_i u' 'indexed derivative let has no unresolved legacy derivative'
+typecheck_generated "$out"
+fmr=$(run_generated "$out")
+assert_contains "$fmr" "q_down1' = (-1)*u[i-1,j]/(2*dx)" 'indexed derivative let emits its x stencil'
+assert_contains "$fmr" "q_down2' = (-1)*u[i,j-1]/(2*dy)" 'indexed derivative let emits its y stencil'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field A_i_j' \
+  'field C_i_j' \
+  'step:' \
+  '  let T_i_j = A_j_i' \
+  "  C'_i_j = T_i_j"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" 'def T := generateTensor' 'rank-two indexed let is inferred from its two indices'
+typecheck_generated "$out"
+fmr=$(run_generated "$out")
+assert_contains "$fmr" "C_down1_down2' = A_down2_down1" 'rank-two indexed let preserves transpose order'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field A~i' \
+  'field q~i' \
+  'step:' \
+  '  let T~i = A~i' \
+  '  let U~i = tensorMap exp T' \
+  "  q'~i = U~i"
+out=$(compile_fme "$f")
+rm -f "$f"
+typecheck_generated "$out"
+fmr=$(run_generated "$out")
+assert_contains "$fmr" "q_up1' = exp(A_up1[i,j])" 'bare upper-index let retains its declared variance'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field A~i' \
+  'field q_i' \
+  'step:' \
+  '  let T~i = A~i' \
+  "  q'_i = tensorMap exp T_i"
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+rm -f "$f"
+if [ "$status" -eq 0 ]; then
+  printf 'indexed let variance mismatch unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_contains "$out" 'incompatible index variance' 'indexed let reference variance is validated'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field A_i @ primal' \
+  'field q_i @ primal' \
+  'step:' \
+  '  let c = 2' \
+  "  q'_i = A_i * c"
+out=$(compile_fme "$f")
+rm -f "$f"
+typecheck_generated "$out"
+fmr=$(run_generated "$out")
+assert_contains "$fmr" "q_down1' = 2*A_down1[i,j]" 'constant scalar let remains placement-neutral'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field u : scalar @ primal' \
+  'field q_i @ primal' \
+  'step:' \
+  '  let c = u + 1' \
+  "  q'_i = ∂_i c"
+out=$(compile_fme "$f")
+rm -f "$f"
+typecheck_generated "$out"
+fmr=$(run_generated "$out")
+assert_contains "$fmr" "q_down1' = (-1)*u[i,j]/(dx) + u[i+1,j]/(dx)" 'scalar let preserves its referenced primal policy'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field u : scalar @ primal' \
+  'field q_i @ dual' \
+  'step:' \
+  "  q'_i = ∂_i u"
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+rm -f "$f"
+if [ "$status" -eq 0 ]; then
+  printf 'indexed derivative with the wrong result policy unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_contains "$out" 'grid placement mismatch in runtime tensor expression' 'indexed derivative result policy follows source parity'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field A_i' \
+  'field q_i' \
+  'step:' \
+  "  q'_i = T_i" \
+  '  let T_i = A_i'
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+rm -f "$f"
+if [ "$status" -eq 0 ]; then
+  printf 'forward indexed let reference unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_contains "$out" 'before its definition' 'forward indexed let reference is rejected'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field u : scalar' \
+  'init:' \
+  '  u := s' \
+  'step:' \
+  '  local s = 1'
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+rm -f "$f"
+if [ "$status" -eq 0 ]; then
+  printf 'initializer step-local reference unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_contains "$out" 'initializer cannot reference step binding' 'initializer step scope is enforced'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field u : scalar' \
+  'init:' \
+  "  u := u'"
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+rm -f "$f"
+if [ "$status" -eq 0 ]; then
+  printf 'primed initializer reference unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_contains "$out" 'initializer cannot reference primed field' 'initializer rejects unavailable primed storage'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field A_i @ primal' \
+  'field q_i @ primal' \
+  'step:' \
+  "  q'_i = contractWith (+) (delta~j_i * A_j)"
+out=$(compile_fme "$f")
+rm -f "$f"
+typecheck_generated "$out"
+fmr=$(run_generated "$out")
+assert_contains "$fmr" "q_down1' = A_down1[i,j]" 'zero Kronecker branches do not cause false placement failures'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'metric g' \
+  'field v~i @ primal' \
+  'field S{~i~j} @ primal' \
+  'step:' \
+  "  S'~i~j = S~i~j + g~i~k . ∂_k v~j"
+out=$(compile_fme "$f")
+rm -f "$f"
+typecheck_generated "$out"
+fmr=$(run_generated "$out")
+assert_contains "$fmr" "S_up1_up1'" 'zero off-diagonal metric branches do not cause false placement failures'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'metric g' \
+  'field g : scalar @ dual' \
+  'field S~i~j @ dual' \
+  'step:' \
+  "  S'~i~j = g~i~j * g"
+out=$(compile_fme "$f" 2>/dev/null)
+rm -f "$f"
+typecheck_generated "$out"
+fmr=$(run_generated "$out")
+assert_contains "$fmr" "S_up1_up1' = g[i,j]" 'indexed metric wins over a same-named staggered scalar field'
+assert_contains "$fmr" "S_up1_up2' = 0" 'same-named metric keeps neutral off-diagonal zero branches'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field A_i~j @ primal' \
+  'field v_j @ dual' \
+  'field q_i @ primal' \
+  'step:' \
+  "  q'_i = A_i~j . v_j"
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+rm -f "$f"
+if [ "$status" -eq 0 ]; then
+  printf 'cross-policy contracted product unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_contains "$out" 'grid placement mismatch' 'contracted operands must be collocated term by term'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field A~i' \
+  'field B_i' \
+  'field p : scalar' \
+  'step:' \
+  "  p' = exp(1) * contractWith (+) (A~exp * B_exp)"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_not_contains "$out" 'withSymbols [exp]' 'runtime dummy indices cannot capture scalar functions'
+assert_contains "$out" 'exp(1)' 'hygienic dummy renaming preserves the scalar function call in generated Egison'
+typecheck_generated "$out"
+fmr=$(run_generated "$out")
+assert_contains "$fmr" '*e' 'CAS may normalize exp(1) after hygienic dummy renaming'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 1' \
+  'axes x' \
+  'field u : scalar @ primal' \
+  'field A_i @ primal' \
+  'field q_i @ primal' \
+  'step:' \
+  "  q'_i = A_i * ∂'_x u"
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+rm -f "$f"
+if [ "$status" -eq 0 ]; then
+  printf 'wide odd fixed-axis derivative across staggered lattices unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_contains "$out" 'wide odd-order coordinate derivative needs a placement-aware stencil' 'wide fixed-axis odd derivative rejects an unsupported half-grid stencil'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'raw my_fun = fun(x) x' \
+  'field u : scalar' \
+  'step:' \
+  "  u' = my_fun(u)"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" 'my_fun(u)' 'underscore helper name is not misparsed as an indexed tensor'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field A_i' \
+  'field p : scalar' \
+  'step:' \
+  "  p' = tensorMap exp A"
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+rm -f "$f"
+if [ "$status" -eq 0 ]; then
+  printf 'tensor-valued scalar equation unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_contains "$out" 'scalar expression has a tensor-valued result' 'scalar result rank is validated'
 
 f=$(tmp_fme)
 write_case "$f" \

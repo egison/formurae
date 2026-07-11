@@ -6,6 +6,12 @@ assertEqual "bare-alias-component" vi_2 2
 assertEqual "trace" (trace m) 15
 assertEqual "sym" (sym m) [|[|1, 3, 5|], [|3, 5, 7|], [|5, 7, 9|]|]
 
+def symbolicReducerMatrix := [|[|1, 2|], [|3, 4|]|]
+assertEqual "named reducer remains a symbolic binary call"
+  (withSymbols [i]
+    contractWith (FE.symbolicBinary "max") symbolicReducerMatrix~i_i)
+  (functionSymbol "max" [1, 4])
+
 -- The mock derivative encodes all four callback arguments, so these assertions
 -- test target/source component bases, derivative axes, and contraction
 -- signs independently.

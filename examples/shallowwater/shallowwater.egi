@@ -18,28 +18,29 @@ def dC (a: Integer) (u: MathValue) : MathValue :=
   (shift a 1 u - shift a (-1) u) / (2 * feHsteps_a)
 def dC2 (a: Integer) (u: MathValue) : MathValue :=
   (shift a 1 u - 2 * u + shift a (-1) u) / ((feHsteps_a) ^ 2)
-def dTaylor (m: Integer) (ks: [MathValue]) (a: Integer) (u: MathValue) : MathValue :=
-  sum (map (\(c, k) -> c * shift a k u) (zip (taylorStencil m ks) ks)) / (feHsteps_a ^ m)
-def axisId (axis: MathValue) : Integer :=
-  match axis as mathValue with
-    | symbol $v _ ->
-        match v as string with
-          | #"x" -> 1
-          | #"y" -> 2
-          | #"z" -> 3
-          | _ -> 0
-def ∂ (m: Integer) (r: Integer) (axis: MathValue) (u: MathValue) : MathValue :=
-  let a := axisId axis
-   in if m = 1 && r = 1 then dC a u
-      else if m = 2 && r = 1 then dC2 a u
-      else dTaylor m (between (0 - r) r) a u
+def yeeRef (sT: [MathValue]) (fld: (MathValue, [MathValue])) (disp: [MathValue]) : MathValue :=
+  let (fF, sF) := fld
+   in substitute
+        (map (\a -> (feCoords_a, feCoords_a + (nth a disp + nth a sT - nth a sF) * feHsteps_a)) feAxisIds)
+        fF
+def unit3 (a: Integer) (c: MathValue) : [MathValue] :=
+  map (\b -> if a = b then c else 0) feAxisIds
+def dYee (a: Integer) (sT: [MathValue]) (fld: (MathValue, [MathValue])) : MathValue :=
+  (yeeRef sT fld (unit3 a (1 / 2)) - yeeRef sT fld (unit3 a (-1 / 2))) / feHsteps_a
+def feTensorDerivative
+      (targetPolicy: GridPolicy) (sourcePolicy: GridPolicy)
+      (targetBasis: [Integer]) (derivativeAxes: [Integer])
+      (sourceBasis: [Integer]) (value: MathValue) : MathValue :=
+  FE.gridDerivativeChain dC dC2 dYee derivativeAxes
+    (FE.componentPlacement feDim targetPolicy targetBasis)
+    (FE.componentPlacement feDim sourcePolicy sourceBasis) value
 def feFieldDescriptors :=
   [ ("h", Collocated, [], [], "scalar", [[]], [([], "h")])
   , ("mx", Collocated, [], [], "scalar", [[]], [([], "mx")])
   , ("my", Collocated, [], [], "scalar", [[]], [([], "my")])
   ]
 def feSymbolNames : [(String, String)] := [("hx", "dx"), ("hy", "dy"), ("hz", "dz"), ("x", "(i*dx)"), ("y", "(j*dy)"), ("z", "(k*dz)")]
-def feFieldNames : [(String, String)] := concat (map FMR.fieldNameMappings feFieldDescriptors)
+def feFieldNames : [(String, String)] := concat (map FMR.fieldNameMappings feFieldDescriptors) ++ [("fmxx", "fmxx"), ("fmxy", "fmxy"), ("fmyy", "fmyy")]
 def feFieldPolicies : [(String, GridPolicy)] := map (\(name, policy, _, _, _, _, _) -> (name, policy)) feFieldDescriptors
 def feIndexNames : [String] := ["i", "j", "k"]
 def fePrinterContext := (feSymbolNames, feFieldNames, feIndexNames, feCoords, feHsteps, feAxisIds)
@@ -47,6 +48,7 @@ def fmrEq : String -> MathValue -> String := FMR.eq fePrinterContext
 def fmrInit : String -> MathValue -> String := FMR.init fePrinterContext
 def componentEqs : [String] -> [MathValue] -> [String] := FMR.componentEqs fePrinterContext
 def fieldEqs descriptor value := FMR.fieldEqs fePrinterContext descriptor value
+def fieldInits descriptor value := FMR.fieldInits fePrinterContext descriptor value
 def scalarEq : String -> MathValue -> [String] := FMR.scalarEq fePrinterContext
 
 def h := function (x, y, z)
@@ -61,11 +63,7 @@ def feHelpers :=
   [ "extern function :: exp"
   ]
 def feComps : [String] := ["h", "mx", "my"]
-def feInits :=
-  [ "  h[i,j,k] = 1.0 + 0.01*exp(-((i*dx - 32.0)/2.0)**2)"
-  , "  mx[i,j,k] = 0.0"
-  , "  my[i,j,k] = 0.0"
-  ]
-def feSteps := [fmrEq "fmxx" (((mx * mx) / h) + ((g * h * h) / 2))] ++ [fmrEq "fmxy" ((mx * my) / h)] ++ [fmrEq "fmyy" (((my * my) / h) + ((g * h * h) / 2))] ++ scalarEq "h" ((h - (dt * (∂ 1 1 x mx + ∂ 1 1 y my))) + (dt * lambda * (∂ 2 1 x h + ∂ 2 1 y h))) ++ scalarEq "mx" ((mx - (dt * (∂ 1 1 x fmxx + ∂ 1 1 y fmxy))) + (dt * lambda * (∂ 2 1 x mx + ∂ 2 1 y mx))) ++ scalarEq "my" ((my - (dt * (∂ 1 1 x fmxy + ∂ 1 1 y fmyy))) + (dt * lambda * (∂ 2 1 x my + ∂ 2 1 y my)))
+def feInits := ["  h[i,j,k] = 1.0 + 0.01*exp(-((i*dx - 32.0)/2.0)**2)"] ++ ["  mx[i,j,k] = 0.0"] ++ ["  my[i,j,k] = 0.0"]
+def feSteps := [fmrEq "fmxx" (((mx * mx) / h) + ((g * h * h) / 2))] ++ [fmrEq "fmxy" ((mx * my) / h)] ++ [fmrEq "fmyy" (((my * my) / h) + ((g * h * h) / 2))] ++ scalarEq "h" ((((h - ((dt * (((FE.partialChainTensor (feTensorDerivative Collocated Collocated) [] feAxisIds 1 (FE.scalarTensor (mx)))_1 + (FE.partialChainTensor (feTensorDerivative Collocated Collocated) [] feAxisIds 1 (FE.scalarTensor (my)))_2)))))) + (((dt * lambda) * (((FE.partialChainTensor (feTensorDerivative Collocated Collocated) [] feAxisIds 2 (FE.scalarTensor (h)))_1_1 + (FE.partialChainTensor (feTensorDerivative Collocated Collocated) [] feAxisIds 2 (FE.scalarTensor (h)))_2_2)))))) ++ scalarEq "mx" ((((mx - ((dt * (((FE.partialChainTensor (feTensorDerivative Collocated Collocated) [] feAxisIds 1 (FE.scalarTensor (fmxx)))_1 + (FE.partialChainTensor (feTensorDerivative Collocated Collocated) [] feAxisIds 1 (FE.scalarTensor (fmxy)))_2)))))) + (((dt * lambda) * (((FE.partialChainTensor (feTensorDerivative Collocated Collocated) [] feAxisIds 2 (FE.scalarTensor (mx)))_1_1 + (FE.partialChainTensor (feTensorDerivative Collocated Collocated) [] feAxisIds 2 (FE.scalarTensor (mx)))_2_2)))))) ++ scalarEq "my" ((((my - ((dt * (((FE.partialChainTensor (feTensorDerivative Collocated Collocated) [] feAxisIds 1 (FE.scalarTensor (fmxy)))_1 + (FE.partialChainTensor (feTensorDerivative Collocated Collocated) [] feAxisIds 1 (FE.scalarTensor (fmyy)))_2)))))) + (((dt * lambda) * (((FE.partialChainTensor (feTensorDerivative Collocated Collocated) [] feAxisIds 2 (FE.scalarTensor (my)))_1_1 + (FE.partialChainTensor (feTensorDerivative Collocated Collocated) [] feAxisIds 2 (FE.scalarTensor (my)))_2_2))))))
 
 def main (args: [String]) : IO () := print (FMR.emitModelOn feDim feAxes feParams feHelpers feComps feInits feSteps)

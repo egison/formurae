@@ -105,6 +105,7 @@
 -- B' = B - dt * curl E' is the symplectic pair.
 
 import Data.Char (isAlpha, isAlphaNum, isDigit, isSpace)
+import Control.Monad (foldM)
 import Data.List (dropWhileEnd, intercalate, sort, nub, stripPrefix, isInfixOf, isPrefixOf, isSuffixOf)
 import Data.Maybe (fromMaybe)
 import System.Environment (getArgs)
@@ -125,14 +126,20 @@ import Formurae.TensorExpr
   , pattern TEUnary
   , pattern TEBinary
   , pattern TEGroup
+  , pattern TEAppendIndexed
+  , pattern TEWithSymbols
+  , pattern TEContractWith
+  , pattern TETensorMap
+  , pattern TESubrefs
+  , pattern TETranspose
+  , pattern TEDisjoint
+  , pattern TEDerivative
+  , pattern TEDot
   , expandDefs
-  , ixExpand
-  , ixExpandInitializer
   , parseTensorExprEither
   , preprocessTensorExpr
   , renderTensorExpr
   , strictEinstein
-  , transformTensorExprM
   , validateFieldRefParts
   )
 
@@ -213,10 +220,11 @@ nativeOperatorDefs m =
      , Def "hessian" ["u"] (nativeHessianName ++ " u") Nothing
      ]
 
--- The component lowering remains a temporary validation oracle while the
--- native path is rolled out.  It is never emitted for a native expression.
-legacyNativeValidationDefs :: Model -> [Def]
-legacyNativeValidationDefs m =
+-- Definitions used to expand standard coordinate operators into the general
+-- TensorExpr runtime bridge when the compact native operator path does not
+-- cover the surrounding expression.
+runtimeOperatorExpansionDefs :: Model -> [Def]
+runtimeOperatorExpansionDefs m =
   [ Def "grad" ["u"] "withSymbols [i] ∂_i u" Nothing
   , Def "dGrad" ["X"] "withSymbols [i, j] ∂_i X_j" Nothing
   , Def "divg" ["X"] "contractWith (+) (∂_i X~i)" Nothing
@@ -345,7 +353,7 @@ validateValueBindingNames m =
          , "feLbStoredFlux", lbResultBindingName
          , "hodge", "dForm", "codiff"
          , "feSymbolNames", "feFieldDescriptors", "feFieldNames", "feFieldPolicies", "feIndexNames", "fePrinterContext"
-         , "fmrEq", "fmrInit", "componentEqs", "fieldEqs", "scalarEq"
+         , "fmrEq", "fmrInit", "componentEqs", "fieldEqs", "fieldInits", "scalarEq"
          , "feX", "feG", "feH", "feSqrtG", "feDD"
          , "feParams", "feHelpers", "feComps", "feInits", "feSteps", "main"
          , "ca", "cb", "cc", "sg", "f1", "f2", "f3"
@@ -839,7 +847,17 @@ parseFe sourceFile name txt = go STop initialModel
       | Just (nm, ix, ex) <- casForm s = do
           rejectReservedName ln (dropWhileEnd (== '\'') nm)
           if null ix
-            then addInit (ICas nm ex)
+            then do
+              let baseNm = dropWhileEnd (== '\'') nm
+              if baseNm /= nm
+                then fatal ("CAS initializer target cannot be primed: "
+                            ++ nm ++ " (line " ++ show ln ++ ")")
+                else return ()
+              validateInitTarget baseNm []
+              case kindOf m baseNm of
+                Just Scalar -> addInit (ICas baseNm ex)
+                _ -> fatal ("scalar CAS initializer needs a scalar field: "
+                            ++ baseNm ++ " (line " ++ show ln ++ ")")
             else do
               let baseNm = dropWhileEnd (== '\'') nm
               if baseNm /= nm
@@ -1005,11 +1023,9 @@ parseFe sourceFile name txt = go STop initialModel
                   fatal ("initializer for field " ++ nm
                          ++ " has incompatible index variance: "
                          ++ nm ++ showIxParts ix ++ " (line " ++ show ln ++ ")")
-            Nothing
-              | null ix -> return ()
-              | otherwise ->
-                  fatal ("indexed initializer refers to unknown field: "
-                         ++ nm ++ showIxParts ix ++ " (line " ++ show ln ++ ")")
+            Nothing ->
+              fatal ("initializer refers to unknown field: "
+                     ++ nm ++ showIxParts ix ++ " (line " ++ show ln ++ ")")
         validateInitSuffix nm lhsIx rhsIx
           | null lhsIx && null rhsIx = return ()
           | null rhsIx =
@@ -1252,36 +1268,19 @@ nativeMarkerMap =
   , (nativeHessianName, "hessian")
   ]
 
--- Reconstruct the former component expression only when the native emitter
--- cannot represent an expression.  A successful native path is validated by
--- its NativeValue rank/policy and never enters component lowering.
-nativeLegacyExpression :: Model -> String -> IO String
-nativeLegacyExpression m source =
-  expandDefs (legacyNativeValidationDefs m) (untok (map replace (tokenize source)))
+-- Replace native markers with their tensor definitions and expand them into
+-- the general runtime AST.  This is not a component fallback: the result is
+-- evaluated as one tensor expression by Egison.
+expandRuntimeTensorDefs :: Model -> String -> IO String
+expandRuntimeTensorDefs m source =
+  expandDefs (runtimeOperatorExpansionDefs m)
+    (untok (map replace (tokenize source)))
   where
     replace (TId name primes) =
       case lookup name nativeMarkerMap of
         Just legacyName -> TId legacyName primes
         Nothing -> TId name primes
     replace token = token
-
--- `sharp` changes representation from a form tuple to a rank-1 tensor.  The
--- legacy fallback has no form tuple node, so use the actual target field
--- reference as a placeholder only when that fallback is selected.  This does
--- not affect native emitted code.
-nativeSignatureExpression :: String -> [IxPart] -> String -> IO String
-nativeSignatureExpression target targetIndices source =
-  case parseTensorExprEither source of
-    Left message -> fatal ("bad native signature expression: " ++ message)
-    Right expression -> do
-      replaced <- transformTensorExprM replaceSharp expression
-      return (renderTensorExpr replaced)
-  where
-    replaceSharp expression =
-      case expression of
-        TEApply (TEIdent "sharp" []) [_] ->
-          return (Just (TEIdent target targetIndices))
-        _ -> return Nothing
 
 flipPolicy :: GridPolicy -> GridPolicy
 flipPolicy Collocated = Collocated
@@ -1333,27 +1332,29 @@ mergeNativePlacements m targetPolicy context resultRank values =
              ++ context)
 
 nativeValuesAt
-  :: GridPolicy -> Model -> [String] -> [TensorExpr] -> IO (Maybe [NativeValue])
+  :: GridPolicy -> Model -> [RuntimeTensorBinding] -> [TensorExpr]
+  -> IO (Maybe [NativeValue])
 nativeValuesAt _ _ _ [] = return (Just [])
-nativeValuesAt targetPolicy m lets (expr : rest) = do
-  value <- nativeValueAt targetPolicy m lets expr
+nativeValuesAt targetPolicy m bindings (expr : rest) = do
+  value <- nativeValueAt targetPolicy m bindings expr
   case value of
     Nothing -> return Nothing
     Just value' -> do
-      values <- nativeValuesAt targetPolicy m lets rest
+      values <- nativeValuesAt targetPolicy m bindings rest
       return ((value' :) <$> values)
 
 -- Render the deliberately small whole-tensor subset needed by the standard
--- coordinate operators.  Returning Nothing selects the legacy lowering; this
--- keeps arbitrary user tensor definitions working during the migration.
+-- coordinate operators.  Returning Nothing selects the general TensorExpr
+-- runtime bridge, which preserves arbitrary user tensor definitions.
 nativeValueAt
-  :: GridPolicy -> Model -> [String] -> TensorExpr -> IO (Maybe NativeValue)
-nativeValueAt targetPolicy m lets expr =
+  :: GridPolicy -> Model -> [RuntimeTensorBinding] -> TensorExpr
+  -> IO (Maybe NativeValue)
+nativeValueAt targetPolicy m bindings expr =
   case expr of
     TENumber number -> return (scalar number Nothing False)
     TEIdent base0 parts -> nativeIdent base0 parts
     TEUnary op operand -> do
-      value <- nativeValueAt targetPolicy m lets operand
+      value <- nativeValueAt targetPolicy m bindings operand
       return (fmap (\v -> v { nativeText = "(" ++ op ++ nativeText v ++ ")" }) value)
     TECall fn args -> nativeScalarApplication True fn args
     TEApply (TEIdent "sharp" []) [operand] -> nativeSharp operand
@@ -1361,7 +1362,7 @@ nativeValueAt targetPolicy m lets expr =
       | marker `elem` map fst nativeMarkerMap -> nativeCoordinate marker operand
     TEApply fn args -> nativeScalarApplication False fn args
     TEIf condition yes no -> do
-      values <- nativeValuesAt targetPolicy m lets [condition, yes, no]
+      values <- nativeValuesAt targetPolicy m bindings [condition, yes, no]
       case values of
         Just [conditionValue, yesValue, noValue]
           | nativeRank conditionValue == 0
@@ -1381,7 +1382,7 @@ nativeValueAt targetPolicy m lets expr =
         _ -> return Nothing
     TEBinary op lhs rhs -> nativeBinary op lhs rhs
     TEGroup operand -> do
-      value <- nativeValueAt targetPolicy m lets operand
+      value <- nativeValueAt targetPolicy m bindings operand
       return (fmap (\v -> v { nativeText = "(" ++ nativeText v ++ ")" }) value)
     _ -> return Nothing
   where
@@ -1403,27 +1404,31 @@ nativeValueAt targetPolicy m lets expr =
              | null parts ->
                  return (Just (fieldValue base0 kind))
              | symbolicParts && length parts == componentRank kind -> do
-                 validateFieldRefParts m lets
+                 validateFieldRefParts m bindingNames
                    (renderTensorExpr (TEIdent base0 parts))
                  return (Just (fieldValue base0 kind))
              | all (all isDigit . ixName) parts
              , length parts == componentRank kind ->
                  -- A fixed component carries a concrete basis that the
                  -- compact NativeValue policy/rank summary cannot represent.
-                 -- Preserve exact placement semantics through legacy
-                 -- component lowering instead of guessing from basis [].
+                 -- Preserve the concrete basis through the general runtime
+                 -- tensor bridge instead of guessing from basis [].
                  return Nothing
              | otherwise -> return Nothing
            Nothing
              | isLbResultBindingName fieldName && null parts ->
                  return (scalar base0 (Just Collocated) False)
-             | fieldName `elem` lets && (null parts || length parts == 1) ->
-                 return (Just NativeValue
-                   { nativeText = base0
-                   , nativeRank = 1
-                   , nativePolicy = Just Collocated
-                   , nativeOperator = False
-                   })
+             | Just binding <- bindingOf fieldName
+             , null parts -> return (Just (bindingValue base0 binding))
+             | Just binding <- bindingOf fieldName
+             , all (not . all isDigit . ixName) parts
+             , length parts == length (runtimeBindingIndices binding) ->
+                 if map ixVariance parts
+                      == map ixVariance (runtimeBindingIndices binding)
+                   then return (Just (bindingValue base0 binding))
+                   else fatal ("indexed let " ++ fieldName
+                               ++ " is referenced with incompatible index variance: "
+                               ++ renderTensorExpr (TEIdent base0 parts))
              | fieldName `elem` localScalars && null parts ->
                  return (scalar base0 (Just Collocated) False)
              | null parts -> return (scalar base0 Nothing False)
@@ -1435,10 +1440,16 @@ nativeValueAt targetPolicy m lets expr =
           , nativePolicy = Just (fieldPolicyOf m (fst (fieldBaseOf text)))
           , nativeOperator = False
           }
+        bindingValue text binding = NativeValue
+          { nativeText = text
+          , nativeRank = length (runtimeBindingIndices binding)
+          , nativePolicy = runtimeBindingPolicy binding
+          , nativeOperator = False
+          }
 
     nativeScalarApplication callSyntax fn args = do
-      fnValue <- nativeValueAt targetPolicy m lets fn
-      argValues <- nativeValuesAt targetPolicy m lets args
+      fnValue <- nativeValueAt targetPolicy m bindings fn
+      argValues <- nativeValuesAt targetPolicy m bindings args
       case (fnValue, argValues) of
         (Just functionValue, Just values)
           | nativeRank functionValue == 0
@@ -1461,7 +1472,7 @@ nativeValueAt targetPolicy m lets expr =
         _ -> return Nothing
 
     nativeBinary op lhs rhs = do
-      values <- nativeValuesAt targetPolicy m lets [lhs, rhs]
+      values <- nativeValuesAt targetPolicy m bindings [lhs, rhs]
       case values of
         Just [lhsValue, rhsValue] ->
           case op of
@@ -1506,7 +1517,7 @@ nativeValueAt targetPolicy m lets expr =
             }
 
     nativeCoordinate marker operand = do
-      operandValue <- nativeValueAt targetPolicy m lets operand
+      operandValue <- nativeValueAt targetPolicy m bindings operand
       case operandValue of
         Nothing -> return Nothing
         Just value -> do
@@ -1563,21 +1574,116 @@ nativeValueAt targetPolicy m lets expr =
     stripNativeGroup (TEGroup value) = stripNativeGroup value
     stripNativeGroup value = value
 
+    bindingNames = runtimeTensorBindingNames bindings
+    bindingOf name =
+      case [binding | binding <- bindings, runtimeBindingName binding == name] of
+        binding : _ -> Just binding
+        [] -> Nothing
+
 parenthesizeNative :: String -> String
 parenthesizeNative value
   | all (\c -> isAlphaNum c || c == '_' || c == '\'') value = value
   | otherwise = "(" ++ value ++ ")"
 
 nativeExpressionAt
-  :: GridPolicy -> Model -> [String] -> String -> IO (Maybe NativeValue)
-nativeExpressionAt targetPolicy m lets source =
+  :: GridPolicy -> Model -> [RuntimeTensorBinding] -> String
+  -> IO (Maybe NativeValue)
+nativeExpressionAt targetPolicy m bindings source =
   case parseTensorExprEither source of
     Left message -> fatal ("bad native tensor expression: " ++ message)
     Right expr -> do
-      value <- nativeValueAt targetPolicy m lets expr
+      value <- nativeValueAt targetPolicy m bindings expr
       return $ case value of
         Just native | nativeOperator native -> Just native
         _ -> Nothing
+
+runtimeTensorBindingsFor :: Model -> IO [RuntimeTensorBinding]
+runtimeTensorBindingsFor m =
+  foldM addBinding []
+    [step | step <- mSteps m, sk step == KLet || sk step == KLocal]
+  where
+    addBinding bindings step = do
+      pre <- preprocessTensorExpr m (sEx step)
+      lowered <- lowerBackendText m pre
+      expression <- case parseTensorExprEither lowered of
+                      Right parsed -> return parsed
+                      Left message ->
+                        fatal ("bad indexed let expression: " ++ message)
+      let availableNames = runtimeTensorBindingNames bindings
+          unavailable = nub
+            [fieldName
+            | II tokenName <- itok (renderTensorExpr expression)
+            , let (base, _) = parseIndexedIdent tokenName
+                  fieldName = fst (fieldBaseOf base)
+            , fieldName `elem` runtimeBindingNamesAll
+            , fieldName `notElem` availableNames]
+      case unavailable of
+        name : _ -> fatal ("binding " ++ sNm step
+                           ++ " references itself or a later binding: " ++ name)
+        [] -> return ()
+      native <- nativeValueAt Collocated m bindings expression
+      case native of
+        Just value
+          | nativeRank value /= length (sIdx step) ->
+              fatal ("let " ++ sNm step ++ " has tensor rank "
+                     ++ show (nativeRank value) ++ " but its declaration has rank "
+                     ++ show (length (sIdx step)))
+        _ -> return ()
+      policy <- if sk step == KLocal
+        then return (Just Collocated)
+        else case native of
+          Just value
+            | nativeOperator value
+            , Just resultPolicy <- nativePolicy value -> return (Just resultPolicy)
+          _ -> inferPolicy (length (sIdx step)) bindings expression
+      return (bindings ++ [RuntimeTensorBinding
+        { runtimeBindingName = sNm step
+        , runtimeBindingIndices = sIdx step
+        , runtimeBindingPolicy = policy
+        }])
+
+    inferPolicy bindingRank bindings expression =
+      case kindForBindingRank bindingRank of
+        Nothing -> fatal ("let tensor rank is not supported: "
+                          ++ show bindingRank)
+        Just targetKind ->
+          case inferRuntimeExpressionPolicy m bindings
+                 (syntheticIndices bindingRank) targetKind expression of
+            Right policy -> return policy
+            Left message -> fatal message
+
+    kindForBindingRank 0 = Just Scalar
+    kindForBindingRank 1 = Just Vector
+    kindForBindingRank 2 = Just Tensor2
+    kindForBindingRank _ = Nothing
+    syntheticIndices rank =
+      [IxPart VDown name | name <- take rank (internalIndexNames m)]
+
+    runtimeBindingNamesAll =
+      [sNm step | step <- mSteps m, sk step == KLet || sk step == KLocal]
+
+runtimeBindingReferences :: [String] -> String -> [String]
+runtimeBindingReferences bindingNames source = nub
+  [fieldName
+  | II tokenName <- itok source
+  , let (base, _) = parseIndexedIdent tokenName
+        fieldName = fst (fieldBaseOf base)
+  , fieldName `elem` bindingNames]
+
+scopeRuntimeBindings
+  :: [RuntimeTensorBinding] -> [Step]
+  -> [([RuntimeTensorBinding], [RuntimeTensorBinding], Step)]
+scopeRuntimeBindings allBindings = go []
+  where
+    go _ [] = []
+    go available (step : steps) =
+      let current = case [binding | binding <- allBindings,
+                                  runtimeBindingName binding == sNm step,
+                                  sk step == KLet || sk step == KLocal] of
+                      binding : _ -> [binding]
+                      [] -> []
+          after = available ++ current
+      in (available, after, step) : go after steps
 
 validateNativeResult :: Model -> GridPolicy -> Kind -> String -> NativeValue -> IO ()
 validateNativeResult m targetPolicy targetKind source value = do
@@ -1596,24 +1702,425 @@ validateNativeResult m targetPolicy targetKind source value = do
              ++ gridPolicySurfaceName policy ++ " in: " ++ source)
     _ -> return ()
 
+validateRuntimeTensorResult
+  :: Model -> [RuntimeTensorBinding] -> GridPolicy -> [IxPart] -> Kind
+  -> TensorExpr -> IO ()
+validateRuntimeTensorResult
+    m bindings targetPolicy targetIndices targetKind expression = do
+  native <- nativeValueAt targetPolicy m bindings expression
+  case native of
+    Just value ->
+      validateNativeResult m targetPolicy targetKind
+        (renderTensorExpr expression) value
+    Nothing ->
+      if runtimeTensorPlacementMatches
+           m bindings targetPolicy targetIndices targetKind expression
+        then return ()
+        else fatal ("grid placement mismatch in runtime tensor expression: target is "
+                    ++ gridPolicySurfaceName targetPolicy ++ " in: "
+                    ++ renderTensorExpr expression)
+
+runtimeTensorPlacementMatches
+  :: Model -> [RuntimeTensorBinding] -> GridPolicy -> [IxPart] -> Kind
+  -> TensorExpr -> Bool
+runtimeTensorPlacementMatches
+    m bindings targetPolicy targetIndices targetKind expression =
+  all validateBasis targetBases
+  where
+    targetRank = componentRank targetKind
+    targetBases = nativeBases m targetRank
+    targetNames = map ixName targetIndices
+    expressionNames = nub (collectIndexNames expression)
+
+    validateBasis targetBasis =
+      all (validateEnvironment targetBasis)
+        (extendEnvironments (zip targetNames targetBasis)
+          [name | name <- expressionNames, name `notElem` targetNames])
+
+    validateEnvironment targetBasis environment =
+      let expected = componentPlacement m targetPolicy targetBasis
+          actual = expressionPlacements targetBasis environment [] expression
+      in all (== expected) actual
+
+    extendEnvironments environment [] = [environment]
+    extendEnvironments environment (name : names) =
+      concat
+        [extendEnvironments ((name, axis) : environment) names
+        | axis <- axisRange m]
+
+    expressionPlacements targetBasis environment aliases expr =
+      case expr of
+        TENumber _ -> []
+        TEIdent base parts -> referencePlacements targetBasis environment aliases base parts
+        TEUnary _ body -> expressionPlacements targetBasis environment aliases body
+        TECall function arguments ->
+          concatMap (expressionPlacements targetBasis environment aliases)
+            (function : arguments)
+        TEApply (TEIdent function functionParts) [body]
+          | Just (order, _, part) <-
+              derivativeOpParts (function ++ concatMap ixSuffix functionParts) ->
+              coordinateDerivativePlacements
+                targetBasis environment aliases order part body
+        TEApply (TEIdent marker []) [_]
+          | marker `elem` map fst nativeMarkerMap -> []
+        TEApply function arguments ->
+          concatMap (expressionPlacements targetBasis environment aliases)
+            (function : arguments)
+        TEIf condition yes no ->
+          concatMap (expressionPlacements targetBasis environment aliases)
+            [condition, yes, no]
+        TEAppendIndexed (TEIdent base existing) parts ->
+          referencePlacements targetBasis environment aliases base (existing ++ parts)
+        TEAppendIndexed body _ ->
+          expressionPlacements targetBasis environment aliases body
+        TEWithSymbols names body ->
+          let localAliases = zip names targetNames
+                ++ [(name, replacement) | (name, replacement) <- aliases,
+                                           name `notElem` names]
+          in expressionPlacements targetBasis environment localAliases body
+        TEContractWith _ body
+          | isZeroExpression environment aliases body -> []
+          | otherwise -> expressionPlacements targetBasis environment aliases body
+        TETensorMap function body ->
+          expressionPlacements targetBasis environment aliases function
+          ++ materializedPlacements targetBasis environment aliases body
+        TESubrefs (TEIdent base existing) parts ->
+          referencePlacements targetBasis environment aliases base (existing ++ parts)
+        TESubrefs body _ ->
+          expressionPlacements targetBasis environment aliases body
+        TETranspose names (TEIdent base parts)
+          | null parts ->
+              let variances = declaredVariances base (length names)
+              in referencePlacements targetBasis environment aliases base
+                   [IxPart variance name
+                   | (variance, name) <- zip variances names]
+        TETranspose _ body ->
+          materializedPlacements targetBasis environment aliases body
+        TEDisjoint parts
+          | any (isZeroExpression environment aliases) parts -> []
+          | otherwise ->
+              concatMap (expressionPlacements targetBasis environment aliases) parts
+        TEDerivative parts body ->
+          indexedDerivativePlacements targetBasis environment aliases parts body
+        TEDot parts
+          | any (isZeroExpression environment aliases) parts -> []
+          | otherwise ->
+              concatMap (expressionPlacements targetBasis environment aliases) parts
+        TEBinary op lhs rhs
+          | op == "*"
+          , isZeroExpression environment aliases lhs
+            || isZeroExpression environment aliases rhs -> []
+          | otherwise ->
+              expressionPlacements targetBasis environment aliases lhs
+              ++ expressionPlacements targetBasis environment aliases rhs
+        TEGroup body -> expressionPlacements targetBasis environment aliases body
+
+    materializedPlacements targetBasis environment aliases expr =
+      case expr of
+        TEGroup body -> materializedPlacements targetBasis environment aliases body
+        TEIdent base [] ->
+          let rank = referenceRank base
+              variances = declaredVariances base rank
+              names = take rank targetNames
+          in referencePlacements targetBasis environment aliases base
+               [IxPart variance name
+               | (variance, name) <- zip variances names]
+        TEUnary _ body -> materializedPlacements targetBasis environment aliases body
+        TEBinary _ lhs rhs ->
+          materializedPlacements targetBasis environment aliases lhs
+          ++ materializedPlacements targetBasis environment aliases rhs
+        TEIf condition yes no ->
+          expressionPlacements targetBasis environment aliases condition
+          ++ materializedPlacements targetBasis environment aliases yes
+          ++ materializedPlacements targetBasis environment aliases no
+        _ -> expressionPlacements targetBasis environment aliases expr
+
+    indexedDerivativePlacements targetBasis environment aliases parts body =
+      let (allDerivativeParts, source) = flattenDerivativeParts parts body
+      in derivativeSourcePlacement targetBasis environment aliases
+           False allDerivativeParts source
+
+    coordinateDerivativePlacements
+        targetBasis environment aliases order part body =
+      case lookup (ixName part) (zip (internalCoordNames m) (axisRange m)) of
+        Just axis -> derivativeSourcePlacement targetBasis environment aliases
+          True (replicate order (IxPart (ixVariance part) (show axis))) body
+        Nothing -> derivativeSourcePlacement targetBasis environment aliases
+          True (replicate order part) body
+
+    derivativeSourcePlacement
+        targetBasis environment aliases targetAnchored derivativeParts source =
+      if targetAnchored
+        then coordinateResult sourcePlacements
+        else indexedResult sourcePlacements
+      where
+        sourcePlacements =
+          case stripRuntimeGroup source of
+            TEIdent base sourceParts ->
+              locatedReferencePlacement environment aliases base sourceParts
+            TEAppendIndexed (TEIdent base existing) appended ->
+              locatedReferencePlacement environment aliases base
+                (existing ++ appended)
+            _ -> expressionPlacements targetBasis environment aliases source
+        coordinateResult [] = []
+        coordinateResult placements@(placement : rest)
+          | all (== placement) rest =
+              [componentPlacement m targetPolicy targetBasis]
+          | otherwise = placements
+        indexedResult placements =
+          case mapM (resolvePart environment aliases) derivativeParts of
+            Just axes -> map (applyDerivativeAxes axes) placements
+            Nothing -> placements
+        applyDerivativeAxes axes placement =
+          foldl (flip toggleIndexedPlacement) placement axes
+        toggleIndexedPlacement _ placement@(Placement _ _ Collocated) = placement
+        toggleIndexedPlacement axis (Placement bits placementText policy) =
+          Placement
+            [if current == axis then not bit else bit
+            | (current, bit) <- zip (axisRange m) bits]
+            placementText policy
+
+    flattenDerivativeParts parts (TEDerivative more body) =
+      flattenDerivativeParts (parts ++ more) body
+    flattenDerivativeParts parts body = (parts, body)
+
+    stripRuntimeGroup (TEGroup body) = stripRuntimeGroup body
+    stripRuntimeGroup body = body
+
+    referencePlacements _targetBasis environment aliases base parts
+      | null parts, referenceRank base > 0 =
+          let rank = referenceRank base
+              variances = declaredVariances base rank
+          in locatedReferencePlacement environment aliases base
+               [IxPart variance name
+               | (variance, name) <- zip variances (take rank targetNames)]
+      | otherwise = locatedReferencePlacement environment aliases base parts
+
+    locatedReferencePlacement environment aliases base parts =
+      if isRuntimeMetricReference base parts
+        then []
+        else case referencePolicy base of
+          Nothing -> []
+          Just policy ->
+            case mapM (resolvePart environment aliases) parts of
+              Just basis -> [componentPlacement m policy basis]
+              Nothing -> []
+
+    isRuntimeMetricReference base parts =
+      length parts == 2
+      && let fieldName = fst (fieldBaseOf base)
+         in fieldName == metricPreludeName || Just fieldName == mMetricName m
+
+    resolvePart environment aliases (IxPart _ name)
+      | all isDigit name = case reads name of
+          [(axis, "")] -> Just axis
+          _ -> Nothing
+      | otherwise = lookup (renameAlias aliases name) environment
+
+    isZeroExpression environment aliases expr =
+      case expr of
+        TENumber number ->
+          case reads number :: [(Double, String)] of
+            [(value, "")] -> value == 0
+            _ -> False
+        TEIdent base parts -> zeroReference base parts
+        TEUnary _ body -> isZeroExpression environment aliases body
+        TEIf _ yes no ->
+          isZeroExpression environment aliases yes
+          && isZeroExpression environment aliases no
+        TEAppendIndexed (TEIdent base existing) parts ->
+          zeroReference base (existing ++ parts)
+        TEAppendIndexed body _ -> isZeroExpression environment aliases body
+        TEWithSymbols _ body -> isZeroExpression environment aliases body
+        TEContractWith reducer body
+          | reducer == "+" || reducer == "*" ->
+              isZeroExpression environment aliases body
+          | otherwise -> False
+        TETensorMap _ _ -> False
+        TESubrefs body _ -> isZeroExpression environment aliases body
+        TETranspose _ body -> isZeroExpression environment aliases body
+        TEDisjoint parts -> any (isZeroExpression environment aliases) parts
+        TEDerivative _ body -> isZeroExpression environment aliases body
+        TEDot parts -> any (isZeroExpression environment aliases) parts
+        TEBinary op lhs rhs
+          | op == "*" -> isZeroExpression environment aliases lhs
+                         || isZeroExpression environment aliases rhs
+          | op == "/" -> isZeroExpression environment aliases lhs
+          | op == "+" || op == "-" ->
+              isZeroExpression environment aliases lhs
+              && isZeroExpression environment aliases rhs
+        TEGroup body -> isZeroExpression environment aliases body
+        _ -> False
+      where
+        zeroReference base parts =
+          case mapM (resolvePart environment aliases) parts of
+            Just basis
+              | isDiagonalMetric (fst (fieldBaseOf base))
+              , [first, second] <- basis -> first /= second
+              | fst (fieldBaseOf base) == "epsilon" ->
+                  length basis /= length (nub basis)
+              | kindOf m (fst (fieldBaseOf base)) == Just AntiM
+              , [first, second] <- basis -> first == second
+            _ -> False
+        isDiagonalMetric fieldName =
+          fieldName == "delta"
+          || fieldName == metricPreludeName
+          || Just fieldName == mMetricName m
+
+    renameAlias aliases name =
+      case lookup name aliases of
+        Just replacement -> replacement
+        Nothing -> name
+
+    referencePolicy base =
+      let fieldName = fst (fieldBaseOf base)
+      in case kindOf m fieldName of
+           Just _ -> Just (fieldPolicyOf m fieldName)
+           Nothing -> case [runtimeBindingPolicy binding
+                           | binding <- bindings,
+                             runtimeBindingName binding == fieldName] of
+             policy : _ -> policy
+             [] -> Nothing
+
+    referenceRank base =
+      let fieldName = fst (fieldBaseOf base)
+      in case kindOf m fieldName of
+           Just kind -> componentRank kind
+           Nothing -> case [length (runtimeBindingIndices binding)
+                           | binding <- bindings,
+                             runtimeBindingName binding == fieldName] of
+             rank : _ -> rank
+             [] -> 0
+
+    declaredVariances base rank =
+      let fieldName = fst (fieldBaseOf base)
+      in case fieldDeclOf m fieldName >>= fieldIndexParts of
+           Just parts | length parts == rank -> map ixVariance parts
+           _ -> case [map ixVariance (runtimeBindingIndices binding)
+                     | binding <- bindings,
+                       runtimeBindingName binding == fieldName] of
+             variances : _ | length variances == rank -> variances
+             _ -> replicate rank VDown
+
+    collectIndexNames expr =
+      filter isSymbolicName $ case expr of
+        TENumber _ -> []
+        TEIdent _ parts -> map ixName parts
+        TEUnary _ body -> collectIndexNames body
+        TECall function arguments ->
+          concatMap collectIndexNames (function : arguments)
+        TEApply function arguments ->
+          concatMap collectIndexNames (function : arguments)
+        TEIf condition yes no ->
+          concatMap collectIndexNames [condition, yes, no]
+        TEAppendIndexed body parts ->
+          collectIndexNames body ++ map ixName parts
+        TEWithSymbols names body -> names ++ collectIndexNames body
+        TEContractWith _ body -> collectIndexNames body
+        TETensorMap function body ->
+          collectIndexNames function ++ collectIndexNames body
+        TESubrefs body parts -> collectIndexNames body ++ map ixName parts
+        TETranspose names body -> names ++ collectIndexNames body
+        TEDisjoint parts -> concatMap collectIndexNames parts
+        TEDerivative parts body -> map ixName parts ++ collectIndexNames body
+        TEDot parts -> concatMap collectIndexNames parts
+        TEBinary _ lhs rhs -> collectIndexNames lhs ++ collectIndexNames rhs
+        TEGroup body -> collectIndexNames body
+
+    isSymbolicName name =
+      not (null name)
+      && not (all isDigit name)
+      && name `notElem` internalCoordNames m
+
+runtimePolicyCandidates
+  :: Model -> [RuntimeTensorBinding] -> [IxPart] -> Kind -> TensorExpr
+  -> [GridPolicy]
+runtimePolicyCandidates m bindings indices kind expression =
+  [policy
+  | policy <- [Collocated, Primal, Dual]
+  , runtimeTensorPlacementMatches m bindings policy indices kind expression]
+
+inferRuntimeExpressionPolicy
+  :: Model -> [RuntimeTensorBinding] -> [IxPart] -> Kind -> TensorExpr
+  -> Either String (Maybe GridPolicy)
+inferRuntimeExpressionPolicy m bindings indices kind expression =
+  let candidates = runtimePolicyCandidates m bindings indices kind expression
+      referenced = nub (runtimeReferencedPolicies m bindings expression)
+  in case candidates of
+       [] -> Left ("grid placement mismatch in expression: "
+                   ++ renderTensorExpr expression)
+       [policy] -> Right (Just policy)
+       _ | null referenced -> Right Nothing
+         | [policy] <- referenced, policy `elem` candidates -> Right (Just policy)
+         | otherwise -> Left ("ambiguous grid policy in expression: "
+                              ++ renderTensorExpr expression)
+
+runtimeReferencedPolicies
+  :: Model -> [RuntimeTensorBinding] -> TensorExpr -> [GridPolicy]
+runtimeReferencedPolicies m bindings expression =
+  case expression of
+    TENumber _ -> []
+    TEIdent base parts ->
+      let fieldName = fst (fieldBaseOf base)
+      in if length parts == 2
+            && (fieldName == metricPreludeName || Just fieldName == mMetricName m)
+           then []
+           else case kindOf m fieldName of
+             Just _ -> [fieldPolicyOf m fieldName]
+             Nothing ->
+               [policy
+               | binding <- bindings
+               , runtimeBindingName binding == fieldName
+               , Just policy <- [runtimeBindingPolicy binding]]
+    TEUnary _ body -> runtimeReferencedPolicies m bindings body
+    TECall function arguments ->
+      concatMap (runtimeReferencedPolicies m bindings) (function : arguments)
+    TEApply function arguments ->
+      concatMap (runtimeReferencedPolicies m bindings) (function : arguments)
+    TEIf condition yes no ->
+      concatMap (runtimeReferencedPolicies m bindings) [condition, yes, no]
+    TEAppendIndexed body _ -> runtimeReferencedPolicies m bindings body
+    TEWithSymbols _ body -> runtimeReferencedPolicies m bindings body
+    TEContractWith _ body -> runtimeReferencedPolicies m bindings body
+    TETensorMap function body ->
+      runtimeReferencedPolicies m bindings function
+      ++ runtimeReferencedPolicies m bindings body
+    TESubrefs body _ -> runtimeReferencedPolicies m bindings body
+    TETranspose _ body -> runtimeReferencedPolicies m bindings body
+    TEDisjoint parts -> concatMap (runtimeReferencedPolicies m bindings) parts
+    TEDerivative _ body -> runtimeReferencedPolicies m bindings body
+    TEDot parts -> concatMap (runtimeReferencedPolicies m bindings) parts
+    TEBinary _ lhs rhs ->
+      runtimeReferencedPolicies m bindings lhs
+      ++ runtimeReferencedPolicies m bindings rhs
+    TEGroup body -> runtimeReferencedPolicies m bindings body
+
 checkedNativeTensor :: Model -> String -> [IxPart] -> String -> String
 checkedNativeTensor m target indices source =
-  renderCheckedRuntimeTensor m target indices RuntimeTensorExpr
-    { runtimeTensorText = "(" ++ source ++ ")" ++ concatMap ixSuffix indices
+  let safeIndices = hygienicIndexParts indices
+  in renderCheckedRuntimeTensor m target safeIndices RuntimeTensorExpr
+    { runtimeTensorText = "(" ++ source ++ ")" ++ concatMap ixSuffix safeIndices
     , runtimeTensorSymbols = nub
-        [ixName index | index <- indices, not (all isDigit (ixName index))]
+        [ixName index | index <- safeIndices, not (all isDigit (ixName index))]
     }
 
 
 -- ------------------------------------ tensor index equations
 --
 -- v'~i   = v~i + (dt / rho0) * ∂_j s~i_j
-indexDefs :: Model -> [String] -> Step -> IO [String]
-indexDefs m lets st = do
+indexDefs :: Model -> [RuntimeTensorBinding] -> Step -> IO [String]
+indexDefs m bindings st = do
   validateFieldRefParts m lets (sNm st ++ concatMap ixSuffix (sIdx st))
   pre <- preprocessTensorExpr m (sEx st)
   ex <- lowerBackendText m pre
-  native <- nativeExpressionAt (fieldPolicyOf m (sNm st)) m lets ex
+  nativeCandidate <- nativeExpressionAt (fieldPolicyOf m (sNm st)) m bindings ex
+  expression <- case parseTensorExprEither ex of
+                  Right parsed -> return parsed
+                  Left message -> fatal ("bad indexed tensor expression: " ++ message)
+  let native =
+        if nativeResultIndicesSafe (map fst nativeMarkerMap) m bindings (sIdx st) expression
+          then nativeCandidate
+          else Nothing
   case (kindOf m (sNm st), native) of
     (Just kind, Just value) -> do
       if "FE.sharp " `isInfixOf` nativeText value
@@ -1623,68 +2130,51 @@ indexDefs m lets st = do
       return ["def " ++ base ++ " := "
               ++ checkedNativeTensor m (sNm st) (sIdx st) (nativeText value)]
     _ -> do
-      signature <- nativeSignatureExpression (sNm st) (sIdx st) ex
-      legacy <- nativeLegacyExpression m signature
-      strictEinstein m lets (sIdx st) legacy
-      runtimeDefsOrLegacy legacy
+      expanded <- expandRuntimeTensorDefs m ex
+      runtimeDefs expanded
   where
+    lets = runtimeIndexedBindingNames bindings
     base = "feq" ++ sNm st
-    runtimeDefsOrLegacy source =
+    runtimeDefs source =
       case parseTensorExprEither source of
-        Left _ -> legacyDefs source
+        Left message -> fatal ("bad indexed tensor expression: " ++ message)
         Right expression -> do
-          rendered <- renderRuntimeTensorExpr
-            m lets (fieldPolicyOf m (sNm st)) (sIdx st)
-            "feTargetBasis" expression
+          (targetBasisName, rendered) <- renderWithFreshTargetBasis expression 0
           case rendered of
-            Left _ -> legacyDefs source
+            Left message -> fatal ("cannot lower indexed equation for "
+                                   ++ sNm st ++ " in Egison: " ++ message)
             Right runtime -> do
-              -- Keep the old component path temporarily as a checked oracle;
-              -- only the compact runtime tensor expression is emitted.
-              _ <- legacyDefs source
+              validateRuntimeEinstein m bindings (sIdx st) expression
+              case kindOf m (sNm st) of
+                Just kind -> validateRuntimeTensorResult m bindings
+                  (fieldPolicyOf m (sNm st)) (sIdx st) kind expression
+                Nothing -> return ()
               let checked = renderCheckedRuntimeTensor m (sNm st) (sIdx st) runtime
-                  atName = base ++ "At"
+                  atName = reservedInternalPrefix ++ "EquationAt" ++ sNm st
                   shape = replicate (length (sIdx st)) (mDim m)
               return
                 [ "def " ++ atName
-                  ++ " (feTargetBasis: [Integer]) : Tensor MathValue := "
+                  ++ " (" ++ targetBasisName
+                  ++ ": [Integer]) : Tensor MathValue := "
                   ++ checked
                 , "def " ++ base
-                  ++ " := generateTensor (\\feTargetBasis -> "
+                  ++ " := generateTensor (\\" ++ targetBasisName ++ " -> "
                   ++ "FE.tensorComponentAt (" ++ atName
-                  ++ " feTargetBasis) feTargetBasis) " ++ show shape
+                  ++ " " ++ targetBasisName ++ ") " ++ targetBasisName
+                  ++ ") " ++ show shape
                 ]
 
-    legacyDefs ex =
-      case (kindOf m (sNm st), sIdx st) of
-        (Just Vector, [fi]) -> do
-          es <- mapM (\a -> ixExpand m lets [(ixName fi, a)]
-                                (componentPlacement m (fieldPolicyOf m (sNm st)) [a]) ex)
-                     (axisRange m)
-          return ["def " ++ base ++ " := [| " ++ intercalate ", " es ++ " |]"]
-        (Just SymM, [fi, fj]) ->
-          fmap (++ rank2TensorDef SymM)
-            (mapM (\(a, b) -> comp ex [(ixName fi, a), (ixName fj, b)]
-                               (componentPlacement m (fieldPolicyOf m (sNm st)) [a, b])
-                               (base ++ show a ++ show b))
-                  (rank2Pairs (symComponentIndices (mDim m))))
-        (Just AntiM, [fi, fj]) ->
-          fmap (++ rank2TensorDef AntiM)
-            (mapM (\(a, b) -> comp ex [(ixName fi, a), (ixName fj, b)]
-                               (componentPlacement m (fieldPolicyOf m (sNm st)) [a, b])
-                               (base ++ show a ++ show b))
-                  (rank2Pairs (antiComponentIndices (mDim m))))
-        (Just Tensor2, [fi, fj]) ->
-          fmap (++ rank2TensorDef Tensor2)
-            (mapM (\(a, b) -> comp ex [(ixName fi, a), (ixName fj, b)]
-                                    (componentPlacement m (fieldPolicyOf m (sNm st)) [a, b])
-                                    (base ++ show a ++ show b))
-                  (rank2Pairs (componentIndices (mDim m) Tensor2)))
-        _ -> fatal ("index equation has wrong indices for its field kind: " ++ sNm st)
-
-    comp ex env anchor defnm = do
-      e <- ixExpand m lets env anchor ex
-      return ("def " ++ defnm ++ " := " ++ e)
+    renderWithFreshTargetBasis
+      :: TensorExpr -> Int -> IO (String, Either String RuntimeTensorExpr)
+    renderWithFreshTargetBasis expression suffix = do
+      let candidate = reservedInternalPrefix ++ "TargetBasis"
+                      ++ if suffix == 0 then "" else show suffix
+      rendered <- renderRuntimeTensorExpr
+        m bindings (fieldPolicyOf m (sNm st)) (sIdx st) candidate expression
+      case rendered of
+        Right runtime | candidate `elem` runtimeTensorSymbols runtime ->
+          renderWithFreshTargetBasis expression (suffix + 1)
+        _ -> return (candidate, rendered)
 
     validateSharpTarget =
       case fieldDeclOf m (sNm st) >>= fieldIndexParts of
@@ -1692,29 +2182,20 @@ indexDefs m lets st = do
         _ -> fatal ("sharp target must be an explicitly contravariant rank-1 vector: "
                     ++ sNm st ++ concatMap ixSuffix (sIdx st))
 
-    rank2TensorDef kind =
-      ["def " ++ base ++ " := [| "
-       ++ intercalate ", "
-            ["[| " ++ intercalate ", "
-                [rank2Component kind a b | b <- axisRange m]
-             ++ " |]"
-            | a <- axisRange m]
-       ++ " |]"]
-
-    rank2Component SymM a b =
-      base ++ show (min a b) ++ show (max a b)
-    rank2Component AntiM a b
-      | a == b = "0"
-      | a < b = base ++ show a ++ show b
-      | otherwise = "0 - " ++ base ++ show b ++ show a
-    rank2Component Tensor2 a b = base ++ show a ++ show b
-    rank2Component _ _ _ = error "rank2TensorDef: non-rank-2 field"
-
-implicitVectorDefs :: Model -> [String] -> Step -> IO [String]
-implicitVectorDefs m lets st = do
+implicitVectorDefs :: Model -> [RuntimeTensorBinding] -> Step -> IO [String]
+implicitVectorDefs m bindings st = do
   pre <- preprocessTensorExpr m (sEx st)
   ex <- lowerBackendText m pre
-  native <- nativeExpressionAt (fieldPolicyOf m (sNm st)) m lets ex
+  expression <- case parseTensorExprEither ex of
+    Right parsed -> return parsed
+    Left message -> fatal ("bad implicit vector expression: " ++ message)
+  nativeCandidate <- nativeExpressionAt
+    (fieldPolicyOf m (sNm st)) m bindings ex
+  let native =
+        if nativeResultIndicesSafe (map fst nativeMarkerMap)
+             m bindings [lhsIx] expression
+          then nativeCandidate
+          else Nothing
   case native of
     Just value -> do
       if "FE.sharp " `isInfixOf` nativeText value
@@ -1724,34 +2205,38 @@ implicitVectorDefs m lets st = do
       return ["def feq" ++ sNm st ++ " := "
               ++ checkedNativeTensor m (sNm st) [lhsIx] (nativeText value)]
     Nothing -> do
-      signature <- nativeSignatureExpression (sNm st) [lhsIx] ex
-      legacy <- nativeLegacyExpression m signature
-      if hasIndexSyntax m legacy
-        then do
-          strictEinstein m lets [lhsIx] legacy
-          defs <- mapM (comp legacy) (axisRange m)
-          return (defs ++ [vectorTensorDef])
-        else do
-          defs <- mapM scalarComp (axisRange m)
-          return (defs ++ [vectorTensorDef])
+      expanded <- expandRuntimeTensorDefs m ex
+      runtimeExpression <- case parseTensorExprEither expanded of
+        Right parsed -> return parsed
+        Left message -> fatal ("bad implicit vector expression: " ++ message)
+      let targetBasis = reservedInternalPrefix ++ "TargetBasis"
+      rendered <- renderRuntimeTensorExpr m bindings
+        (fieldPolicyOf m (sNm st)) [lhsIx] targetBasis runtimeExpression
+      runtime <- case rendered of
+        Right result -> return result
+        Left message -> fatal ("cannot lower implicit vector equation for "
+                               ++ sNm st ++ " in Egison: " ++ message)
+      validateRuntimeEinstein m bindings [lhsIx] runtimeExpression
+      validateRuntimeTensorResult m bindings
+        (fieldPolicyOf m (sNm st)) [lhsIx] Vector runtimeExpression
+      let atName = reservedInternalPrefix ++ "EquationAt" ++ sNm st
+          checked = renderCheckedRuntimeTensor m (sNm st) [lhsIx] runtime
+      return
+        [ "def " ++ atName ++ " (" ++ targetBasis
+          ++ ": [Integer]) : Tensor MathValue := " ++ checked
+        , "def feq" ++ sNm st ++ " := generateTensor (\\" ++ targetBasis
+          ++ " -> FE.tensorComponentAt (" ++ atName ++ " " ++ targetBasis
+          ++ ") " ++ targetBasis ++ ") [" ++ show (mDim m) ++ "]"
+        ]
   where
-    lhsIx = IxPart VDown "i"
-    comp ex' a = do
-      let anchor = componentPlacement m (fieldPolicyOf m (sNm st)) [a]
-      e <- ixExpand m lets [(ixName lhsIx, a)] anchor ex'
-      return ("def feq" ++ sNm st ++ show a ++ " := " ++ e)
-    vectorTensorDef =
-      "def feq" ++ sNm st ++ " := [| "
-      ++ intercalate ", " ["feq" ++ sNm st ++ show a | a <- axisRange m]
-      ++ " |]"
+    lhsIx = case fieldDeclOf m (sNm st) >>= fieldIndexParts of
+      Just [IxPart variance _] -> IxPart variance "i"
+      _ -> IxPart VDown "i"
     validateSharpTarget =
       case fieldDeclOf m (sNm st) >>= fieldIndexParts of
         Just [IxPart VUp _] -> return ()
         _ -> fatal ("sharp target must be an explicitly contravariant rank-1 vector: "
                     ++ sNm st)
-    scalarComp a = do
-      e <- rewrite m lets (Just (show a)) (sEx st)
-      return ("def feq" ++ sNm st ++ show a ++ " := " ++ e)
 
 -- names X whose updated value X' is referenced in some step RHS
 primedRefs :: Model -> [String]
@@ -1988,14 +2473,15 @@ formExpressionDegree m source = do
         Just value -> return value
         Nothing -> fatal (operator ++ " expects a differential-form operand")
 
-rewriteScalar :: Model -> [String] -> String -> IO String
+rewriteScalar :: Model -> [RuntimeTensorBinding] -> String -> IO String
 rewriteScalar = rewriteScalarAt Collocated
 
-rewriteScalarAt :: GridPolicy -> Model -> [String] -> String -> IO String
-rewriteScalarAt targetPolicy m lets expr = do
+rewriteScalarAt
+  :: GridPolicy -> Model -> [RuntimeTensorBinding] -> String -> IO String
+rewriteScalarAt targetPolicy m bindings expr = do
   pre <- preprocessTensorExpr m expr
   lowered <- lowerBackendText m pre
-  native <- nativeExpressionAt targetPolicy m lets lowered
+  native <- nativeExpressionAt targetPolicy m bindings lowered
   case native of
     Just value -> do
       validateNativeResult m targetPolicy Scalar lowered value
@@ -2004,11 +2490,24 @@ rewriteScalarAt targetPolicy m lets expr = do
       parsed <- case parseTensorExprEither lowered of
                   Right ast -> return ast
                   Left msg -> fatal ("bad scalar expression: " ++ msg)
-      legacy <- nativeLegacyExpression m lowered
-      if hasIndexSyntax m legacy
-        then strictEinstein m lets [] legacy
-             >> ixExpand m lets [] (componentPlacement m targetPolicy []) legacy
+      expanded <- expandRuntimeTensorDefs m lowered
+      if hasIndexSyntax m lets expanded
+        then do
+          runtimeExpression <- case parseTensorExprEither expanded of
+            Right parsedExpression -> return parsedExpression
+            Left message -> fatal ("bad indexed scalar expression: " ++ message)
+          validateRuntimeEinstein m bindings [] runtimeExpression
+          rendered <- renderRuntimeTensorExpr
+            m bindings targetPolicy [] "[]" runtimeExpression
+          case rendered of
+            Right runtime -> do
+              validateRuntimeTensorResult m bindings targetPolicy [] Scalar
+                runtimeExpression
+              return (renderRuntimeScalar runtime)
+            Left message -> fatal ("cannot lower indexed scalar expression in Egison: "
+                                   ++ message)
         else do
+          validateScalarResult True targetPolicy m bindings parsed expr
           let sourcePolicies = nub
                 [fieldPolicyOf m fieldName
                 | TId tokenName _ <- tokenize lowered
@@ -2023,38 +2522,184 @@ rewriteScalarAt targetPolicy m lets expr = do
           if targetPolicy /= Collocated && hasLbRequest parsed
             then fatal ("lb currently requires a collocated scalar target: " ++ expr)
             else rewrite m lets Nothing lowered
+  where
+    lets = runtimeIndexedBindingNames bindings
 
-rewriteScalarInitializerAt :: GridPolicy -> Model -> [String] -> String -> IO String
-rewriteScalarInitializerAt targetPolicy m lets expr = do
+rewriteScalarInitializerAt
+  :: GridPolicy -> Model -> [RuntimeTensorBinding] -> String
+  -> IO (Maybe GridPolicy, String)
+rewriteScalarInitializerAt targetPolicy m bindings expr = do
   pre <- preprocessTensorExpr m expr
   lowered <- lowerBackendText m pre
-  native <- nativeExpressionAt targetPolicy m lets lowered
+  native <- nativeExpressionAt targetPolicy m bindings lowered
   case native of
     Just value -> do
-      validateNativeResult m targetPolicy Scalar lowered value
-      return (nativeText value)
+      if nativeRank value == 0
+        then return (nativePolicy value, nativeText value)
+        else fatal ("scalar initializer has a tensor-valued result: " ++ expr)
     Nothing -> do
-      legacy <- nativeLegacyExpression m lowered
-      if hasIndexSyntax m legacy
-        then strictEinstein m lets [] legacy
-             >> ixExpandInitializer m lets [] (componentPlacement m targetPolicy []) legacy
-        else rewrite m lets Nothing lowered
+      expanded <- expandRuntimeTensorDefs m lowered
+      if hasIndexSyntax m lets expanded
+        then do
+          runtimeExpression <- case parseTensorExprEither expanded of
+            Right parsed -> return parsed
+            Left message -> fatal ("bad scalar initializer: " ++ message)
+          validateRuntimeEinstein m bindings [] runtimeExpression
+          rhsPolicy <- case inferRuntimeExpressionPolicy
+                             m bindings [] Scalar runtimeExpression of
+            Right inferred -> return inferred
+            Left message -> fatal message
+          rendered <- renderRuntimeTensorExpr
+            m bindings (fromMaybe targetPolicy rhsPolicy) [] "[]" runtimeExpression
+          case rendered of
+            Right runtime -> return (rhsPolicy, renderRuntimeScalar runtime)
+            Left message -> fatal ("cannot lower scalar initializer in Egison: "
+                                   ++ message)
+        else do
+          parsed <- case parseTensorExprEither lowered of
+                      Right ast -> return ast
+                      Left msg -> fatal ("bad scalar initializer: " ++ msg)
+          validateScalarResult False targetPolicy m bindings parsed expr
+          rhsPolicy <- case inferRuntimeExpressionPolicy
+                             m bindings [] Scalar parsed of
+            Right inferred -> return inferred
+            Left message -> fatal message
+          rewritten <- rewrite m lets Nothing lowered
+          return (rhsPolicy, rewritten)
+  where
+    lets = runtimeIndexedBindingNames bindings
 
-hasIndexSyntax :: Model -> String -> Bool
-hasIndexSyntax m = any indexedTok . itok
+validateScalarResult
+  :: Bool -> GridPolicy -> Model -> [RuntimeTensorBinding]
+  -> TensorExpr -> String -> IO ()
+validateScalarResult checkPolicy targetPolicy m bindings expression source = do
+  value <- nativeValueAt targetPolicy m bindings expression
+  case value of
+    Just result ->
+      if nativeRank result /= 0
+        then tensorError
+        else if checkPolicy
+               then validateNativeResult m targetPolicy Scalar source result
+               else return ()
+    Nothing
+      | definitelyTensor expression -> tensorError
+    _ -> return ()
+  where
+    tensorError = fatal ("scalar expression has a tensor-valued result: " ++ source)
+
+    definitelyTensor expr =
+      case expr of
+        TEIdent base [] ->
+          case kindOf m (fst (fieldBaseOf base)) of
+            Just kind -> componentRank kind > 0
+            Nothing ->
+              case [runtimeBindingIndices binding
+                   | binding <- bindings,
+                     runtimeBindingName binding == fst (fieldBaseOf base)] of
+                indices : _ -> not (null indices)
+                [] -> False
+        TEIdent _ (_ : _) -> True
+        TETensorMap _ _ -> True
+        TESubrefs _ _ -> True
+        TETranspose _ _ -> True
+        TEDisjoint _ -> True
+        TEAppendIndexed _ _ -> True
+        TEDerivative _ _ -> True
+        TEDot _ -> True
+        TEUnary _ body -> definitelyTensor body
+        TECall _ arguments -> any definitelyTensor arguments
+        TEApply _ arguments -> any definitelyTensor arguments
+        TEIf _ yes no -> definitelyTensor yes || definitelyTensor no
+        TEWithSymbols _ body -> definitelyTensor body
+        TEContractWith _ _ -> False
+        TEBinary _ lhs rhs -> definitelyTensor lhs || definitelyTensor rhs
+        TEGroup body -> definitelyTensor body
+        TENumber _ -> False
+
+validateRuntimeEinstein
+  :: Model -> [RuntimeTensorBinding] -> [IxPart] -> TensorExpr -> IO ()
+validateRuntimeEinstein m bindings targetIndices expression =
+  strictEinstein m (sharpResultName : runtimeIndexedBindingNames bindings) targetIndices
+    (renderTensorExpr (materialize expression))
+  where
+    targetNames = map ixName targetIndices
+
+    materialize expr =
+      case expr of
+        TENumber _ -> expr
+        TEIdent base [] ->
+          case referenceSignature base of
+            Just variances
+              | not (null variances)
+              , length variances <= length targetNames ->
+                  TEIdent base
+                    [IxPart variance name
+                    | (variance, name) <- zip variances targetNames]
+            _ -> expr
+        TEIdent _ _ -> expr
+        TEUnary op body -> TEUnary op (materialize body)
+        TECall function arguments ->
+          TECall (materialize function) (map materialize arguments)
+        TEApply (TEIdent "sharp" []) [_]
+          | targetName : _ <- targetNames ->
+              TEIdent sharpResultName [IxPart VUp targetName]
+        TEApply function arguments ->
+          TEApply (materialize function) (map materialize arguments)
+        TEIf condition yes no ->
+          TEIf (materialize condition) (materialize yes) (materialize no)
+        TEAppendIndexed body parts -> TEAppendIndexed body parts
+        TEWithSymbols names body -> TEWithSymbols names (materialize body)
+        TEContractWith reducer body -> TEContractWith reducer (materialize body)
+        TETensorMap function body ->
+          TETensorMap (materialize function) (materialize body)
+        TESubrefs body parts -> TESubrefs body parts
+        TETranspose names body -> TETranspose names (materialize body)
+        TEDisjoint parts -> TEDisjoint (map materialize parts)
+        TEDerivative parts body -> TEDerivative parts (materialize body)
+        TEDot parts -> TEDot (map materialize parts)
+        TEBinary op lhs rhs -> TEBinary op (materialize lhs) (materialize rhs)
+        TEGroup body -> TEGroup (materialize body)
+
+    referenceSignature base =
+      let fieldName = fst (fieldBaseOf base)
+      in case kindOf m fieldName of
+           Just kind
+             | componentRank kind > 0 ->
+                 Just $ case fieldDeclOf m fieldName >>= fieldIndexParts of
+                   Just parts | length parts == componentRank kind ->
+                     map ixVariance parts
+                   _ -> replicate (componentRank kind) VDown
+           _ -> case [map ixVariance (runtimeBindingIndices binding)
+                     | binding <- bindings,
+                       runtimeBindingName binding == fieldName,
+                       not (null (runtimeBindingIndices binding))] of
+             variances : _ -> Just variances
+             [] -> Nothing
+
+    sharpResultName = reservedInternalPrefix ++ "SharpResult"
+
+hasIndexSyntax :: Model -> [String] -> String -> Bool
+hasIndexSyntax m lets = any indexedTok . itok
   where
     indexedTok (II nm) =
       case parseIndexedIdent nm of
-        (_, parts@(_:_)) ->
+        (base, parts@(_:_)) ->
           all isIndexPart parts
+          && (isIndexedBase base || derivativeOpParts nm /= Nothing)
           && not (isAxisDerivative nm parts)
         _ -> False
     indexedTok _ = False
-    isIndexPart (IxPart _ [c]) = isAlpha c || isDigit c
-    isIndexPart _ = False
+    isIndexPart (IxPart _ name) = not (null name) && all isAlphaNum name
     isAxisDerivative nm parts =
       take 2 nm == "d_"
-      && all (\p -> ixName p `elem` mAxes m) parts
+      && all (\part -> ixName part `elem` mAxes m) parts
+    isIndexedBase base =
+      case kindOf m (fst (fieldBaseOf base)) of
+        Just kind -> componentRank kind > 0
+        Nothing ->
+          base `elem` lets
+          || base `elem` ["d", "delta", "epsilon", metricPreludeName]
+          || Just base == mMetricName m
 
 -- ---------------------------------------------------------------- emitter
 
@@ -2142,8 +2787,7 @@ emit m = do
     then fatal ("axes count (" ++ show (length (mAxes m))
                 ++ ") does not match dimension (" ++ show (mDim m) ++ ")")
     else return ()
-  let lets = [sNm st | st <- mSteps m, sk st == KLet, isIndexI (sIdx st)]
-      -- A primed tensor family is needed only when a later RHS reads it.
+  let -- A primed tensor family is needed only when a later RHS reads it.
       -- Descriptor-driven equation printing no longer needs a synthetic
       -- primed target tensor merely to recover storage names.
       prims = sort (nub (primedRefs m))
@@ -2151,7 +2795,17 @@ emit m = do
     then fatal "declare either 'metric scale' or 'embedding', not both"
     else return ()
   backendPlan <- backendPlanFor m
+  runtimeBindings <- runtimeTensorBindingsFor m
+  let scopedSteps = scopeRuntimeBindings runtimeBindings (mSteps m)
+      allBindingNames = runtimeTensorBindingNames runtimeBindings
+      initializerBindings = []
+  mapM_ (validateStepScope allBindingNames) scopedSteps
+  mapM_ (validateInitializerScope allBindingNames) (mInits m)
   let lbPlans = bpLbPlans backendPlan
+      plannedAuxFields = bpMetricAuxFields backendPlan ++ concatMap lpAuxFields lbPlans
+      generatedGridFunctionNames =
+        map afName plannedAuxFields
+        ++ [sNm step | step <- mSteps m, sk step == KLocal]
       usesLb = not (null lbPlans)
       internalCoords = internalCoordNames m
       internalHsteps = internalHstepNames m
@@ -2176,14 +2830,16 @@ emit m = do
             , "def feCoords : Vector MathValue := " ++ coordVec
             , "def feHsteps : Vector MathValue := " ++ hstepVec
             ]
-      scalarContextDecls =
+      centeredDerivativeContextDecls =
             [ "def shift (a: Integer) (c: MathValue) (u: MathValue) : MathValue :="
             , "  substitute [(feCoords_a, feCoords_a + c * feHsteps_a)] u"
             , "def dC (a: Integer) (u: MathValue) : MathValue :="
             , "  (shift a 1 u - shift a (-1) u) / (2 * feHsteps_a)"
             , "def dC2 (a: Integer) (u: MathValue) : MathValue :="
             , "  (shift a 1 u - 2 * u + shift a (-1) u) / ((feHsteps_a) ^ 2)"
-            , "def dTaylor (m: Integer) (ks: [MathValue]) (a: Integer) (u: MathValue) : MathValue :="
+            ]
+      coordinateDerivativeContextDecls =
+            [ "def dTaylor (m: Integer) (ks: [MathValue]) (a: Integer) (u: MathValue) : MathValue :="
             , "  sum (map (\\(c, k) -> c * shift a k u) (zip (taylorStencil m ks) ks)) / (feHsteps_a ^ m)"
             ]
             ++ [ "def axisId (axis: MathValue) : Integer :="
@@ -2253,7 +2909,9 @@ emit m = do
       printerContextDecls =
             fieldDescriptorDecls
             ++ [ "def feSymbolNames : [(String, String)] := " ++ egiStringPairs symbolNames
-            , "def feFieldNames : [(String, String)] := concat (map FMR.fieldNameMappings feFieldDescriptors)"
+            , "def feFieldNames : [(String, String)] := concat (map FMR.fieldNameMappings feFieldDescriptors) ++ "
+              ++ egiStringPairs
+                   [(name, name) | name <- generatedGridFunctionNames]
             , "def feFieldPolicies : [(String, GridPolicy)] := map (\\(name, policy, _, _, _, _, _) -> (name, policy)) feFieldDescriptors"
             , "def feIndexNames : [String] := " ++ egiStringList internalIndexVars
             , "def fePrinterContext := (feSymbolNames, feFieldNames, feIndexNames, feCoords, feHsteps, feAxisIds)"
@@ -2261,6 +2919,7 @@ emit m = do
             , "def fmrInit : String -> MathValue -> String := FMR.init fePrinterContext"
             , "def componentEqs : [String] -> [MathValue] -> [String] := FMR.componentEqs fePrinterContext"
             , "def fieldEqs descriptor value := FMR.fieldEqs fePrinterContext descriptor value"
+            , "def fieldInits descriptor value := FMR.fieldInits fePrinterContext descriptor value"
             ]
             ++ ["def scalarEq : String -> MathValue -> [String] := FMR.scalarEq fePrinterContext"]
       embeddingDefs = case mEmbed m of
@@ -2278,10 +2937,10 @@ emit m = do
                        | (a, b) <- offDiag]
               msg = "# ERROR: the embedding is not orthogonal (off-diagonal metric terms must vanish symbolically); general metrics are not supported yet"
           in if null offDiag then [] else [(cond, msg)]
-  body <- mapM (stepDefs lets) (mSteps m)
-  items <- mapM (stepItem lets) (mSteps m)
-  inits <- mapM (initLine lets) (mInits m)
-  let metricAuxFields = bpMetricAuxFields backendPlan ++ concatMap lpAuxFields lbPlans
+  body <- mapM (\(_, after, step) -> stepDefs after step) scopedSteps
+  items <- mapM (\(before, _, step) -> stepItem before step) scopedSteps
+  inits <- mapM (initLine initializerBindings) (mInits m)
+  let metricAuxFields = plannedAuxFields
       metricStateFields =
         [field | field <- metricAuxFields, afLifetime field == PersistentState]
       metricStepFields =
@@ -2359,16 +3018,22 @@ emit m = do
       usesOperationalName names = any (`elem` operationalNames) names
       needsTensorDerivativeContext =
         usesOperationalName ["feTensorDerivative"]
-      needsScalarContext =
+      needsCoordinateDerivativeContext =
         "∂ " `isInfixOf` operationalResidualText
+        || usesOperationalName ["dTaylor", "axisId"]
+      needsCenteredDerivativeContext =
+        needsCoordinateDerivativeContext
         || needsTensorDerivativeContext
-        || usesOperationalName ["shift", "dC", "dC2", "dTaylor", "axisId"]
+        || usesOperationalName ["shift", "dC", "dC2"]
       needsResidualYeeContext =
         usesLb
         || needsTensorDerivativeContext
         || usesOperationalName ["dYee", "yeeRef", "unit3"]
       contextMathDecls =
-        (if needsScalarContext then scalarContextDecls else [])
+        (if needsCenteredDerivativeContext
+           then centeredDerivativeContextDecls else [])
+        ++ (if needsCoordinateDerivativeContext
+              then coordinateDerivativeContextDecls else [])
         ++ (if needsFormContext || needsResidualYeeContext then yeeContextDecls else [])
         ++ (if needsTensorDerivativeContext then tensorDerivativeContextDecls else [])
         ++ (if needsFormContext then formContextDecls else [])
@@ -2489,7 +3154,8 @@ emit m = do
       feComps = "def feComps : [String] := "
                 ++ egiStringList (concat [componentStorageNames m n k
                                           | (n, k) <- mFlds m ++ mtFlds])
-      feInits = egiListDef "feInits" "" (concat inits ++ mtInits)
+      feInits = [egiConcatDef "feInits"
+                   (concat inits ++ map (\initializer -> "[" ++ initializer ++ "]") mtInits)]
       feSteps = egiConcatDef "feSteps" stepItems
       emitter = "FMR.emitModelOn feDim feAxes"
       emitCall = "print (" ++ emitter ++ " feParams feHelpers feComps feInits feSteps)"
@@ -2507,6 +3173,28 @@ emit m = do
                    ++ [feParams] ++ feHelpers ++ [feComps] ++ feInits
                    ++ [feSteps] ++ [""] ++ mainDef))
   where
+    validateStepScope allNames (before, _, step) =
+      case [name | name <- runtimeBindingReferences allNames (sEx step),
+                   name `notElem` runtimeTensorBindingNames before] of
+        name : _ -> fatal ("step references a binding before its definition: "
+                           ++ name)
+        [] -> return ()
+
+    validateInitializerScope bindingNames initializer =
+      case [name | TId name True <- tokenize expression,
+                   kindOf m name /= Nothing] of
+        name : _ -> fatal ("initializer cannot reference primed field: " ++ name ++ "'")
+        [] -> validateBindings
+      where
+        expression = initializerExpr initializer
+        validateBindings = case
+          [name | name <- runtimeBindingReferences bindingNames expression] of
+            name : _ -> fatal ("initializer cannot reference step binding: " ++ name)
+            [] -> return ()
+        initializerExpr (ICas _ value) = value
+        initializerExpr (ICasIndex _ _ value) = value
+        initializerExpr _ = ""
+
     fieldCoordArgs = intercalate ", " (internalCoordNames m)
     shape1 = "[" ++ show (mDim m) ++ "]"
     shape2 = "[" ++ show (mDim m) ++ ", " ++ show (mDim m) ++ "]"
@@ -2566,41 +3254,92 @@ emit m = do
       | otherwise =
           "FE.canonicalFormTensor (FE.tensorComponentAt " ++ nm ++ primes
           ++ ") feDim " ++ show k
-    stepDefs lets st = case sk st of
-      KLet | isIndexI (sIdx st) -> do
+    stepDefs bindings st = case sk st of
+      KLet | not (null (sIdx st)) -> do
                pre <- preprocessTensorExpr m (sEx st)
                lowered <- lowerBackendText m pre
-               native <- nativeExpressionAt Collocated m lets lowered
                let nm = sNm st
+                   binding = bindingFor nm bindings
+                   bindingPolicy = runtimeBindingPolicy binding
+                   policy = fromMaybe Collocated bindingPolicy
+                   targetRank = length (sIdx st)
+                   targetKind = case targetRank of
+                     1 -> Vector
+                     2 -> Tensor2
+                     _ -> error "unsupported indexed let rank"
+               if targetRank > 2
+                 then fatal ("indexed let rank is not supported: " ++ nm
+                             ++ concatMap ixSuffix (sIdx st))
+                 else return ()
+               expression <- case parseTensorExprEither lowered of
+                 Right parsed -> return parsed
+                 Left message -> fatal ("bad indexed let expression: " ++ message)
+               nativeCandidate <- nativeExpressionAt policy m bindings lowered
+               let native =
+                     if nativeResultIndicesSafe (map fst nativeMarkerMap)
+                          m bindings (sIdx st) expression
+                       then nativeCandidate
+                       else Nothing
                case native of
                  Just value -> do
                    if "FE.sharp " `isInfixOf` nativeText value
-                     then fatal "sharp in an indexed let needs an explicitly contravariant field target"
+                     then case sIdx st of
+                            [IxPart VUp _] -> return ()
+                            _ -> fatal "sharp in an indexed let needs an explicitly contravariant target"
                      else return ()
-                   validateNativeResult m Collocated Vector lowered value
+                   case bindingPolicy of
+                     Just locatedPolicy ->
+                       validateNativeResult m locatedPolicy targetKind lowered value
+                     Nothing ->
+                       if nativeRank value == targetRank
+                         then return ()
+                         else fatal ("indexed let " ++ nm ++ " has tensor rank "
+                                     ++ show (nativeRank value) ++ " but target rank is "
+                                     ++ show targetRank)
                    return ["def " ++ nm ++ " := "
                            ++ checkedNativeTensor m nm (sIdx st) (nativeText value)]
                  Nothing -> do
-                   signature <- nativeSignatureExpression (sNm st) (sIdx st) lowered
-                   legacy <- nativeLegacyExpression m signature
-                   strictEinstein m lets (sIdx st) legacy
-                   e <- rewrite m lets Nothing legacy
-                   return ["def " ++ nm ++ " := withSymbols [i] " ++ e]
+                   expanded <- expandRuntimeTensorDefs m lowered
+                   runtimeExpression <- case parseTensorExprEither expanded of
+                     Right parsed -> return parsed
+                     Left message -> fatal ("bad indexed let expression: " ++ message)
+                   let targetBasis = reservedInternalPrefix ++ "TargetBasis"
+                   rendered <- renderRuntimeTensorExpr
+                     m bindings policy (sIdx st) targetBasis runtimeExpression
+                   runtime <- case rendered of
+                     Right result -> return result
+                     Left message -> fatal ("cannot lower indexed let " ++ nm
+                                            ++ " in Egison: " ++ message)
+                   validateRuntimeEinstein m bindings (sIdx st) runtimeExpression
+                   validateRuntimeTensorResult m bindings policy (sIdx st)
+                     targetKind runtimeExpression
+                   let atName = reservedInternalPrefix ++ "LetAt" ++ nm
+                       checked = renderCheckedRuntimeTensor m nm (sIdx st) runtime
+                       shape = replicate (length (sIdx st)) (mDim m)
+                   return
+                     [ "def " ++ atName ++ " (" ++ targetBasis
+                       ++ ": [Integer]) : Tensor MathValue := " ++ checked
+                     , "def " ++ nm ++ " := generateTensor (\\" ++ targetBasis
+                       ++ " -> FE.tensorComponentAt (" ++ atName ++ " "
+                       ++ targetBasis ++ ") " ++ targetBasis ++ ") " ++ show shape
+                     ]
            | otherwise -> do
-               e <- rewriteScalar m lets (sEx st)
+               let policy = maybe Collocated id
+                     (runtimeBindingPolicy (bindingFor (sNm st) bindings))
+               e <- rewriteScalarAt policy m bindings (sEx st)
                return ["def " ++ sNm st ++ " := " ++ e]
       KEq
-        | not (null (sIdx st)), isIndexKind (kindOf m (sNm st)) -> indexDefs m lets st
+        | not (null (sIdx st)), isIndexKind (kindOf m (sNm st)) -> indexDefs m bindings st
         | isIndexI (sIdx st) -> do
-            e <- rewrite m lets Nothing (sEx st)
+            e <- rewrite m (runtimeIndexedBindingNames bindings) Nothing (sEx st)
             return ["def feq" ++ sNm st ++ "_i := withSymbols [i] " ++ e]
         | kindOf m (sNm st) == Just Vector && null (sIdx st) -> do
-            implicitVectorDefs m lets st
+            implicitVectorDefs m bindings st
       _ -> return []
-    stepItem lets st = case sk st of
+    stepItem bindings st = case sk st of
       KLet -> return Nothing
       KLocal -> do
-        e <- rewriteScalar m lets (sEx st)
+        e <- rewriteScalar m bindings (sEx st)
         return (Just ("[fmrEq \"" ++ sNm st ++ "\" (" ++ e ++ ")]"))
       KEq
         | Just Vector <- kindOf m (sNm st)
@@ -2632,7 +3371,7 @@ emit m = do
                              ++ show (fieldPolicyOf m nm) ++ ", feq" ++ nm ++ ")"))
         | Just (Form _) <- kindOf m (sNm st) -> do
             inferredDegree <- formExpressionDegree m (sEx st)
-            rhs <- rewriteFormValue m lets (sEx st)
+            rhs <- rewriteFormValue m (runtimeIndexedBindingNames bindings) (sEx st)
             let nm = sNm st
             case (kindOf m nm, inferredDegree) of
               (Just (Form targetDegree), Just rhsDegree)
@@ -2642,60 +3381,146 @@ emit m = do
               _ -> return ()
             return (Just ("fieldEqs (" ++ fieldDescriptorRef m nm ++ ") (" ++ rhs ++ ")"))
         | otherwise -> do
-            e <- rewriteScalarAt (fieldPolicyOf m (sNm st)) m lets (sEx st)
+            e <- rewriteScalarAt (fieldPolicyOf m (sNm st)) m bindings (sEx st)
             return (Just ("scalarEq \"" ++ sNm st ++ "\" (" ++ e ++ ")"))
-    initLine lets it = case it of
-      IRaw nm rhs -> return ["\"  " ++ firstComponentStorageName m nm
-                             ++ rawGridPoint ++ " = " ++ escQ rhs ++ "\""]
-      IVec nm els -> return [ "\"  " ++ lhs ++ rawGridPoint ++ " = " ++ escQ el ++ "\""
-                            | (lhs, el) <- zip (componentStorageNamesOf m nm) els ]
-      ISym nm els -> return [ "\"  " ++ lhs ++ rawGridPoint ++ " = " ++ escQ el ++ "\""
-                            | (lhs, el) <- zip (componentStorageNamesOf m nm) els ]
-      IAnti nm els -> return [ "\"  " ++ lhs ++ rawGridPoint ++ " = " ++ escQ el ++ "\""
-                             | (lhs, el) <- zip (componentStorageNamesOf m nm) els ]
-      ITensor2 nm els -> return [ "\"  " ++ lhs ++ rawGridPoint ++ " = " ++ escQ el ++ "\""
-                                | (lhs, el) <- zip (componentStorageNamesOf m nm) els ]
+    initLine bindings it = case it of
+      IRaw nm rhs -> return [singleton ("\"  " ++ firstComponentStorageName m nm
+                             ++ rawGridPoint ++ " = " ++ escQ rhs ++ "\"")]
+      IVec nm els -> return
+        [singleton ("\"  " ++ lhs ++ rawGridPoint ++ " = " ++ escQ el ++ "\"")
+        | (lhs, el) <- zip (componentStorageNamesOf m nm) els]
+      ISym nm els -> return
+        [singleton ("\"  " ++ lhs ++ rawGridPoint ++ " = " ++ escQ el ++ "\"")
+        | (lhs, el) <- zip (componentStorageNamesOf m nm) els]
+      IAnti nm els -> return
+        [singleton ("\"  " ++ lhs ++ rawGridPoint ++ " = " ++ escQ el ++ "\"")
+        | (lhs, el) <- zip (componentStorageNamesOf m nm) els]
+      ITensor2 nm els -> return
+        [singleton ("\"  " ++ lhs ++ rawGridPoint ++ " = " ++ escQ el ++ "\"")
+        | (lhs, el) <- zip (componentStorageNamesOf m nm) els]
       ICas nm ex -> do
         let policy = fieldPolicyOf m nm
-            anchor = componentPlacement m policy []
-        e <- rewriteScalarInitializerAt policy m lets ex
-        let sampled = if policy == Collocated then e else shiftTo anchor e
-        return ["fmrInit \"" ++ nm ++ "\" (" ++ sampled ++ ")"]
-      ICasIndex nm lhsIx ex -> indexedInitLines lets nm lhsIx ex
-
-    indexedInitLines lets nm lhsIx ex = do
-      pre <- preprocessTensorExpr m ex
-      legacy <- nativeLegacyExpression m pre
-      strictEinstein m lets lhsIx legacy
-      case (kindOf m nm, lhsIx) of
-        (Just Vector, [fi]) ->
-          mapM (\a -> comp legacy [a] [(ixName fi, a)]
-                       (componentPlacement m (fieldPolicyOf m nm) [a]))
-               (axisRange m)
-        (Just SymM, [fi, fj]) ->
-          mapM (\(a, b) -> comp legacy [a, b] [(ixName fi, a), (ixName fj, b)]
-                         (componentPlacement m (fieldPolicyOf m nm) [a, b]))
-               (rank2Pairs (symComponentIndices (mDim m)))
-        (Just AntiM, [fi, fj]) ->
-          mapM (\(a, b) -> comp legacy [a, b] [(ixName fi, a), (ixName fj, b)]
-                         (componentPlacement m (fieldPolicyOf m nm) [a, b]))
-               (rank2Pairs (antiComponentIndices (mDim m)))
-        (Just Tensor2, [fi, fj]) ->
-          mapM (\(a, b) -> comp legacy [a, b] [(ixName fi, a), (ixName fj, b)]
-                       (componentPlacement m (fieldPolicyOf m nm) [a, b]))
-               (rank2Pairs (componentIndices (mDim m) Tensor2))
-        _ -> fatal ("indexed CAS initializer has wrong indices for its field kind: " ++ nm)
+            targetPlacement = componentPlacement m policy []
+        (rhsPolicy, e) <- rewriteScalarInitializerAt policy m bindings ex
+        validateInitializerCoordinateMix Scalar rhsPolicy ex
+        let sampled = case rhsPolicy of
+              Nothing
+                | targetPlacement == componentPlacement m Collocated [] -> e
+                | otherwise -> shiftTo targetPlacement e
+              Just sourcePolicy
+                | targetPlacement == componentPlacement m sourcePolicy [] -> e
+                | otherwise -> shiftBy
+                    ("FE.relativePlacement (FE.componentPlacement feDim "
+                     ++ show policy ++ " []) (FE.componentPlacement feDim "
+                     ++ show sourcePolicy ++ " [])") e
+        return [singleton ("fmrInit \"" ++ nm ++ "\" (" ++ sampled ++ ")")]
+      ICasIndex nm lhsIx ex -> indexedInitLines bindings nm lhsIx ex
       where
-        kind = case kindOf m nm of
-                 Just k -> k
-                 Nothing -> Scalar
-        comp pre' inds env anchor = do
-          e <- ixExpandInitializer m lets env anchor pre'
-          let lhs = componentStorageName m nm kind inds
-          return ("fmrInit \"" ++ lhs ++ "\" (" ++ shiftTo anchor e ++ ")")
+        singleton expression = "[" ++ expression ++ "]"
+
+    bindingFor name bindings =
+      case [binding | binding <- bindings, runtimeBindingName binding == name] of
+        binding : _ -> binding
+        [] -> error ("missing runtime tensor binding for " ++ name)
+
+    indexedInitLines bindings nm lhsIx ex = do
+      let policy = fieldPolicyOf m nm
+      pre <- preprocessTensorExpr m ex
+      lowered <- lowerBackendText m pre
+      loweredExpression <- case parseTensorExprEither lowered of
+        Right parsed -> return parsed
+        Left message -> fatal ("bad indexed initializer: " ++ message)
+      let targetBasis = reservedInternalPrefix ++ "TargetBasis"
+      nativeCandidate <- nativeExpressionAt policy m bindings lowered
+      let native =
+            if nativeResultIndicesSafe (map fst nativeMarkerMap)
+                 m bindings lhsIx loweredExpression
+              then nativeCandidate
+              else Nothing
+      (checked, rhsPolicy) <- case (kindOf m nm, native) of
+        (Just targetKind, Just value) -> do
+          if "FE.sharp " `isInfixOf` nativeText value
+            then case fieldDeclOf m nm >>= fieldIndexParts of
+                   Just [IxPart VUp _] -> return ()
+                   _ -> fatal ("sharp initializer target must be explicitly contravariant: "
+                               ++ nm ++ concatMap ixSuffix lhsIx)
+            else return ()
+          if nativeRank value == componentRank targetKind
+            then return ()
+            else fatal ("indexed initializer for " ++ nm ++ " has tensor rank "
+                        ++ show (nativeRank value) ++ " but target rank is "
+                        ++ show (componentRank targetKind))
+          return (checkedNativeTensor m nm lhsIx (nativeText value),
+                  nativePolicy value)
+        (Just targetKind, Nothing) -> do
+          expanded <- expandRuntimeTensorDefs m lowered
+          expression <- case parseTensorExprEither expanded of
+            Right parsed -> return parsed
+            Left message -> fatal ("bad indexed initializer: " ++ message)
+          validateRuntimeEinstein m bindings lhsIx expression
+          inferredPolicy <-
+            case inferRuntimeExpressionPolicy
+                   m bindings lhsIx targetKind expression of
+              Right inferred -> return inferred
+              Left message -> fatal message
+          rendered <- renderRuntimeTensorExpr
+            m bindings (fromMaybe policy inferredPolicy)
+              lhsIx targetBasis expression
+          runtime <- case rendered of
+            Right result -> return result
+            Left message -> fatal ("cannot lower indexed initializer for " ++ nm
+                                   ++ " in Egison: " ++ message)
+          return (renderCheckedRuntimeTensor m nm lhsIx runtime,
+                  inferredPolicy)
+        _ -> fatal ("indexed CAS initializer has wrong indices for its field kind: "
+                    ++ nm)
+      case kindOf m nm of
+        Just targetKind ->
+          validateInitializerCoordinateMix targetKind rhsPolicy lowered
+        Nothing -> return ()
+      let
+          component = "FE.tensorComponentAt (" ++ checked ++ ") " ++ targetBasis
+          targetPlacement = "FE.componentPlacement feDim " ++ show policy
+                            ++ " " ++ targetBasis
+          samplingPlacement = case rhsPolicy of
+            Nothing -> targetPlacement
+            Just sourcePolicy ->
+              "FE.relativePlacement (" ++ targetPlacement
+              ++ ") (FE.componentPlacement feDim " ++ show sourcePolicy
+              ++ " " ++ targetBasis ++ ")"
+          sampled
+            | rhsPolicy == Just policy
+              || policy == Collocated && rhsPolicy == Nothing = component
+            | otherwise =
+                "substitute (map (\\a -> (feCoords_a, feCoords_a + nth a ("
+                ++ samplingPlacement ++ ") * feHsteps_a)) feAxisIds) ("
+                ++ component ++ ")"
+          shape = replicate (length lhsIx) (mDim m)
+          tensor = "generateTensor (\\" ++ targetBasis ++ " -> " ++ sampled
+                   ++ ") " ++ show shape
+      return ["fieldInits (" ++ fieldDescriptorRef m nm ++ ") ("
+              ++ show policy ++ ", " ++ tensor ++ ")"]
+
     shiftTo anchor e =
-      "substitute (map (\\a -> (feCoords_a, feCoords_a + nth a "
-      ++ placeText anchor ++ " * feHsteps_a)) feAxisIds) (" ++ e ++ ")"
+      shiftBy (placeText anchor) e
+    shiftBy placement e =
+      "substitute (map (\\a -> (feCoords_a, feCoords_a + nth a ("
+      ++ placement ++ ") * feHsteps_a)) feAxisIds) (" ++ e ++ ")"
+    validateInitializerCoordinateMix targetKind rhsPolicy source =
+      case rhsPolicy of
+        Just sourcePolicy
+          | usesCoordinates
+          , any (\basis -> componentPlacement m sourcePolicy basis
+                           /= componentPlacement m Collocated basis)
+                (componentIndices (mDim m) targetKind) ->
+              fatal ("initializer cannot mix explicit coordinates with a "
+                     ++ "staggered field-valued expression: " ++ source)
+        _ -> return ()
+      where
+        coordinateNames = mAxes m ++ internalCoordNames m
+        usesCoordinates = any isCoordinate (tokenize source)
+        isCoordinate (TId name _) = name `elem` coordinateNames
+        isCoordinate _ = False
     rawGridPoint = "[" ++ intercalate "," (internalIndexNames m) ++ "]"
 
 -- Unicode input: Greek letters transliterate to their ASCII names.  A

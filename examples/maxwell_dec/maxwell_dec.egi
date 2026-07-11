@@ -32,7 +32,7 @@ def feFieldDescriptors :=
   , ("B", Primal, [3, 3], ["down", "down"], "form", [[1, 2], [1, 3], [2, 3]], [([1, 2], "B_1_2"), ([1, 3], "B_1_3"), ([2, 3], "B_2_3")])
   ]
 def feSymbolNames : [(String, String)] := [("hx", "dx"), ("hy", "dy"), ("hz", "dz"), ("x", "(i*dx)"), ("y", "(j*dy)"), ("z", "(k*dz)")]
-def feFieldNames : [(String, String)] := concat (map FMR.fieldNameMappings feFieldDescriptors)
+def feFieldNames : [(String, String)] := concat (map FMR.fieldNameMappings feFieldDescriptors) ++ []
 def feFieldPolicies : [(String, GridPolicy)] := map (\(name, policy, _, _, _, _, _) -> (name, policy)) feFieldDescriptors
 def feIndexNames : [String] := ["i", "j", "k"]
 def fePrinterContext := (feSymbolNames, feFieldNames, feIndexNames, feCoords, feHsteps, feAxisIds)
@@ -40,6 +40,7 @@ def fmrEq : String -> MathValue -> String := FMR.eq fePrinterContext
 def fmrInit : String -> MathValue -> String := FMR.init fePrinterContext
 def componentEqs : [String] -> [MathValue] -> [String] := FMR.componentEqs fePrinterContext
 def fieldEqs descriptor value := FMR.fieldEqs fePrinterContext descriptor value
+def fieldInits descriptor value := FMR.fieldInits fePrinterContext descriptor value
 def scalarEq : String -> MathValue -> [String] := FMR.scalarEq fePrinterContext
 
 def E := generateTensor (\[i] -> function (x, y, z)) [3]
@@ -58,14 +59,7 @@ def feHelpers :=
   , "gauss1 = fun(x) exp(-((x-(total_grid_x*dx/2))/(8*dx))**2)"
   ]
 def feComps : [String] := ["E_1", "E_2", "E_3", "B_1_2", "B_1_3", "B_2_3"]
-def feInits :=
-  [ "  E_1[i,j,k] = 0"
-  , "  E_2[i,j,k] = gauss1(i*dx)"
-  , "  E_3[i,j,k] = 0"
-  , "  B_1_2[i,j,k] = gauss1((i+0.5)*dx)"
-  , "  B_1_3[i,j,k] = 0"
-  , "  B_2_3[i,j,k] = 0"
-  ]
+def feInits := ["  E_1[i,j,k] = 0"] ++ ["  E_2[i,j,k] = gauss1(i*dx)"] ++ ["  E_3[i,j,k] = 0"] ++ ["  B_1_2[i,j,k] = gauss1((i+0.5)*dx)"] ++ ["  B_1_3[i,j,k] = 0"] ++ ["  B_2_3[i,j,k] = 0"]
 def feSteps := fieldEqs (nth 1 feFieldDescriptors) (FE.addForm Ef (FE.scaleForm (dt) (FE.codiffForm feDim feFormDerivative feHodgeCoefficient Bf))) ++ fieldEqs (nth 2 feFieldDescriptors) (FE.subForm Bf (FE.scaleForm (dt) (FE.dForm feDim feFormDerivative EfN)))
 
 def main (args: [String]) : IO () :=

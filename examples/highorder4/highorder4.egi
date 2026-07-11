@@ -37,7 +37,7 @@ def feFieldDescriptors :=
   [ ("u", Collocated, [], [], "scalar", [[]], [([], "u")])
   ]
 def feSymbolNames : [(String, String)] := [("hx", "dx"), ("hy", "dy"), ("hz", "dz"), ("x", "(i*dx)"), ("y", "(j*dy)"), ("z", "(k*dz)")]
-def feFieldNames : [(String, String)] := concat (map FMR.fieldNameMappings feFieldDescriptors)
+def feFieldNames : [(String, String)] := concat (map FMR.fieldNameMappings feFieldDescriptors) ++ []
 def feFieldPolicies : [(String, GridPolicy)] := map (\(name, policy, _, _, _, _, _) -> (name, policy)) feFieldDescriptors
 def feIndexNames : [String] := ["i", "j", "k"]
 def fePrinterContext := (feSymbolNames, feFieldNames, feIndexNames, feCoords, feHsteps, feAxisIds)
@@ -45,6 +45,7 @@ def fmrEq : String -> MathValue -> String := FMR.eq fePrinterContext
 def fmrInit : String -> MathValue -> String := FMR.init fePrinterContext
 def componentEqs : [String] -> [MathValue] -> [String] := FMR.componentEqs fePrinterContext
 def fieldEqs descriptor value := FMR.fieldEqs fePrinterContext descriptor value
+def fieldInits descriptor value := FMR.fieldInits fePrinterContext descriptor value
 def scalarEq : String -> MathValue -> [String] := FMR.scalarEq fePrinterContext
 
 def u := function (x, y, z)
@@ -54,9 +55,7 @@ def feHelpers :=
   [ "extern function :: sin"
   ]
 def feComps : [String] := ["u"]
-def feInits :=
-  [ "  u[i,j,k] = sin(4.0*i*dx)"
-  ]
-def feSteps := scalarEq "u" (u + (dt * kappa * (∂ 2 2 x u + ∂ 2 2 y u + ∂ 2 2 z u)))
+def feInits := ["  u[i,j,k] = sin(4.0*i*dx)"]
+def feSteps := scalarEq "u" ((u + (((dt * kappa) * (((∂ 2 2 x (u) + ∂ 2 2 y (u)) + ∂ 2 2 z (u)))))))
 
 def main (args: [String]) : IO () := print (FMR.emitModelOn feDim feAxes feParams feHelpers feComps feInits feSteps)

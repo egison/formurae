@@ -25,7 +25,7 @@ def feFieldDescriptors :=
   [ ("u", Collocated, [], [], "scalar", [[]], [([], "u")])
   ]
 def feSymbolNames : [(String, String)] := [("hx", "dtheta"), ("hy", "dphi"), ("hz", "dz"), ("x", "(i*dtheta)"), ("y", "(j*dphi)"), ("z", "(k*dz)")]
-def feFieldNames : [(String, String)] := concat (map FMR.fieldNameMappings feFieldDescriptors)
+def feFieldNames : [(String, String)] := concat (map FMR.fieldNameMappings feFieldDescriptors) ++ [("ca", "ca"), ("cb", "cb"), ("cc", "cc"), ("sg", "sg"), ("f1", "f1"), ("f2", "f2"), ("f3", "f3")]
 def feFieldPolicies : [(String, GridPolicy)] := map (\(name, policy, _, _, _, _, _) -> (name, policy)) feFieldDescriptors
 def feIndexNames : [String] := ["i", "j", "k"]
 def fePrinterContext := (feSymbolNames, feFieldNames, feIndexNames, feCoords, feHsteps, feAxisIds)
@@ -33,6 +33,7 @@ def fmrEq : String -> MathValue -> String := FMR.eq fePrinterContext
 def fmrInit : String -> MathValue -> String := FMR.init fePrinterContext
 def componentEqs : [String] -> [MathValue] -> [String] := FMR.componentEqs fePrinterContext
 def fieldEqs descriptor value := FMR.fieldEqs fePrinterContext descriptor value
+def fieldInits descriptor value := FMR.fieldInits fePrinterContext descriptor value
 def scalarEq : String -> MathValue -> [String] := FMR.scalarEq fePrinterContext
 
 def u := function (x, y, z)
@@ -73,13 +74,7 @@ def feHelpers :=
   , "extern function :: sqrt"
   ]
 def feComps : [String] := ["u", "ca", "cb", "cc", "sg"]
-def feInits :=
-  [ fmrInit "u" (exp ((cos x + cos y) - 2))
-  , fmrInit "ca" (substitute [(feCoords_1, feCoords_1 + feHsteps_1 / 2)] (FE.orthogonalHodgeCoefficient feAxisIds feH [1]))
-  , fmrInit "cb" (substitute [(feCoords_2, feCoords_2 + feHsteps_2 / 2)] (FE.orthogonalHodgeCoefficient feAxisIds feH [2]))
-  , fmrInit "cc" (substitute [(feCoords_3, feCoords_3 + feHsteps_3 / 2)] (FE.orthogonalHodgeCoefficient feAxisIds feH [3]))
-  , fmrInit "sg" feSqrtG
-  ]
+def feInits := [fmrInit "u" (exp ((cos x + cos y) - 2))] ++ [fmrInit "ca" (substitute [(feCoords_1, feCoords_1 + feHsteps_1 / 2)] (FE.orthogonalHodgeCoefficient feAxisIds feH [1]))] ++ [fmrInit "cb" (substitute [(feCoords_2, feCoords_2 + feHsteps_2 / 2)] (FE.orthogonalHodgeCoefficient feAxisIds feH [2]))] ++ [fmrInit "cc" (substitute [(feCoords_3, feCoords_3 + feHsteps_3 / 2)] (FE.orthogonalHodgeCoefficient feAxisIds feH [3]))] ++ [fmrInit "sg" feSqrtG]
 def feSteps := [fmrEq "f1" (feLbFlux 1)] ++ [fmrEq "f2" (feLbFlux 2)] ++ [fmrEq "f3" (feLbFlux 3)] ++ scalarEq "u" (u + (dt * feLbResult)) ++ scalarEq "ca" (ca) ++ scalarEq "cb" (cb) ++ scalarEq "cc" (cc) ++ scalarEq "sg" (sg)
 
 def main (args: [String]) : IO () :=

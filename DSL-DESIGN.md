@@ -5,6 +5,36 @@ Formura のラテン語風複数形で *formulae*(数式)への掛詞 — 「数
 本言語の主題が名前になっている。Formura 設計者・村主崇行氏への敬意を込めた継承でもある
 (「Formura 2」は本体の現行バージョン 2.3.2 と紛れるため回避)。
 
+**v1.36(2026-07-11): runtime tensor lowering と Phase 7 完了** —
+標準6演算子だけでなく、一般の indexed equation、implicit vector equation、rank-1/rank-2
+indexed `let`、indexed CAS initializer を、成分別 Haskell 式へ展開せず whole runtime tensor として
+Egison へ渡すようにした。`RuntimeTensorExpr` は symbolic index を予約内部名へ alpha rename し、
+転置、`tensorMap`、`subrefs`、明示縮約、user `def` の複合式を保持する。LHS の添字数・上下から
+rank/variance signature を作り、Egison の `FE.checkedTensorSignature` が `tensorShape`、
+`tensorVariances`、`dfOrder` を最終検査する。production 生成経路から `ixExpand` /
+`ixExpandInitializer` と legacy component operator expansion は撤去した。
+
+runtime binding は located (`Collocated` / `Primal` / `Dual`) と placement-neutral を区別する。
+定数だけの `let` はどの lattice でも使え、field を含む式は component basis ごとに policy を推論する。
+binding は逐次 scope を持ち、self/forward reference、initializer から step binding・primed field への
+参照を早期エラーにする。CAS initializer は neutral RHS を target 位置で sample し、located RHS は
+`FE.relativePlacement` による target-minus-source offset だけを適用するため、同一 lattice の field を
+二重 shift しない。explicit coordinate と non-collocated field-valued RHS の混在は単一 substitute で
+正しく分離できないため、誤生成せず明示的に拒否する。
+
+固定軸 `∂_x` と symbolic 軸 `∂_i`、微分階数・stencil radius は同じ runtime derivative bridge に
+統合した。複合 operand の自由添字は source component basis として保持するため、
+`∂_x (A_i * c)` も staggered `A_i` の実配置から微分する。`∂^m_i` は
+`FE.diagonalCoordinateDerivative` が rank-1 tensor を作る。
+`contractWith max` のような名前付き reducer は `FE.symbolicBinary` により Formura の symbolic function
+call として保持し、field component の grid reference と区別して表示する。
+
+`fec` に残る `TensorExpr` は surface parse、user `def` 展開、scope/source provenance、静的診断、
+Egison runtime bridge を担う。`strictEinstein` は自由添字・variance・明示縮約の surface diagnostic、
+basis-aware Haskell placement validator は Egison 実行前の frontend static oracle として意図的に残す。
+どちらも component 式や stencil を生成する backend lowering ではない。runtime tensor 評価、
+result signature、placement/stencil の実行意味は Egison kernel を権威とする。
+
 **v1.35(2026-07-11): descriptor-driven whole fields + native tensor operators** —
 Phase 2 の field descriptor を完成させ、生成 `.egi` は field ごとに
 `(name, GridPolicy, shape, variances, layout, projection, storageMapping)` を一度だけ持つ。
@@ -23,12 +53,11 @@ Phase 6 は複数の distinct `lb` source、metric-aware form Hodge/codiff、直
 `flat` / `sharp` まで実装した。`lb` は metric coefficient/volume fields を共有し、request ごとに
 flux/result bundle を持つ。`flat` / `sharp` は policy を保つ純粋な musical map であり、補間、
 de Rham map、reconstruction を含めず、scale factor は component basis の配置で sample する。
-Phase 7 は標準6演算子と whole-field printer について
-完了したが、`TensorExpr` / `ixExpand` / `strictEinstein` は native subset 外の複合式、user tensor
-def、indexed initializer、strict diagnostics の validation/fallback に残る。元 `.fme` への
-source map は transliteration 前の path/line/column を保持し、user `def` を跨ぐ backend request
-には definition-site / call-site を nested trace として表示する。initializer の backend request も
-同じ provenance 経路を使う。
+この時点の Phase 7 は標準6演算子と whole-field printer までであり、native subset 外の複合式、
+user tensor `def`、indexed initializer には component fallback が残っていた。この残余は v1.36 で
+runtime tensor lowering へ移行した。元 `.fme` への source map は transliteration 前の
+path/line/column を保持し、user `def` を跨ぐ backend request には definition-site / call-site を
+nested trace として表示する。initializer の backend request も同じ provenance 経路を使う。
 
 **v1.34(2026-07-11): Phase 6 geometry + structural `lb` planner** —
 `embedding` からの induced metric、直交計量と逆計量、体積要素、Hodge coefficient
@@ -279,6 +308,8 @@ strict 添字検査を行い、field layout から独立成分を列挙して成
 `ixExpand` する。`@ primal` / `@ dual` field では `v~i` や `σ~i~j` の配置に合わせ、
 生成 `.egi` 側で `x -> x + offset*hx` の半セル substitute をかけてから
 `fmrInit` に渡す。
+これは当時の component lowering であり、v1.36 では indexed initializer を whole runtime tensor と
+`FMR.fieldInits` へ移し、sampling offset も target/RHS の相対配置から導出する。
 
 反対称 rank-2 field `field A[_i_j] @ primal` も backend 対応した。
 storage は上三角 off-diagonal の3成分
@@ -488,8 +519,8 @@ step:
 
 ```
 .fme(表層構文)
-  → fec(TensorExpr parser/def解決/診断 + descriptor/backend planning)
-  → whole-tensor 方程式と grid callback を持つモデル固有 .egi
+  → fec(TensorExpr parser/def解決/scope/静的診断 + descriptor/backend planning)
+  → whole runtime tensor 方程式と grid callback を持つモデル固有 .egi
   → Egison CAS + grid/tensor/geometry/runtime ライブラリ
   → descriptor-driven 共有プリンタが .fmr を出力
   → Formura(fork)→ MPI + temporal blocking つき C
@@ -505,7 +536,10 @@ step:
   プリンタである。
   生成 `.egi` にはモデル固有の場・残余式と、実際に参照される座標文脈だけを出す。
   生成 `.fmr` のバイト一致テストを意味のアンカーとして維持する。
-- parser と TensorExpr の def 解決/strict diagnostics/fallback は Haskell(base のみ)で実装済みである。
+- parser と TensorExpr の user `def` 解決、逐次 scope、strict free-index diagnostics、
+  basis-aware placement diagnostics は Haskell(base のみ)で実装済みである。後二者は早期エラー用の
+  frontend static oracle であり、component/stencil lowering ではない。一般の添字式は
+  `RuntimeTensorExpr` bridge が whole tensor のまま Egison へ渡すため、`ixExpand` fallback はない。
   生成物はデバッグ可能な中間 `.egi` として追跡し、parser error は式全体・失敗近傍・
   column を返す。backend request は transliteration の長さ変化と user `def` substitution を
   跨いでも元 `.fme` の path/line/column を返し、各 expansion の definition/call site を表示する。
@@ -576,11 +610,10 @@ step:
 ## 6. 現在の到達点と残課題
 
 現在の Formurae は、Egison のテンソル添字記法・微分形式・CAS を **表層言語から直接使える記述力**
-として活用している。`fec` は def 解決、添字・縮約検査、未移行式の validation/fallback、
-descriptor/backend planning を担当する。一方、GridPolicy parity、native coordinate operators、
-whole-field/form printer、微分形式、純粋な metric/Hodge/Laplace--Beltrami/musical-map 公式は
-Egison library へ移行済みである。最終的には座標文脈・field layout・storage planning と診断へ
-責務をさらに縮める。
+として活用している。`fec` は parse、user `def` 解決、scope/source provenance、添字・配置の
+静的診断、descriptor/backend planning、Egison runtime bridge を担当する。一方、runtime tensor
+評価、result signature、GridPolicy parity、coordinate operators、whole-field/form printer、
+微分形式、純粋な metric/Hodge/Laplace--Beltrami/musical-map 公式は Egison library が担う。
 
 1. **ユーザ定義テンソル演算子は実装済み**
    `def grad u = withSymbols [i] ∂_i u`、
@@ -591,8 +624,9 @@ Egison library へ移行済みである。最終的には座標文脈・field la
 2. **縮約は `contractWith` と `.` だけが行う**
    同じ上下添字が現れただけでは暗黙総和しない。
    `∂_i X~i` は diagonal tensor であり、`contractWith (+) (∂_i X~i)` で scalar になる。
-   既定の `.` は現在 TensorExpr の contraction lowering で処理し、共有 Egison library にも
-   同じ contraction 定義がある。ユーザーが `def (.) ...` を定義した場合はそちらを優先する。
+   `TensorExpr` は既定の `.` と user `def` を surface で解決するが、縮約値そのものは
+   runtime Egison の `contractWith` が評価する。ユーザーが `def (.) ...` を定義した場合は
+   そちらを優先する。
 
 3. **`mode` が標準演算子族を選ぶ**
    旧 `use vector-calculus` / `use exterior-calculus` 宣言は撤去済みである。
@@ -605,8 +639,17 @@ Egison library へ移行済みである。最終的には座標文脈・field la
    shape、variance、layout、policy、canonical projection、storage mapping は
    `feFieldDescriptors` に一度だけ生成する。`FMR.fieldEqs` は descriptor と RHS の policy/shape を
    検査して独立成分を射影し、field-name map と policy table も descriptor から導出する。
+   indexed CAS initializer も1個の whole tensor を `FMR.fieldInits` へ渡し、成分ごとの
+   Haskell initializer は生成しない。
 
-5. **計量と Laplace--Beltrami の純粋な公式は Egison にある**
+5. **runtime binding と initializer は配置を明示的に扱う**
+   indexed `let` は LHS の添字数・上下から rank/variance を得て bare tensor として materialize する。
+   scalar `let` を含む定数式は placement-neutral、field を参照する式は located policy を持つ。
+   initializer は neutral RHS なら target 位置、located RHS なら target-minus-source の相対配置で
+   sample し、同一 lattice の field を二重 shift しない。explicit coordinate と non-collocated
+   field-valued RHS の混在は単一 substitute で正しく表せないため明示的に拒否する。
+
+6. **計量と Laplace--Beltrami の純粋な公式は Egison にある**
    induced metric、直交計量と逆計量、体積要素、Hodge coefficient、
    flux-divergence 合成は `lib/formurae-geometry.egi` が評価する。
    `lb` の対象は構造的 `BackendRequest` として収集し、Haskell backend の
@@ -615,17 +658,18 @@ Egison library へ移行済みである。最終的には座標文脈・field la
    metric-aware form Hodge/codiff と、policy を保つ orthogonal rank-1 `flat` / `sharp` も
    shared geometry にある。musical map は補間/de Rham/reconstruction を含まない。
 
-6. **添字 equation は strict に保つ**
+7. **添字 equation は strict に保つ**
    添字付き field は宣言された添字つきで使う。各項の自由添字は LHS と上下まで一致する必要がある。
    上げ下げは自動化せず、必要なら `metric g` で宣言した計量と `.` を明示する。
+   `strictEinstein` はこの surface diagnostic のために残す。一方、評価後 result の shape/variance/
+   `dfOrder` は Egison の `FE.checkedTensorSignature` が検査する。
 
-7. **残課題**
-   scalar 式は演算子優先順位を持つ TensorExpr AST として保持するようになった。
-   parser error は式全体、失敗近傍、column を返し、backend request は完全な source provenance を
-   保持する。Phase 7 の残りは Egison 本体の添字規則との差分を小さくするテスト群を追加し、
-   strict result signature の権威を Egison `tensorIndices` へ移し、user tensor def、indexed
-   initializer、strict diagnostics に残る `ixExpand` / `strictEinstein` fallback を削除することである。
-   geometry 側では非対角 metric、一般 rank の musical map、cochain 用 de Rham/reconstruction と
-   DEC vector aliases が残る。
-   この整理が終わると、Formurae の新規性は「Egison の数式記法と CAS を、
-   座標文脈つきの分散ステンシルコード生成へ接続する薄い表層言語」にさらに集中する。
+8. **Phase 7 後の境界と今後**
+   scalar/添字式は演算子優先順位を持つ TensorExpr AST として保持し、parser error は式全体、
+   失敗近傍、column を返す。backend request は完全な source provenance を保持する。
+   production の `ixExpand` component fallback は削除済みである。Haskell の basis-aware placement
+   validator は、Egison 実行前に配置不一致を source-level error として報告する static oracle として
+   意図的に残す。これは stencil 選択や Formura component 生成には使わない。
+   geometry 側の将来拡張として、非対角 metric、一般 rank の musical map、cochain 用
+   de Rham/reconstruction、DEC vector aliases が残る。Formurae の新規性は「Egison の数式記法と
+   CAS を、座標文脈つきの分散ステンシルコード生成へ接続する薄い表層言語」に集中する。

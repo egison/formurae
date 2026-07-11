@@ -21,6 +21,14 @@ def contractWith {a} (reducer: Tensor a -> Tensor a -> Tensor a)
                 (t: Tensor a) : Tensor a :=
   foldl1 reducer (contract t)
 
+-- A named reducer such as `max` must remain a symbolic backend call when its
+-- arguments contain field expressions: Egison's ordinary `max` requires an
+-- `Ord MathValue` instance and therefore cannot compare them.  Tensor-map
+-- insertion lifts this scalar helper when it is passed to `contractWith`.
+def FE.symbolicBinary
+      (name: String) (lhs: MathValue) (rhs: MathValue) : MathValue :=
+  functionSymbol name [lhs, rhs]
+
 -- The ordinary and MathValue tensor products are the same operations used by
 -- Egison's algebra/tensor library.  They are repeated here so generated
 -- Formurae .egi files need only load this one bridge.
@@ -135,6 +143,33 @@ def FE.partialChainTensor
                         (FE.tensorComponentAt source sourceBasis))
                outputShape
         else source
+
+-- Build the rank-1 diagonal of an order-N coordinate derivative.  This is
+-- the runtime meaning of surface notation such as `partial^2_i u`: component
+-- i differentiates along coordinate i.  Radius 1 reuses the placement-aware
+-- tensor derivative; wider stencils use the generated scalar coordinate
+-- derivative callback.
+def FE.diagonalCoordinateDerivative
+      (derivative:
+         [Integer] -> [Integer] -> [Integer] -> MathValue -> MathValue)
+      (coordinateDerivative:
+         Integer -> Integer -> MathValue -> MathValue -> MathValue)
+      (coordinates: Vector MathValue) (axisIds: [Integer])
+      (order: Integer) (radius: Integer) (source: Tensor MathValue)
+      : Tensor MathValue :=
+  if assert "diagonal coordinate derivative needs a scalar tensor"
+            (tensorShape source = [])
+    then generateTensor
+      (\[axis] ->
+        if radius = 1
+          then FE.tensorComponentAt
+                 (FE.partialChainTensor derivative [axis] axisIds order source)
+                 (map (\_ -> axis) (between 1 order))
+          else coordinateDerivative order radius
+                 (FE.tensorComponentAt coordinates [axis])
+                 (FE.tensorComponentAt source []))
+      [length axisIds]
+    else source
 
 def FE.chooseAxes (degree: Integer) (axes: [Integer]) : [[Integer]] :=
   if degree = 0

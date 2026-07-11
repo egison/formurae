@@ -36,6 +36,18 @@ def FE.componentPlacement
              (between 1 dim)
     else []
 
+-- Offset needed to evaluate a value represented on `source` at a target
+-- storage point.  Initializers use this instead of adding the target offset
+-- unconditionally, which would shift an already located field twice.
+def FE.relativePlacement
+      (target: [MathValue]) (source: [MathValue]) : [MathValue] :=
+  if assert
+       "FE.relativePlacement: placements must have equal dimensions"
+       (length target = length source)
+    then map (\(targetBit, sourceBit) -> targetBit - sourceBit)
+             (zip target source)
+    else []
+
 def FE.togglePlacement (axis: Integer) (placement: [MathValue]) : [MathValue] :=
   if assert
        "FE.togglePlacement: axis must be in 1..length(placement)"

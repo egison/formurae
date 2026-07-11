@@ -3,6 +3,20 @@ declare symbol x
 def wholeFieldPrinterContext :=
   ([], [], ["i", "j", "k"], [|x, x, x|], [|1, 1, 1|], [1, 2, 3])
 
+def symbolicCallPrinterContext :=
+  ([],
+   [("A_1_1", "A_up1_down1"), ("A_2_2", "A_up2_down2")],
+   ["i", "j"], [|x, x|], [|1, 1|], [1, 2])
+
+def symbolicCallA11 := functionSymbol "A_1_1" [x, x]
+def symbolicCallA22 := functionSymbol "A_2_2" [x, x]
+
+assertEqual
+  "FunctionData printer distinguishes fields from symbolic backend calls"
+  (FMR.show symbolicCallPrinterContext
+    (FE.symbolicBinary "max" symbolicCallA11 symbolicCallA22))
+  "max(A_up1_down1[i,j],A_up2_down2[i,j])"
+
 assertEqual
   "canonical descriptor projections cover every field layout"
   [ FMR.canonicalFieldProjection "scalar" []

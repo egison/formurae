@@ -38,6 +38,18 @@ assertEqual "three occurrences remain odd"
   (FE.componentPlacement 3 Primal [2, 2, 2])
   [0, 1 / 2, 0]
 
+assertEqual "relative placement subtracts the source lattice"
+  (FE.relativePlacement
+    (FE.componentPlacement 3 Dual [1])
+    (FE.componentPlacement 3 Primal [1]))
+  [(-1) / 2, 1 / 2, 1 / 2]
+
+assertEqual "relative placement of one lattice is zero"
+  (FE.relativePlacement
+    (FE.componentPlacement 2 Primal [2])
+    (FE.componentPlacement 2 Primal [2]))
+  [0, 0]
+
 assertEqual "toggle placement changes one axis"
   (FE.togglePlacement 2 (FE.componentPlacement 3 Primal [1]))
   [1 / 2, 1 / 2, 0]
