@@ -1,0 +1,12 @@
+mode dec
+dimension 2
+axes x, y
+
+field X~i @ primal
+field A : 1-form @ primal
+
+def stored value = materialize value
+
+step:
+  X'~i = stored X
+  A' = stored A

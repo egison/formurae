@@ -1,4 +1,4 @@
--- 2D divergence smoke test with a user-defined tensor operator.
+-- 2D divergence smoke test using the shared one-line Egison operator.
 
 mode collocated
 dimension 2
@@ -13,12 +13,10 @@ raw sy = fun(y) sin(6.283185307179586*y/(total_grid_y*dy))
 field V_i
 field q : scalar
 
-def divg X = ∂_x X_1 + ∂_y X_2
-
 init:
   V_i = [| sx(i*dx), sy(j*dy) |]_i
   q = 0.0
 
 step:
   V'_i = V_i
-  q' = divg V_i
+  q' = divg V

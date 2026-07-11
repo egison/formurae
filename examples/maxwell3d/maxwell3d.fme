@@ -1,7 +1,7 @@
 -- Maxwell's equations in vacuum (c = 1), collocated grid
 --   dE/dt =  curl B
 --   dB/dt = -curl E'     (the B update uses the updated E': symplectic)
--- curl is supplied by mode collocated as an ordinary TensorExpr prelude Def.
+-- curl is the shared short Egison definition; post-fec chooses its stencil.
 
 mode collocated
 dimension 3
@@ -20,5 +20,5 @@ init:
   B_i = [| 0, 0, gauss1(i*dx) |]_i
 
 step:
-  E'_i = E_i + dt * curl B_i
-  B'_i = B_i - dt * curl E'_i
+  E' = E + dt * curl B
+  B' = B - dt * curl E'

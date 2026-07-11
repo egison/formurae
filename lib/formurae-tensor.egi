@@ -1,14 +1,14 @@
 --
 -- formurae-tensor.egi : Formurae's Egison tensor bridge
 --
--- This is the semantic boundary of Formurae.  The surface compiler may
--- translate coordinate derivatives and grid placement, but tensor algebra
--- is evaluated here by Egison's Tensor machinery.  Keep this file free of
--- Formurae grid/layout code so it can also be used by hand-written .egi
--- probes.
+-- This is the shared continuum tensor kernel.  Egison evaluates this algebra
+-- before FEIR serialization; post-fec alone handles placement, stencils, and
+-- storage.  Keep this file free of Formurae grid/layout code so it can also be
+-- used by hand-written .egi probes.
 --
 
 declare symbol i, j, k
+declare symbol formuraeOrdinaryTensorIndex1, formuraeOrdinaryTensorIndex2
 
 infixl expression 7 .
 infixl expression 7 .'
@@ -43,31 +43,46 @@ def wedge {Ring a} (a: Tensor a) (b: Tensor a) : Tensor a := a !. b
 def trace {Ring a} (a: Tensor a) : a :=
   withSymbols [i] sum (contract a~i_i)
 
+-- Egison's local indices become anonymous differential-form axes after
+-- leaving `withSymbols`.  That is the desired representation for form
+-- operators, but ordinary rank-two tensor operators must restore the
+-- source's explicit variance metadata on their result.  Bare/canonical form
+-- tensors are left untouched so their dfOrder remains authoritative.
+def FE.attachOrdinaryRank2Variances {a}
+      (variances: [String]) (value: Tensor a) : Tensor a :=
+  if variances = ["down", "down"]
+    then value_formuraeOrdinaryTensorIndex1_formuraeOrdinaryTensorIndex2
+    else if variances = ["down", "up"]
+      then value_formuraeOrdinaryTensorIndex1~formuraeOrdinaryTensorIndex2
+      else if variances = ["up", "down"]
+        then value~formuraeOrdinaryTensorIndex1_formuraeOrdinaryTensorIndex2
+        else if variances = ["up", "up"]
+          then value~formuraeOrdinaryTensorIndex1~formuraeOrdinaryTensorIndex2
+          else value
+
+def FE.preserveOrdinaryRank2Metadata {a}
+      (source: Tensor a) (value: Tensor a) : Tensor a :=
+  let variances := tensorVariances source
+   in if dfOrder source = 0 && length variances = 2
+        then match assert "ordinary rank-two operator changed tensor shape"
+                          (length (tensorShape source) = 2
+                           && tensorShape value = tensorShape source)
+                   as bool with
+               | #True -> FE.attachOrdinaryRank2Variances variances value
+        else value
+
 def sym {Ring a} (a: Tensor a) : Tensor a :=
-  withSymbols [i, j]
-    ((a_i_j + a_j_i) / 2)
+  FE.preserveOrdinaryRank2Metadata a
+    (withSymbols [i, j]
+      ((a_i_j + a_j_i) / 2))
 
 def antisym {Ring a} (a: Tensor a) : Tensor a :=
-  withSymbols [i, j]
-    ((a_i_j - a_j_i) / 2)
+  FE.preserveOrdinaryRank2Metadata a
+    (withSymbols [i, j]
+      ((a_i_j - a_j_i) / 2))
 
 def norm2 {Ring a} (a: Tensor a) : a :=
   withSymbols [i] (a~i . a_i)
-
--- Keep index-variance validation on the Egison side while a tensor still has
--- its symbolic indices attached.  `withSymbols` turns those local indices
--- back into anonymous tensor dimensions when the checked value leaves its
--- scope, so callers receive the ordinary bare tensor expected by the backend
--- printer.  `tensorVariances` is defined next to Egison's `TensorIndex` type.
-def FE.checkedTensorSignature {a}
-      (message: String) (shape: [Integer]) (variances: [String])
-      (value: Tensor a) : Tensor a :=
-  if assert message
-       (tensorShape value = shape
-        && tensorVariances value = variances
-        && dfOrder value = 0)
-    then value
-    else value
 
 -- Canonical full-tensor view of a differential form.  The component callback
 -- is evaluated only for strictly increasing index lists; repeated indices are
@@ -111,66 +126,6 @@ def FE.tensorComponentAt {a}
         then nth (FE.flatTensorIndex shape indices) (tensorToList t)
         else head (tensorToList t)
 
--- Lift a scalar into the rank-0 tensor representation used by the generic
--- indexed-expression evaluator.
-def FE.scalarTensor {a} (value: a) : Tensor a :=
-  generateTensor (\[] -> value) []
-
--- Materialize an indexed partial-derivative chain without enumerating tensor
--- components in the frontend.  The leading dimensions select derivative
--- axes; the remaining dimensions select a component of the source tensor.
--- `targetBasis` is the concrete component currently requested by the final
--- equation tensor and therefore fixes its staggered-grid placement.
-def FE.partialChainTensor
-      (derivative:
-         [Integer] -> [Integer] -> [Integer] -> MathValue -> MathValue)
-      (targetBasis: [Integer]) (axisIds: [Integer])
-      (derivativeOrder: Integer) (source: Tensor MathValue)
-      : Tensor MathValue :=
-  let outputShape :=
-        map (\_ -> length axisIds) (between 1 derivativeOrder)
-        ++ tensorShape source
-   in if assert "partial derivative chain needs a positive derivative order"
-                (0 < derivativeOrder)
-        then generateTensor
-               (\indices ->
-                  let derivativePositions := take derivativeOrder indices
-                   in let sourceBasis := drop derivativeOrder indices
-                   in derivative targetBasis
-                        (map (\position -> nth position axisIds)
-                             derivativePositions)
-                        sourceBasis
-                        (FE.tensorComponentAt source sourceBasis))
-               outputShape
-        else source
-
--- Build the rank-1 diagonal of an order-N coordinate derivative.  This is
--- the runtime meaning of surface notation such as `partial^2_i u`: component
--- i differentiates along coordinate i.  Radius 1 reuses the placement-aware
--- tensor derivative; wider stencils use the generated scalar coordinate
--- derivative callback.
-def FE.diagonalCoordinateDerivative
-      (derivative:
-         [Integer] -> [Integer] -> [Integer] -> MathValue -> MathValue)
-      (coordinateDerivative:
-         Integer -> Integer -> MathValue -> MathValue -> MathValue)
-      (coordinates: Vector MathValue) (axisIds: [Integer])
-      (order: Integer) (radius: Integer) (source: Tensor MathValue)
-      : Tensor MathValue :=
-  if assert "diagonal coordinate derivative needs a scalar tensor"
-            (tensorShape source = [])
-    then generateTensor
-      (\[axis] ->
-        if radius = 1
-          then FE.tensorComponentAt
-                 (FE.partialChainTensor derivative [axis] axisIds order source)
-                 (map (\_ -> axis) (between 1 order))
-          else coordinateDerivative order radius
-                 (FE.tensorComponentAt coordinates [axis])
-                 (FE.tensorComponentAt source []))
-      [length axisIds]
-    else source
-
 def FE.chooseAxes (degree: Integer) (axes: [Integer]) : [[Integer]] :=
   if degree = 0
     then [[]]
@@ -194,87 +149,3 @@ def FE.formComponents (t: Tensor MathValue) : [MathValue] :=
                 (all (\size -> size = dim) shape)
         then map (FE.tensorComponentAt t) (FE.formBasis dim degree)
         else []
-
--- Coordinate operators take the discrete derivative as an explicit
--- dependency.  The derivative receives the complete semantic description of
--- one tensor component:
---
---   target component basis, derivative axes, source component basis, value
---
--- The generated model closes over the source/target GridPolicy before passing
--- this callback to the operator.  `axisIds` maps tensor positions to the axis
--- identifiers expected by the concrete derivative implementation.
-def FE.grad
-      (derivative:
-         [Integer] -> [Integer] -> [Integer] -> MathValue -> MathValue)
-      (axisIds: [Integer])
-      (u: MathValue) : Tensor MathValue :=
-  generateTensor
-    (\[i] -> derivative [i] [nth i axisIds] [] u)
-    [length axisIds]
-
-def FE.dGrad
-      (derivative:
-         [Integer] -> [Integer] -> [Integer] -> MathValue -> MathValue)
-      (axisIds: [Integer])
-      (x: Tensor MathValue) : Tensor MathValue :=
-  match assert "dGrad axis and vector dimensions differ"
-               (tensorShape x = [length axisIds]) as bool with
-    | #True ->
-        let dim := length axisIds
-         in generateTensor
-              (\[i, j] ->
-                derivative [i, j] [nth i axisIds] [j]
-                  (FE.tensorComponentAt x [j]))
-              [dim, dim]
-
-def FE.divg
-      (derivative:
-         [Integer] -> [Integer] -> [Integer] -> MathValue -> MathValue)
-      (axisIds: [Integer])
-      (x: Tensor MathValue) : MathValue :=
-  match assert "divg axis and vector dimensions differ"
-               (tensorShape x = [length axisIds]) as bool with
-    | #True ->
-        sum (map
-               (\i -> derivative [] [nth i axisIds] [i]
-                        (FE.tensorComponentAt x [i]))
-               (between 1 (length axisIds)))
-
-def FE.curl
-      (derivative:
-         [Integer] -> [Integer] -> [Integer] -> MathValue -> MathValue)
-      (axisIds: [Integer])
-      (x: Tensor MathValue) : Tensor MathValue :=
-  match assert "curl requires three axes and a three-component vector"
-               (length axisIds = 3 && tensorShape x = [3]) as bool with
-    | #True ->
-        let pairs := concat (map (\j -> map (\k -> (j, k)) (between 1 3))
-                                  (between 1 3))
-         in generateTensor
-              (\[i] ->
-                sum (map (\(j, k) ->
-                       FE.tensorComponentAt (ε 3) [i, j, k]
-                       * (derivative [i] [nth j axisIds] [k]
-                            (FE.tensorComponentAt x [k]))) pairs))
-              [3]
-
-def FE.hessian
-      (derivative:
-         [Integer] -> [Integer] -> [Integer] -> MathValue -> MathValue)
-      (axisIds: [Integer])
-      (u: MathValue) : Tensor MathValue :=
-  let dim := length axisIds
-   in generateTensor
-        (\[i, j] ->
-          derivative [i, j] [nth i axisIds, nth j axisIds] [] u)
-        [dim, dim]
-
-def FE.lap
-      (derivative:
-         [Integer] -> [Integer] -> [Integer] -> MathValue -> MathValue)
-      (axisIds: [Integer])
-      (u: MathValue) : MathValue :=
-  sum (map
-         (\i -> derivative [] [nth i axisIds, nth i axisIds] [] u)
-         (between 1 (length axisIds)))

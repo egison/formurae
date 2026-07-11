@@ -13,5 +13,5 @@ begin function u = init()
 end function
 
 begin function u' = step(u)
-  u' = u[i,j,k] + (-2)*dt*kappa*u[i,j,k]/(dz**2) + dt*kappa*u[i,j,k-1]/(dz**2) + dt*kappa*u[i,j,k+1]/(dz**2) + (-2)*dt*kappa*u[i,j,k]/(dy**2) + dt*kappa*u[i,j-1,k]/(dy**2) + dt*kappa*u[i,j+1,k]/(dy**2) + (-2)*dt*kappa*u[i,j,k]/(dx**2) + dt*kappa*u[i-1,j,k]/(dx**2) + dt*kappa*u[i+1,j,k]/(dx**2)
+  u'[i,j,k] = u[i,j,k] + dt * kappa * (u[i-1,j,k] + u[i+1,j,k] + (-2) * u[i,j,k]) / dx**2 + dt * kappa * (u[i,j-1,k] + u[i,j+1,k] + (-2) * u[i,j,k]) / dy**2 + dt * kappa * (u[i,j,k-1] + u[i,j,k+1] + (-2) * u[i,j,k]) / dz**2
 end function

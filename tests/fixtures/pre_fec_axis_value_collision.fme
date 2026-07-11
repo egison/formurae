@@ -1,0 +1,7 @@
+mode collocated
+dimension 1
+axes r
+param r = 2
+field u : scalar
+step:
+  u' = u + r

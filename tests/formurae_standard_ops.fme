@@ -13,4 +13,4 @@ init:
 
 step:
   u' = apply lap u
-  q'_i = apply grad u
+  q' = apply grad u

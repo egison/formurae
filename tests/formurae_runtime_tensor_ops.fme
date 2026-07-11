@@ -14,7 +14,7 @@ init:
   S_i_j = [| [| 0, 0 |], [| 0, 0 |] |]_i_j
 
 step:
-  A'_i = A_i
+  A' = A
   let T_i = B_i
-  C'_i_j = wedge A' T..._i_j
-  S'_i_j = sym C..._i_j
+  C' = wedge A' T
+  S' = sym C

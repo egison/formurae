@@ -1,0 +1,3 @@
+def brokenMachineValue : Integer := missingMachineValue
+
+def main (args: [String]) : IO () := print "must-not-reach-stdout"

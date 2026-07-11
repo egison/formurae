@@ -1,12 +1,12 @@
 module Formurae.Common where
 
 import Data.Char (isAlpha, isAlphaNum, isSpace)
-import Data.List (dropWhileEnd, intercalate, isPrefixOf)
+import Data.List (dropWhileEnd, isPrefixOf)
 import System.Exit (exitFailure)
 import System.IO (hPutStrLn, stderr)
 
 fatal :: String -> IO a
-fatal msg = hPutStrLn stderr ("fec: error: " ++ msg) >> exitFailure
+fatal msg = hPutStrLn stderr ("pre-fec: error: " ++ msg) >> exitFailure
 
 strip, rstrip :: String -> String
 rstrip = dropWhileEnd isSpace
@@ -36,26 +36,6 @@ rejectReservedName ln nm =
 validSurfaceName :: String -> Bool
 validSurfaceName (c:cs) = isAlpha c && all isAlphaNum cs
 validSurfaceName [] = False
-
-egiStringList :: [String] -> String
-egiStringList xs = "[" ++ intercalate ", " (map show xs) ++ "]"
-
-egiMathList :: [String] -> String
-egiMathList xs = "[" ++ intercalate ", " xs ++ "]"
-
-egiIntList :: [Int] -> String
-egiIntList xs = "[" ++ intercalate ", " (map show xs) ++ "]"
-
-egiIntLists :: [[Int]] -> String
-egiIntLists xs = "[" ++ intercalate ", " (map egiIntList xs) ++ "]"
-
-permSign :: [Int] -> Int
-permSign xs =
-  if even (length [(a, b) | (i, a) <- zip [0 :: Int ..] xs
-                          , (j, b) <- zip [0 :: Int ..] xs
-                          , i < j, a > b])
-    then 1
-    else -1
 
 splitOn :: Char -> String -> [String]
 splitOn ch = foldr step [[]]

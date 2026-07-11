@@ -1,0 +1,68 @@
+-- This file is generated from spec/feir-primitives-v1.sexp.
+-- Run tools/generate-feir-primitives.hs; do not edit it directly.
+
+def Formurae.Primitives.primitiveManifestV1Id : String :=
+  "sha256:f6294c222255af0cbc20d76a46e6eecb1858d3c4a370500f9c7c8b510a18010f"
+
+def Formurae.Primitives.codiffMetricV1OpId : String :=
+  "codiff.metric@1"
+
+def Formurae.Primitives.derivativeCoordinateWideV1OpId : String :=
+  "derivative.coordinate-wide@1"
+
+def Formurae.Primitives.derivativeGridWholeV1OpId : String :=
+  "derivative.grid-whole@1"
+
+def Formurae.Primitives.derivativeOrderedV1OpId : String :=
+  "derivative.ordered@1"
+
+def Formurae.Primitives.fluxConservativeDivergenceV1OpId : String :=
+  "flux.conservative-divergence@1"
+
+def Formurae.Primitives.lbOrthogonalV1OpId : String :=
+  "lb.orthogonal@1"
+
+def Formurae.Primitives.operatorMaterializedV1OpId : String :=
+  "operator.materialized@1"
+
+def Formurae.Primitives.resampleExplicitV1OpId : String :=
+  "resample.explicit@1"
+
+def Formurae.Primitives.signatures
+      : [(String, String, Integer, [String], String, String, String, [String], String)] :=
+  [ (Formurae.Primitives.codiffMetricV1OpId, "codiff.metric", 1, ["form"], "form", "dual-adjoint", "needs-materialization", ["coefficient", "flux", "result", "volume"], "ordered")
+  , (Formurae.Primitives.derivativeCoordinateWideV1OpId, "derivative.coordinate-wide", 1, ["scalar"], "scalar", "derivative-target", "pure-local", [], "ordered")
+  , (Formurae.Primitives.derivativeGridWholeV1OpId, "derivative.grid-whole", 1, ["scalar"], "scalar", "derivative-target", "pure-local", [], "ordered")
+  , (Formurae.Primitives.derivativeOrderedV1OpId, "derivative.ordered", 1, ["scalar"], "scalar", "derivative-target", "pure-local", [], "ordered")
+  , (Formurae.Primitives.fluxConservativeDivergenceV1OpId, "flux.conservative-divergence", 1, ["tensor"], "scalar", "conservative-cell", "needs-materialization", ["flux", "result"], "declared-commutative")
+  , (Formurae.Primitives.lbOrthogonalV1OpId, "lb.orthogonal", 1, ["scalar"], "scalar", "conservative-cell", "needs-materialization", ["coefficient", "flux", "result", "volume"], "declared-commutative")
+  , (Formurae.Primitives.operatorMaterializedV1OpId, "operator.materialized", 1, ["any"], "any", "preserve-source", "needs-materialization", ["intermediate"], "ordered")
+  , (Formurae.Primitives.resampleExplicitV1OpId, "resample.explicit", 1, ["scalar"], "scalar", "explicit-target", "pure-local", [], "ordered")
+  ]
+
+def Formurae.Primitives.signatureOperationId
+      (signature: (String, String, Integer, [String], String, String, String, [String], String))
+      : String :=
+  let (operationId, _, _, _, _, _, _, _, _) := signature in operationId
+
+def Formurae.Primitives.signatureFor
+      (operationId: String)
+      : (String, String, Integer, [String], String, String, String, [String], String) :=
+  let matches :=
+        filter
+          (\entry ->
+            Formurae.Primitives.signatureOperationId entry = operationId)
+          Formurae.Primitives.signatures
+   in match assert "primitive operation ID is absent or duplicated in the generated manifest"
+                   (length matches = 1)
+        as bool with
+      | #True -> head matches
+
+def Formurae.Primitives.requireOperationId
+      (operationId: String) : String :=
+  let signature := Formurae.Primitives.signatureFor operationId
+   in Formurae.Primitives.signatureOperationId signature
+
+def Formurae.Primitives.operationIds : [String] :=
+  map Formurae.Primitives.signatureOperationId
+    Formurae.Primitives.signatures

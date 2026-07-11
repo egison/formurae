@@ -1,0 +1,8 @@
+mode collocated
+dimension 1
+axes x
+metric g
+field u : scalar
+def g value = value
+step:
+  u' = u

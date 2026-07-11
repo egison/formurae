@@ -1,0 +1,11 @@
+declare symbol x
+
+def opaqueErrorContext :=
+  Formurae.operatorContext [|x|] 1 1
+    Formurae.Primitives.primitiveManifestV1Id [|1|] False
+
+def opaqueErrorU := function (x)
+
+strictPartialDiffMV
+  (Formurae.lbOrthogonal opaqueErrorContext opaqueErrorU)
+  x

@@ -1,0 +1,84 @@
+#!/bin/sh
+
+set -eu
+
+ROOT=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
+EGISON_DIR=${EGISON_DIR:-"$ROOT/../egison"}
+
+cd "$ROOT"
+runghc -ifec/src tools/generate-feir-primitives.hs --check
+cabal build -v0 all
+
+for test in \
+  feir_sexpr \
+  feir_fingerprint \
+  feir_codec \
+  feir_validate \
+  feir_primitive_manifest \
+  feir_primitive_bindings \
+  feir_registry_fingerprint \
+  tensor_expr_parser \
+  pre_parse_profile \
+  pre_registry \
+  pre_effect \
+  pre_provenance \
+  pre_emit_egison \
+  pre_emit_remaining_primitives \
+  pre_geometry_emit \
+  post_stencil \
+  post_location \
+  post_fmr \
+  post_normalize \
+  post_profile \
+  post_geometry \
+  post_explicit_stencil \
+  post_primitive_contract \
+  post_backend_plan \
+  post_backend_remaining_primitives \
+  post_compile \
+  post_compile_lb \
+  post_compile_wide \
+  post_compile_grid_whole \
+  post_compile_ordered_resample \
+  post_compile_explicit_effects \
+  post_compile_metric_codiff \
+  post_diagnostic
+do
+  cabal exec -v0 runghc -- -ifec/src "tests/$test.hs"
+done
+
+"$ROOT/tools/run_egison_machine.sh" "$EGISON_DIR" -t \
+  -l "$ROOT/lib/formurae-primitives.egi" \
+  "$ROOT/tests/formurae_primitive_bindings_lib.egi" >/dev/null
+
+"$ROOT/tools/run_egison_machine.sh" "$EGISON_DIR" -t \
+  -l "$ROOT/lib/formurae-tensor.egi" \
+  "$ROOT/tests/formurae_tensor_lib.egi" >/dev/null
+
+"$ROOT/tools/run_formurae_normalization.sh" "$EGISON_DIR" -t \
+  "$ROOT/tests/formurae_operators_lib.egi" >/dev/null
+
+"$ROOT/tools/run_formurae_normalization.sh" "$EGISON_DIR" -t \
+  "$ROOT/tests/formurae_form_operators_lib.egi" >/dev/null
+
+"$ROOT/tools/run_formurae_normalization.sh" "$EGISON_DIR" -t \
+  "$ROOT/tests/formurae_opaque_lib.egi" >/dev/null
+
+"$ROOT/tools/run_formurae_normalization.sh" "$EGISON_DIR" -t \
+  "$ROOT/tests/formurae_remaining_primitives_lib.egi" >/dev/null
+
+"$ROOT/tools/run_formurae_normalization.sh" "$EGISON_DIR" \
+  "$ROOT/tests/formurae_feir_lib.egi" \
+  | cabal exec -v0 runghc -- -ifec/src tests/feir_egison_wire.hs
+
+sh tests/formurae_opaque_errors.sh
+sh tests/egison_machine_output.sh "$EGISON_DIR"
+sh tests/pre_egison_diagnostic.sh
+sh tests/pre_tensor_metadata.sh
+sh tests/pre_static_diagnostic_cli.sh
+sh tests/pre_user_definitions.sh
+sh tests/post_diagnostic_cli.sh
+sh tests/pre_provenance_e2e.sh
+sh tests/pre_fec_pipeline.sh
+
+printf 'Formurae compiler suite: ok\n'

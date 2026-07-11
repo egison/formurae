@@ -13,7 +13,7 @@ param mob = 1.0
 param dt = 0.004
 
 extern sin
-def Δ u = ∂^2_x u + ∂^2_y u + ∂^2_z u
+def Δ u = divg (grad u)
 
 field c : scalar
 

@@ -2,10 +2,10 @@
 
 module Formurae.Index where
 
-import Data.Char (isAlpha, isAlphaNum, isDigit, isSpace)
-import Data.List (sort, stripPrefix)
+import Data.Char (isAlpha, isAlphaNum, isDigit)
+import Data.List (stripPrefix)
 
-import Formurae.Common (fatal, reservedInternalPrefix, validSurfaceName)
+import Formurae.Common (fatal, validSurfaceName)
 import Formurae.Syntax
 
 -- Keep the source column on each token.  Most of the tensor parser was
@@ -47,12 +47,6 @@ itok = go 1
 
 ixName :: IxPart -> String
 ixName (IxPart _ nm) = nm
-
-ixNames :: [IxPart] -> [String]
-ixNames = map ixName
-
-isIndexI :: [IxPart] -> Bool
-isIndexI parts = ixNames parts == ["i"]
 
 parseIndexedIdent :: String -> (String, [IxPart])
 parseIndexedIdent w =
@@ -128,19 +122,18 @@ fieldDeclAcceptsParts :: FieldDecl -> [IxPart] -> Bool
 fieldDeclAcceptsParts fd parts =
   case fdIndex fd of
     Nothing -> null parts
-    Just (FieldIndex [Plain decl]) -> sameVarianceList decl parts
-    Just (FieldIndex [Symmetric decl]) ->
+    Just (FieldIndex (Plain decl)) -> sameVarianceList decl parts
+    Just (FieldIndex (Symmetric decl)) ->
       sameVarianceList decl parts || sameVarianceList (reverse decl) parts
-    Just (FieldIndex [Antisymmetric decl]) ->
+    Just (FieldIndex (Antisymmetric decl)) ->
       sameVarianceList decl parts || sameVarianceList (reverse decl) parts
-    _ -> False
 
 fieldDeclIndexSuffix :: FieldDecl -> String
 fieldDeclIndexSuffix fd =
   case fdIndex fd of
-    Just (FieldIndex [Plain parts]) -> showIxParts parts
-    Just (FieldIndex [Symmetric parts]) -> showIxParts parts
-    Just (FieldIndex [Antisymmetric parts]) -> showIxParts parts
+    Just (FieldIndex (Plain parts)) -> showIxParts parts
+    Just (FieldIndex (Symmetric parts)) -> showIxParts parts
+    Just (FieldIndex (Antisymmetric parts)) -> showIxParts parts
     _ -> ""
 
 parseFieldSpec :: String -> Maybe (String, Maybe FieldIndex)
@@ -151,96 +144,31 @@ parseFieldSpec spec = do
       "" -> Just (nm, Nothing)
       c:_ | c == '~' || c == '_' -> do
         parts <- parseMarkedSeq rest
-        Just (nm, Just (FieldIndex [Plain parts]))
+        Just (nm, Just (FieldIndex (Plain parts)))
       '{':body | not (null body), last body == '}' -> do
         parts <- parseMarkedSeq (init body)
-        Just (nm, Just (FieldIndex [Symmetric parts]))
+        Just (nm, Just (FieldIndex (Symmetric parts)))
       '[':body | not (null body), last body == ']' ->
         do parts <- parseMarkedSeq (init body)
-           Just (nm, Just (FieldIndex [Antisymmetric parts]))
+           Just (nm, Just (FieldIndex (Antisymmetric parts)))
       _ -> Nothing
 
-inferFieldLayout :: Int -> String -> Maybe FieldIndex -> IO FieldLayout
-inferFieldLayout _ _ Nothing = return ScalarLayout
-inferFieldLayout ln spec (Just (FieldIndex [Plain parts]))
-  | length parts == 1 = return Rank1Layout
-  | length parts == 2 = return FullRank2Layout
+inferFieldKind :: Int -> String -> Maybe FieldIndex -> IO Kind
+inferFieldKind _ _ Nothing = return Scalar
+inferFieldKind ln spec (Just (FieldIndex (Plain parts)))
+  | length parts == 1 = return Vector
+  | length parts == 2 = return Tensor2
   | otherwise = fatal ("unsupported field rank in " ++ spec ++ " (line " ++ show ln ++ ")")
-inferFieldLayout ln spec (Just (FieldIndex [Symmetric parts]))
-  | length parts == 2 && sameVarianceParts parts = return SymRank2Layout
+inferFieldKind ln spec (Just (FieldIndex (Symmetric parts)))
+  | length parts == 2 && sameVarianceParts parts = return SymM
   | length parts == 2 = fatal ("symmetric field needs same-variance indices: " ++ spec ++ " (line " ++ show ln ++ ")")
   | otherwise = fatal ("symmetric field must have rank 2: " ++ spec ++ " (line " ++ show ln ++ ")")
-inferFieldLayout ln spec (Just (FieldIndex [Antisymmetric parts]))
-  | length parts == 2 && sameVarianceParts parts = return AntiRank2Layout
+inferFieldKind ln spec (Just (FieldIndex (Antisymmetric parts)))
+  | length parts == 2 && sameVarianceParts parts = return AntiM
   | length parts == 2 = fatal ("antisymmetric field needs same-variance indices: " ++ spec ++ " (line " ++ show ln ++ ")")
   | otherwise = fatal ("antisymmetric field must have rank 2: " ++ spec ++ " (line " ++ show ln ++ ")")
-inferFieldLayout ln spec _ =
-  fatal ("unsupported field spec: " ++ spec ++ " (line " ++ show ln ++ ")")
-
-metricInternalBase :: Variance -> Variance -> String
-metricInternalBase VUp VUp = reservedInternalPrefix ++ "MetricContra"
-metricInternalBase VUp VDown = reservedInternalPrefix ++ "MetricMixedUpDown"
-metricInternalBase VDown VUp = reservedInternalPrefix ++ "MetricMixedDownUp"
-metricInternalBase VDown VDown = reservedInternalPrefix ++ "MetricCov"
-
--- Hygienic Cartesian identity metric used by collocated prelude definitions.
--- It intentionally stays Euclidean even when a separate metric/embedding is
--- present for operators such as lb. Surface programs cannot capture the name.
-metricPreludeName :: String
-metricPreludeName = reservedInternalPrefix ++ "CartesianMetric"
-
 axisRange :: Model -> [Int]
 axisRange m = [1 .. mDim m]
-
--- The generated program asks the shared Egison grid library to materialize
--- concrete offsets.  The bits are retained temporarily as a compiler oracle:
--- they choose collocated versus Yee derivative lowering and let us reject
--- impossible placement combinations before emitting code.
-data Placement = Placement
-  { placementBits :: [Bool]
-  , placementExpr :: String
-  , placementPolicy :: GridPolicy
-  }
-
-instance Eq Placement where
-  Placement lhs _ _ == Placement rhs _ _ = lhs == rhs
-
--- Grid placement is determined uniformly from the parity of the concrete
--- component indices.  Layout/rank-specific placeV/placeS cases are all
--- instances of this rule.
-componentPlacement :: Model -> GridPolicy -> [Int] -> Placement
-componentPlacement m policy indices =
-  Placement
-    [ policyBit (odd (length (filter (== axis) indices)))
-    | axis <- axisRange m
-    ]
-    ("(FE.componentPlacement feDim " ++ show policy ++ " " ++ show indices ++ ")")
-    policy
-  where
-    policyBit _ | policy == Collocated = False
-    policyBit parity | policy == Primal = parity
-    policyBit parity = not parity
-
-placeText :: Placement -> String
-placeText = placementExpr
-
-leviCivita3 :: [Int] -> Int
-leviCivita3 xs
-  | sort xs /= [1, 2, 3] = 0
-  | xs `elem` [[1, 2, 3], [2, 3, 1], [3, 1, 2]] = 1
-  | otherwise = -1
-
-indexContractionDots :: String -> String
-indexContractionDots = go Nothing
-  where
-    go _ [] = []
-    go prev ('.':cs)
-      | maybe False isSpace prev
-      , case cs of
-          c:_ -> isSpace c
-          [] -> False
-      = '*' : go (Just '*') cs
-    go _ (c:cs) = c : go (Just c) cs
 
 fieldBaseOf :: String -> (String, Int)
 fieldBaseOf w = (takeWhile (/= '\'') w, length (filter (== '\'') w))
@@ -251,9 +179,9 @@ ixVariance (IxPart v _) = v
 fieldIndexParts :: FieldDecl -> Maybe [IxPart]
 fieldIndexParts fd =
   case fdIndex fd of
-    Just (FieldIndex [Plain parts]) -> Just parts
-    Just (FieldIndex [Symmetric parts]) -> Just parts
-    Just (FieldIndex [Antisymmetric parts]) -> Just parts
+    Just (FieldIndex (Plain parts)) -> Just parts
+    Just (FieldIndex (Symmetric parts)) -> Just parts
+    Just (FieldIndex (Antisymmetric parts)) -> Just parts
     _ -> Nothing
 
 componentRank :: Kind -> Int
@@ -293,56 +221,8 @@ rank2Pairs = map pairOf
     pairOf [a, b] = (a, b)
     pairOf xs = error ("internal rank-2 component shape: " ++ show xs)
 
-componentVariances :: Model -> String -> Kind -> [Maybe Variance]
-componentVariances m nm kind =
-  case fieldDeclOf m nm >>= fieldIndexParts of
-    Just parts | length parts == componentRank kind -> map (Just . ixVariance) parts
-    _ -> replicate (componentRank kind) Nothing
-
-storageIndexTag :: Maybe Variance -> Int -> String
-storageIndexTag Nothing a = "_" ++ show a
-storageIndexTag (Just VUp) a = "_up" ++ show a
-storageIndexTag (Just VDown) a = "_down" ++ show a
-
-componentStorageName :: Model -> String -> Kind -> [Int] -> String
-componentStorageName m nm kind inds =
-  nm ++ concat (zipWith storageIndexTag (componentVariances m nm kind) inds)
-
 internalCoordNames :: Model -> [String]
 internalCoordNames m = take (mDim m) ["x", "y", "z"]
-
-internalHstepNames :: Model -> [String]
-internalHstepNames m = take (mDim m) ["hx", "hy", "hz"]
-
-internalIndexNames :: Model -> [String]
-internalIndexNames m = take (mDim m) ["i", "j", "k"]
-
-componentStorageNames :: Model -> String -> Kind -> [String]
-componentStorageNames m nm kind =
-  [ componentStorageName m nm kind inds | inds <- componentIndices (mDim m) kind ]
-
-componentStorageNamesOf :: Model -> String -> [String]
-componentStorageNamesOf m nm =
-  case kindOf m nm of
-    Just kind -> componentStorageNames m nm kind
-    Nothing -> [nm]
-
-firstComponentStorageName :: Model -> String -> String
-firstComponentStorageName m nm =
-  case componentStorageNamesOf m nm of
-    x:_ -> x
-    [] -> nm
-
-egisonComponentName :: String -> Int -> [Int] -> String
-egisonComponentName nm primes inds =
-  nm ++ replicate primes '\'' ++ concatMap (('_' :) . show) inds
-
-fieldStorageMapEntries :: Model -> (String, Kind) -> [(String, String)]
-fieldStorageMapEntries m (nm, kind) =
-  [ (egisonComponentName nm primes inds, storage ++ replicate primes '\'')
-  | (inds, storage) <- zip (componentIndices (mDim m) kind) (componentStorageNames m nm kind)
-  , primes <- [0, 1]
-  ]
 
 isIndexKind :: Maybe Kind -> Bool
 isIndexKind (Just Vector) = True

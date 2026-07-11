@@ -15,10 +15,10 @@ begin function (h,mx,my) = init()
 end function
 
 begin function (h',mx',my') = step(h,mx,my)
-  fmxx = g*h[i,j,k]**2/(2) + mx[i,j,k]**2/(h[i,j,k])
-  fmxy = mx[i,j,k]*my[i,j,k]/(h[i,j,k])
-  fmyy = g*h[i,j,k]**2/(2) + my[i,j,k]**2/(h[i,j,k])
-  h' = h[i,j,k] + dt*my[i,j-1,k]/(2*dy) + (-1)*dt*my[i,j+1,k]/(2*dy) + dt*mx[i-1,j,k]/(2*dx) + (-1)*dt*mx[i+1,j,k]/(2*dx) + (-2)*dt*h[i,j,k]*lambda/(dy**2) + (-2)*dt*h[i,j,k]*lambda/(dx**2) + dt*h[i,j-1,k]*lambda/(dy**2) + dt*h[i,j+1,k]*lambda/(dy**2) + dt*h[i-1,j,k]*lambda/(dx**2) + dt*h[i+1,j,k]*lambda/(dx**2)
-  mx' = mx[i,j,k] + (-2)*dt*lambda*mx[i,j,k]/(dy**2) + dt*lambda*mx[i,j-1,k]/(dy**2) + dt*lambda*mx[i,j+1,k]/(dy**2) + (-2)*dt*lambda*mx[i,j,k]/(dx**2) + dt*lambda*mx[i-1,j,k]/(dx**2) + dt*lambda*mx[i+1,j,k]/(dx**2) + dt*fmxy[i,j-1,k]/(2*dy) + (-1)*dt*fmxy[i,j+1,k]/(2*dy) + dt*fmxx[i-1,j,k]/(2*dx) + (-1)*dt*fmxx[i+1,j,k]/(2*dx)
-  my' = my[i,j,k] + (-2)*dt*lambda*my[i,j,k]/(dy**2) + dt*lambda*my[i,j-1,k]/(dy**2) + dt*lambda*my[i,j+1,k]/(dy**2) + (-2)*dt*lambda*my[i,j,k]/(dx**2) + dt*lambda*my[i-1,j,k]/(dx**2) + dt*lambda*my[i+1,j,k]/(dx**2) + dt*fmyy[i,j-1,k]/(2*dy) + (-1)*dt*fmyy[i,j+1,k]/(2*dy) + dt*fmxy[i-1,j,k]/(2*dx) + (-1)*dt*fmxy[i+1,j,k]/(2*dx)
+  fmxx[i,j,k] = (1 / 2) * g * h[i,j,k]**2 + h[i,j,k]**(-1) * mx[i,j,k]**2
+  fmxy[i,j,k] = mx[i,j,k] * my[i,j,k] * h[i,j,k]**(-1)
+  fmyy[i,j,k] = (1 / 2) * g * h[i,j,k]**2 + h[i,j,k]**(-1) * my[i,j,k]**2
+  h'[i,j,k] = h[i,j,k] + (-1) * dt * ((-1 / 2) * mx[i-1,j,k] + (1 / 2) * mx[i+1,j,k]) / dx + (-1) * dt * ((-1 / 2) * my[i,j-1,k] + (1 / 2) * my[i,j+1,k]) / dy + dt * lambda * (h[i-1,j,k] + h[i+1,j,k] + (-2) * h[i,j,k]) / dx**2 + dt * lambda * (h[i,j-1,k] + h[i,j+1,k] + (-2) * h[i,j,k]) / dy**2
+  mx'[i,j,k] = mx[i,j,k] + (-1) * dt * ((-1 / 2) * fmxx[i-1,j,k] + (1 / 2) * fmxx[i+1,j,k]) / dx + (-1) * dt * ((-1 / 2) * fmxy[i,j-1,k] + (1 / 2) * fmxy[i,j+1,k]) / dy + dt * lambda * (mx[i-1,j,k] + mx[i+1,j,k] + (-2) * mx[i,j,k]) / dx**2 + dt * lambda * (mx[i,j-1,k] + mx[i,j+1,k] + (-2) * mx[i,j,k]) / dy**2
+  my'[i,j,k] = my[i,j,k] + (-1) * dt * ((-1 / 2) * fmxy[i-1,j,k] + (1 / 2) * fmxy[i+1,j,k]) / dx + (-1) * dt * ((-1 / 2) * fmyy[i,j-1,k] + (1 / 2) * fmyy[i,j+1,k]) / dy + dt * lambda * (my[i-1,j,k] + my[i+1,j,k] + (-2) * my[i,j,k]) / dx**2 + dt * lambda * (my[i,j-1,k] + my[i,j+1,k] + (-2) * my[i,j,k]) / dy**2
 end function

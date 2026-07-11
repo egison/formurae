@@ -20,6 +20,6 @@ init:
   K_i_j = [| [| 0, 0 |], [| 0, 0 |] |]_i_j
 
 step:
-  H'_i_j = hessian u
-  G'_i_j = dGrad q_j + S_i_j
-  K'_i_j = hessian u + A_i_j
+  H' = hessian u
+  G' = dGrad q + S
+  K' = hessian u + A

@@ -1,0 +1,99 @@
+declare symbol x, y, z
+
+def context :=
+  Formurae.operatorContext [|x, y, z|] 3 1 "formurae-test-v1"
+    [|1, 1, 1|] False
+
+assertEqual "operator context accessors"
+  ( Formurae.coordinates context
+  , Formurae.dimension context
+  , Formurae.geometryId context
+  , Formurae.primitiveManifestId context)
+  ([|x, y, z|], 3, 1, "formurae-test-v1")
+
+def u := function (x, y, z)
+def X1 := function (x, y, z)
+def X2 := function (x, y, z)
+def X3 := function (x, y, z)
+def X := [|X1, X2, X3|]
+
+assertEqual "pure strict gradient"
+  (Formurae.grad context u)
+  [|userRefs u [1], userRefs u [2], userRefs u [3]|]
+
+assertEqual "gradient result carries covariant vector metadata"
+  (tensorVariances (Formurae.grad context u),
+   dfOrder (Formurae.grad context u))
+  (["down"], 0)
+
+assertEqual "pure strict vector gradient"
+  (Formurae.dGrad context X)
+  [| [|userRefs X1 [1], userRefs X2 [1], userRefs X3 [1]|]
+   , [|userRefs X1 [2], userRefs X2 [2], userRefs X3 [2]|]
+   , [|userRefs X1 [3], userRefs X2 [3], userRefs X3 [3]|] |]
+
+assertEqual "vector gradient carries derivative and operand variances"
+  (tensorVariances (Formurae.dGrad context X),
+   dfOrder (Formurae.dGrad context X))
+  (["down", "down"], 0)
+
+assertEqual "vector gradient preserves a contravariant operand axis"
+  (let XUp := Formurae.attachExplicitVariances ["up"] X
+    in (tensorVariances (Formurae.dGrad context XUp),
+        dfOrder (Formurae.dGrad context XUp)))
+  (["down", "up"], 0)
+
+assertEqual "pure strict divergence"
+  (Formurae.divg context X)
+  (userRefs X1 [1] + userRefs X2 [2] + userRefs X3 [3])
+
+assertEqual "pure strict curl"
+  (Formurae.curl context X)
+  [| userRefs X3 [2] - userRefs X2 [3]
+   , userRefs X1 [3] - userRefs X3 [1]
+   , userRefs X2 [1] - userRefs X1 [2] |]
+
+assertEqual "curl result carries covariant vector metadata"
+  (tensorVariances (Formurae.curl context X),
+   dfOrder (Formurae.curl context X))
+  (["down"], 0)
+
+assertEqual "pure strict Hessian"
+  (Formurae.hessian context u)
+  [| [|userRefs u [1, 1], userRefs u [1, 2], userRefs u [1, 3]|]
+   , [|userRefs u [1, 2], userRefs u [2, 2], userRefs u [2, 3]|]
+   , [|userRefs u [1, 3], userRefs u [2, 3], userRefs u [3, 3]|] |]
+
+assertEqual "Hessian result carries covariant rank-two metadata"
+  (tensorVariances (Formurae.hessian context u),
+   dfOrder (Formurae.hessian context u))
+  (["down", "down"], 0)
+
+assertEqual "pure strict Laplacian"
+  (Formurae.lap context u)
+  (userRefs u [1, 1] + userRefs u [2, 2] + userRefs u [3, 3])
+
+assertEqual "Laplacian is divergence of gradient"
+  (Formurae.lap context u)
+  (Formurae.divg context (Formurae.grad context u))
+
+assertEqual "exterior derivative of a scalar is its gradient"
+  (Formurae.d context u)
+  (Formurae.grad context u)
+
+assertEqual "exterior derivative retains an anonymous form axis"
+  (tensorVariances (Formurae.d context u), dfOrder (Formurae.d context u))
+  ([], 1)
+
+assertEqual "exterior derivative uses the standard one-form convention"
+  (Formurae.d context X)
+  [| [| 0, userRefs X2 [1] - userRefs X1 [2],
+            userRefs X3 [1] - userRefs X1 [3] |]
+   , [| userRefs X1 [2] - userRefs X2 [1], 0,
+         userRefs X3 [2] - userRefs X2 [3] |]
+   , [| userRefs X1 [3] - userRefs X3 [1],
+         userRefs X2 [3] - userRefs X3 [2], 0 |] |]
+
+assertEqual "exterior derivative squares to zero"
+  (Formurae.d context (Formurae.d context u))
+  [| [|0, 0, 0|], [|0, 0, 0|], [|0, 0, 0|] |]

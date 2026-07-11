@@ -1,6 +1,6 @@
 module Formurae.Syntax where
 
-import Data.Char (isAlpha, isAlphaNum, isDigit, isSpace)
+import Data.Char (isAlpha, isAlphaNum, isSpace)
 
 data Mode = CollocatedMode | DecMode
   deriving (Eq, Show)
@@ -11,15 +11,25 @@ data GridPolicy = Collocated | Primal | Dual
 data Kind = Scalar | Vector | Form Int | SymM | AntiM | Tensor2
   deriving (Eq, Show)
 
-data FieldLayout =
-    ScalarLayout
-  | Rank1Layout
-  | SymRank2Layout
-  | AntiRank2Layout
-  | FullRank2Layout
+data Variance = VUp | VDown deriving (Eq, Show)
+
+data SurfaceLatticeClass
+  = SurfaceCollocated
+  | SurfaceStaggered
   deriving (Eq, Show)
 
-data Variance = VUp | VDown deriving (Eq, Show)
+data SurfaceStencilFamily
+  = SurfaceCentered
+  | SurfaceYee
+  deriving (Eq, Show)
+
+data DiscretizationDecl = DiscretizationDecl
+  { discretizationLatticeClass :: SurfaceLatticeClass
+  , discretizationDerivativeOrder :: Maybe Int
+  , discretizationStencilFamily :: SurfaceStencilFamily
+  , discretizationFormalAccuracy :: Int
+  , discretizationSourceLine :: Int
+  } deriving (Eq, Show)
 
 data IxPart = IxPart Variance String deriving (Eq, Show)
 
@@ -29,14 +39,14 @@ data IndexGroup =
   | Antisymmetric [IxPart]
   deriving (Eq, Show)
 
-data FieldIndex = FieldIndex { fiGroups :: [IndexGroup] } deriving (Eq, Show)
+newtype FieldIndex = FieldIndex IndexGroup deriving (Eq, Show)
 
 data FieldDecl = FieldDecl
   { fdName      :: String
   , fdIndex     :: Maybe FieldIndex
-  , fdLayout    :: FieldLayout
   , fdPolicy    :: GridPolicy
   , fdKind      :: Kind
+  , fdSourceLine :: Int
   } deriving (Eq, Show)
 
 data Init = IRaw String String | IVec String [String]
@@ -45,6 +55,9 @@ data Init = IRaw String String | IVec String [String]
           | ITensor2 String [String]
           | ICas String String
           | ICasIndex String [IxPart] String
+
+data HelperKind = ExternalHelper | RawHelper
+  deriving (Eq, Show)
 
 data SK = KLet | KLocal | KEq deriving Eq
 
@@ -87,11 +100,14 @@ data Model = Model
   , mSourcePath :: FilePath
   , mDim    :: Int
   , mAxes   :: [String]
+  , mAxesSourceLine :: Maybe Int
   , mMode   :: Maybe Mode
   , mMetricName :: Maybe String
   , mParams :: [(String, String)]
+  , mParamSourceLines :: [Int]
   , mHelp   :: [String]
-  , mFlds   :: [(String, Kind)]
+  , mHelpKinds :: [HelperKind]
+  , mHelpSourceLines :: [Int]
   , mFieldDecls :: [FieldDecl]
   , mInits  :: [Init]
   , mInitSourceTexts :: [SourceText]
@@ -100,6 +116,7 @@ data Model = Model
   , mMetric :: Maybe [String]
   , mEmbed  :: Maybe [String]
   , mDefs   :: [Def]
+  , mDiscretizationDecls :: [DiscretizationDecl]
   }
 
 selectedMode :: Model -> Mode
@@ -107,28 +124,6 @@ selectedMode m =
   case mMode m of
     Just mode -> mode
     Nothing -> error "selectedMode: mode declaration has not been validated"
-
-modeSurfaceName :: Mode -> String
-modeSurfaceName CollocatedMode = "collocated"
-modeSurfaceName DecMode = "dec"
-
-gridPolicySurfaceName :: GridPolicy -> String
-gridPolicySurfaceName Collocated = "collocated"
-gridPolicySurfaceName Primal = "primal"
-gridPolicySurfaceName Dual = "dual"
-
--- Generated scalar binding used as the collocated result of a structural
--- Laplace--Beltrami backend request.  Keeping the name here lets placement
--- inference and emission share the same reserved identity.
-lbResultBindingName :: String
-lbResultBindingName = "feLbResult"
-
-isLbResultBindingName :: String -> Bool
-isLbResultBindingName name =
-  case splitAt (length lbResultBindingName) name of
-    (prefix, suffix) ->
-      prefix == lbResultBindingName
-      && (null suffix || all isDigit suffix)
 
 data Tok = TId String Bool | TC Char
 
@@ -154,28 +149,11 @@ isSpTok :: Tok -> Bool
 isSpTok (TC c) = isSpace c
 isSpTok _ = False
 
--- collect tokens up to the ')' closing an already-consumed '('
-closeParenT :: Int -> [Tok] -> [Tok] -> Maybe ([Tok], [Tok])
-closeParenT _ [] _ = Nothing
-closeParenT n (TC '(' : ts) acc = closeParenT (n + 1) ts (TC '(' : acc)
-closeParenT n (TC ')' : ts) acc
-  | n == 1 = Just (reverse acc, ts)
-  | otherwise = closeParenT (n - 1) ts (TC ')' : acc)
-closeParenT n (t : ts) acc = closeParenT n ts (t : acc)
-
-data Elem = EId String Bool | EC Char
-
 kindOf :: Model -> String -> Maybe Kind
-kindOf m nm = lookup nm (mFlds m)
+kindOf m nm = fdKind <$> fieldDeclOf m nm
 
 fieldDeclOf :: Model -> String -> Maybe FieldDecl
 fieldDeclOf m nm =
   case [fd | fd <- mFieldDecls m, fdName fd == nm] of
     (fd:_) -> Just fd
     [] -> Nothing
-
-fieldPolicyOf :: Model -> String -> GridPolicy
-fieldPolicyOf m nm =
-  case fieldDeclOf m nm of
-    Just fd -> fdPolicy fd
-    Nothing -> Collocated

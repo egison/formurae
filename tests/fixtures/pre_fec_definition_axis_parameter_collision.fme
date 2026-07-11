@@ -1,0 +1,7 @@
+mode collocated
+dimension 1
+axes r
+field u : scalar
+def identity r = r
+step:
+  u' = identity u

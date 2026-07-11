@@ -1,87 +1,17 @@
-def scalarForm : (GridPolicy, Tensor MathValue) :=
-  (Primal, FE.canonicalFormTensor (\[] -> 5) 2 0)
-
-def oneForm : (GridPolicy, Tensor MathValue) :=
-  (Primal, [|3, 4|])
-
-def unitHodgeCoefficient (_: GridPolicy) (_: [Integer]) : MathValue := 1
-
-def testFormDerivative
-      (_: GridPolicy) (_: [Integer])
-      (axis: Integer) (_: [Integer])
-      (value: MathValue) : MathValue :=
-  axis * value
-
-assertEqual "hodge flips policy and complements the oriented basis"
-  (let (policy, t) := FE.hodgeForm 2 unitHodgeCoefficient oneForm
-    in (policy, FE.formComponents t))
-  (Dual, [-4, 3])
-
-assertEqual "hodge twice has the expected two-dimensional one-form sign"
-  (let (policy, t) := FE.hodgeForm 2 unitHodgeCoefficient
-                         (FE.hodgeForm 2 unitHodgeCoefficient oneForm)
-    in (policy, FE.formComponents t))
-  (Primal, [-3, -4])
-
-assertEqual "hodge maps zero-forms to top forms and back"
-  (let dualTop := FE.hodgeForm 2 unitHodgeCoefficient scalarForm
-       (topPolicy, topTensor) := dualTop
-       (scalarPolicy, scalarTensor) :=
-         FE.hodgeForm 2 unitHodgeCoefficient dualTop
-    in (topPolicy, dfOrder topTensor, FE.formComponents topTensor,
-        scalarPolicy, dfOrder scalarTensor, FE.formComponents scalarTensor))
-  (Dual, 2, [5], Primal, 0, [5])
-
-assertEqual "exterior derivative preserves policy and infers degree"
-  (let (policy, t) := FE.dForm 2 testFormDerivative scalarForm
-    in (policy, dfOrder t, FE.formComponents t))
-  (Primal, 1, [5, 10])
-
-assertEqual "exterior derivative squares to zero"
-  (let (policy, t) := FE.dForm 2 testFormDerivative
-                         (FE.dForm 2 testFormDerivative scalarForm)
-    in (policy, dfOrder t, FE.formComponents t))
-  (Primal, 2, [0])
-
-assertEqual "form scaling preserves policy and tensor degree"
-  (let (policy, t) := FE.scaleForm 2 oneForm
-    in (policy, dfOrder t, FE.formComponents t))
-  (Primal, 1, [6, 8])
-
-assertEqual "form addition and subtraction preserve the tensor representation"
-  (let (_, sumTensor) := FE.addForm oneForm (FE.scaleForm 2 oneForm)
-       (_, differenceTensor) := FE.subForm oneForm (FE.scaleForm 2 oneForm)
-    in (FE.formComponents sumTensor, FE.formComponents differenceTensor))
-  ([9, 12], [-3, -4])
-
 declare symbol x, y
 
 def testScale (axis: Integer) : MathValue := nth axis [2, 3]
-def testMetricHodgeCoefficient
-      (_: GridPolicy) (basis: [Integer]) : MathValue :=
-  FE.orthogonalHodgeCoefficient [1, 2] testScale basis
+
+assertEqual "form basis orientation and complement"
+  (FE.formBasisSign [1, 2], FE.formBasisSign [2, 1],
+   FE.formBasisSign [1, 1], FE.complementFormBasis 3 [1, 3])
+  (1, -1, 0, [2])
 
 assertEqual "orthogonal volume and Hodge coefficients"
   (FE.orthogonalVolume [1, 2] testScale,
    map (FE.orthogonalHodgeCoefficient [1, 2] testScale)
        [[], [1], [2], [1, 2]])
   (6, [6, 3 / 2, 2 / 3, 1 / 6])
-
-assertEqual "metric-aware Hodge uses the source basis coefficient"
-  (let (dualPolicy, dualTensor) :=
-         FE.hodgeForm 2 testMetricHodgeCoefficient oneForm
-       (squarePolicy, squareTensor) :=
-         FE.hodgeForm 2 testMetricHodgeCoefficient
-           (FE.hodgeForm 2 testMetricHodgeCoefficient oneForm)
-       (_, topTensor) :=
-         FE.hodgeForm 2 testMetricHodgeCoefficient scalarForm
-       (_, scalarTensor) :=
-         FE.hodgeForm 2 testMetricHodgeCoefficient
-           (FE.hodgeForm 2 testMetricHodgeCoefficient scalarForm)
-    in (dualPolicy, FE.formComponents dualTensor,
-        squarePolicy, FE.formComponents squareTensor,
-        FE.formComponents topTensor, FE.formComponents scalarTensor))
-  (Dual, [-8 / 3, 9 / 2], Primal, [-3, -4], [30], [5])
 
 assertEqual "metric tensors are constructed by shared geometry helpers"
   (FE.metricTensor 2 (FE.inducedMetric [|x, y|] [2 * x, 3 * y]),
@@ -90,44 +20,3 @@ assertEqual "metric tensors are constructed by shared geometry helpers"
   ([|[|4, 0|], [|0, 9|]|],
    [|[|4, 0|], [|0, 9|]|],
    [|[|1 / 4, 0|], [|0, 1 / 9|]|])
-
-def identityMusicalScale (_: GridPolicy) (_: Integer) : MathValue := 1
-def testMusicalScale (_: GridPolicy) (axis: Integer) : MathValue := testScale axis
-def primalVector : (GridPolicy, Tensor MathValue) := (Primal, [|5, 7|])
-def dualVector : (GridPolicy, Tensor MathValue) := (Dual, [|5, 7|])
-
-assertEqual "identity metric musical maps preserve components"
-  (let (flatPolicy, flatTensor) := FE.flat identityMusicalScale primalVector
-       (sharpPolicy, sharpTensor) := FE.sharp identityMusicalScale primalVector
-    in (flatPolicy, tensorToList flatTensor,
-        sharpPolicy, tensorToList sharpTensor))
-  (Primal, [5, 7], Primal, [5, 7])
-
-assertEqual "orthogonal flat lowers components with squared scale factors"
-  (let (policy, t) := FE.flat testMusicalScale primalVector
-    in (policy, tensorToList t))
-  (Primal, [20, 63])
-
-assertEqual "orthogonal flat and sharp are inverse maps"
-  (let lowered := FE.flat testMusicalScale primalVector
-       (policy, t) := FE.sharp testMusicalScale lowered
-    in (policy, tensorToList t))
-  (Primal, [5, 7])
-
-assertEqual "musical maps preserve dual grid policy without interpolation"
-  (let (flatPolicy, flatTensor) := FE.flat testMusicalScale dualVector
-       (sharpPolicy, sharpTensor) := FE.sharp testMusicalScale
-                                         (Dual, [|20, 63|])
-    in (flatPolicy, tensorToList flatTensor,
-        sharpPolicy, tensorToList sharpTensor))
-  (Dual, [20, 63], Dual, [5, 7])
-
-def testGradient (axis: Integer) (value: MathValue) : MathValue := axis + value
-def testCoefficient (axis: Integer) : MathValue := 2 * axis
-def testDivergence (axis: Integer) (value: MathValue) : MathValue := 10 * axis + value
-def testFlux (axis: Integer) : MathValue := axis
-
-assertEqual "Laplace-Beltrami flux and divergence composition"
-  (FE.lbFlux testGradient testCoefficient 1 3,
-   FE.lbFromFluxes [1, 2] testDivergence testFlux 2)
-  (8, 33 / 2)

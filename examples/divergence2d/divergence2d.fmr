@@ -15,7 +15,7 @@ begin function (V_down1,V_down2,q) = init()
 end function
 
 begin function (V_down1',V_down2',q') = step(V_down1,V_down2,q)
-  V_down1' = V_down1[i,j]
-  V_down2' = V_down2[i,j]
-  q' = (-1)*V_down2[i,j-1]/(2*dy) + V_down2[i,j+1]/(2*dy) + (-1)*V_down1[i-1,j]/(2*dx) + V_down1[i+1,j]/(2*dx)
+  V_down1'[i,j] = V_down1[i,j]
+  V_down2'[i,j] = V_down2[i,j]
+  q'[i,j] = ((-1 / 2) * V_down1[i-1,j] + (1 / 2) * V_down1[i+1,j]) / dx + ((-1 / 2) * V_down2[i,j-1] + (1 / 2) * V_down2[i,j+1]) / dy
 end function

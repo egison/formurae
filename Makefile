@@ -1,11 +1,11 @@
 # Egison -> Formura -> C -> run, end to end.
 #
 #   make setup        : fetch + patch + build Formura (vendor/, bin/formura)
-#   cabal build       : build the Formurae compiler (fec)
-#   make <example>    : .fme -> fec -> Egison(tensor/fmrgen/runtime) -> Formura -> cc -> check
+#   cabal build       : build the Formurae compilers (pre-fec and post-fec)
+#   make <example>    : .fme -> pre-fec -> Egison -> FEIR -> post-fec -> Formura -> cc -> check
 #   make all          : every example (each check exits nonzero on failure)
-#   make fec-tensor-tests : compiler regression tests for indexed tensor exprs
-#   make formurae-tensor-tests : Egison tensor bridge + tensor-valued operator smoke tests
+#   make compiler-tests : FEIR/pre/Egison/post focused and vertical tests
+#   make formurae-tensor-tests : shared Egison tensor/geometry library tests
 #
 # The Egison interpreter must be the development tree (the installed
 # binary ships an older math library); set EGISON_DIR accordingly.
@@ -15,24 +15,24 @@ FORMURA    ?= $(abspath bin/formura)
 MPISTUB    := $(abspath mpistub)
 FMRGEN     := $(abspath lib/fmrgen.egi)
 FETENSOR   := $(abspath lib/formurae-tensor.egi)
-FEGRID     := $(abspath lib/formurae-grid.egi)
 FEGEOMETRY := $(abspath lib/formurae-geometry.egi)
-FERUNTIME  := $(abspath lib/formurae-runtime.egi)
-FMRLEGACY3 := $(abspath lib/fmrlegacy3d.egi)
+FMRDIRECT3 := $(abspath lib/fmr-direct3d.egi)
 
 CC      ?= cc
 CFLAGS  ?= -O2 -std=c11
 
-FEC_RUN    = cabal run -v0 fec --
+PRE_FEC_RUN  = cabal run -v0 pre-fec --
+POST_FEC_RUN = cabal run -v0 post-fec --
 EGISON_RUN = cd $(EGISON_DIR) && cabal run -v0 egison --
-EGISON_STRICT = $(abspath tests/run_egison_strict.sh) $(EGISON_DIR)
+EGISON_STRICT = $(abspath tools/run_egison_machine.sh) $(EGISON_DIR)
+EGISON_NORMALIZE = $(abspath tools/run_formurae_normalization.sh) $(EGISON_DIR)
 
 # ---------------------------------------------------------------- examples
 #
 # FME_EXAMPLES: written in Formurae (.fme) (dir = base name; the
-# recipe compiles .fme -> .egi -> .fmr -> C and runs the check driver).
-# EGI_EXAMPLES: still written directly in the embedded Egison form
-# (custom families/helpers pending .fme support).
+# recipe compiles .fme -> .egi -> .feir -> .fmr -> C and runs the check driver).
+# EGI_EXAMPLES: intentionally remain direct embedded-Egison samples outside
+# the Formurae/FEIR compiler scope.
 
 FME_EXAMPLES := diffusion1d diffusion2d divergence2d diffusion3d maxwell3d maxwell3d_yee maxwell_dec kleingordon ks3d \
                 burgers3d pearson3d cahnhilliard3d tdgl3d shallowwater \
@@ -69,12 +69,6 @@ CHECK_acoustic3d          := ac_check.c
 
 RUNARGS_pearson3d := 20000
 
-# legacy dashed target names
-ALIASES := maxwell3d-yee:maxwell3d_yee mhd-ot:mhd_ot lbm-d3q19:lbm_d3q19 \
-           euler-sod:euler_sod metric-torus:metric_torus \
-           metric-sphere:metric_sphere dirichlet-diffusion:dirichlet_diffusion \
-           maxwell-dec:maxwell_dec
-
 # ----------------------------------------------------------------- recipes
 
 define BUILD_AND_CHECK
@@ -85,43 +79,40 @@ endef
 
 define FME_RULE
 $(1):
-	$$(FEC_RUN) $$(abspath examples/$(1)/$(1).fme) > $$(abspath examples/$(1)/$(1).egi)
-	$$(EGISON_STRICT) -l $$(FEGRID) -l $$(FETENSOR) -l $$(FEGEOMETRY) -l $$(FMRGEN) -l $$(FERUNTIME) $$(abspath examples/$(1)/$(1).egi) \
-	  > $$(abspath examples/$(1)/$(1).fmr)
+	$$(PRE_FEC_RUN) examples/$(1)/$(1).fme > examples/$(1)/$(1).egi
+	$$(EGISON_NORMALIZE) $$(abspath examples/$(1)/$(1).egi) \
+	  > examples/$(1)/$(1).feir
+	$$(POST_FEC_RUN) examples/$(1)/$(1).feir > examples/$(1)/$(1).fmr
 	$$(call BUILD_AND_CHECK,$(1))
 endef
 
 define EGI_RULE
 $(1):
-	$$(EGISON_RUN) -l $$(FMRGEN) -l $$(FMRLEGACY3) $$(abspath examples/$(1)/$(1).egi) \
+	$$(EGISON_RUN) -l $$(FMRGEN) -l $$(FMRDIRECT3) $$(abspath examples/$(1)/$(1).egi) \
 	  > $$(abspath examples/$(1)/$(1).fmr)
 	$$(call BUILD_AND_CHECK,$(1))
 endef
 
 $(foreach e,$(FME_EXAMPLES),$(eval $(call FME_RULE,$(e))))
 $(foreach e,$(EGI_EXAMPLES),$(eval $(call EGI_RULE,$(e))))
-$(foreach a,$(ALIASES),$(eval $(word 1,$(subst :, ,$(a))): $(word 2,$(subst :, ,$(a)))))
 
-.PHONY: all setup clean fec-tensor-tests formurae-grid-tests formurae-geometry-tests formurae-tensor-tests $(FME_EXAMPLES) $(EGI_EXAMPLES) \
-        $(foreach a,$(ALIASES),$(word 1,$(subst :, ,$(a))))
+.PHONY: all setup clean compiler-tests formurae-geometry-tests formurae-tensor-tests formurae-operator-tests $(FME_EXAMPLES) $(EGI_EXAMPLES)
 
 all: $(FME_EXAMPLES) $(EGI_EXAMPLES)
 
-fec-tensor-tests:
-	sh tests/fec_tensor_expr.sh
+compiler-tests:
+	sh tests/compiler_suite.sh
 
-formurae-grid-tests:
-	$(EGISON_STRICT) -t -l $(FEGRID) $(abspath tests/formurae_grid_lib.egi)
-	sh tests/formurae_grid_errors.sh
-
-formurae-geometry-tests: formurae-grid-tests
-	$(EGISON_STRICT) -t -l $(FEGRID) -l $(FETENSOR) -l $(FEGEOMETRY) $(abspath tests/formurae_geometry_lib.egi)
-
-formurae-tensor-tests: formurae-geometry-tests
+formurae-tensor-tests:
 	$(EGISON_STRICT) -t -l $(FETENSOR) $(abspath tests/formurae_tensor_lib.egi)
-	$(EGISON_STRICT) -t -l $(FEGRID) -l $(FETENSOR) -l $(FEGEOMETRY) -l $(FERUNTIME) $(abspath tests/formurae_runtime_lib.egi)
-	sh tests/formurae_runtime_errors.sh
-	sh tests/formurae_tensor_bridge.sh
+
+formurae-geometry-tests: formurae-tensor-tests
+	$(EGISON_STRICT) -t -l $(FETENSOR) -l $(FEGEOMETRY) $(abspath tests/formurae_geometry_lib.egi)
+
+formurae-operator-tests: formurae-geometry-tests
+	$(EGISON_NORMALIZE) -t $(abspath tests/formurae_operators_lib.egi)
+	$(EGISON_NORMALIZE) -t $(abspath tests/formurae_form_operators_lib.egi)
+	$(EGISON_NORMALIZE) -t $(abspath tests/formurae_opaque_lib.egi)
 
 setup:
 	./setup.sh

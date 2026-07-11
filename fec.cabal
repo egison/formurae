@@ -6,27 +6,73 @@ license-file:       LICENSE
 author:             Satoshi Egi
 maintainer:         satoshi.egi@rakuten.com
 copyright:          2026 Satoshi Egi
-synopsis:           The Formurae (.fme) compiler: mathematical stencil language to embedded Egison
+synopsis:           Formurae continuum normalization and discrete lowering pipeline
 description:
-    Translates Formurae, the .fme surface language (field declarations plus
-    index-notation and differential-form equations), into a compact embedded
-    Egison program.  fec preserves native coordinate-operator identity,
-    validates indices and field placement, and emits field descriptors plus
-    only the residual model-specific grid context.  Generated programs
-    run with lib/formurae-tensor.egi, lib/fmrgen.egi, and
-    lib/formurae-runtime.egi; Egison evaluates the residual expressions,
-    normalizes the CAS result, and emits .fmr through the shared runtime.
-build-type:         Simple
+    pre-fec parses Formurae's mathematical surface language and emits an
+    Egison normalization program.  Egison produces versioned FEIR containing
+    derivative function symbols; post-fec validates that interface, selects
+    stencil implementations, and emits Formura code.
+build-type:         Custom
+data-files:         spec/feir-primitives-v1.sexp
+extra-source-files: spec/feir-primitives-v1.sexp
+                  , spec/egison-normalization-v1.list
+                  , lib/formurae-primitives.egi
+                  , fec/src/Formurae/FEIR/PrimitiveBindingGenerator.hs
+                  , tools/generate-feir-primitives.hs
 
-executable fec
-    main-is:          Main.hs
-    other-modules:    Formurae.Common
-                    , Formurae.BackendPlan
+custom-setup
+    setup-depends:    base >=4.17 && <5
+                    , Cabal >=2.4 && <4
+                    , process >=1.6 && <1.7
+
+library
+    exposed-modules:  Formurae.Common
+                    , Formurae.FEIR.Codec
+                    , Formurae.FEIR.Fingerprint
+                    , Formurae.FEIR.PrimitiveBindings
+                    , Formurae.FEIR.PrimitiveManifest
+                    , Formurae.FEIR.RegistryFingerprint
+                    , Formurae.FEIR.SExpr
+                    , Formurae.FEIR.Syntax
+                    , Formurae.FEIR.Validate
                     , Formurae.Index
+                    , Formurae.Pre.Effect
+                    , Formurae.Pre.EmitEgison
+                    , Formurae.Pre.Parse
+                    , Formurae.Pre.Registry
+                    , Formurae.Post.BackendPlan
+                    , Formurae.Post.Compile
+                    , Formurae.Post.Diagnostic
+                    , Formurae.Post.ExplicitStencil
+                    , Formurae.Post.FMR
+                    , Formurae.Post.Geometry
+                    , Formurae.Post.Location
+                    , Formurae.Post.Normalize
+                    , Formurae.Post.Profile
+                    , Formurae.Post.PrimitiveContract
+                    , Formurae.Post.Stencil
                     , Formurae.Syntax
                     , Formurae.TensorExpr
-                    , Formurae.RuntimeTensor
     hs-source-dirs:   fec/src
     build-depends:    base >=4.17 && <5
+    default-language: Haskell2010
+    ghc-options:      -Wall
+
+executable post-fec
+    main-is:          Main.hs
+    hs-source-dirs:   fec/app/post-fec
+    build-depends:    base >=4.17 && <5
+                    , fec
+    default-language: Haskell2010
+    ghc-options:      -Wall
+
+executable pre-fec
+    main-is:          Main.hs
+    hs-source-dirs:   fec/app/pre-fec
+    other-modules:    Paths_fec
+    build-depends:    base >=4.17 && <5
+                    , fec
+                    , filepath
+    autogen-modules:  Paths_fec
     default-language: Haskell2010
     ghc-options:      -Wall

@@ -2,12 +2,11 @@
 
 Date: 2026-07-11
 
-Status: Accepted; Phases 1-7 implemented
+Status: Superseded after Phases 1-7; production cutover completed
 
-> Follow-up: `20260711-pre-post-fec-pipeline.md` は、実装済みの本設計を
-> `pre-fec -> Egison -> FEIR -> post-fec` へ発展させる次期pipelineを定める。
-> そのproduction cutoverまでは本文書が現在の実装状態を記録し、cutover後はfollow-upの
-> pipelineと責務境界を正とする。
+> Productionは`pre-fec -> Egison -> FEIR -> post-fec`へcutover済みである。
+> 現行仕様は[20260711-pre-post-fec-pipeline.md](20260711-pre-post-fec-pipeline.md)を正とし、
+> 本文書はその前段階の設計・実装記録として残す。
 
 この文書は、`.fme` の数式を `fec` が標準演算子ごとに成分特殊化していた構成を改め、
 テンソル・添字・微分形式・格子配置の意味論を Egison に集約するための設計と

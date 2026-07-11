@@ -1,0 +1,7 @@
+mode collocated
+dimension 2
+axes x, y
+discretization collocated centered accuracy 2
+field V_i
+step:
+  V' = curl V

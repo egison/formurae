@@ -6,102 +6,43 @@ assertEqual "bare-alias-component" vi_2 2
 assertEqual "trace" (trace m) 15
 assertEqual "sym" (sym m) [|[|1, 3, 5|], [|3, 5, 7|], [|5, 7, 9|]|]
 
+def ordinaryM := FE.attachOrdinaryRank2Variances ["down", "down"] m
+assertEqual "sym preserves ordinary rank-two tensor metadata"
+  (tensorShape (sym ordinaryM),
+   tensorVariances (sym ordinaryM),
+   dfOrder (sym ordinaryM))
+  ([3, 3], ["down", "down"], 0)
+
+assertEqual "antisym preserves ordinary rank-two tensor metadata"
+  (tensorShape (antisym ordinaryM),
+   tensorVariances (antisym ordinaryM),
+   dfOrder (antisym ordinaryM))
+  ([3, 3], ["down", "down"], 0)
+
+def ordinaryVarianceMatrices :=
+  map (\variances -> FE.attachOrdinaryRank2Variances variances m)
+      [["down", "down"], ["down", "up"],
+       ["up", "down"], ["up", "up"]]
+
+assertEqual "sym and antisym preserve every rank-two variance sequence"
+  (map
+    (\t -> (tensorVariances (sym t), dfOrder (sym t),
+            tensorVariances (antisym t), dfOrder (antisym t)))
+    ordinaryVarianceMatrices)
+  [(["down", "down"], 0, ["down", "down"], 0),
+   (["down", "up"], 0, ["down", "up"], 0),
+   (["up", "down"], 0, ["up", "down"], 0),
+   (["up", "up"], 0, ["up", "up"], 0)]
+
 def symbolicReducerMatrix := [|[|1, 2|], [|3, 4|]|]
 assertEqual "named reducer remains a symbolic binary call"
   (withSymbols [i]
     contractWith (FE.symbolicBinary "max") symbolicReducerMatrix~i_i)
   (functionSymbol "max" [1, 4])
 
--- The mock derivative encodes all four callback arguments, so these assertions
--- test target/source component bases, derivative axes, and contraction
--- signs independently.
-def testTensorDerivative
-      (targetBasis: [Integer]) (derivativeAxes: [Integer])
-      (sourceBasis: [Integer]) (value: MathValue) : MathValue :=
-  1000 * sum targetBasis
-  + 100 * sum derivativeAxes
-  + 10 * sum sourceBasis
-  + value
-
-assertEqual "scalar tensor has rank zero and preserves its value"
-  (tensorSignature (FE.scalarTensor 7), tensorToList (FE.scalarTensor 7))
-  (([], []), [7])
-
-assertEqual "runtime partial chain passes grad target and derivative axes"
-  (FE.partialChainTensor
-    testTensorDerivative [2] [4, 7] 1 (FE.scalarTensor 1))
-  [|2401, 2701|]
-
-assertEqual "runtime partial chain passes divergence source bases"
-  (withSymbols [i]
-    contractWith (+)
-      ((FE.partialChainTensor
-          testTensorDerivative [] [1, 2] 1 [|3, 4|])_i~i))
-  337
-
-assertEqual "runtime partial chain keeps a complete hessian axis chain"
-  (FE.partialChainTensor
-    testTensorDerivative [1, 2] [1, 2] 2 (FE.scalarTensor 3))
-  [|[|3203, 3303|], [|3303, 3403|]|]
-
-def testGradOperator := FE.grad testTensorDerivative [1, 2]
-
-assertEqual "native operator supports a user-style binding"
-  (testGradOperator 7)
-  [|1107, 2207|]
-
-assertEqual "native grad"
-  (FE.grad testTensorDerivative [1, 2, 3] 7)
-  [|1107, 2207, 3307|]
-
-assertEqual "native grad maps component positions to axis identifiers"
-  (FE.grad testTensorDerivative [4, 7] 1)
-  [|1401, 2701|]
-
-assertEqual "native derivative gradient"
-  (FE.dGrad testTensorDerivative [1, 2] [|3, 4|])
-  [|[|2113, 3124|], [|3213, 4224|]|]
-
-assertEqual "native divergence"
-  (FE.divg testTensorDerivative [1, 2] [|3, 4|])
-  337
-
-assertEqual "native curl"
-  (FE.curl testTensorDerivative [1, 2, 3] [|3, 4, 5|])
-  [|-89, 178, -89|]
-
-assertEqual "native hessian"
-  (FE.hessian testTensorDerivative [1, 2] 3)
-  [|[|2203, 3303|], [|3303, 4403|]|]
-
-assertEqual "native laplacian passes repeated derivative axes together"
-  (FE.lap testTensorDerivative [1, 2] 3)
-  606
-
-assertEqual "native operator tensor signatures"
-  (map (\t -> (tensorSignature t, dfOrder t))
-       [ FE.grad testTensorDerivative [1, 2] 0
-       , FE.dGrad testTensorDerivative [1, 2] [|0, 0|]
-       , FE.curl testTensorDerivative [1, 2, 3] [|0, 0, 0|]
-       , FE.hessian testTensorDerivative [1, 2] 0
-       ])
-  [ (([2], []), 1)
-  , (([2, 2], []), 2)
-  , (([3], []), 1)
-  , (([2, 2], []), 2)
-  ]
-
 assertEqual "runtime tensor variance metadata"
   (withSymbols [i, j] tensorVariances m~i_j)
   ["up", "down"]
-
-assertEqual "checked tensor signature returns a bare tensor"
-  (tensorSignature
-    (withSymbols [i, j]
-      FE.checkedTensorSignature
-        "rank-2 signature mismatch"
-        [3, 3] ["up", "down"] m~i_j))
-  ([3, 3], [])
 
 def form0 := FE.canonicalFormTensor (\[] -> function (x, y, z)) 3 0
 def form1Basis := generateTensor (\[i] -> function (x, y, z)) [3]
@@ -114,6 +55,11 @@ def form3 := FE.canonicalFormTensor (FE.tensorComponentAt form3Basis) 3 3
 assertEqual "canonical form tensor shapes and inferred degrees"
   (map (\t -> (tensorShape t, dfOrder t)) [form0, form1, form2, form3])
   [([], 0), ([3], 1), ([3, 3], 2), ([3, 3, 3], 3)]
+
+assertEqual "ordinary metadata helpers leave canonical forms untouched"
+  (map (\t -> dfOrder (FE.preserveOrdinaryRank2Metadata t t))
+       [form1, form2, form3])
+  [1, 2, 3]
 
 assertEqual "independent component counts follow binomial coefficients"
   (map (\t -> length (FE.formComponents t)) [form0, form1, form2, form3])

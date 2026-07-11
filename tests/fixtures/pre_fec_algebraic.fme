@@ -1,0 +1,23 @@
+mode collocated
+dimension 2
+axes r, theta
+
+discretization collocated centered accuracy 2
+
+param alpha = 0.25
+
+extern exp
+raw gauss = fun(r) exp(0.0 - r*r)
+
+field u : scalar
+field V_i
+
+init:
+  u := 1 + alpha * r
+  V_i = [| 0.0, 0.0 |]_i
+
+step:
+  let q = u + alpha
+  local flux = q * u
+  V'_i = V_i
+  u' = u + q + flux

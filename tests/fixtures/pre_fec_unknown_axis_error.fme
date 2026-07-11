@@ -1,0 +1,6 @@
+mode collocated
+dimension 1
+axes x
+field u : scalar
+step:
+  u' = orderedD(u, y)

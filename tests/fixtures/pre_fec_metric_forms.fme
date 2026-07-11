@@ -1,0 +1,18 @@
+mode dec
+dimension 2
+axes x, y
+
+metric scale [`(1 + x), 1]
+
+field A : 1-form @ primal
+field H : 1-form @ dual
+field D : 0-form @ primal
+
+init:
+  A = [| 0, 0 |]
+  H = [| 0, 0 |]
+  D = 0
+
+step:
+  H' = hodge A
+  D' = codiff A

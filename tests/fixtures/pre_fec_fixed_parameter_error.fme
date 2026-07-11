@@ -1,0 +1,10 @@
+mode collocated
+dimension 2
+axes x, y
+
+field X_i
+
+def fixedIdentity X_i_j = X
+
+step:
+  X' = fixedIdentity X

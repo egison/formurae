@@ -17,10 +17,10 @@ begin function (E_down1,E_down2,E_down3,B_down1,B_down2,B_down3) = init()
 end function
 
 begin function (E_down1',E_down2',E_down3',B_down1',B_down2',B_down3') = step(E_down1,E_down2,E_down3,B_down1,B_down2,B_down3)
-  E_down1' = E_down1[i,j,k] + (-1)*B_down3[i,j-1,k]*dt/(2*dy) + B_down3[i,j+1,k]*dt/(2*dy) + B_down2[i,j,k-1]*dt/(2*dz) + (-1)*B_down2[i,j,k+1]*dt/(2*dz)
-  E_down2' = E_down2[i,j,k] + B_down3[i-1,j,k]*dt/(2*dx) + (-1)*B_down3[i+1,j,k]*dt/(2*dx) + (-1)*B_down1[i,j,k-1]*dt/(2*dz) + B_down1[i,j,k+1]*dt/(2*dz)
-  E_down3' = E_down3[i,j,k] + (-1)*B_down2[i-1,j,k]*dt/(2*dx) + B_down2[i+1,j,k]*dt/(2*dx) + B_down1[i,j-1,k]*dt/(2*dy) + (-1)*B_down1[i,j+1,k]*dt/(2*dy)
-  B_down1' = E_down3'[i,j-1,k]*dt/(2*dy) + (-1)*E_down3'[i,j+1,k]*dt/(2*dy) + (-1)*E_down2'[i,j,k-1]*dt/(2*dz) + E_down2'[i,j,k+1]*dt/(2*dz) + B_down1[i,j,k]
-  B_down2' = (-1)*E_down3'[i-1,j,k]*dt/(2*dx) + E_down3'[i+1,j,k]*dt/(2*dx) + E_down1'[i,j,k-1]*dt/(2*dz) + (-1)*E_down1'[i,j,k+1]*dt/(2*dz) + B_down2[i,j,k]
-  B_down3' = E_down2'[i-1,j,k]*dt/(2*dx) + (-1)*E_down2'[i+1,j,k]*dt/(2*dx) + (-1)*E_down1'[i,j-1,k]*dt/(2*dy) + E_down1'[i,j+1,k]*dt/(2*dy) + B_down3[i,j,k]
+  E_down1'[i,j,k] = E_down1[i,j,k] + (-1) * dt * ((-1 / 2) * B_down2[i,j,k-1] + (1 / 2) * B_down2[i,j,k+1]) / dz + dt * ((-1 / 2) * B_down3[i,j-1,k] + (1 / 2) * B_down3[i,j+1,k]) / dy
+  E_down2'[i,j,k] = E_down2[i,j,k] + (-1) * dt * ((-1 / 2) * B_down3[i-1,j,k] + (1 / 2) * B_down3[i+1,j,k]) / dx + dt * ((-1 / 2) * B_down1[i,j,k-1] + (1 / 2) * B_down1[i,j,k+1]) / dz
+  E_down3'[i,j,k] = E_down3[i,j,k] + (-1) * dt * ((-1 / 2) * B_down1[i,j-1,k] + (1 / 2) * B_down1[i,j+1,k]) / dy + dt * ((-1 / 2) * B_down2[i-1,j,k] + (1 / 2) * B_down2[i+1,j,k]) / dx
+  B_down1'[i,j,k] = B_down1[i,j,k] + (-1) * dt * ((-1 / 2) * E_down3'[i,j-1,k] + (1 / 2) * E_down3'[i,j+1,k]) / dy + dt * ((-1 / 2) * E_down2'[i,j,k-1] + (1 / 2) * E_down2'[i,j,k+1]) / dz
+  B_down2'[i,j,k] = B_down2[i,j,k] + (-1) * dt * ((-1 / 2) * E_down1'[i,j,k-1] + (1 / 2) * E_down1'[i,j,k+1]) / dz + dt * ((-1 / 2) * E_down3'[i-1,j,k] + (1 / 2) * E_down3'[i+1,j,k]) / dx
+  B_down3'[i,j,k] = B_down3[i,j,k] + (-1) * dt * ((-1 / 2) * E_down2'[i-1,j,k] + (1 / 2) * E_down2'[i+1,j,k]) / dx + dt * ((-1 / 2) * E_down1'[i,j-1,k] + (1 / 2) * E_down1'[i,j+1,k]) / dy
 end function

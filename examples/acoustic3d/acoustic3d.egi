@@ -9,7 +9,7 @@
 -- the impedance is Z = rho0 c = 1, so p = vx launches a pure
 -- right-moving plane pulse.
 --
--- Run: egison -l fmrgen.egi -l fmrlegacy3d.egi acoustic3d.egi > acoustic3d.fmr
+-- Run: egison -l fmrgen.egi -l fmr-direct3d.egi acoustic3d.egi > acoustic3d.fmr
 --
 
 declare symbol dt, kap, rho0

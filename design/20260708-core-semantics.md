@@ -2,6 +2,9 @@
 
 Date: 2026-07-08
 
+> **履歴文書:** production cutoverは完了した。現行の責務境界と実装手順は
+> [20260711-pre-post-fec-pipeline.md](20260711-pre-post-fec-pipeline.md)を正とする。
+
 Follow-up: このメモの中核方針である「添字付きテンソル演算子を `.fme` の `def` で
 定義できるようにする」は、2026-07-09 の再設計で復活した。古い保守的な境界は
 `design/20260709-egison-style-indexed-defs.md` に履歴として残す。現行方針は

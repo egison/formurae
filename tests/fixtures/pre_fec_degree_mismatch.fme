@@ -1,0 +1,7 @@
+mode dec
+dimension 2
+axes x, y
+field V_i @ primal
+field A : 1-form @ primal
+step:
+  A' = materialize(V)

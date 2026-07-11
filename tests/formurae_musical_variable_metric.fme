@@ -5,12 +5,12 @@ axes x, y
 metric scale [1 + x, 1]
 
 field X~i @ primal
-field A : 1-form @ primal
+field A_i @ primal
 
 init:
   X~i = [| 0, 0 |]~i
-  A = [| 0, 0 |]
+  A_i = [| 0, 0 |]_i
 
 step:
-  A' = flat X~i
-  X'~i = sharp A
+  A' = flat X
+  X' = sharp A

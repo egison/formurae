@@ -1,0 +1,1295 @@
+--
+-- formurae-feir.egi : canonical FEIR wire helpers and Egison CAS encoder
+--
+-- This library serializes semantic S-expressions directly.  MathValue
+-- encoding below walks the CAS with the mathValue matcher; it never reparses
+-- `show` output and never calls expandAll.
+--
+
+inductive FEIRSExpr :=
+  | FEIRAtom String
+  | FEIRString String
+  | FEIRList [FEIRSExpr]
+
+inductive pattern FEIRSExpr :=
+  | feirAtom String
+  | feirString String
+  | feirList [FEIRSExpr]
+
+def feirSExpr : Matcher FEIRSExpr :=
+  matcher
+    | feirAtom $ as (string) with
+      | FEIRAtom $value -> [value]
+      | _ -> []
+    | feirString $ as (string) with
+      | FEIRString $value -> [value]
+      | _ -> []
+    | feirList $ as (list something) with
+      | FEIRList $values -> [values]
+      | _ -> []
+    | $ as something with
+      | $value -> [value]
+
+def FEIR.atom (value: String) : FEIRSExpr := FEIRAtom value
+def FEIR.string (value: String) : FEIRSExpr := FEIRString value
+def FEIR.list (values: [FEIRSExpr]) : FEIRSExpr := FEIRList values
+
+def FEIR.field (name: String) (value: FEIRSExpr) : FEIRSExpr :=
+  FEIRList [FEIRAtom name, value]
+
+def FEIR.record (tag: String) (fields: [FEIRSExpr]) : FEIRSExpr :=
+  FEIRList (FEIRAtom tag :: fields)
+
+def FEIR.hexDigit (value: Integer) : Char :=
+  nth (value + 1) (unpack "0123456789abcdef")
+
+def FEIR.hexDigits (current: Integer) (acc: [Char]) : [Char] :=
+  if current = 0
+    then acc
+    else FEIR.hexDigits (i.quotient current 16)
+           (FEIR.hexDigit (i.modulo current 16) :: acc)
+
+def FEIR.hex (value: Integer) : String :=
+  if value = 0
+    then "0"
+    else let digits := FEIR.hexDigits value []
+          in pack digits
+
+def FEIR.escapeChar (char: Char) : String :=
+  if char = '"'
+    then "\\\""
+    else if char = '\\'
+      then "\\\\"
+      else if char = '\n'
+        then "\\n"
+        else if char = '\r'
+          then "\\r"
+          else if char = '\t'
+            then "\\t"
+            else if ctoi char < 32
+              then S.concat ["\\u{", FEIR.hex (ctoi char), "}"]
+              else pack [char]
+
+def FEIR.quoteString (value: String) : String :=
+  S.concat ["\"", S.concat (map FEIR.escapeChar (unpack value)), "\""]
+
+def FEIR.render (expression: FEIRSExpr) : String :=
+  match expression as feirSExpr with
+    | feirAtom $value -> value
+    | feirString $value -> FEIR.quoteString value
+    | feirList $values ->
+        S.concat ["(", S.intercalate " " (map FEIR.render values), ")"]
+
+-- Insert by rendered canonical bytes without requiring an Ord instance for
+-- the wire ADT itself.
+def FEIR.insertSExpr (value: FEIRSExpr) (values: [FEIRSExpr]) : [FEIRSExpr] :=
+  match values as list something with
+    | [] -> [value]
+    | $head :: $tail ->
+        if FEIR.render value <= FEIR.render head
+          then value :: head :: tail
+          else head :: FEIR.insertSExpr value tail
+
+def FEIR.sortSExprs (values: [FEIRSExpr]) : [FEIRSExpr] :=
+  foldl (\sorted value -> FEIR.insertSExpr value sorted) [] values
+
+def FEIR.uniqueSortedSExprs (values: [FEIRSExpr]) : [FEIRSExpr] :=
+  match values as list something with
+    | [] -> []
+    | $value :: [] -> [value]
+    | $value :: $next :: $rest ->
+        if FEIR.render value = FEIR.render next
+          then FEIR.uniqueSortedSExprs (next :: rest)
+          else value :: FEIR.uniqueSortedSExprs (next :: rest)
+
+def FEIR.int (value: Integer) : FEIRSExpr := FEIRAtom (show value)
+
+def FEIR.basis (indices: [Integer]) : FEIRSExpr :=
+  FEIRList (FEIRAtom "basis" :: map FEIR.int indices)
+
+def FEIR.some (value: FEIRSExpr) : FEIRSExpr :=
+  FEIRList [FEIRAtom "some", value]
+
+def FEIR.none : FEIRSExpr := FEIRList [FEIRAtom "none"]
+
+-- ----------------------------------------------------------- wire NF nodes
+
+def FEIR.exactInteger (value: Integer) : FEIRSExpr :=
+  FEIRList [FEIRAtom "exact", FEIRAtom (show value), FEIRAtom "1"]
+
+def FEIR.addNode (terms: [FEIRSExpr]) : FEIRSExpr :=
+  match FEIR.sortSExprs terms as list something with
+    | [] -> FEIR.exactInteger 0
+    | $term :: [] -> term
+    | $sorted -> FEIRList (FEIRAtom "add" :: sorted)
+
+def FEIR.mulNode (factors: [FEIRSExpr]) : FEIRSExpr :=
+  match FEIR.sortSExprs factors as list something with
+    | [] -> FEIR.exactInteger 1
+    | $factor :: [] -> factor
+    | $sorted -> FEIRList (FEIRAtom "mul" :: sorted)
+
+def FEIR.divNode (numerator: FEIRSExpr) (denominator: FEIRSExpr) : FEIRSExpr :=
+  FEIRList [FEIRAtom "div", numerator, denominator]
+
+def FEIR.powNode (base: FEIRSExpr) (power: FEIRSExpr) : FEIRSExpr :=
+  FEIRList [FEIRAtom "pow", base, power]
+
+def FEIR.boolNode (value: Bool) : FEIRSExpr :=
+  FEIRList [FEIRAtom "bool", FEIRAtom (if value then "true" else "false")]
+
+def FEIR.compareNode
+      (operator: String) (lhs: FEIRSExpr) (rhs: FEIRSExpr) : FEIRSExpr :=
+  FEIRList [FEIRAtom "compare", FEIRAtom operator, lhs, rhs]
+
+def FEIR.notNode (predicate: FEIRSExpr) : FEIRSExpr :=
+  if FEIR.render predicate = "(bool true)"
+    then FEIR.boolNode False
+    else if FEIR.render predicate = "(bool false)"
+      then FEIR.boolNode True
+      else match predicate as feirSExpr with
+        | feirList $values ->
+            match values as list something with
+              | #(FEIRAtom "not") :: $body :: [] -> body
+              | _ -> FEIRList [FEIRAtom "not", predicate]
+        | _ -> FEIRList [FEIRAtom "not", predicate]
+
+def FEIR.andNode (predicates: [FEIRSExpr]) : FEIRSExpr :=
+  let sorted := FEIR.uniqueSortedSExprs (FEIR.sortSExprs predicates)
+   in if any (\predicate -> FEIR.render predicate = "(bool false)") sorted
+        then FEIR.boolNode False
+        else let terms := filter (\predicate ->
+                   not (FEIR.render predicate = "(bool true)")) sorted
+              in match terms as list something with
+                   | [] -> FEIR.boolNode True
+                   | $term :: [] -> term
+                   | $canonical -> FEIRList (FEIRAtom "and" :: canonical)
+
+def FEIR.orNode (predicates: [FEIRSExpr]) : FEIRSExpr :=
+  let sorted := FEIR.uniqueSortedSExprs (FEIR.sortSExprs predicates)
+   in if any (\predicate -> FEIR.render predicate = "(bool true)") sorted
+        then FEIR.boolNode True
+        else let terms := filter (\predicate ->
+                   not (FEIR.render predicate = "(bool false)")) sorted
+              in match terms as list something with
+                   | [] -> FEIR.boolNode False
+                   | $term :: [] -> term
+                   | $canonical -> FEIRList (FEIRAtom "or" :: canonical)
+
+def FEIR.selectNode
+      (predicate: FEIRSExpr) (yes: FEIRSExpr) (no: FEIRSExpr) : FEIRSExpr :=
+  FEIRList [FEIRAtom "select", predicate, yes, no]
+
+def FEIR.scalarValue (value: FEIRSExpr) : FEIRSExpr :=
+  FEIRList [FEIRAtom "scalar", value]
+
+def FEIR.tensorValue (value: FEIRSExpr) : FEIRSExpr :=
+  FEIRList [FEIRAtom "tensor-value", value]
+
+def FEIR.attribute (identifier: String) (value: FEIRSExpr) : FEIRSExpr :=
+  FEIR.record "attribute"
+    [ FEIR.field "id" (FEIR.string identifier)
+    , FEIR.field "value" value
+    ]
+
+def FEIR.attributeNatural (value: Integer) : FEIRSExpr :=
+  FEIR.list [FEIR.atom "natural", FEIR.int value]
+
+def FEIR.attributeBoolean (value: Bool) : FEIRSExpr :=
+  FEIR.list [FEIR.atom "boolean", FEIR.atom (if value then "true" else "false")]
+
+def FEIR.attributeAxis (axisId: Integer) : FEIRSExpr :=
+  FEIR.list [FEIR.atom "axis", FEIR.int axisId]
+
+def FEIR.attributeGeometry (geometryId: Integer) : FEIRSExpr :=
+  FEIR.list [FEIR.atom "geometry", FEIR.int geometryId]
+
+def FEIR.attributeGridPolicy (policy: String) : FEIRSExpr :=
+  FEIR.list [FEIR.atom "grid-policy", FEIR.atom policy]
+
+def FEIR.attributeValues (values: [FEIRSExpr]) : FEIRSExpr :=
+  FEIR.list [FEIR.atom "values", FEIR.list values]
+
+-- Semantic keys are canonical, collision-free protocol strings rather than a
+-- hash implemented independently in Egison.  They contain only semantic
+-- payload (never origin or occurrence identity).  A scalar result uses the
+-- corresponding payload key as its request group; tensor-valued primitives
+-- can later share the group payload while varying result-basis.
+def FEIR.opaqueNode
+      (opId: String) (resultBasis: [Integer])
+      (operands: [FEIRSExpr]) (attributes: [FEIRSExpr]) : FEIRSExpr :=
+  let checkedOpId := Formurae.Primitives.requireOperationId opId
+      sortedAttributes := FEIR.sortSExprs attributes
+      semanticPayload :=
+        FEIR.record "opaque-semantic-v1"
+          [ FEIR.field "op-id" (FEIR.string checkedOpId)
+          , FEIR.field "result-basis" (FEIR.basis resultBasis)
+          , FEIR.field "operands" (FEIR.list operands)
+          , FEIR.field "attributes" (FEIR.list sortedAttributes)
+          ]
+      groupPayload :=
+        FEIR.record "opaque-group-v1"
+          [ FEIR.field "op-id" (FEIR.string checkedOpId)
+          , FEIR.field "operands" (FEIR.list operands)
+          , FEIR.field "attributes" (FEIR.list sortedAttributes)
+          ]
+      semanticKey :=
+        S.concat ["feir-v1:", FEIR.render semanticPayload]
+      requestGroup :=
+        S.concat ["feir-v1-group:", FEIR.render groupPayload]
+   in FEIR.record "opaque-discrete"
+        [ FEIR.field "op-id" (FEIR.string checkedOpId)
+        , FEIR.field "semantic-key" (FEIR.string semanticKey)
+        , FEIR.field "request-group" (FEIR.string requestGroup)
+        , FEIR.field "result-basis" (FEIR.basis resultBasis)
+        , FEIR.field "operands" (FEIR.list operands)
+        , FEIR.field "attributes" (FEIR.list sortedAttributes)
+        ]
+
+def FEIR.scalarTensor (value: FEIRSExpr) : FEIRSExpr :=
+  FEIR.record "tensor"
+    [ FEIR.field "shape" (FEIR.list [])
+    , FEIR.field "variances" (FEIR.list [])
+    , FEIR.field "df-order" (FEIR.int 0)
+    , FEIR.field "components"
+        (FEIR.list
+          [FEIR.record "component"
+            [FEIR.field "basis" (FEIR.basis []), FEIR.field "value" value]])
+    ]
+
+-- ------------------------------------------------------ structural registry
+
+-- Registry arguments are data-only and deliberately explicit:
+--
+--   parameters  : [(exact CAS symbol, ParamId)]
+--   coordinates : [(exact CAS symbol, AxisId)]
+--   fields      : [(FunctionData head, FieldId, time-slot, component basis)]
+--   intrinsics  : [(mathFunctionName, FunctionId)]
+--   analytics   : [(FunctionData head, FunctionId)]
+
+def FEIR.functionHead (value: MathValue) : MathValue :=
+  match value as mathValue with
+    | func $head _ -> head
+    | _ ->
+        if assert "FEIR.functionHead: expected FunctionData" False
+          then value
+          else value
+
+def FEIR.fieldEntry
+      (fieldId: Integer) (timeSlot: String) (basis: [Integer])
+      (value: MathValue) : (MathValue, Integer, String, [Integer]) :=
+  (FEIR.functionHead value, fieldId, timeSlot, basis)
+
+def FEIR.analyticEntry
+      (functionId: Integer) (value: MathValue) : (MathValue, Integer) :=
+  (FEIR.functionHead value, functionId)
+
+def FEIR.lookupSymbolId
+      (value: MathValue) (entries: [(MathValue, Integer)]) : Integer :=
+  let found := filter (\(candidate, _) -> candidate = value) entries
+   in if found = [] then 0 else snd (head found)
+
+def FEIR.lookupFunctionId
+      (name: String) (entries: [(String, Integer)]) : Integer :=
+  let found := filter (\(candidate, _) -> candidate = name) entries
+   in if found = [] then 0 else snd (head found)
+
+def FEIR.lookupAnalyticId
+      (headValue: MathValue) (entries: [(MathValue, Integer)]) : Integer :=
+  let found := filter (\(candidate, _) -> candidate = headValue) entries
+   in if found = [] then 0 else snd (head found)
+
+def FEIR.unsupportedScalar (message: String) : FEIRSExpr :=
+  if assert (S.append "FEIR scalar encoder: " message) False
+    then FEIRAtom "unsupported"
+    else FEIRAtom "unsupported"
+
+def FEIR.requireInteger (label: String) (value: MathValue) : Integer :=
+  if isPureFraction value && denominator value = 1
+    then numerator value
+    else if assert
+              (S.append "FEIR scalar encoder: expected integer " label)
+              False
+         then 0
+         else 0
+
+def FEIR.requirePositiveInteger (label: String) (value: MathValue) : Integer :=
+  let integerValue := FEIR.requireInteger label value
+   in if i.> integerValue 0
+        then integerValue
+        else if assert
+                  (S.append "FEIR scalar encoder: expected positive " label)
+                  False
+             then 0
+             else 0
+
+def FEIR.gridPolicyName (policyCodeValue: MathValue) : String :=
+  let policyCode := FEIR.requirePositiveInteger "grid policy code" policyCodeValue
+   in if policyCode = 1
+        then "collocated"
+        else if policyCode = 2
+          then "primal"
+          else if policyCode = 3
+            then "dual"
+            else if assert
+                      "FEIR scalar encoder: unknown opaque grid policy code"
+                      False
+                 then "invalid"
+                 else "invalid"
+
+-- Remove rule-suppression Quote atoms at the final FEIR boundary without
+-- asking the CAS to expand the whole expression.  Reconstruction uses the
+-- rule-free structural arithmetic operators and preserves Apply/FunctionData
+-- nodes while recursively cleaning their arguments.
+def FEIR.unquoteAll (value: MathValue) : MathValue :=
+  if isPureFraction value
+    then value
+    else match value as mathValue with
+      | symbol _ _ -> value
+      | quote $body -> FEIR.unquoteAll body
+      | apply1 $functionValue $argument ->
+          functionValue (FEIR.unquoteAll argument)
+      | apply2 $functionValue $argument1 $argument2 ->
+          functionValue
+            (FEIR.unquoteAll argument1)
+            (FEIR.unquoteAll argument2)
+      | apply3 $functionValue $argument1 $argument2 $argument3 ->
+          functionValue
+            (FEIR.unquoteAll argument1)
+            (FEIR.unquoteAll argument2)
+            (FEIR.unquoteAll argument3)
+      | apply4 $functionValue $argument1 $argument2 $argument3 $argument4 ->
+          functionValue
+            (FEIR.unquoteAll argument1)
+            (FEIR.unquoteAll argument2)
+            (FEIR.unquoteAll argument3)
+            (FEIR.unquoteAll argument4)
+      | func _ $arguments ->
+          updateFunctionArgs value (map FEIR.unquoteAll arguments)
+      | term $coefficient $factors ->
+          FEIR.unquoteAll coefficient
+          *' foldl
+               (*')
+               1
+               (map
+                 (\(factor, power) -> FEIR.unquoteAll factor ^' power)
+                 factors)
+      | poly $terms ->
+          foldl (+') 0 (map FEIR.unquoteAll terms)
+      | $numerator / $denominator ->
+          FEIR.unquoteAll numerator /' FEIR.unquoteAll denominator
+      | _ -> value
+
+def FEIR.unquoteTensor (value: Tensor MathValue) : Tensor MathValue :=
+  tensorMap FEIR.unquoteAll value
+
+-- A FunctionData derivative is represented structurally on its head symbol.
+-- Sub/Sup indices identify a tensor component, while User indices are
+-- canonical one-based argument positions.  Egison sorts the User indices
+-- when it constructs the derivative, so mixed partials already obey Schwarz
+-- canonicalization before they reach this encoder.
+def FEIR.isUserIndex (index: TensorIndex) : Bool :=
+  match index as tensorIndex with
+    | userIndex _ -> True
+    | _ -> False
+
+def FEIR.requireUserIndexPosition (index: TensorIndex) : Integer :=
+  match index as tensorIndex with
+    | userIndex $position ->
+        if isPureFraction position && denominator position = 1
+          then let value := numerator position
+                in if i.> value 0
+                     then value
+                     else if assert
+                               "FEIR scalar encoder: FunctionData User index must be positive"
+                               False
+                            then 0
+                            else 0
+          else if assert
+                    "FEIR scalar encoder: FunctionData User index must be an integer position"
+                    False
+                 then 0
+                 else 0
+    | _ ->
+        if assert
+             "FEIR scalar encoder: expected a FunctionData User index"
+             False
+          then 0
+          else 0
+
+def FEIR.functionHeadUserPositions (headValue: MathValue) : [Integer] :=
+  map FEIR.requireUserIndexPosition
+    (filter FEIR.isUserIndex (symbolIndices headValue))
+
+-- Match a possibly differentiated FunctionData head against the exact base
+-- component stored in the logical field registry.  The base name and all
+-- tensor Sub/Sup indices are compared as CAS data; only derivative User
+-- indices are ignored for identity matching.
+def FEIR.fieldHeadMatches
+      (registeredHead: MathValue) (occurrenceHead: MathValue) : Bool :=
+  match (registeredHead, occurrenceHead) as (mathValue, mathValue) with
+    | (symbol $registeredName _, symbol $occurrenceName _) ->
+        let registeredIndices := symbolIndices registeredHead
+            occurrenceIndices := symbolIndices occurrenceHead
+         in registeredName = occurrenceName
+            && filter FEIR.isUserIndex registeredIndices = []
+            && registeredIndices
+               = filter (\index -> not (FEIR.isUserIndex index)) occurrenceIndices
+    | _ -> False
+
+def FEIR.requireCanonicalFieldArguments
+      (coordinates: [(MathValue, Integer)])
+      (arguments: [MathValue]) : [MathValue] :=
+  let canonicalArguments := map fst coordinates
+   in if arguments = canonicalArguments
+        then arguments
+        else if assert
+                  "FEIR scalar encoder: grid field arguments must be the canonical coordinate vector"
+                  False
+               then arguments
+               else arguments
+
+def FEIR.axisForArgumentPosition
+      (coordinates: [(MathValue, Integer)]) (position: Integer) : Integer :=
+  if i.<= position (length coordinates)
+    then snd (nth position coordinates)
+    else if assert
+              "FEIR scalar encoder: FunctionData User index is outside the coordinate vector"
+              False
+           then 0
+           else 0
+
+def FEIR.axisOrders (axes: [Integer]) : [(Integer, Integer)] :=
+  let sortedAxes := sort axes
+   in map
+        (\axis ->
+          (axis, length (filter (\candidate -> candidate = axis) sortedAxes)))
+        (unique sortedAxes)
+
+def FEIR.derivativeMultiIndex
+      (coordinates: [(MathValue, Integer)])
+      (headValue: MathValue) : [(Integer, Integer)] :=
+  FEIR.axisOrders
+    (map
+      (FEIR.axisForArgumentPosition coordinates)
+      (FEIR.functionHeadUserPositions headValue))
+
+def FEIR.encodeAxisOrder
+      (axisOrder: (Integer, Integer)) : FEIRSExpr :=
+  FEIR.record "axis-order"
+    [ FEIR.field "axis" (FEIR.int (fst axisOrder))
+    , FEIR.field "count" (FEIR.int (snd axisOrder))
+    ]
+
+-- ---------------------------------------------------------- scalar encoder
+
+def FEIR.encodeExact (value: MathValue) : FEIRSExpr :=
+  if isPureFraction value
+    then FEIRList
+           [ FEIRAtom "exact"
+           , FEIR.int (numerator value)
+           , FEIR.int (denominator value)
+           ]
+    else FEIR.unsupportedScalar "expected an exact rational"
+
+def FEIR.encodeLbOpaque
+      (parameters: [(MathValue, Integer)])
+      (coordinates: [(MathValue, Integer)])
+      (fields: [(MathValue, Integer, String, [Integer])])
+      (intrinsics: [(String, Integer)])
+      (analytics: [(MathValue, Integer)])
+      (arguments: [MathValue]) : FEIRSExpr :=
+  match arguments as list mathValue with
+    | $operand :: $geometryValue :: $policyValue :: [] ->
+        let geometryId :=
+              FEIR.requirePositiveInteger "lb geometry ID" geometryValue
+            policyName := FEIR.gridPolicyName policyValue
+            operandNF :=
+              FEIR.scalarValue
+                (FEIR.encodeScalar parameters coordinates fields intrinsics analytics
+                  operand)
+         in FEIR.opaqueNode Formurae.Primitives.lbOrthogonalV1OpId
+              [] [operandNF] [
+                FEIR.attribute "metric"
+                  (FEIR.attributeGeometry geometryId)
+              , FEIR.attribute "source-policy"
+                  (FEIR.attributeGridPolicy policyName)
+              ]
+    | _ -> FEIR.unsupportedScalar "lb opaque payload must be (operand, geometry, policy)"
+
+def FEIR.encodeCoordinateWideOpaque
+      (parameters: [(MathValue, Integer)])
+      (coordinates: [(MathValue, Integer)])
+      (fields: [(MathValue, Integer, String, [Integer])])
+      (intrinsics: [(String, Integer)])
+      (analytics: [(MathValue, Integer)])
+      (arguments: [MathValue]) : FEIRSExpr :=
+  match arguments as list mathValue with
+    | $operand :: $axisValue :: $orderValue :: $radiusValue :: [] ->
+        let axisId :=
+              FEIR.requirePositiveInteger "coordinate-wide axis ID" axisValue
+            order :=
+              FEIR.requirePositiveInteger "coordinate-wide derivative order" orderValue
+            radius :=
+              FEIR.requirePositiveInteger "coordinate-wide radius" radiusValue
+            operandNF :=
+              FEIR.scalarValue
+                (FEIR.encodeScalar parameters coordinates fields intrinsics analytics
+                  operand)
+         in if i.> radius 1 && i.< order (i.+ (i.* 2 radius) 1)
+              then FEIR.opaqueNode
+                     Formurae.Primitives.derivativeCoordinateWideV1OpId
+                     [] [operandNF] [
+                  FEIR.attribute "order" (FEIR.attributeNatural order)
+                , FEIR.attribute "ordered-axes"
+                    (FEIR.attributeValues [FEIR.attributeAxis axisId])
+                , FEIR.attribute "radius" (FEIR.attributeNatural radius)
+                ]
+              else FEIR.unsupportedScalar "invalid coordinate-wide order or radius"
+    | _ -> FEIR.unsupportedScalar "wide opaque payload must be (operand, axis, order, radius)"
+
+def FEIR.encodeGridWholeOpaque
+      (parameters: [(MathValue, Integer)])
+      (coordinates: [(MathValue, Integer)])
+      (fields: [(MathValue, Integer, String, [Integer])])
+      (intrinsics: [(String, Integer)])
+      (analytics: [(MathValue, Integer)])
+      (arguments: [MathValue]) : FEIRSExpr :=
+  match arguments as list mathValue with
+    | $operand :: $axisValue :: [] ->
+        let axisId :=
+              FEIR.requirePositiveInteger "grid-whole axis ID" axisValue
+            operandNF :=
+              FEIR.scalarValue
+                (FEIR.encodeScalar parameters coordinates fields intrinsics analytics
+                  operand)
+         in FEIR.opaqueNode
+              Formurae.Primitives.derivativeGridWholeV1OpId
+              [] [operandNF] [
+              FEIR.attribute "order" (FEIR.attributeNatural 1)
+            , FEIR.attribute "ordered-axes"
+                (FEIR.attributeValues [FEIR.attributeAxis axisId])
+            , FEIR.attribute "radius" (FEIR.attributeNatural 1)
+            ]
+    | _ -> FEIR.unsupportedScalar "grid-whole opaque payload must be (operand, axis)"
+
+def FEIR.encodeOrderedDerivativeOpaque
+      (parameters: [(MathValue, Integer)])
+      (coordinates: [(MathValue, Integer)])
+      (fields: [(MathValue, Integer, String, [Integer])])
+      (intrinsics: [(String, Integer)])
+      (analytics: [(MathValue, Integer)])
+      (arguments: [MathValue]) : FEIRSExpr :=
+  match arguments as list mathValue with
+    | $operand :: $axisValues ->
+        let axes :=
+              map
+                (FEIR.requirePositiveInteger "ordered derivative axis ID")
+                axisValues
+            operandNF :=
+              FEIR.scalarValue
+                (FEIR.encodeScalar parameters coordinates fields intrinsics analytics
+                  operand)
+         in if assert "ordered derivative needs registered axes"
+                      (not (axes = [])
+                       && all (\axis -> i.<= axis (length coordinates)) axes)
+              then FEIR.opaqueNode
+                     Formurae.Primitives.derivativeOrderedV1OpId
+                     [] [operandNF] [
+                   FEIR.attribute "order"
+                     (FEIR.attributeNatural (length axes))
+                 , FEIR.attribute "ordered-axes"
+                     (FEIR.attributeValues (map FEIR.attributeAxis axes))
+                 , FEIR.attribute "radius" (FEIR.attributeNatural 1)
+                 ]
+              else FEIR.unsupportedScalar "ordered derivative has invalid axes"
+    | _ -> FEIR.unsupportedScalar
+             "ordered derivative payload needs one operand and an axis sequence"
+
+def FEIR.encodeResampleOpaque
+      (parameters: [(MathValue, Integer)])
+      (coordinates: [(MathValue, Integer)])
+      (fields: [(MathValue, Integer, String, [Integer])])
+      (intrinsics: [(String, Integer)])
+      (analytics: [(MathValue, Integer)])
+      (arguments: [MathValue]) : FEIRSExpr :=
+  match arguments as list mathValue with
+    | $operand :: $bitValues ->
+        let bits := map (FEIR.requireInteger "resample placement bit") bitValues
+            operandNF :=
+              FEIR.scalarValue
+                (FEIR.encodeScalar parameters coordinates fields intrinsics analytics
+                  operand)
+         in if assert "resample payload needs one 0/1 bit per coordinate"
+                      (length bits = length coordinates
+                       && all (\bit -> bit = 0 || bit = 1) bits)
+              then FEIR.opaqueNode
+                     Formurae.Primitives.resampleExplicitV1OpId
+                     [] [operandNF] [
+                   FEIR.attribute "target-placement"
+                     (FEIR.attributeValues
+                       (map (\bit -> FEIR.attributeBoolean (bit = 1)) bits))
+                 ]
+              else FEIR.unsupportedScalar "invalid resample placement bits"
+    | _ -> FEIR.unsupportedScalar
+             "resample payload needs one operand and absolute placement bits"
+
+def FEIR.encodeRankOneTensorValues
+      (parameters: [(MathValue, Integer)])
+      (coordinates: [(MathValue, Integer)])
+      (fields: [(MathValue, Integer, String, [Integer])])
+      (intrinsics: [(String, Integer)])
+      (analytics: [(MathValue, Integer)])
+      (dimension: Integer) (varianceCode: Integer)
+      (values: [MathValue]) : FEIRSExpr :=
+  let bases := map (\axis -> [axis]) (between 1 dimension)
+      tensorFields :=
+        [ FEIR.field "shape" (FEIR.list [FEIR.int dimension])
+        , FEIR.field "variances"
+            (FEIR.list [FEIR.materializedVariance varianceCode])
+        , FEIR.field "df-order" (FEIR.int 0)
+        , FEIR.field "components"
+            (FEIR.list
+              (map
+                (\(basis, value) ->
+                  FEIR.record "component"
+                    [ FEIR.field "basis" (FEIR.basis basis)
+                    , FEIR.field "value"
+                        (FEIR.encodeScalar parameters coordinates fields
+                          intrinsics analytics value)
+                    ])
+                (zip bases values)))
+        ]
+   in if assert "rank-one tensor payload has the wrong component count"
+                (length values = dimension
+                 && (varianceCode = 1 || varianceCode = 2))
+        then FEIR.record "tensor" tensorFields
+        else FEIR.scalarTensor (FEIR.exactInteger 0)
+
+def FEIR.encodeConservativeDivergenceOpaque
+      (parameters: [(MathValue, Integer)])
+      (coordinates: [(MathValue, Integer)])
+      (fields: [(MathValue, Integer, String, [Integer])])
+      (intrinsics: [(String, Integer)])
+      (analytics: [(MathValue, Integer)])
+      (arguments: [MathValue]) : FEIRSExpr :=
+  match arguments as list mathValue with
+    | $dimensionValue :: $varianceValue :: $values ->
+        let dimension :=
+              FEIR.requirePositiveInteger "conservative divergence dimension"
+                dimensionValue
+            varianceCode :=
+              FEIR.requirePositiveInteger "conservative divergence variance"
+                varianceValue
+            operand :=
+              FEIR.tensorValue
+                (FEIR.encodeRankOneTensorValues parameters coordinates fields
+                  intrinsics analytics dimension varianceCode values)
+         in if assert "conservative divergence dimension must match coordinates"
+                      (dimension = length coordinates
+                       && (varianceCode = 1 || varianceCode = 2)
+                       && length values = dimension)
+              then FEIR.opaqueNode
+                     Formurae.Primitives.fluxConservativeDivergenceV1OpId
+                     [] [operand] []
+              else FEIR.unsupportedScalar
+                     "conservative divergence payload has the wrong dimension"
+    | _ -> FEIR.unsupportedScalar
+             "conservative divergence payload needs dimension and flux components"
+
+def FEIR.materializedVariance (code: Integer) : FEIRSExpr :=
+  if code = 1
+    then FEIR.atom "up"
+    else if code = 2
+      then FEIR.atom "down"
+      else FEIR.unsupportedScalar "materialized tensor has an invalid variance code"
+
+def FEIR.encodeMaterializedTensorValues
+      (parameters: [(MathValue, Integer)])
+      (coordinates: [(MathValue, Integer)])
+      (fields: [(MathValue, Integer, String, [Integer])])
+      (intrinsics: [(String, Integer)])
+      (analytics: [(MathValue, Integer)])
+      (shape: [Integer]) (varianceCodes: [Integer])
+      (differentialFormOrder: Integer)
+      (values: [MathValue]) : FEIRSExpr :=
+  let bases := FEIR.fullBases shape
+      variances := map FEIR.materializedVariance varianceCodes
+      tensorFields :=
+        [ FEIR.field "shape" (FEIR.list (map FEIR.int shape))
+        , FEIR.field "variances" (FEIR.list variances)
+        , FEIR.field "df-order" (FEIR.int differentialFormOrder)
+        , FEIR.field "components"
+            (FEIR.list
+              (map
+                (\(basis, value) ->
+                  FEIR.record "component"
+                    [ FEIR.field "basis" (FEIR.basis basis)
+                    , FEIR.field "value"
+                        (FEIR.encodeScalar parameters coordinates fields
+                          intrinsics analytics value)
+                    ])
+                (zip bases values)))
+        ]
+   in if assert "materialized tensor payload has the wrong component count"
+                (length values = length bases
+                 && length varianceCodes = length shape
+                 && all (\code -> code = 1 || code = 2) varianceCodes
+                 && differentialFormOrder >= 0
+                 && differentialFormOrder <= length shape)
+        then FEIR.record "tensor" tensorFields
+        else FEIR.scalarTensor (FEIR.exactInteger 0)
+
+def FEIR.encodeMaterializedOpaque
+      (parameters: [(MathValue, Integer)])
+      (coordinates: [(MathValue, Integer)])
+      (fields: [(MathValue, Integer, String, [Integer])])
+      (intrinsics: [(String, Integer)])
+      (analytics: [(MathValue, Integer)])
+      (arguments: [MathValue]) : FEIRSExpr :=
+  match arguments as list mathValue with
+    | $rankValue :: $payload ->
+        let rank := FEIR.requireInteger "materialized tensor rank" rankValue
+            shapeValues := take rank payload
+            shape :=
+              map (FEIR.requirePositiveInteger "materialized tensor extent")
+                shapeValues
+            componentCount := product shape
+            afterShape := drop rank payload
+            varianceValues := take rank afterShape
+            varianceCodes :=
+              map (FEIR.requirePositiveInteger "materialized tensor variance") varianceValues
+            afterVariances := drop rank afterShape
+            differentialFormOrderValue := head afterVariances
+            differentialFormOrder :=
+              FEIR.requireInteger "materialized tensor differential-form order" differentialFormOrderValue
+            afterMetadata := drop 1 afterVariances
+            sourceValues := take componentCount afterMetadata
+            resultBasisValues := drop componentCount afterMetadata
+            resultBasis :=
+              map (FEIR.requirePositiveInteger "materialized result basis") resultBasisValues
+            basisIsValid :=
+              length resultBasis = rank
+              && all
+                   (\(extent, index) -> i.<= index extent)
+                   (zip shape resultBasis)
+            operand :=
+              if rank = 0
+                then FEIR.scalarValue
+                       (FEIR.encodeScalar parameters coordinates fields
+                         intrinsics analytics (head sourceValues))
+                else FEIR.tensorValue
+                       (FEIR.encodeMaterializedTensorValues parameters coordinates
+                         fields intrinsics analytics shape varianceCodes
+                         differentialFormOrder sourceValues)
+         in if assert "materialized payload shape, components, or result basis is invalid"
+                      (rank >= 0
+                       && length shape = rank
+                       && length varianceCodes = rank
+                       && all (\code -> code = 1 || code = 2) varianceCodes
+                       && differentialFormOrder >= 0
+                       && differentialFormOrder <= rank
+                       && length sourceValues = componentCount
+                       && length afterMetadata = componentCount + rank
+                       && basisIsValid)
+              then FEIR.opaqueNode
+                     Formurae.Primitives.operatorMaterializedV1OpId
+                     resultBasis [operand] []
+              else FEIR.unsupportedScalar "invalid materialized payload"
+    | _ -> FEIR.unsupportedScalar
+             "materialized payload needs rank, shape, components, and result basis"
+
+def FEIR.encodeTensorValues
+      (parameters: [(MathValue, Integer)])
+      (coordinates: [(MathValue, Integer)])
+      (fields: [(MathValue, Integer, String, [Integer])])
+      (intrinsics: [(String, Integer)])
+      (analytics: [(MathValue, Integer)])
+      (dimension: Integer) (degree: Integer)
+      (values: [MathValue]) : FEIRSExpr :=
+  let shape := map (\_ -> dimension) (between 1 degree)
+      bases := FEIR.fullBases shape
+      tensorFields :=
+        [ FEIR.field "shape" (FEIR.list (map FEIR.int shape))
+        , FEIR.field "variances"
+            (FEIR.list
+              (map (\_ -> FEIR.atom "down") (between 1 degree)))
+        , FEIR.field "df-order" (FEIR.int degree)
+        , FEIR.field "components"
+            (FEIR.list
+              (map
+                (\(basis, value) ->
+                  FEIR.record "component"
+                    [ FEIR.field "basis" (FEIR.basis basis)
+                    , FEIR.field "value"
+                        (FEIR.encodeScalar parameters coordinates fields
+                          intrinsics analytics value)
+                    ])
+                (zip bases values)))
+        ]
+   in if assert "metric codifferential operand tensor has the wrong component count"
+                (length values = length bases)
+        then FEIR.record "tensor" tensorFields
+        else FEIR.scalarTensor (FEIR.exactInteger 0)
+
+def FEIR.encodeMetricCodiffOpaque
+      (parameters: [(MathValue, Integer)])
+      (coordinates: [(MathValue, Integer)])
+      (fields: [(MathValue, Integer, String, [Integer])])
+      (intrinsics: [(String, Integer)])
+      (analytics: [(MathValue, Integer)])
+      (arguments: [MathValue]) : FEIRSExpr :=
+  match arguments as list mathValue with
+    | $geometryValue :: $dimensionValue :: $degreeValue :: $payload ->
+        let geometryId :=
+              FEIR.requirePositiveInteger "metric codifferential geometry ID"
+                geometryValue
+            dimension :=
+              FEIR.requirePositiveInteger "metric codifferential dimension"
+                dimensionValue
+            degree :=
+              FEIR.requirePositiveInteger "metric codifferential source degree"
+                degreeValue
+            componentCount :=
+              product (map (\_ -> dimension) (between 1 degree))
+            sourceValues := take componentCount payload
+            targetValues := drop componentCount payload
+            targetBasis :=
+              map
+                (FEIR.requirePositiveInteger
+                  "metric codifferential result basis axis")
+                targetValues
+            operand :=
+              FEIR.tensorValue
+                (FEIR.encodeTensorValues parameters coordinates fields
+                  intrinsics analytics dimension degree sourceValues)
+         in if assert "metric codifferential result basis must be canonical"
+                      (degree <= dimension
+                       && length targetBasis = degree - 1
+                       && targetBasis = sort targetBasis
+                       && length (unique targetBasis) = length targetBasis
+                       && all (\axis -> i.<= axis dimension) targetBasis)
+              then FEIR.opaqueNode Formurae.Primitives.codiffMetricV1OpId
+                     targetBasis [operand] [
+                     FEIR.attribute "metric"
+                       (FEIR.attributeGeometry geometryId)
+                   , FEIR.attribute "dimension"
+                       (FEIR.attributeNatural dimension)
+                   , FEIR.attribute "source-degree"
+                       (FEIR.attributeNatural degree)
+                   ]
+              else FEIR.unsupportedScalar
+                     "metric codifferential payload has an invalid result basis"
+    | _ -> FEIR.unsupportedScalar
+             "metric codifferential payload needs geometry, dimension, degree, components, and result basis"
+
+def FEIR.encodeOpaqueRef
+      (parameters: [(MathValue, Integer)])
+      (coordinates: [(MathValue, Integer)])
+      (fields: [(MathValue, Integer, String, [Integer])])
+      (intrinsics: [(String, Integer)])
+      (analytics: [(MathValue, Integer)])
+      (payload: MathValue) : FEIRSExpr :=
+  match payload as mathValue with
+    | func $headValue $arguments ->
+        match headValue as mathValue with
+          | symbol $name _ ->
+              if not (symbolIndices headValue = [])
+                then FEIR.unsupportedScalar "indexed opaque reference is invalid"
+                else if name = "FormuraeInternalOpaqueLbOrthogonalV1"
+                  then FEIR.encodeLbOpaque parameters coordinates fields intrinsics analytics arguments
+                  else if name = "FormuraeInternalOpaqueCoordinateWideV1"
+                    then FEIR.encodeCoordinateWideOpaque parameters coordinates fields intrinsics analytics arguments
+                    else if name = "FormuraeInternalOpaqueGridWholeV1"
+                      then FEIR.encodeGridWholeOpaque parameters coordinates fields intrinsics analytics arguments
+                  else if name = "FormuraeInternalOpaqueMetricCodiffV1"
+                        then FEIR.encodeMetricCodiffOpaque parameters coordinates fields intrinsics analytics arguments
+                      else if name = "FormuraeInternalOpaqueOrderedDerivativeV1"
+                        then FEIR.encodeOrderedDerivativeOpaque parameters coordinates fields intrinsics analytics arguments
+                      else if name = "FormuraeInternalOpaqueResampleV1"
+                        then FEIR.encodeResampleOpaque parameters coordinates fields intrinsics analytics arguments
+                      else if name = "FormuraeInternalOpaqueConservativeDivergenceV1"
+                        then FEIR.encodeConservativeDivergenceOpaque parameters coordinates fields intrinsics analytics arguments
+                      else if name = "FormuraeInternalOpaqueMaterializedV1"
+                        then FEIR.encodeMaterializedOpaque parameters coordinates fields intrinsics analytics arguments
+                    else FEIR.unsupportedScalar "unknown reserved opaque head"
+          | _ -> FEIR.unsupportedScalar "opaque payload head must be a symbol"
+    | _ -> FEIR.unsupportedScalar "opaque barrier must contain FunctionData"
+
+def FEIR.encodeApply
+      (parameters: [(MathValue, Integer)])
+      (coordinates: [(MathValue, Integer)])
+      (fields: [(MathValue, Integer, String, [Integer])])
+      (intrinsics: [(String, Integer)])
+      (analytics: [(MathValue, Integer)])
+      (name: String) (arguments: [MathValue]) : FEIRSExpr :=
+  let functionId := FEIR.lookupFunctionId name intrinsics
+   in if name = "formuraeOpaqueBarrier" && length arguments = 1
+        then FEIR.encodeOpaqueRef parameters coordinates fields intrinsics analytics
+               (nth 1 arguments)
+        else if name = "^" && length arguments = 2
+        then FEIR.powNode
+               (FEIR.encodeScalar parameters coordinates fields intrinsics analytics
+                 (nth 1 arguments))
+               (FEIR.encodeScalar parameters coordinates fields intrinsics analytics
+                 (nth 2 arguments))
+        else if functionId > 0
+          then FEIRList
+                 [ FEIRAtom "intrinsic"
+                 , FEIR.int functionId
+                 , FEIRList
+                     (map
+                       (FEIR.encodeScalar parameters coordinates fields intrinsics analytics)
+                       arguments)
+                 ]
+          else FEIR.unsupportedScalar (S.append "unregistered intrinsic: " name)
+
+-- ------------------------------------------------ symbolic predicate/select
+
+def FEIR.unindexedSymbolName (value: MathValue) : String :=
+  match value as mathValue with
+    | symbol $name _ ->
+        if symbolIndices value = [] then name else ""
+    | _ -> ""
+
+def FEIR.functionDataName (value: MathValue) : String :=
+  match value as mathValue with
+    | func $headValue _ -> FEIR.unindexedSymbolName headValue
+    | _ -> ""
+
+def FEIR.isPredicateHeadName (name: String) : Bool :=
+  name = "FormuraeInternalPredicateTrueV1"
+  || name = "FormuraeInternalPredicateFalseV1"
+  || name = "FormuraeInternalPredicateEqV1"
+  || name = "FormuraeInternalPredicateNeV1"
+  || name = "FormuraeInternalPredicateLtV1"
+  || name = "FormuraeInternalPredicateLeV1"
+  || name = "FormuraeInternalPredicateGtV1"
+  || name = "FormuraeInternalPredicateGeV1"
+  || name = "FormuraeInternalPredicateNotV1"
+  || name = "FormuraeInternalPredicateAndV1"
+  || name = "FormuraeInternalPredicateOrV1"
+
+def FEIR.compareOperatorName (name: String) : String :=
+  if name = "FormuraeInternalPredicateEqV1"
+    then "eq"
+    else if name = "FormuraeInternalPredicateNeV1"
+      then "ne"
+      else if name = "FormuraeInternalPredicateLtV1"
+        then "lt"
+        else if name = "FormuraeInternalPredicateLeV1"
+          then "le"
+          else if name = "FormuraeInternalPredicateGtV1"
+            then "gt"
+            else if name = "FormuraeInternalPredicateGeV1"
+              then "ge"
+              else ""
+
+def FEIR.selfComparisonValue (operator: String) : Bool :=
+  operator = "eq" || operator = "le" || operator = "ge"
+
+def FEIR.flattenPredicateValue
+      (headName: String) (value: MathValue) : [MathValue] :=
+  if FEIR.functionDataName value = headName
+    then match value as mathValue with
+      | func _ $arguments ->
+          if length arguments = 2
+            then concat (map (FEIR.flattenPredicateValue headName) arguments)
+            else [value]
+      | _ -> [value]
+    else [value]
+
+def FEIR.encodePredicate
+      (parameters: [(MathValue, Integer)])
+      (coordinates: [(MathValue, Integer)])
+      (fields: [(MathValue, Integer, String, [Integer])])
+      (intrinsics: [(String, Integer)])
+      (analytics: [(MathValue, Integer)])
+      (predicate: MathValue) : FEIRSExpr :=
+  match predicate as mathValue with
+    | func $headValue $arguments ->
+        let name := FEIR.unindexedSymbolName headValue
+            compareOperator := FEIR.compareOperatorName name
+         in if name = "FormuraeInternalPredicateTrueV1"
+              then if arguments = []
+                     then FEIR.boolNode True
+                     else FEIR.unsupportedScalar "true predicate must not have operands"
+              else if name = "FormuraeInternalPredicateFalseV1"
+                then if arguments = []
+                       then FEIR.boolNode False
+                       else FEIR.unsupportedScalar "false predicate must not have operands"
+                else if not (compareOperator = "")
+                  then match arguments as list mathValue with
+                    | $lhs :: $rhs :: [] ->
+                        if lhs = rhs
+                          then FEIR.boolNode (FEIR.selfComparisonValue compareOperator)
+                          else let lhsNF := FEIR.encodeScalar parameters coordinates fields intrinsics analytics lhs
+                                   rhsNF := FEIR.encodeScalar parameters coordinates fields intrinsics analytics rhs
+                                in FEIR.compareNode compareOperator lhsNF rhsNF
+                    | _ -> FEIR.unsupportedScalar "comparison predicate needs two operands"
+                  else if name = "FormuraeInternalPredicateNotV1"
+                    then match arguments as list mathValue with
+                      | $body :: [] -> FEIR.notNode (FEIR.encodePredicate parameters coordinates fields intrinsics analytics body)
+                      | _ -> FEIR.unsupportedScalar "not predicate needs one operand"
+                    else if name = "FormuraeInternalPredicateAndV1"
+                      || name = "FormuraeInternalPredicateOrV1"
+                      then if length arguments = 2
+                        then let flattened := concat (map (FEIR.flattenPredicateValue name) arguments)
+                                 encoded := map (FEIR.encodePredicate parameters coordinates fields intrinsics analytics) flattened
+                              in if name = "FormuraeInternalPredicateAndV1"
+                                   then FEIR.andNode encoded
+                                   else FEIR.orNode encoded
+                        else FEIR.unsupportedScalar "and/or predicate needs two operands"
+                      else FEIR.unsupportedScalar "conditional predicate is not a reserved symbolic predicate"
+    | _ -> FEIR.unsupportedScalar "conditional predicate is not a reserved symbolic predicate"
+
+def FEIR.encodeSelect
+      (parameters: [(MathValue, Integer)])
+      (coordinates: [(MathValue, Integer)])
+      (fields: [(MathValue, Integer, String, [Integer])])
+      (intrinsics: [(String, Integer)])
+      (analytics: [(MathValue, Integer)])
+      (arguments: [MathValue]) : FEIRSExpr :=
+  match arguments as list mathValue with
+    | $predicate :: $yes :: $no :: [] ->
+        let predicateNF := FEIR.encodePredicate parameters coordinates fields intrinsics analytics predicate
+            yesNF := FEIR.encodeScalar parameters coordinates fields intrinsics analytics yes
+            noNF := FEIR.encodeScalar parameters coordinates fields intrinsics analytics no
+         in FEIR.selectNode predicateNF yesNF noNF
+    | _ -> FEIR.unsupportedScalar "symbolic Select needs predicate, then, and else operands"
+
+def FEIR.encodeFunctionData
+      (parameters: [(MathValue, Integer)])
+      (coordinates: [(MathValue, Integer)])
+      (fields: [(MathValue, Integer, String, [Integer])])
+      (intrinsics: [(String, Integer)])
+      (analytics: [(MathValue, Integer)])
+      (headValue: MathValue) (arguments: [MathValue]) : FEIRSExpr :=
+  let reservedName := FEIR.unindexedSymbolName headValue
+      fieldMatches :=
+        filter
+          (\(candidate, _, _, _) -> FEIR.fieldHeadMatches candidate headValue)
+          fields
+   in if reservedName = "FormuraeInternalSelectV1"
+        then FEIR.encodeSelect parameters coordinates fields intrinsics analytics arguments
+        else if FEIR.isPredicateHeadName reservedName
+          then FEIR.unsupportedScalar "predicate value may only appear as the condition of Select"
+        else if length fieldMatches = 1
+        then let (_, fieldId, timeSlot, basis) := head fieldMatches
+                 canonicalArguments :=
+                   FEIR.requireCanonicalFieldArguments coordinates arguments
+              in FEIR.record "field-jet"
+                   [ FEIR.field "field" (FEIR.int fieldId)
+                   , FEIR.field "time-slot" (FEIR.atom timeSlot)
+                   , FEIR.field "basis" (FEIR.basis basis)
+                   , FEIR.field "arguments"
+                       (FEIR.list
+                         (map
+                           (FEIR.encodeScalar parameters coordinates fields intrinsics analytics)
+                           canonicalArguments))
+                   , FEIR.field "multi-index"
+                       (FEIR.list
+                         (map FEIR.encodeAxisOrder
+                           (FEIR.derivativeMultiIndex coordinates headValue)))
+                   ]
+        else if length fieldMatches > 1
+          then FEIR.unsupportedScalar "ambiguous logical field component registry entry"
+        else let functionId := FEIR.lookupAnalyticId headValue analytics
+              in if functionId > 0
+                   then FEIRList
+                          [ FEIRAtom "analytic-call"
+                          , FEIR.int functionId
+                          , FEIRList
+                              (map
+                                (FEIR.encodeScalar parameters coordinates fields intrinsics analytics)
+                                arguments)
+                          ]
+                   else FEIR.unsupportedScalar "unregistered FunctionData head"
+
+def FEIR.encodeFactor
+      (parameters: [(MathValue, Integer)])
+      (coordinates: [(MathValue, Integer)])
+      (fields: [(MathValue, Integer, String, [Integer])])
+      (intrinsics: [(String, Integer)])
+      (analytics: [(MathValue, Integer)])
+      (value: MathValue) : FEIRSExpr :=
+  let parameterId := FEIR.lookupSymbolId value parameters
+      coordinateId := FEIR.lookupSymbolId value coordinates
+   in if parameterId > 0
+        then FEIRList [FEIRAtom "parameter", FEIR.int parameterId]
+        else if coordinateId > 0
+          then FEIRList [FEIRAtom "coordinate", FEIR.int coordinateId]
+          else match value as mathValue with
+            | func $headValue $arguments ->
+                FEIR.encodeFunctionData parameters coordinates fields intrinsics analytics
+                  headValue arguments
+            | apply1 $functionValue $argument ->
+                FEIR.encodeApply parameters coordinates fields intrinsics analytics
+                  (mathFunctionName functionValue) [argument]
+            | apply2 $functionValue $argument1 $argument2 ->
+                FEIR.encodeApply parameters coordinates fields intrinsics analytics
+                  (mathFunctionName functionValue) [argument1, argument2]
+            | apply3 $functionValue $argument1 $argument2 $argument3 ->
+                FEIR.encodeApply parameters coordinates fields intrinsics analytics
+                  (mathFunctionName functionValue) [argument1, argument2, argument3]
+            | apply4 $functionValue $argument1 $argument2 $argument3 $argument4 ->
+                FEIR.encodeApply parameters coordinates fields intrinsics analytics
+                  (mathFunctionName functionValue)
+                  [argument1, argument2, argument3, argument4]
+            | quote _ -> FEIR.unsupportedScalar "quote is not part of FEIR v1"
+            | symbol $name _ ->
+                FEIR.unsupportedScalar (S.append "unregistered symbol: " name)
+            | _ -> FEIR.unsupportedScalar "unknown CAS factor"
+
+def FEIR.encodePoweredFactor
+      (parameters: [(MathValue, Integer)])
+      (coordinates: [(MathValue, Integer)])
+      (fields: [(MathValue, Integer, String, [Integer])])
+      (intrinsics: [(String, Integer)])
+      (analytics: [(MathValue, Integer)])
+      (factor: MathValue) (power: Integer) : FEIRSExpr :=
+  let encoded := FEIR.encodeFactor parameters coordinates fields intrinsics analytics factor
+   in if power = 1
+        then encoded
+        else FEIR.powNode encoded (FEIR.exactInteger power)
+
+def FEIR.encodeTerm
+      (parameters: [(MathValue, Integer)])
+      (coordinates: [(MathValue, Integer)])
+      (fields: [(MathValue, Integer, String, [Integer])])
+      (intrinsics: [(String, Integer)])
+      (analytics: [(MathValue, Integer)])
+      (termValue: MathValue) : FEIRSExpr :=
+  match termValue as mathValue with
+    | term $coefficient $factors ->
+        let encodedFactors :=
+              map
+                (\(factor, power) ->
+                  FEIR.encodePoweredFactor parameters coordinates fields intrinsics analytics
+                    factor power)
+                factors
+            encodedCoefficient := FEIR.encodeExact coefficient
+            allFactors :=
+              if coefficient = 1 && not (encodedFactors = [])
+                then encodedFactors
+                else encodedCoefficient :: encodedFactors
+         in FEIR.mulNode allFactors
+    | _ -> FEIR.unsupportedScalar "expected a polynomial term"
+
+def FEIR.encodePolynomial
+      (parameters: [(MathValue, Integer)])
+      (coordinates: [(MathValue, Integer)])
+      (fields: [(MathValue, Integer, String, [Integer])])
+      (intrinsics: [(String, Integer)])
+      (analytics: [(MathValue, Integer)])
+      (polynomial: MathValue) : FEIRSExpr :=
+  if polynomial = 0
+    then FEIR.exactInteger 0
+    else match polynomial as mathValue with
+      | poly $terms ->
+          FEIR.addNode
+            (map
+              (FEIR.encodeTerm parameters coordinates fields intrinsics analytics)
+              terms)
+      | _ -> FEIR.unsupportedScalar "expected a polynomial"
+
+def FEIR.encodeScalar
+      (parameters: [(MathValue, Integer)])
+      (coordinates: [(MathValue, Integer)])
+      (fields: [(MathValue, Integer, String, [Integer])])
+      (intrinsics: [(String, Integer)])
+      (analytics: [(MathValue, Integer)])
+      (value: MathValue) : FEIRSExpr :=
+  if isPureFraction value
+    then FEIR.encodeExact value
+    else let parameterId := FEIR.lookupSymbolId value parameters
+             coordinateId := FEIR.lookupSymbolId value coordinates
+          in if parameterId > 0
+               then FEIRList [FEIRAtom "parameter", FEIR.int parameterId]
+               else if coordinateId > 0
+                 then FEIRList [FEIRAtom "coordinate", FEIR.int coordinateId]
+                 else match value as mathValue with
+                   | func $headValue $arguments ->
+                       FEIR.encodeFunctionData parameters coordinates fields intrinsics analytics
+                         headValue arguments
+                   | apply1 $functionValue $argument ->
+                       FEIR.encodeApply parameters coordinates fields intrinsics analytics
+                         (mathFunctionName functionValue) [argument]
+                   | apply2 $functionValue $argument1 $argument2 ->
+                       FEIR.encodeApply parameters coordinates fields intrinsics analytics
+                         (mathFunctionName functionValue) [argument1, argument2]
+                   | apply3 $functionValue $argument1 $argument2 $argument3 ->
+                       FEIR.encodeApply parameters coordinates fields intrinsics analytics
+                         (mathFunctionName functionValue) [argument1, argument2, argument3]
+                   | apply4 $functionValue $argument1 $argument2 $argument3 $argument4 ->
+                       FEIR.encodeApply parameters coordinates fields intrinsics analytics
+                         (mathFunctionName functionValue)
+                         [argument1, argument2, argument3, argument4]
+                   | $numerator / $denominator ->
+                       let numeratorNF :=
+                             FEIR.encodePolynomial parameters coordinates fields intrinsics analytics
+                               numerator
+                           denominatorNF :=
+                             FEIR.encodePolynomial parameters coordinates fields intrinsics analytics
+                               denominator
+                        in if denominator = 1
+                             then numeratorNF
+                             else FEIR.divNode numeratorNF denominatorNF
+                   | quote _ -> FEIR.unsupportedScalar "quote is not part of FEIR v1"
+                   | _ -> FEIR.unsupportedScalar "unsupported MathValue shape"
+
+-- ---------------------------------------------------------- tensor encoder
+
+def FEIR.fullBases (shape: [Integer]) : [[Integer]] :=
+  match shape as list integer with
+    | [] -> [[]]
+    | $size :: $rest ->
+        concat
+          (map
+            (\index -> map (\basis -> index :: basis) (FEIR.fullBases rest))
+            (between 1 size))
+
+def FEIR.varianceAtom (variance: String) : FEIRSExpr :=
+  if variance = "up" || variance = "down"
+    then FEIRAtom variance
+    else FEIR.unsupportedScalar (S.append "unknown tensor variance: " variance)
+
+def FEIR.encodeTensor
+      (parameters: [(MathValue, Integer)])
+      (coordinates: [(MathValue, Integer)])
+      (fields: [(MathValue, Integer, String, [Integer])])
+      (intrinsics: [(String, Integer)])
+      (analytics: [(MathValue, Integer)])
+      (tensorValue: Tensor MathValue) : FEIRSExpr :=
+  FEIR.encodeTensorWithMetadata parameters coordinates fields intrinsics analytics
+    (Formurae.logicalTensorVariances tensorValue) (dfOrder tensorValue) tensorValue
+
+-- This lower-level entry point is also used by the checked equation boundary
+-- after it has compared the structural value metadata with the target field.
+def FEIR.encodeTensorWithMetadata
+      (parameters: [(MathValue, Integer)])
+      (coordinates: [(MathValue, Integer)])
+      (fields: [(MathValue, Integer, String, [Integer])])
+      (intrinsics: [(String, Integer)])
+      (analytics: [(MathValue, Integer)])
+      (variances: [String]) (differentialFormOrder: Integer)
+      (tensorValue: Tensor MathValue) : FEIRSExpr :=
+  let shape := tensorShape tensorValue
+      bases := FEIR.fullBases shape
+      values := tensorToList tensorValue
+      components :=
+        map
+          (\(basis, value) ->
+            FEIR.record "component"
+              [ FEIR.field "basis" (FEIR.basis basis)
+              , FEIR.field "value"
+                  (FEIR.encodeScalar parameters coordinates fields intrinsics analytics value)
+              ])
+          (zip bases values)
+   in FEIR.record "tensor"
+        [ FEIR.field "shape" (FEIR.list (map FEIR.int shape))
+        , FEIR.field "variances"
+            (FEIR.list (map FEIR.varianceAtom variances))
+        , FEIR.field "df-order" (FEIR.int differentialFormOrder)
+        , FEIR.field "components" (FEIR.list components)
+        ]

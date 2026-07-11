@@ -3,8 +3,8 @@ axes :: x,y,z
 
 double :: dt = 0.05
 
-extern function :: tanh
 extern function :: cosh
+extern function :: tanh
 
 # gamma/sqrt(2) = 0.7216878...; gamma*v/sqrt(2) = 0.1443375...
 
@@ -15,6 +15,6 @@ begin function (phi,w) = init()
 end function
 
 begin function (phi',w') = step(phi,w)
-  w' = (-1)*dt*phi[i,j,k]**3 + dt*phi[i,j,k] + w[i,j,k] + (-2)*dt*phi[i,j,k]/(dx**2) + dt*phi[i-1,j,k]/(dx**2) + dt*phi[i+1,j,k]/(dx**2)
-  phi' = dt*w'[i,j,k] + phi[i,j,k]
+  w'[i,j,k] = w[i,j,k] + (-1) * dt * phi[i,j,k]**3 + dt * phi[i,j,k] + dt * (phi[i-1,j,k] + phi[i+1,j,k] + (-2) * phi[i,j,k]) / dx**2
+  phi'[i,j,k] = phi[i,j,k] + dt * w'[i,j,k]
 end function

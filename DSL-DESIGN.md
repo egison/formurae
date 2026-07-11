@@ -5,6 +5,31 @@ Formura のラテン語風複数形で *formulae*(数式)への掛詞 — 「数
 本言語の主題が名前になっている。Formura 設計者・村主崇行氏への敬意を込めた継承でもある
 (「Formura 2」は本体の現行バージョン 2.3.2 と紛れるため回避)。
 
+**v2.0(2026-07-11): pre-fec / Egison / FEIR / post-fecへのcutover** —
+現在のnormative architectureは
+[`design/20260711-pre-post-fec-pipeline.md`](design/20260711-pre-post-fec-pipeline.md)である。
+以下のv1.36以前の節は設計履歴として残すが、旧`fec`、native marker、generated derivative callback、
+Egison-side FMR printerを現在の実装説明として読まない。
+
+```text
+.fme -> pre-fec -> .egi -> Egison -> .feir -> post-fec -> .fmr -> Formura -> C
+```
+
+`pre-fec`はfrontendとsource map、Egisonはtensor/index algebra・pure user function・strict analytic
+derivative、`post-fec`はplacement・exact stencil・auxiliary lifetime・storageを担当する。
+pure operatorは`lib/formurae-operators.egi`の短い通常関数だけを定義元とし、
+`grad`/`divg`/`curl`/`lap`/`d`等をHaskell macroやcomponent callbackへ複製しない。
+
+解析微分は導関数FunctionDataをFEIRのcanonical FieldJet multi-indexへ変換する。
+離散化精度はoperator definitionではなくmodel-level profileに置くため、
+`def Δ u = divg (grad u)`を変えずに`accuracy 2`/`accuracy 4`を切り替えられる。
+保存形のwhole-expression derivativeは`gridD_x expr`、per-occurrence wide derivative、
+可変直交計量`lb`はversioned opaque requestとなり、post-fecがprofileとは独立にlowerする。
+
+FEIR v1はexact rational、stable logical ID、GeometryNF、FieldJet、opaque request、provenance、
+registry/manifest/profile fingerprintを持つcanonical S-expressionである。FME exampleの追跡artifactと
+gallery表示は`.fme / .egi / .feir / .fmr`の4段である。
+
 **v1.36(2026-07-11): runtime tensor lowering と Phase 7 完了** —
 標準6演算子だけでなく、一般の indexed equation、implicit vector equation、rank-1/rank-2
 indexed `let`、indexed CAS initializer を、成分別 Haskell 式へ展開せず whole runtime tensor として
@@ -607,7 +632,7 @@ step:
    2D curl、4D 以上の Formura backend
    (Egison 側の sqrt(完全平方多項式) 簡約が前提; チップ発行済)。
 
-## 6. 現在の到達点と残課題
+## 6. v1.36時点の到達点と残課題(履歴)
 
 現在の Formurae は、Egison のテンソル添字記法・微分形式・CAS を **表層言語から直接使える記述力**
 として活用している。`fec` は parse、user `def` 解決、scope/source provenance、添字・配置の

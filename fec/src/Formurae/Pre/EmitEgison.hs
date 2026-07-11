@@ -1,0 +1,1202 @@
+{-# LANGUAGE PatternSynonyms #-}
+
+-- | Emit the model-specific Egison normalization unit.  This module only
+-- describes logical fields and continuum expressions.  It deliberately has
+-- no stencil, placement, storage-name, or FMR printer vocabulary.
+module Formurae.Pre.EmitEgison
+  ( EmitError(..)
+  , emitNormalizationUnit
+  ) where
+
+import Control.Monad (foldM)
+import Data.Char (isAlphaNum, isDigit)
+import Data.List (find, intercalate, nub, sort)
+import Text.Read (readMaybe)
+
+import Formurae.FEIR.Codec (encodeFEProgram)
+import Formurae.FEIR.RegistryFingerprint (computeRegistryId)
+import Formurae.FEIR.SExpr (SExpr(..))
+import qualified Formurae.FEIR.Syntax as FEIR
+import Formurae.Index
+  ( componentIndices
+  , fieldIndexParts
+  , internalCoordNames
+  , ixVariance
+  , parseIndexedIdent
+  )
+import Formurae.Pre.Registry
+import qualified Formurae.Syntax as Surface
+import Formurae.TensorExpr
+
+data EmitError
+  = EmitRegistryError RegistryError
+  | EmitAtSource Surface.SourceText EmitError
+  | EmitMissingField String
+  | EmitMissingInitializerOrigin Int
+  | EmitMissingStepOrigin Int
+  | EmitExpressionError String
+  | EmitUnsupportedInitializer String
+  deriving (Eq, Show)
+
+data DynamicEncoding
+  = EncodeScalar
+  | EncodeTensor FEIR.TensorType
+  deriving (Eq, Ord, Show)
+
+data DynamicValue = DynamicValue
+  { dynamicId       :: Int
+  , dynamicName     :: String
+  , dynamicSource   :: String
+  , dynamicEncoding :: DynamicEncoding
+  , dynamicBinding  :: Maybe String
+  , dynamicAtGeometryBoundary :: Bool
+  , dynamicOrigin   :: Maybe FEIR.OriginId
+  , dynamicSourceText :: Maybe Surface.SourceText
+  } deriving (Eq, Show)
+
+data BuildState = BuildState
+  { buildNextDynamic  :: Int
+  , buildNextEquation :: Int
+  , buildNextNode     :: Int
+  , buildDynamics     :: [DynamicValue]
+  }
+
+initialBuildState :: BuildState
+initialBuildState = BuildState 1 1 1 []
+
+-- | Generate one self-contained normalization unit.  The shared libraries
+-- named in the header must be loaded by the pipeline; their definitions are
+-- referenced, never copied into the generated model.
+emitNormalizationUnit
+  :: FEIR.PrimitiveManifestId
+  -> Surface.Model
+  -> IO (Either EmitError String)
+emitNormalizationUnit manifestId model =
+  case buildRegistry model of
+    Left err -> pure (Left (EmitRegistryError err))
+    Right registry -> do
+      prepared <- prepareProgram manifestId model registry
+      case prepared of
+        Left err -> pure (Left err)
+        Right (programWithoutRegistryId, dynamics0) -> do
+          definitionsResult <- prepareDefinitions model
+          dynamicsResult <- mapM (prepareDynamic model) dynamics0
+          geometryDeclarationsResult <- prepareGeometryDeclarations model
+          pure $ do
+            definitions <- definitionsResult
+            dynamics <- sequence dynamicsResult
+            geometryDeclarations <- geometryDeclarationsResult
+            let registryId = computeRegistryId programWithoutRegistryId
+                program = programWithoutRegistryId
+                  { FEIR.feProgramRegistryId = registryId }
+            Right (renderUnit model registry geometryDeclarations
+              definitions dynamics program)
+
+prepareProgram
+  :: FEIR.PrimitiveManifestId
+  -> Surface.Model
+  -> PreRegistry
+  -> IO (Either EmitError (FEIR.FEProgram, [DynamicValue]))
+prepareProgram manifestId model registry = pure $ do
+  (geometry, stateAfterGeometry) <-
+    prepareGeometry model registry initialBuildState
+  (initializers, stateAfterInitializers) <-
+    prepareInitializers model registry stateAfterGeometry
+  (actions, finalState) <- prepareActions model registry stateAfterInitializers
+  let provenance = FEIR.ProvenanceTable
+        [ (FEIR.NodeId node, [origin])
+        | (FEIR.BindValue (FEIR.NodeId node) _ origin) <- actions
+        ]
+      program = FEIR.FEProgram
+        { FEIR.feProgramVersion = 1
+        , FEIR.feProgramModel = preRegistryModelIdentity registry
+        , FEIR.feProgramRegistryId = FEIR.RegistryId "pending"
+        , FEIR.feProgramPrimitiveManifestId = manifestId
+        , FEIR.feProgramDiscretization = preRegistryDiscretization registry
+        , FEIR.feProgramMode = mapMode (Surface.selectedMode model)
+        , FEIR.feProgramDimension = Surface.mDim model
+        , FEIR.feProgramAxes = preRegistryAxes registry
+        , FEIR.feProgramGeometry = geometry
+        , FEIR.feProgramParameters = preRegistryParameters registry
+        , FEIR.feProgramFunctions = preRegistryFunctions registry
+        , FEIR.feProgramFields = preRegistryFields registry
+        , FEIR.feProgramInitializers = initializers
+        , FEIR.feProgramStepActions = actions
+        , FEIR.feProgramRawHelpers = preRegistryRawHelpers registry
+        , FEIR.feProgramOrigins = preRegistryOrigins registry
+        , FEIR.feProgramProvenance = provenance
+        }
+  Right (program, reverse (buildDynamics finalState))
+
+prepareGeometry
+  :: Surface.Model
+  -> PreRegistry
+  -> BuildState
+  -> Either EmitError (FEIR.GeometryDecl, BuildState)
+prepareGeometry model registry state0 =
+  case FEIR.geometryDeclKind declaration of
+    FEIR.EuclideanGeometry -> Right (declaration, state0)
+    FEIR.OrthogonalScaleGeometry _ _ -> do
+      let (metricDynamic, state1) = geometryDynamic
+            "feGeometryMetric" (EncodeTensor covariantMetricType) state0
+          (inverseDynamic, state2) = geometryDynamic
+            "feGeometryInverseMetric" (EncodeTensor contravariantMetricType) state1
+          (scaleDynamics, state3) = addScaleDynamics axisIds state2
+          (volumeDynamic, state4) = geometryDynamic
+            "feGeometryVolume" EncodeScalar state3
+          normalForm = geometryNormalForm metricDynamic inverseDynamic
+            scaleDynamics volumeDynamic
+      Right (declaration
+        { FEIR.geometryDeclKind = FEIR.OrthogonalScaleGeometry
+            [ (axisId, scalarMarker (dynamicId dynamic))
+            | (axisId, dynamic) <- zip axisIds scaleDynamics
+            ] normalForm
+        }, state4)
+    FEIR.EmbeddedOrthogonalGeometry placeholderEmbedding _ -> do
+      let (metricDynamic, state1) = geometryDynamic
+            "feGeometryMetric" (EncodeTensor covariantMetricType) state0
+          (inverseDynamic, state2) = geometryDynamic
+            "feGeometryInverseMetric" (EncodeTensor contravariantMetricType) state1
+          (scaleDynamics, state3) = addScaleDynamics axisIds state2
+          (volumeDynamic, state4) = geometryDynamic
+            "feGeometryVolume" EncodeScalar state3
+          (embeddingDynamics, state5) = addEmbeddingDynamics
+            (length placeholderEmbedding) state4
+          normalForm = geometryNormalForm metricDynamic inverseDynamic
+            scaleDynamics volumeDynamic
+      Right (declaration
+        { FEIR.geometryDeclKind = FEIR.EmbeddedOrthogonalGeometry
+            (map (scalarMarker . dynamicId) embeddingDynamics) normalForm
+        }, state5)
+  where
+    declaration = preRegistryGeometry registry
+    dimension = Surface.mDim model
+    axisIds = map FEIR.AxisId [1 .. dimension]
+    covariantMetricType = FEIR.TensorType [dimension, dimension]
+      [FEIR.VarianceDown, FEIR.VarianceDown] 0
+    contravariantMetricType = FEIR.TensorType [dimension, dimension]
+      [FEIR.VarianceUp, FEIR.VarianceUp] 0
+
+    geometryDynamic source encoding state =
+      addDynamic source encoding Nothing True
+        (FEIR.geometryDeclOrigin declaration) Nothing state
+
+    addScaleDynamics axes state = addMany
+      ["feGeometryScale " ++ show axis | FEIR.AxisId axis <- axes] state
+    addEmbeddingDynamics count state = addMany
+      ["nth " ++ show index ++ " feGeometryEmbedding"
+      | index <- [1 .. count]] state
+    addMany sources state = foldl addOne ([], state) sources
+      where
+        addOne (values, current) source =
+          let (value, next) = geometryDynamic source EncodeScalar current
+          in (values ++ [value], next)
+
+    geometryNormalForm metric inverse scales volume = FEIR.GeometryNF
+      (tensorMarker covariantMetricType (dynamicId metric))
+      (tensorMarker contravariantMetricType (dynamicId inverse))
+      [ (axisId, scalarMarker (dynamicId scale))
+      | (axisId, scale) <- zip axisIds scales
+      ]
+      (scalarMarker (dynamicId volume)) True
+
+prepareInitializers
+  :: Surface.Model
+  -> PreRegistry
+  -> BuildState
+  -> Either EmitError ([FEIR.FEInitializer], BuildState)
+prepareInitializers model registry state0 =
+  foldM prepare ([], state0) indexedInitializers
+  where
+    indexedInitializers = zip3 (Surface.mInits model)
+      (preRegistryInitializerOrigins registry)
+      (Surface.mInitSourceTexts model)
+
+    prepare (result, state) (initializer, origin, sourceText) = do
+      (items, nextState) <- prepareInitializer initializer origin sourceText state
+      Right (result ++ items, nextState)
+
+    prepareInitializer (Surface.ICas name source) origin sourceText state = do
+      field <- fieldNamed registry name
+      let tensorType = FEIR.logicalFieldTensorType field
+          (dynamic, nextState) = addDynamic source (EncodeTensor tensorType)
+            Nothing False (Just origin) (Just sourceText) state
+          equation = FEIR.FEEquation
+            (FEIR.EquationId (buildNextEquation state))
+            (FEIR.WholeFieldTarget (FEIR.logicalFieldId field) FEIR.CurrentTime)
+            (tensorMarker tensorType (dynamicId dynamic)) origin
+      Right ([FEIR.AnalyticInitializer equation], nextState
+        { buildNextEquation = buildNextEquation state + 1 })
+    prepareInitializer (Surface.ICasIndex name _ source) origin sourceText state = do
+      field <- fieldNamed registry name
+      let tensorType = FEIR.logicalFieldTensorType field
+          (dynamic, nextState) = addDynamic source (EncodeTensor tensorType)
+            Nothing False (Just origin) (Just sourceText) state
+          equation = FEIR.FEEquation
+            (FEIR.EquationId (buildNextEquation state))
+            (FEIR.WholeFieldTarget (FEIR.logicalFieldId field) FEIR.CurrentTime)
+            (tensorMarker tensorType (dynamicId dynamic)) origin
+      Right ([FEIR.AnalyticInitializer equation], nextState
+        { buildNextEquation = buildNextEquation state + 1 })
+    prepareInitializer (Surface.IRaw name raw) origin _ state = do
+      field <- fieldNamed registry name
+      Right
+        ([FEIR.RawInitializer
+            (FEIR.FieldComponentTarget (FEIR.logicalFieldId field)
+              FEIR.CurrentTime (FEIR.Basis [])) raw origin], state)
+    prepareInitializer (Surface.IVec name values) origin _ state =
+      rawComponents name values origin state
+    prepareInitializer (Surface.ISym name values) origin _ state =
+      rawComponents name values origin state
+    prepareInitializer (Surface.IAnti name values) origin _ state =
+      rawComponents name values origin state
+    prepareInitializer (Surface.ITensor2 name values) origin _ state =
+      rawComponents name values origin state
+
+    rawComponents name values origin state = do
+      field <- fieldNamed registry name
+      kind <- maybe (Left (EmitUnsupportedInitializer name)) Right
+        (Surface.kindOf model name)
+      let bases = componentIndices (Surface.mDim model) kind
+      if length bases /= length values
+        then Left (EmitUnsupportedInitializer name)
+        else Right
+          ( [ FEIR.RawInitializer
+                (FEIR.FieldComponentTarget (FEIR.logicalFieldId field)
+                  FEIR.CurrentTime (FEIR.Basis basis)) value origin
+            | (basis, value) <- zip bases values
+            ]
+          , state
+          )
+
+prepareActions
+  :: Surface.Model
+  -> PreRegistry
+  -> BuildState
+  -> Either EmitError ([FEIR.FEAction], BuildState)
+prepareActions model registry state0 =
+  foldM prepare ([], state0) indexedSteps
+  where
+    indexedSteps = zip (Surface.mSteps model)
+      (preRegistryStepOrigins registry)
+
+    prepare (result, state) (step, origin) = do
+      (action, nextState) <- prepareStep step origin state
+      Right (result ++ [action], nextState)
+
+    prepareStep step origin state =
+      case Surface.sk step of
+        Surface.KLet ->
+          let encoding = case Surface.sIdx step of
+                [] -> EncodeScalar
+                indices -> EncodeTensor (indexedTensorType model indices)
+              (dynamic, nextState) = addDynamic
+                (Surface.sEx step) encoding (Just (Surface.sNm step)) False
+                (Just origin) (Just (Surface.sSourceText step)) state
+              node = FEIR.NodeId (buildNextNode state)
+              value = markerValue encoding (dynamicId dynamic)
+          in Right (FEIR.BindValue node value origin, nextState
+               { buildNextNode = buildNextNode state + 1 })
+        Surface.KLocal -> do
+          field <- fieldNamed registry (Surface.sNm step)
+          let (dynamic, nextState) = addDynamic
+                (Surface.sEx step) EncodeScalar Nothing False
+                (Just origin) (Just (Surface.sSourceText step)) state
+          Right
+            ( FEIR.Materialize (FEIR.logicalFieldId field)
+                (FEIR.ScalarValue (scalarMarker (dynamicId dynamic))) origin
+            , nextState
+            )
+        Surface.KEq -> do
+          field <- fieldNamed registry (Surface.sNm step)
+          let tensorType = FEIR.logicalFieldTensorType field
+              (dynamic, nextState) = addDynamic
+                (Surface.sEx step) (EncodeTensor tensorType) Nothing False
+                (Just origin) (Just (Surface.sSourceText step)) state
+              equation = FEIR.FEEquation
+                (FEIR.EquationId (buildNextEquation state))
+                (FEIR.WholeFieldTarget (FEIR.logicalFieldId field) FEIR.NextTime)
+                (tensorMarker tensorType (dynamicId dynamic)) origin
+          Right (FEIR.UpdateField equation, nextState
+            { buildNextEquation = buildNextEquation state + 1 })
+
+addDynamic
+  :: String -> DynamicEncoding -> Maybe String -> Bool -> Maybe FEIR.OriginId
+  -> Maybe Surface.SourceText
+  -> BuildState
+  -> (DynamicValue, BuildState)
+addDynamic source encoding binding geometryBoundary origin sourceText state = (dynamic, state
+  { buildNextDynamic = identifier + 1
+  , buildDynamics = dynamic : buildDynamics state
+  })
+  where
+    identifier = buildNextDynamic state
+    dynamic = DynamicValue identifier
+      ("FormuraeInternalValue" ++ show identifier) source encoding binding
+      geometryBoundary origin sourceText
+
+markerValue :: DynamicEncoding -> Int -> FEIR.FEValue
+markerValue EncodeScalar identifier =
+  FEIR.ScalarValue (scalarMarker identifier)
+markerValue (EncodeTensor tensorType) identifier =
+  FEIR.TensorValue (tensorMarker tensorType identifier)
+
+scalarMarker :: Int -> FEIR.ScalarNF
+scalarMarker identifier = FEIR.Ref (FEIR.NodeId (negate identifier))
+
+tensorMarker :: FEIR.TensorType -> Int -> FEIR.TensorNF
+tensorMarker tensorType identifier = FEIR.TensorNF
+  (FEIR.tensorTypeShape tensorType)
+  (FEIR.tensorTypeVariances tensorType)
+  (FEIR.tensorTypeDfOrder tensorType)
+  [ (FEIR.Basis basis, scalarMarker identifier)
+  | basis <- fullBases (FEIR.tensorTypeShape tensorType)
+  ]
+
+fullBases :: [Int] -> [[Int]]
+fullBases [] = [[]]
+fullBases (size : rest) =
+  [index : suffix | index <- [1 .. size], suffix <- fullBases rest]
+
+indexedTensorType :: Surface.Model -> [Surface.IxPart] -> FEIR.TensorType
+indexedTensorType model indices = FEIR.TensorType
+  (replicate (length indices) (Surface.mDim model))
+  (map (mapVariance . ixVariance) indices)
+  0
+
+fieldNamed :: PreRegistry -> String -> Either EmitError FEIR.LogicalFieldDecl
+fieldNamed registry name =
+  maybe (Left (EmitMissingField name)) Right $ find
+    ((== name) . FEIR.logicalFieldSourceName) (preRegistryFields registry)
+
+mapMode :: Surface.Mode -> FEIR.Mode
+mapMode Surface.CollocatedMode = FEIR.CollocatedMode
+mapMode Surface.DecMode = FEIR.DecMode
+
+mapVariance :: Surface.Variance -> FEIR.Variance
+mapVariance Surface.VUp = FEIR.VarianceUp
+mapVariance Surface.VDown = FEIR.VarianceDown
+
+prepareGeometryDeclarations
+  :: Surface.Model -> IO (Either EmitError [String])
+prepareGeometryDeclarations model =
+  case (Surface.mMetric model, Surface.mEmbed model) of
+    (Nothing, Nothing) -> pure (Right [])
+    (Just scaleFactors, Nothing) -> do
+      prepared <- mapM prepare scaleFactors
+      pure $ geometryLines GeometryFromScale <$> sequence prepared
+    (Nothing, Just embedding) -> do
+      prepared <- mapM prepare embedding
+      pure $ geometryLines GeometryFromEmbedding <$> sequence prepared
+    (Just _, Just _) -> pure (Left
+      (EmitExpressionError "metric scale and embedding are mutually exclusive"))
+  where
+    prepare = pure . Right . renameGeometryCoordinates model
+    dimension = Surface.mDim model
+    axes = [1 .. dimension]
+    offDiagonalPairs =
+      [(row, column) | row <- axes, column <- axes, row < column]
+    orthogonalityCondition = case offDiagonalPairs of
+      [] -> "True"
+      pairs -> intercalate " && "
+        ["FE.tensorComponentAt feGeometryMetricRaw " ++ show [row, column]
+          ++ " = 0"
+        | (row, column) <- pairs]
+
+    geometryLines source values =
+      sourceDefinitions source values
+      ++ [ "def feGeometryOrthogonalityVerified : Bool := assert \"embedding/metric must be symbolically orthogonal\" ("
+             ++ orthogonalityCondition ++ ")"
+         , "def feGeometryInverseMetricRaw := "
+             ++ attachTensorVariances [Surface.VUp, Surface.VUp]
+                  "FE.inverseDiagonalMetricTensor feDimension feGeometryScaleRaw"
+         , "def feGeometryMetric := match feGeometryOrthogonalityVerified as bool with"
+         , "  | #True -> feGeometryMetricRaw"
+         , "def feGeometryScale axis := match feGeometryOrthogonalityVerified as bool with"
+         , "  | #True -> feGeometryScaleRaw axis"
+         , "def feGeometryInverseMetric := match feGeometryOrthogonalityVerified as bool with"
+         , "  | #True -> feGeometryInverseMetricRaw"
+         , "def feGeometryVolume := match feGeometryOrthogonalityVerified as bool with"
+         , "  | #True -> FE.orthogonalVolume " ++ show axes
+             ++ " feGeometryScaleRaw"
+         , ""
+         ]
+
+    sourceDefinitions GeometryFromScale values =
+      [ "def feGeometryScaleRaw axis := nth axis " ++ renderList values
+      , "def feGeometryMetricRaw := "
+          ++ attachTensorVariances [Surface.VDown, Surface.VDown]
+               "FE.diagonalMetricTensor feDimension feGeometryScaleRaw"
+      ]
+    sourceDefinitions GeometryFromEmbedding values =
+      [ "def feGeometryEmbedding := " ++ renderList values
+      , "def feGeometryMetricRaw := "
+          ++ attachTensorVariances [Surface.VDown, Surface.VDown]
+               "FE.metricTensor feDimension (FE.inducedMetric feCoordinates feGeometryEmbedding)"
+      , "def feGeometryScaleRaw axis := sqrt (FE.tensorComponentAt feGeometryMetricRaw [axis, axis])"
+      ]
+
+data GeometryDefinitionSource
+  = GeometryFromScale
+  | GeometryFromEmbedding
+
+renameGeometryCoordinates :: Surface.Model -> String -> String
+renameGeometryCoordinates model =
+  Surface.untok . map rename . Surface.tokenize
+  where
+    coordinateNames = zip (Surface.mAxes model) (internalCoordNames model)
+    rename (Surface.TId name primed) =
+      Surface.TId (maybe name id (lookup name coordinateNames)) primed
+    rename token = token
+
+prepareDefinitions
+  :: Surface.Model
+  -> IO (Either EmitError [(Int, Surface.Def, String)])
+prepareDefinitions model = go [] [] (zip [1 ..] (Surface.mDefs model))
+  where
+    go _ prepared [] = pure (Right (reverse prepared))
+    go prior prepared ((index, definition) : rest) = do
+      result <- prepareExpression model "FormuraeInternalContext"
+        prior (Surface.defName definition : map fst prior)
+        (map definitionParameterBase (Surface.defParams definition))
+        (Surface.defBody definition)
+      case result of
+        Left err -> pure (Left (maybe err (`EmitAtSource` err)
+          (Surface.defSourceText definition)))
+        Right body ->
+          go ((Surface.defName definition,
+                "FormuraeInternalDefinition" ++ show index) : prior)
+             ((index, definition, body) : prepared) rest
+
+prepareDynamic
+  :: Surface.Model -> DynamicValue -> IO (Either EmitError DynamicValue)
+prepareDynamic model dynamic = do
+  result <- prepareExpression model "feOperatorContext" []
+    (map Surface.defName (Surface.mDefs model)) []
+    (dynamicSource dynamic)
+  pure $ case result of
+    Left err -> Left (maybe err (`EmitAtSource` err)
+      (dynamicSourceText dynamic))
+    Right source -> Right (dynamic { dynamicSource = source })
+
+prepareExpression
+  :: Surface.Model
+  -> String
+  -> [(String, String)]
+  -> [String]
+  -> [String]
+  -> String
+  -> IO (Either EmitError String)
+prepareExpression model contextName userDefinitions shadowedNames boundNames source = do
+  preprocessed <- preprocessTensorExpr model source
+  pure $ case parseTensorExprEither preprocessed of
+    Left message -> Left (EmitExpressionError message)
+    Right expression -> renderTensorExpr
+      <$> contextualize model contextName userDefinitions shadowedNames boundNames expression
+
+contextualize
+  :: Surface.Model
+  -> String
+  -> [(String, String)]
+  -> [String]
+  -> [String]
+  -> TensorExpr
+  -> Either EmitError TensorExpr
+contextualize model contextName userDefinitions shadowedNames boundNames expression =
+  case expression of
+    TENumber value -> Right (TENumber value)
+    TEIdent name parts
+      | null parts
+      , name == "True" -> Right (TEIdent "Formurae.predicateTrue" [])
+      | null parts
+      , name == "False" -> Right (TEIdent "Formurae.predicateFalse" [])
+      | null parts
+      , Just qualified <- contextFunction name ->
+          Right (TEGroup (TEApply (TEIdent qualified []) [context]))
+      | otherwise -> Right (TEIdent name parts)
+    TEUnary "!" body ->
+      TEApply (TEIdent "Formurae.predicateNot" []) . (: []) <$> walk body
+    TEUnary operator body -> TEUnary operator <$> walk body
+    TECall (TEIdent name parts) arguments
+      | isExplicitPrimitiveName name
+      , not (isLexicallyShadowed name) ->
+          contextualizeExplicitPrimitive name parts arguments
+    TECall function arguments ->
+      TECall <$> walk function <*> mapM walk arguments
+    TEApply (TEIdent name []) arguments
+      | Just qualified <- contextFunction name ->
+          contextualizeContinuumCall qualified arguments
+    TEApply (TEIdent name parts) arguments
+      | isExplicitPrimitiveName name
+      , not (isLexicallyShadowed name) ->
+          contextualizeExplicitPrimitive name parts arguments
+    TEApply (TEIdent name parts) arguments
+      | name `elem` ["gridD", "gridDerivative"] ->
+          contextualizeGridWholeCall name parts arguments
+    TEApply (TEIdent derivative parts) arguments
+      | Just (order, radius) <- coordinateDerivativeName derivative
+      , [Surface.IxPart _ axis] <- parts -> do
+          arguments' <- mapM walk arguments
+          case arguments' of
+            [argument]
+              | radius == 1 -> Right (strictDerivative order axis argument)
+              | otherwise -> do
+                  axisId <- gridAxisId derivative axis
+                  Right (TEApply
+                    (TEIdent "Formurae.coordinateWideDerivative" [])
+                    [ context
+                    , TENumber (show axisId)
+                    , TENumber (show order)
+                    , TENumber (show radius)
+                    , argument
+                    ])
+            _ -> Left (EmitExpressionError
+              (derivative ++ " coordinate derivative needs one operand"))
+    TEApply function arguments ->
+      TEApply <$> walk function <*> mapM walk arguments
+    TEIf condition yes no -> do
+      condition' <- walk condition
+      yes' <- walk yes
+      no' <- walk no
+      Right (TEApply (TEIdent "Formurae.select" [])
+        [ applicationArgument condition'
+        , applicationArgument yes'
+        , applicationArgument no'
+        ])
+    TEAppendIndexed body parts -> TEAppendIndexed <$> walk body <*> pure parts
+    TEWithSymbols names body -> TEWithSymbols names <$> walk body
+    TEContractWith reducer body -> TEContractWith reducer <$> walk body
+    TETensorMap function body -> TETensorMap <$> walk function <*> walk body
+    TESubrefs body parts -> TESubrefs <$> walk body <*> pure parts
+    TETranspose names body -> TETranspose names <$> walk body
+    TEDisjoint parts -> TEDisjoint <$> mapM walk parts
+    TEDerivative parts body -> do
+      body' <- walk body
+      Right (foldr indexedDerivativePart body' parts)
+    TEDot parts -> do
+      parts' <- mapM walk parts
+      case lookup "." userDefinitions of
+        Just internalName -> Right (applyUserDot internalName parts')
+        Nothing -> Right (TEDot parts')
+    TEBinary operator lhs rhs
+      | Just constructor <- predicateBinaryConstructor operator -> do
+          lhs' <- walk lhs
+          rhs' <- walk rhs
+          Right (TEApply (TEIdent constructor [])
+            [applicationArgument lhs', applicationArgument rhs'])
+      | otherwise -> TEBinary operator <$> walk lhs <*> walk rhs
+    TEGroup body -> TEGroup <$> walk body
+  where
+    walk value = contextualize model contextName userDefinitions
+      shadowedNames boundNames value
+    context = TEIdent contextName []
+    applyUserDot internalName (first : rest) =
+      foldl apply first rest
+      where
+        apply lhs rhs = TEApply (TEIdent internalName [])
+          [context, applicationArgument lhs, applicationArgument rhs]
+    applyUserDot _ [] = TEDot []
+    contextFunction name
+      | name `elem` boundNames = Nothing
+      | Just internalName <- lookup name userDefinitions = Just internalName
+      | name `elem` shadowedNames = Nothing
+      | otherwise = lookup name continuumOperators
+    isLexicallyShadowed name =
+      name `elem` boundNames
+      || name `elem` shadowedNames
+      || any ((== name) . fst) userDefinitions
+    indexedDerivativePart part value =
+      TEAppendIndexed
+        (TEGroup (TEApply (TEIdent "Formurae.diff" []) [context, value]))
+        [part]
+    contextualizeContinuumCall qualified arguments = do
+      arguments' <- mapM walk arguments
+      Right (TEApply (TEIdent qualified []) (context : arguments'))
+    contextualizeGridWholeCall name parts arguments =
+      case (parts, arguments) of
+        ([Surface.IxPart _ axis], [argument]) -> do
+          axisId <- gridAxisId name axis
+          argument' <- walk argument
+          Right (TEApply (TEIdent "Formurae.gridWholeDerivative" [])
+            [context, TENumber (show axisId), argument'])
+        ([_], _) -> Left (EmitExpressionError
+          (name ++ " whole-expression grid derivative needs one operand"))
+        _ -> Left (EmitExpressionError
+          (name ++ " whole-expression grid derivative needs one coordinate index"))
+    gridAxisId name axis =
+      case [ identifier
+           | (identifier, sourceName, canonicalName) <-
+               zip3 [1 :: Int ..] (Surface.mAxes model) (internalCoordNames model)
+           , axis == sourceName || axis == canonicalName
+           ] of
+        identifier : _ -> Right identifier
+        [] -> Left (EmitExpressionError
+          (name ++ " uses unknown coordinate " ++ axis))
+    contextualizeExplicitPrimitive name parts arguments
+      | name `elem` ["orderedD", "orderedDerivative"] =
+          case (parts, arguments) of
+            ([], value : axes@(_ : _)) -> do
+              value' <- walk value
+              axisIds <- mapM (explicitAxisId name) axes
+              Right (TEApply (TEIdent "Formurae.orderedDerivative" [])
+                [context, integerVector axisIds, applicationArgument value'])
+            ([], _) -> Left (EmitExpressionError
+              (name ++ " needs one scalar operand followed by one or more coordinate names"))
+            _ -> Left (EmitExpressionError
+              (name ++ " takes its ordered coordinate sequence as arguments, not indices"))
+      | name `elem` ["resample", "interpolate"] =
+          case (parts, arguments) of
+            ([], value : bits) -> do
+              value' <- walk value
+              bitValues <- mapM (explicitPlacementBit name) bits
+              if length bitValues == Surface.mDim model
+                then Right (TEApply (TEIdent "Formurae.resampleExplicit" [])
+                  [context, integerVector bitValues,
+                   applicationArgument value'])
+                else Left (EmitExpressionError
+                  (name ++ " needs exactly " ++ show (Surface.mDim model)
+                    ++ " absolute placement bits after its operand"))
+            _ -> Left (EmitExpressionError
+              (name ++ " takes an unindexed operand call and absolute placement bits"))
+      | name `elem` ["fluxDiv", "conservativeDiv"] =
+          case (parts, arguments) of
+            ([], [value]) -> do
+              value' <- walk value
+              Right (TEApply
+                (TEIdent "Formurae.fluxConservativeDivergence" [])
+                [ context
+                , applicationArgument value'])
+            _ -> Left (EmitExpressionError
+              (name ++ " needs exactly one rank-1 tensor operand"))
+      | name == "materialize" =
+          case (parts, arguments) of
+            ([], [value]) -> do
+              value' <- walk value
+              Right (TEApply (TEIdent "Formurae.materialized" [])
+                [ context
+                , applicationArgument value'
+                ])
+            _ -> Left (EmitExpressionError
+              "materialize needs exactly one unindexed scalar or tensor operand")
+      | otherwise = Left (EmitExpressionError
+          ("unknown explicit primitive " ++ name))
+    explicitAxisId :: String -> TensorExpr -> Either EmitError Int
+    explicitAxisId name candidate =
+      case ungroup candidate of
+        TEIdent axis [] -> gridAxisId name axis
+        _ -> Left (EmitExpressionError
+          (name ++ " ordered axes must be declared coordinate names"))
+    explicitPlacementBit :: String -> TensorExpr -> Either EmitError Int
+    explicitPlacementBit name candidate =
+      case ungroup candidate of
+        TENumber "0" -> Right 0
+        TENumber "1" -> Right 1
+        _ -> Left (EmitExpressionError
+          (name ++ " absolute placement bits must be literal 0 or 1"))
+    ungroup (TEGroup body) = ungroup body
+    ungroup value = value
+    integerVector :: [Int] -> TensorExpr
+    integerVector [] = TEIdent "[||]" []
+    integerVector values = TEIdent
+      ("[| " ++ intercalate ", " (map show values) ++ " |]") []
+    applicationArgument value@(TEApply _ _) = TEGroup value
+    applicationArgument value@(TECall _ _) = TEGroup value
+    applicationArgument value = value
+
+predicateBinaryConstructor :: String -> Maybe String
+predicateBinaryConstructor operator = lookup operator
+  [ ("==", "Formurae.predicateEq")
+  , ("!=", "Formurae.predicateNe")
+  , ("<", "Formurae.predicateLt")
+  , ("<=", "Formurae.predicateLe")
+  , (">", "Formurae.predicateGt")
+  , (">=", "Formurae.predicateGe")
+  , ("&&", "Formurae.predicateAnd")
+  , ("||", "Formurae.predicateOr")
+  ]
+
+isExplicitPrimitiveName :: String -> Bool
+isExplicitPrimitiveName name = name `elem`
+  [ "orderedD", "orderedDerivative"
+  , "resample", "interpolate"
+  , "fluxDiv", "conservativeDiv"
+  , "materialize"
+  ]
+
+continuumOperators :: [(String, String)]
+continuumOperators =
+  [ ("grad", "Formurae.grad")
+  , ("dGrad", "Formurae.dGrad")
+  , ("divg", "Formurae.divg")
+  , ("curl", "Formurae.curl")
+  , ("hessian", "Formurae.hessian")
+  , ("lap", "Formurae.lap")
+  , ("Δ", "Formurae.lap")
+  , ("flat", "Formurae.flat")
+  , ("sharp", "Formurae.sharp")
+  , ("d", "Formurae.d")
+  , ("dForm", "Formurae.d")
+  , ("hodge", "Formurae.hodge")
+  , ("codiff", "Formurae.codiff")
+  , ("delta", "Formurae.codiff")
+  , ("formLaplacian", "Formurae.formLaplacian")
+  , ("lb", "Formurae.lbOrthogonal")
+  ]
+
+coordinateDerivativeName :: String -> Maybe (Int, Int)
+coordinateDerivativeName name = do
+  rest <- stripPrefix "pd" name
+  let (orderText, radiusPart) = span isDigit rest
+  radiusText <- stripPrefix "r" radiusPart
+  order <- readMaybe orderText
+  radius <- readMaybe radiusText
+  if order > 0 && radius > 0 then Just (order, radius) else Nothing
+
+stripPrefix :: String -> String -> Maybe String
+stripPrefix [] value = Just value
+stripPrefix (expected : rest) (actual : value)
+  | expected == actual = stripPrefix rest value
+stripPrefix _ _ = Nothing
+
+strictDerivative :: Int -> String -> TensorExpr -> TensorExpr
+strictDerivative order axis = applyRepeated order
+  where
+    applyRepeated 0 value = value
+    applyRepeated count value = applyRepeated (count - 1)
+      (TEApply (TEIdent "strict∂/∂" [])
+        [groupAppliedValue value, TEIdent axis []])
+    groupAppliedValue value@(TEApply _ _) = TEGroup value
+    groupAppliedValue value = value
+
+renderUnit
+  :: Surface.Model
+  -> PreRegistry
+  -> [String]
+  -> [(Int, Surface.Def, String)]
+  -> [DynamicValue]
+  -> FEIR.FEProgram
+  -> String
+renderUnit model registry geometryDeclarations definitions dynamics program = unlines $
+  header
+  ++ diagnosticMetadata registry dynamics
+  ++ symbolDeclarations
+  ++ contextDeclarations
+  ++ geometryDeclarations
+  ++ operatorContextDeclarations
+  ++ concatMap (fieldDeclarations model) (Surface.mFieldDecls model)
+  ++ localDeclarations
+  ++ registryDeclarations model registry
+  ++ definitionDeclarations (Surface.mDim model) definitions
+  ++ dynamicDeclarations dynamics
+  ++ encoderDeclarations
+  ++ continuumAssertionDeclarations model
+  ++ [ "def feProgram := " ++ renderWire dynamics (encodeFEProgram program)
+     , ""
+     , mainDeclaration model
+     ]
+  where
+    header =
+      [ "--"
+      , "-- GENERATED by pre-fec from " ++ Surface.mSourcePath model
+      , "-- Load formurae-tensor.egi, formurae-geometry.egi,"
+      , "-- formurae-primitives.egi, formurae-operators.egi, and"
+      , "-- formurae-feir.egi before this unit."
+      , "--"
+      , ""
+      ]
+    coordinateNames = internalCoordNames model
+    parameterNames = map FEIR.parameterDeclSourceName
+      (preRegistryParameters registry)
+    symbolDeclarations =
+      ["declare symbol " ++ intercalate ", " coordinateNames]
+      ++ ["declare symbol " ++ intercalate ", " parameterNames
+         | not (null parameterNames)]
+      ++ ["declare symbol " ++ intercalate ", " indexNames]
+      ++ [""]
+    contextDeclarations =
+      [ "def feDimension : Integer := " ++ show (Surface.mDim model)
+      , "def feCoordinates : Vector MathValue := [| "
+          ++ intercalate ", " coordinateNames ++ " |]"
+      ]
+      ++ [ "def " ++ metricName
+             ++ " := FE.metricTensor feDimension (\\i j -> if i = j then 1 else 0)"
+         | Just metricName <- [Surface.mMetricName model]
+         ]
+      ++ [""]
+    operatorContextDeclarations =
+      [ "def feGeometryScales : Vector MathValue := [| "
+          ++ intercalate ", " geometryScaleValues ++ " |]"
+      , "def feOperatorContext := Formurae.operatorContext feCoordinates"
+          ++ " feDimension 1 "
+          ++ show (primitiveManifestText (FEIR.feProgramPrimitiveManifestId program))
+          ++ " feGeometryScales " ++ if hasVariableGeometry then "True" else "False"
+      , ""
+      ]
+    hasVariableGeometry = case (Surface.mMetric model, Surface.mEmbed model) of
+      (Nothing, Nothing) -> False
+      _ -> True
+    geometryScaleValues
+      | hasVariableGeometry =
+          ["FEIR.unquoteAll (feGeometryScale " ++ show axis ++ ")"
+          | axis <- [1 .. Surface.mDim model]]
+      | otherwise = replicate (Surface.mDim model) "1"
+    localDeclarations =
+      [ "def " ++ Surface.sNm step ++ " := function ("
+          ++ intercalate ", " coordinateNames ++ ")"
+      | step <- Surface.mSteps model, Surface.sk step == Surface.KLocal
+      ] ++ ["" | any ((== Surface.KLocal) . Surface.sk) (Surface.mSteps model)]
+    encoderDeclarations =
+      [ "def FormuraeInternalAtOrigin marker thunk :="
+      , "  io $ do print marker"
+      , "          return (thunk ())"
+      , ""
+      , "def FormuraeInternalEncodeScalar value := FEIR.encodeScalar feParameters feCoordinatesRegistry feFields feIntrinsics feAnalytics value"
+      , "def FormuraeInternalEncodeTensor expectedShape variances degree value :="
+      , "  let actualVariances := Formurae.logicalTensorVariances value"
+      , "      actualDegree := dfOrder value"
+      , "      completedValue := if degree = 0"
+      , "                            && actualDegree > 0"
+      , "                            && tensorShape value = expectedShape"
+      , "                            && actualVariances = variances"
+      , "                         then Formurae.attachExplicitVariances variances value"
+      , "                         else value"
+      , "      completedVariances := Formurae.logicalTensorVariances completedValue"
+      , "      completedDegree := dfOrder completedValue"
+      , "   in match assert \"normalized equation tensor metadata mismatch\""
+      , "                   (tensorShape completedValue = expectedShape"
+      , "                    && completedVariances = variances"
+      , "                    && completedDegree = degree) as bool with"
+      , "        | #True -> FEIR.encodeTensorWithMetadata feParameters feCoordinatesRegistry feFields feIntrinsics feAnalytics completedVariances completedDegree completedValue"
+      , ""
+      ]
+
+-- The machine runner resolves the last active origin when Egison aborts
+-- before a FEIR value exists.  Human-readable provenance lives in comments,
+-- so it cannot affect normalization or the FEIR fingerprint.
+diagnosticMetadata :: PreRegistry -> [DynamicValue] -> [String]
+diagnosticMetadata registry dynamics =
+  concatMap renderOrigin activeOrigins
+  ++ ["" | not (null activeOrigins)]
+  where
+    activeOrigins = nub
+      [origin | dynamic <- dynamics, Just origin <- [dynamicOrigin dynamic]]
+    FEIR.OriginTable originTable = preRegistryOrigins registry
+
+    renderOrigin origin@(FEIR.OriginId identifier) =
+      case lookup origin originTable of
+        Nothing -> []
+        Just sourceOrigin ->
+          ["-- FORMURAE-DIAGNOSTIC-BEGIN " ++ show identifier]
+          ++ map ("-- FORMURAE-DIAGNOSTIC " ++)
+               (renderSourceDiagnostic sourceOrigin)
+          ++ ["-- FORMURAE-DIAGNOSTIC-END " ++ show identifier]
+
+renderSourceDiagnostic :: FEIR.SourceOrigin -> [String]
+renderSourceDiagnostic sourceOrigin =
+  ("pre-fec: error: " ++ renderSourceLocation location
+    ++ ": Egison normalization failed")
+  : map renderExpansion (FEIR.sourceOriginTrace sourceOrigin)
+  where
+    location = FEIR.sourceOriginLocation sourceOrigin
+    renderExpansion frame =
+      "  expanded from " ++ FEIR.expansionFrameName frame
+      ++ " at " ++ renderSourceLocation (FEIR.expansionFrameCall frame)
+      ++ " (defined at "
+      ++ renderSourceLocation (FEIR.expansionFrameDefinition frame) ++ ")"
+
+renderSourceLocation :: FEIR.SourceLocation -> String
+renderSourceLocation location =
+  FEIR.sourceLocationPath location
+  ++ ":" ++ show (FEIR.sourceLocationLine location)
+  ++ ":" ++ show (FEIR.sourceLocationStartColumn location)
+
+primitiveManifestText :: FEIR.PrimitiveManifestId -> String
+primitiveManifestText (FEIR.PrimitiveManifestId value) = value
+
+continuumAssertionDeclarations :: Surface.Model -> [String]
+continuumAssertionDeclarations model =
+  case Surface.mDd model of
+    Nothing -> []
+    Just value ->
+      [ "def feContinuumDD := foldl (\\acc component -> acc + component ^ 2) 0 (tensorToList (Formurae.d feOperatorContext (Formurae.d feOperatorContext "
+          ++ value ++ ")))"
+      , "def feContinuumAssertions : Bool := assert \"continuum identity d(d A) = 0 failed\" (feContinuumDD = 0)"
+      , ""
+      ]
+
+mainDeclaration :: Surface.Model -> String
+mainDeclaration model =
+  case Surface.mDd model of
+    Nothing ->
+      "def main (args: [String]) : IO () := print (FEIR.render feProgram)"
+    Just _ ->
+      "def main (args: [String]) : IO () := match feContinuumAssertions as bool with | #True -> print (FEIR.render feProgram)"
+
+fieldDeclarations :: Surface.Model -> Surface.FieldDecl -> [String]
+fieldDeclarations model field =
+  fieldVersionDeclarations model field "" "Current"
+  ++ fieldVersionDeclarations model field "'" "Next"
+  ++ [""]
+
+fieldVersionDeclarations
+  :: Surface.Model -> Surface.FieldDecl -> String -> String -> [String]
+fieldVersionDeclarations model field primes slot =
+  case Surface.fdKind field of
+    Surface.Scalar -> [scalarDeclaration]
+    Surface.Vector -> [fullTensorDeclaration 1]
+    Surface.Tensor2 -> [fullTensorDeclaration 2]
+    Surface.SymM -> canonicalRank2 True
+    Surface.AntiM -> canonicalRank2 False
+    Surface.Form degree
+      | degree == 0 -> [scalarDeclaration]
+      | otherwise ->
+          [ "def " ++ rawName ++ " := " ++ generatedTensor degree
+          , "def " ++ publicName ++ " := FE.canonicalFormTensor"
+              ++ " (FE.tensorComponentAt " ++ rawName ++ ") feDimension "
+              ++ show degree
+          ]
+  where
+    publicName = Surface.fdName field ++ primes
+    rawName = fieldRawName field slot
+    coordinateArguments = intercalate ", " (internalCoordNames model)
+    scalarDeclaration =
+      "def " ++ publicName ++ " := function (" ++ coordinateArguments ++ ")"
+    generatedTensor rank =
+      "generateTensor (\\[" ++ intercalate ", " (take rank indexNames)
+      ++ "] -> function (" ++ coordinateArguments ++ ")) "
+      ++ show (replicate rank (Surface.mDim model))
+    fullTensorDeclaration rank =
+      "def " ++ publicName ++ " := "
+      ++ attachFieldTensorMetadata field rank (generatedTensor rank)
+    canonicalRank2 symmetric =
+      [ "def " ++ rawName ++ " := " ++ generatedTensor 2
+      , "def " ++ publicName ++ " := "
+          ++ attachFieldTensorMetadata field 2
+               ("generateTensor (\\[i, j] -> " ++ component ++ ") "
+                 ++ show [Surface.mDim model, Surface.mDim model])
+      ]
+      where
+        at a b = "FE.tensorComponentAt " ++ rawName ++ " [" ++ a ++ ", " ++ b ++ "]"
+        component
+          | symmetric = "if i <= j then " ++ at "i" "j" ++ " else " ++ at "j" "i"
+          | otherwise = "if i = j then 0 else if i < j then "
+              ++ at "i" "j" ++ " else 0 - " ++ at "j" "i"
+
+indexNames :: [String]
+indexNames = ["i", "j", "k", "l", "m", "n"]
+
+metadataIndexNames :: [String]
+metadataIndexNames =
+  [ "formuraeTensorIndex1"
+  , "formuraeTensorIndex2"
+  , "formuraeTensorIndex3"
+  ]
+
+attachFieldTensorMetadata
+  :: Surface.FieldDecl -> Int -> String -> String
+attachFieldTensorMetadata field rank expression =
+  attachTensorVariances variances expression
+  where
+    variances = case fieldIndexParts field of
+      Just parts -> map (ixVariance) parts
+      Nothing -> replicate rank Surface.VDown
+
+attachTensorVariances :: [Surface.Variance] -> String -> String
+attachTensorVariances variances expression =
+  "(" ++ expression ++ ")" ++ concat
+    [ varianceMarker variance ++ name
+    | (variance, name) <- zip variances metadataIndexNames
+    ]
+  where
+    varianceMarker Surface.VUp = "~"
+    varianceMarker Surface.VDown = "_"
+
+fieldRawName :: Surface.FieldDecl -> String -> String
+fieldRawName field slot =
+  "FormuraeInternalField" ++ show (Surface.fdSourceLine field)
+  ++ slot ++ "Raw"
+
+registryDeclarations
+  :: Surface.Model -> PreRegistry -> [String]
+registryDeclarations model registry =
+  [ "def feParameters := " ++ renderParameterRegistry
+  , "def feCoordinatesRegistry := " ++ renderCoordinateRegistry
+  , "def feFields := " ++ renderFieldRegistry
+  , "def feIntrinsics := " ++ renderIntrinsicRegistry
+  , "def feAnalytics := []"
+  , ""
+  ]
+  where
+    renderParameterRegistry = renderList
+      ["(" ++ FEIR.parameterDeclSourceName parameter ++ ", "
+        ++ show identifier ++ ")"
+      | parameter <- preRegistryParameters registry
+      , let FEIR.ParamId identifier = FEIR.parameterDeclId parameter]
+    renderCoordinateRegistry = renderList
+      ["(" ++ FEIR.axisDeclCanonicalName axis ++ ", "
+        ++ show identifier ++ ")"
+      | axis <- preRegistryAxes registry
+      , let FEIR.AxisId identifier = FEIR.axisDeclId axis]
+    renderIntrinsicRegistry = renderList
+      ["(" ++ show (FEIR.functionDeclSourceName function) ++ ", "
+        ++ show identifier ++ ")"
+      | function <- preRegistryFunctions registry
+      , FEIR.functionDeclClass function == FEIR.IntrinsicFunction
+      , let FEIR.FunctionId identifier = FEIR.functionDeclId function]
+    renderFieldRegistry = renderList (concatMap fieldEntries
+      (preRegistryFields registry))
+    fieldEntries logicalField =
+      case find ((== FEIR.logicalFieldSourceName logicalField) . Surface.fdName)
+             (Surface.mFieldDecls model) of
+        Just surfaceField ->
+          currentEntry surfaceField "current" "Current"
+          ++ currentEntry surfaceField "next" "Next"
+        Nothing ->
+          [entry logicalField "current" ([] :: [Int])
+             (FEIR.logicalFieldSourceName logicalField)]
+      where
+        currentEntry surfaceField timeSlot slot =
+          [ entry logicalField timeSlot basis
+              (fieldComponentExpression surfaceField slot timeSlot basis)
+          | basis <- componentIndices (Surface.mDim model)
+              (Surface.fdKind surfaceField)
+          ]
+    entry
+      :: FEIR.LogicalFieldDecl -> String -> [Int] -> String -> String
+    entry logicalField timeSlot basis value =
+      let FEIR.FieldId identifier = FEIR.logicalFieldId logicalField
+      in "FEIR.fieldEntry " ++ show identifier ++ " " ++ show timeSlot
+         ++ " " ++ show basis ++ " (" ++ value ++ ")"
+
+fieldComponentExpression
+  :: Surface.FieldDecl -> String -> String -> [Int] -> String
+fieldComponentExpression field slot timeSlot basis =
+  case Surface.fdKind field of
+    Surface.Scalar -> publicName
+    Surface.Form 0 -> publicName
+    Surface.SymM -> rawComponent
+    Surface.AntiM -> rawComponent
+    Surface.Form _ -> rawComponent
+    _ -> "FE.tensorComponentAt " ++ publicName ++ " " ++ show basis
+  where
+    publicName = Surface.fdName field ++ if timeSlot == "next" then "'" else ""
+    rawComponent = "FE.tensorComponentAt " ++ fieldRawName field slot
+      ++ " " ++ show basis
+
+definitionDeclarations :: Int -> [(Int, Surface.Def, String)] -> [String]
+definitionDeclarations dimension definitions = concatMap renderDefinition definitions
+  where
+    renderDefinition (index, definition, body) =
+      [ "def FormuraeInternalDefinition" ++ show index
+          ++ " FormuraeInternalContext"
+          ++ concatMap (\parameter -> " " ++ definitionParameterBase parameter)
+               (Surface.defParams definition)
+          ++ " := " ++ withIndexSymbols (checkedBody definition body)
+      , "def " ++ publicDefinitionName (Surface.defName definition)
+          ++ " := FormuraeInternalDefinition" ++ show index
+          ++ " feOperatorContext"
+      , ""
+      ]
+
+    checkedBody definition body = foldr check body
+      [ (parameter, parts)
+      | parameter <- Surface.defParams definition
+      , not (isPatternEllipsis parameter)
+      , let (_, parts) = parseIndexedIdent parameter
+      , not (null parts)
+      ]
+      where
+        check (parameter, parts) inner =
+          "match assert " ++ show
+            ("indexed parameter " ++ parameter ++ " metadata mismatch in "
+              ++ Surface.defName definition)
+          ++ " (tensorShape " ++ definitionParameterBase parameter
+          ++ " = " ++ show (replicate (length parts) dimension)
+          ++ " && Formurae.logicalTensorVariances "
+          ++ definitionParameterBase parameter ++ " = "
+          ++ show (map (varianceName . mapParameterVariance) parts)
+          ++ ") as bool with | #True -> " ++ inner
+
+    isPatternEllipsis parameter =
+      length parameter >= 3 && drop (length parameter - 3) parameter == "..."
+
+    mapParameterVariance (Surface.IxPart Surface.VUp _) = FEIR.VarianceUp
+    mapParameterVariance (Surface.IxPart Surface.VDown _) = FEIR.VarianceDown
+
+    publicDefinitionName "." = "(.)"
+    publicDefinitionName name = name
+
+definitionParameterBase :: String -> String
+definitionParameterBase = takeWhile isAlphaNum
+
+dynamicDeclarations :: [DynamicValue] -> [String]
+dynamicDeclarations dynamics = concatMap declarations dynamics ++ [""]
+  where
+    declarations dynamic =
+      ["def " ++ dynamicName dynamic ++ " := "
+        ++ dynamicSource dynamic]
+      ++ ["def " ++ binding ++ " := " ++ dynamicName dynamic
+         | Just binding <- [dynamicBinding dynamic]]
+
+withIndexSymbols :: String -> String
+withIndexSymbols source =
+  "withSymbols [" ++ intercalate ", " indexNames ++ "] (" ++ source ++ ")"
+
+renderWire :: [DynamicValue] -> SExpr -> String
+renderWire dynamics expression
+  | isTensorRecord expression
+  , [identifier] <- nub (sort (negativeMarkers expression))
+  , Just dynamic <- dynamicById identifier
+  , EncodeTensor tensorType <- dynamicEncoding dynamic =
+      atOrigin dynamic ("FormuraeInternalEncodeTensor "
+      ++ show (FEIR.tensorTypeShape tensorType) ++ " "
+      ++ show (map varianceName (FEIR.tensorTypeVariances tensorType)) ++ " "
+      ++ show (FEIR.tensorTypeDfOrder tensorType) ++ " "
+      ++ tensorBoundaryValue dynamic)
+  | List [Atom "ref", Atom identifierText] <- expression
+  , Just negativeIdentifier <- readMaybe identifierText
+  , negativeIdentifier < (0 :: Int)
+  , Just dynamic <- dynamicById (negate negativeIdentifier)
+  , EncodeScalar <- dynamicEncoding dynamic =
+      atOrigin dynamic
+        ("FormuraeInternalEncodeScalar " ++ scalarBoundaryValue dynamic)
+  | Atom value <- expression = "FEIR.atom " ++ show value
+  | StringAtom value <- expression = "FEIR.string " ++ show value
+  | List values <- expression =
+      "FEIR.list " ++ renderList (map (renderWire dynamics) values)
+  where
+    dynamicById identifier = find ((== identifier) . dynamicId) dynamics
+    atOrigin dynamic value =
+      case dynamicOrigin dynamic of
+        Nothing -> value
+        Just (FEIR.OriginId identifier) ->
+          "FormuraeInternalAtOrigin "
+          ++ show ("@@FORMURAE_ACTIVE_ORIGIN:" ++ show identifier ++ "@@")
+          ++ " (\\_ -> " ++ value ++ ")"
+    scalarBoundaryValue dynamic
+      | dynamicAtGeometryBoundary dynamic =
+          "(FEIR.unquoteAll " ++ dynamicName dynamic ++ ")"
+      | otherwise = dynamicName dynamic
+    tensorBoundaryValue dynamic
+      | dynamicAtGeometryBoundary dynamic =
+          "(FEIR.unquoteTensor " ++ dynamicName dynamic ++ ")"
+      | otherwise = dynamicName dynamic
+
+isTensorRecord :: SExpr -> Bool
+isTensorRecord (List (Atom "tensor" : _)) = True
+isTensorRecord _ = False
+
+negativeMarkers :: SExpr -> [Int]
+negativeMarkers (List [Atom "ref", Atom value]) =
+  case readMaybe value of
+    Just identifier | identifier < (0 :: Int) -> [negate identifier]
+    _ -> []
+negativeMarkers (List values) = concatMap negativeMarkers values
+negativeMarkers _ = []
+
+varianceName :: FEIR.Variance -> String
+varianceName FEIR.VarianceUp = "up"
+varianceName FEIR.VarianceDown = "down"
+
+renderList :: [String] -> String
+renderList values = "[" ++ intercalate ", " values ++ "]"

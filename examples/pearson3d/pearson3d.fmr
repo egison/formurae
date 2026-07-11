@@ -18,6 +18,6 @@ begin function (U,V) = init()
 end function
 
 begin function (U',V') = step(U,V)
-  U' = (-1)*Fe*U[i,j,k]*V[i,j,k]**2*dt + (-1)*Fu*U[i,j,k]*dt + Fu*dt + U[i,j,k] + (-2)*Du*U[i,j,k]*dt/(dz**2) + (-2)*Du*U[i,j,k]*dt/(dy**2) + (-2)*Du*U[i,j,k]*dt/(dx**2) + Du*U[i,j,k-1]*dt/(dz**2) + Du*U[i,j,k+1]*dt/(dz**2) + Du*U[i,j-1,k]*dt/(dy**2) + Du*U[i,j+1,k]*dt/(dy**2) + Du*U[i-1,j,k]*dt/(dx**2) + Du*U[i+1,j,k]*dt/(dx**2)
-  V' = Fe*U[i,j,k]*V[i,j,k]**2*dt + (-1)*Fv*V[i,j,k]*dt + V[i,j,k] + (-2)*Dv*V[i,j,k]*dt/(dz**2) + (-2)*Dv*V[i,j,k]*dt/(dy**2) + (-2)*Dv*V[i,j,k]*dt/(dx**2) + Dv*V[i,j,k-1]*dt/(dz**2) + Dv*V[i,j,k+1]*dt/(dz**2) + Dv*V[i,j-1,k]*dt/(dy**2) + Dv*V[i,j+1,k]*dt/(dy**2) + Dv*V[i-1,j,k]*dt/(dx**2) + Dv*V[i+1,j,k]*dt/(dx**2)
+  U'[i,j,k] = U[i,j,k] + (-1) * Fe * dt * U[i,j,k] * V[i,j,k]**2 + (-1) * Fu * dt * U[i,j,k] + Du * dt * (U[i-1,j,k] + U[i+1,j,k] + (-2) * U[i,j,k]) / dx**2 + Du * dt * (U[i,j-1,k] + U[i,j+1,k] + (-2) * U[i,j,k]) / dy**2 + Du * dt * (U[i,j,k-1] + U[i,j,k+1] + (-2) * U[i,j,k]) / dz**2 + Fu * dt
+  V'[i,j,k] = V[i,j,k] + (-1) * Fv * dt * V[i,j,k] + Dv * dt * (V[i-1,j,k] + V[i+1,j,k] + (-2) * V[i,j,k]) / dx**2 + Dv * dt * (V[i,j-1,k] + V[i,j+1,k] + (-2) * V[i,j,k]) / dy**2 + Dv * dt * (V[i,j,k-1] + V[i,j,k+1] + (-2) * V[i,j,k]) / dz**2 + Fe * dt * U[i,j,k] * V[i,j,k]**2
 end function

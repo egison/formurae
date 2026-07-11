@@ -1,0 +1,11 @@
+mode collocated
+dimension 1
+axes x
+discretization collocated centered accuracy 2
+field u : scalar
+def inner q = grad q
+def outer q = inner q
+init:
+  u := x * x
+step:
+  u' = outer u

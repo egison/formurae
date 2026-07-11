@@ -12,6 +12,6 @@ begin function (a,b) = init()
 end function
 
 begin function (a',b') = step(a,b)
-  a' = (-1)*a[i,j,k]**3*dt + (-1)*a[i,j,k]*b[i,j,k]**2*dt + a[i,j,k]*dt + a[i,j,k] + (-2)*a[i,j,k]*dt/(dz**2) + (-2)*a[i,j,k]*dt/(dy**2) + (-2)*a[i,j,k]*dt/(dx**2) + a[i,j,k-1]*dt/(dz**2) + a[i,j,k+1]*dt/(dz**2) + a[i,j-1,k]*dt/(dy**2) + a[i,j+1,k]*dt/(dy**2) + a[i-1,j,k]*dt/(dx**2) + a[i+1,j,k]*dt/(dx**2)
-  b' = (-1)*b[i,j,k]**3*dt + (-1)*a[i,j,k]**2*b[i,j,k]*dt + b[i,j,k]*dt + b[i,j,k] + (-2)*b[i,j,k]*dt/(dz**2) + (-2)*b[i,j,k]*dt/(dy**2) + (-2)*b[i,j,k]*dt/(dx**2) + b[i,j,k-1]*dt/(dz**2) + b[i,j,k+1]*dt/(dz**2) + b[i,j-1,k]*dt/(dy**2) + b[i,j+1,k]*dt/(dy**2) + b[i-1,j,k]*dt/(dx**2) + b[i+1,j,k]*dt/(dx**2)
+  a'[i,j,k] = a[i,j,k] + (-1) * dt * a[i,j,k] * b[i,j,k]**2 + (-1) * dt * a[i,j,k]**3 + dt * a[i,j,k] + dt * (a[i-1,j,k] + a[i+1,j,k] + (-2) * a[i,j,k]) / dx**2 + dt * (a[i,j-1,k] + a[i,j+1,k] + (-2) * a[i,j,k]) / dy**2 + dt * (a[i,j,k-1] + a[i,j,k+1] + (-2) * a[i,j,k]) / dz**2
+  b'[i,j,k] = b[i,j,k] + (-1) * dt * b[i,j,k] * a[i,j,k]**2 + (-1) * dt * b[i,j,k]**3 + dt * b[i,j,k] + dt * (b[i-1,j,k] + b[i+1,j,k] + (-2) * b[i,j,k]) / dx**2 + dt * (b[i,j-1,k] + b[i,j+1,k] + (-2) * b[i,j,k]) / dy**2 + dt * (b[i,j,k-1] + b[i,j,k+1] + (-2) * b[i,j,k]) / dz**2
 end function

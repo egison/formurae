@@ -1,0 +1,20 @@
+mode collocated
+dimension 2
+axes x, y
+
+field u : scalar
+field v : scalar @ dual
+field F_i @ primal
+field G_i @ primal
+
+init:
+  u = 0.0
+  v = 0.0
+  F_i = [| 0.0, 0.0 |]_i
+  G_i = [| 0.0, 0.0 |]_i
+
+step:
+  u' = orderedD(u, x, y) + fluxDiv(materialize(F + G)) + materialize(fluxDiv(F))
+  v' = resample(u, 1, 1)
+  F'_i = materialize(F + G)
+  G'_i = G_i

@@ -1,18 +1,19 @@
--- Diffusion with a DERIVED 4th-order Laplacian Δ4: the five-point
--- coefficients (-1/12, 4/3, -5/2, 4/3, -1/12) appear nowhere here --
--- Δ4 solves the Taylor conditions by exact rational Gaussian
--- elimination inside the CAS.  The check driver verifies the run
--- against the exact discrete symbol of the derived stencil.
+-- Diffusion with a fourth-order discretization of the ordinary Cartesian
+-- Laplacian.  The mathematical operator stays independent of accuracy; the
+-- profile alone selects the compact five-point second-derivative stencil.
+-- Its coefficients (-1/12, 4/3, -5/2, 4/3, -1/12) appear nowhere here.
 
 mode collocated
 dimension 3
 axes x, y, z
 
+discretization collocated derivative 2 centered accuracy 4
+
 param κ = 1.0
 param dt = 0.0005
 
 extern sin
-def Δ4 u = ∂'^2_x u + ∂'^2_y u + ∂'^2_z u
+def Δ u = divg (grad u)
 
 field u : scalar
 
@@ -20,4 +21,4 @@ init:
   u = sin(4.0*i*dx)
 
 step:
-  u' = u + dt * κ * Δ4 u
+  u' = u + dt * κ * Δ u

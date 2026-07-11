@@ -1,0 +1,8 @@
+mode collocated
+dimension 1
+axes x
+field u : scalar
+def first q = second q
+def second q = lap q
+step:
+  u' = first u

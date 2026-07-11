@@ -1,0 +1,8 @@
+mode collocated
+dimension 1
+axes x
+field u : scalar
+def helper value = value
+def helper value = value + 1
+step:
+  u' = helper u

@@ -17,7 +17,8 @@ static double H(Formura_Navi n) {
   double s = 0;
   for (int i = n.lower_x; i < n.upper_x; i++)
     for (int j = n.lower_y; j < n.upper_y; j++)
-      s += formura_data.sg[i][j][1] * formura_data.u[i][j][1];
+      s += formura_data.FormuraeInternalMetricVolume[i][j][1]
+           * formura_data.u[i][j][1];
   return s;
 }
 

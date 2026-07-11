@@ -182,11 +182,13 @@ TB と非互換。つまり**言語としては周期しか書けない**。
 ### これで開くもの
 
 Poisson 系(反復+収束判定)経由の非圧縮流体(V1 で可)、オンライン診断(V1 で可)、
-Euler/MHD の適応 dt(V2 で解禁)。formurae 側は `boundary`/`reduces` を
-fmrgen のテンプレートに透過させるだけで済む。
+Euler/MHD の適応 dt(V2 で解禁)。Formurae でこれらを表層化する場合も、
+Egison の数学演算子には混ぜず、`pre-fec` が宣言を FEIR に保持し、
+`post-fec` が Formura 用の .fmr/.yaml 設定へ変換する。
 
 ## formurae 側の追随
 
-- fmrgen: 境界宣言・reduce をテンプレート/プリンタに透過
+- FEIR: 境界宣言・reduce のversioned declarationとsource provenanceを追加
+- post-fec: 宣言を Formura の .fmr/.yaml 設定へ変換
 - examples: Euler(Sod)を「固定 λmax 版 → reduce 版」の before/after で並べ、
   論文の動機づけ(なぜ本体拡張が要るか)を実測で示す

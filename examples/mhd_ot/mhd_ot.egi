@@ -14,7 +14,7 @@
 -- conserved variables is then exact by telescoping, monitored through
 -- the generated global reductions.
 --
--- Run: egison -l fmrgen.egi -l fmrlegacy3d.egi mhd_ot.egi > mhd_ot.fmr
+-- Run: egison -l fmrgen.egi -l fmr-direct3d.egi mhd_ot.egi > mhd_ot.fmr
 --
 
 declare symbol dt, lam, gam

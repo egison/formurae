@@ -1,0 +1,12 @@
+mode collocated
+dimension 1
+axes x
+discretization collocated centered accuracy 2
+field u : scalar
+def inner q = materialize u
+def outer q = inner q
+init:
+  u := outer (x * x)
+step:
+  let held = outer u
+  u' = held

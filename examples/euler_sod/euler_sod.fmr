@@ -16,10 +16,10 @@ begin function (rho,mx,en) = init()
 end function
 
 begin function (rho',mx',en') = step(rho,mx,en)
-  pr = (-1)*mx[i,j,k]**2/(5*rho[i,j,k]) + 2*en[i,j,k]/(5)
-  fm = pr[i,j,k] + mx[i,j,k]**2/(rho[i,j,k])
-  fe = mx[i,j,k]*pr[i,j,k]/(rho[i,j,k]) + en[i,j,k]*mx[i,j,k]/(rho[i,j,k])
-  rho' = rho[i,j,k] + dt*mx[i-1,j,k]/(2*dx) + (-1)*dt*mx[i+1,j,k]/(2*dx) + (-2)*dt*lambda*rho[i,j,k]/(dx**2) + dt*lambda*rho[i-1,j,k]/(dx**2) + dt*lambda*rho[i+1,j,k]/(dx**2)
-  mx' = mx[i,j,k] + (-2)*dt*lambda*mx[i,j,k]/(dx**2) + dt*lambda*mx[i-1,j,k]/(dx**2) + dt*lambda*mx[i+1,j,k]/(dx**2) + dt*fm[i-1,j,k]/(2*dx) + (-1)*dt*fm[i+1,j,k]/(2*dx)
-  en' = en[i,j,k] + dt*fe[i-1,j,k]/(2*dx) + (-1)*dt*fe[i+1,j,k]/(2*dx) + (-2)*dt*en[i,j,k]*lambda/(dx**2) + dt*en[i-1,j,k]*lambda/(dx**2) + dt*en[i+1,j,k]*lambda/(dx**2)
+  pr[i,j,k] = (-1 / 5) * mx[i,j,k]**2 * rho[i,j,k]**(-1) + (2 / 5) * en[i,j,k]
+  fm[i,j,k] = pr[i,j,k] + mx[i,j,k]**2 * rho[i,j,k]**(-1)
+  fe[i,j,k] = en[i,j,k] * mx[i,j,k] * rho[i,j,k]**(-1) + mx[i,j,k] * pr[i,j,k] * rho[i,j,k]**(-1)
+  rho'[i,j,k] = rho[i,j,k] + (-1) * dt * ((-1 / 2) * mx[i-1,j,k] + (1 / 2) * mx[i+1,j,k]) / dx + dt * lambda * (rho[i-1,j,k] + rho[i+1,j,k] + (-2) * rho[i,j,k]) / dx**2
+  mx'[i,j,k] = mx[i,j,k] + (-1) * dt * ((-1 / 2) * fm[i-1,j,k] + (1 / 2) * fm[i+1,j,k]) / dx + dt * lambda * (mx[i-1,j,k] + mx[i+1,j,k] + (-2) * mx[i,j,k]) / dx**2
+  en'[i,j,k] = en[i,j,k] + (-1) * dt * ((-1 / 2) * fe[i-1,j,k] + (1 / 2) * fe[i+1,j,k]) / dx + dt * lambda * (en[i-1,j,k] + en[i+1,j,k] + (-2) * en[i,j,k]) / dx**2
 end function

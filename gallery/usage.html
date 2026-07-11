@@ -5,101 +5,86 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Formurae 使い方ガイド</title>
 <style>
-  :root { --ink:#1c1e21; --sub:#5a6270; --line:#e3e6ea; --accent:#0b5fa5; --accent2:#7a3fa5; }
-  * { box-sizing: border-box; }
-  body { margin:0; font-family:"Hiragino Sans","Noto Sans JP",Helvetica,Arial,sans-serif;
-         color:var(--ink); background:#f6f7f9; }
-  header { background:#fff; border-bottom:1px solid var(--line); padding:28px 32px; }
+  :root { --ink:#1c1e21; --sub:#5a6270; --line:#e3e6ea; --accent:#0b5fa5; }
+  * { box-sizing:border-box; }
+  body { margin:0; color:var(--ink); background:#f6f7f9;
+         font-family:"Hiragino Sans","Noto Sans JP",Helvetica,Arial,sans-serif; }
+  header { padding:28px 32px; background:#fff; border-bottom:1px solid var(--line); }
   header h1 { margin:0 0 6px; font-size:22px; }
-  header p { margin:4px 0; color:var(--sub); font-size:13.5px; max-width:980px; }
+  header p { margin:4px 0; max-width:980px; color:var(--sub); font-size:13.5px; }
+  main { max-width:920px; margin:auto; padding:12px 24px 80px; font-size:14px; line-height:1.8; }
+  h2 { margin:40px 0 10px; padding-left:10px; color:var(--accent);
+       border-left:4px solid var(--accent); font-size:17px; }
+  h3 { margin:24px 0 6px; font-size:14.5px; }
   a { color:var(--accent); }
-  main { max-width:900px; margin:0 auto; padding:10px 24px 80px; font-size:14px; line-height:1.85; }
-  h2 { font-size:17px; margin:44px 0 10px; color:var(--accent);
-       border-left:4px solid var(--accent); padding-left:10px; }
-  h3 { font-size:14.5px; margin:26px 0 6px; }
-  code { background:#eef1f4; padding:1px 5px; border-radius:4px; font-size:12.5px;
-         font-family:"SF Mono",Menlo,Consolas,monospace; }
-  pre { background:#0e1726; color:#dbe7f6; border-radius:8px; padding:12px 15px;
-        overflow-x:auto; font:12.5px/1.6 "SF Mono",Menlo,Consolas,monospace; }
-  pre .c { color:#5f7c9e; }
-  table { border-collapse:collapse; width:100%; font-size:13px; margin:10px 0; }
-  th, td { border:1px solid var(--line); padding:6px 10px; text-align:left; background:#fff; }
+  code { padding:1px 5px; border-radius:4px; background:#eef1f4;
+         font:12.5px "SF Mono",Menlo,Consolas,monospace; }
+  pre { overflow-x:auto; padding:12px 15px; border-radius:8px;
+        color:#dbe7f6; background:#0e1726;
+        font:12.5px/1.6 "SF Mono",Menlo,Consolas,monospace; }
+  pre .c { color:#6f8cac; }
+  table { width:100%; margin:10px 0; border-collapse:collapse; font-size:13px; }
+  th,td { padding:7px 10px; border:1px solid var(--line); background:#fff; text-align:left; }
   th { background:#f0f3f7; }
-  .toc { background:#fff; border:1px solid var(--line); border-radius:8px; padding:12px 20px;
-         font-size:13px; margin-top:18px; }
-  .toc a { text-decoration:none; }
-  .note { background:#fdf6e3aa; border:1px solid #e8dcb5; border-radius:6px;
-          padding:8px 12px; font-size:12.5px; }
+  .toc,.note { margin:18px 0; padding:11px 16px; border:1px solid var(--line);
+               border-radius:8px; background:#fff; font-size:13px; }
+  .note { background:#fff9e9; }
 </style>
 </head>
 <body>
 <header>
   <h1>Formurae 使い方ガイド</h1>
-  <p>数式のままの表層言語 <b>Formurae</b>(フォーミュレ、拡張子 <code>.fme</code>)で書いた偏微分方程式を、
-     Egison の計算機代数(CAS)でステンシルに展開し、Formura で MPI+temporal blocking つきの
-     C コードに落とすまでの手引きです。現在の <code>.fme</code> では、<code>∂_x</code> のような座標微分、
-     <code>contractWith (+) A~i_i</code> や <code>epsilon~i~j~k . ∂_j X_k</code> のような明示的な添字縮約、
-     <code>withSymbols</code> を使うテンソル演算子定義、<code>sin</code>/<code>exp</code> などのスカラー関数を
-     数式に近い形で書けます。言語名は Formura の複数形= <i>formulae</i>(数式)への掛詞で、
-     設計者・村主崇行氏の Formura の名を継いでいます。
-     実例は <a href="dsl/index.html">Formurae ギャラリー(22例)</a>と<a href="index.html">総合ギャラリー(26例)</a>へ。</p>
+  <p>テンソル添字記法、微分形式、解析微分をEgisonで評価し、離散化だけをpost-fecで行って、
+     FormuraのMPI・temporal-blocking付きC codeへつなぐための手引きです。
+     実例は<a href="dsl/index.html">Formuraeギャラリー</a>と<a href="index.html">総合ギャラリー</a>にあります。</p>
 </header>
 <main>
 
 <div class="toc">
-<b>目次</b><br>
-1. <a href="#pipeline">パイプラインの全体像</a> /
-2. <a href="#setup">セットアップ</a> /
-3. <a href="#tutorial">チュートリアル: 拡散方程式</a> /
-4. <a href="#fme">Formurae 言語リファレンス</a> /
-5. <a href="#papers">関連論文</a> /
-6. <a href="#yaml">yaml リファレンス</a> /
-7. <a href="#driver">検証ドライバの書き方</a> /
-8. <a href="#make">Makefile への登録</a> /
-9. <a href="#gallery">ギャラリーの再生成</a> /
-10. <a href="#layers">3層構造と検証の考え方</a>
+  <b>目次:</b>
+  <a href="#pipeline">pipeline</a> / <a href="#setup">setup</a> /
+  <a href="#tutorial">tutorial</a> / <a href="#syntax">syntax</a> /
+  <a href="#derivative">微分と精度</a> / <a href="#tensor">tensor・form</a> /
+  <a href="#geometry">geometry</a> / <a href="#artifacts">生成物と検証</a>
 </div>
 
-<h2 id="pipeline">1. パイプラインの全体像</h2>
-<pre>
-model.fme    Formurae ソース: field 宣言+数式(添字記法・微分形式・計量・ユーザ定義演算子)
-   │  fec(Haskell; TensorExpr def/prelude 展開・添字/配置の成分特殊化)
-model.egi   埋め込み形(生成中間物; モデル固有の場・残余式・必要な座標文脈)
-   │  Egison -l formurae-tensor.egi -l fmrgen.egi -l formurae-runtime.egi
-   │  Egison CAS が残余 Tensor/DEC 式を評価し、共有 runtime が文字列化
-model.fmr   Formura ソース(全更新式が具体的なステンシルに)
-   │  Formura(fork; bin/formura)
-model.c/.h  MPI 通信・temporal blocking つき C ライブラリ
-   │  cc + 検証ドライバ(*_check.c)
-./check     物理検証(保存則・厳密解・参照実装比較; 失敗なら exit≠0)
-</pre>
+<h2 id="pipeline">1. 4段pipeline</h2>
+
+<pre>model.fme    Formurae source
+   │ pre-fec: parse / scope / declaration / source map
+model.egi    Egison normalization unit
+   │ Egison: tensor/index algebra / strict analytic derivative / CAS
+model.feir   canonical Formurae Egison IR
+   │ post-fec: placement / exact stencil / auxiliary fields / storage
+model.fmr    Formura source
+   │ Formura
+model.c/.h   MPI + temporal blocking C library</pre>
+
+<p>数学的な演算子はEgison、具体的な差分と格子配置はpost-fec、loopと通信はFormuraが担当します。
+成功時のEgison stdoutはFEIR 1個だけです。warningやtype/evaluation errorはmachine runnerが拒否します。</p>
 
 <h2 id="setup">2. セットアップ</h2>
-<pre>
-<span class="c"># 前提: GHC 9.6 系+stack(Formura 用)、cabal、../egison に Egison 開発ツリー</span>
-make setup     <span class="c"># Formura 2.3.2 を clone + GHC 9.6 パッチ + ビルド → bin/formura</span>
-cabal build    <span class="c"># Formurae コンパイラ fec をビルド(依存は base のみ)</span>
-make all       <span class="c"># 全26例を生成→実行→検証(数分)</span>
-</pre>
-<p class="note">Egison はインストール済みバイナリでなく開発ツリー(<code>EGISON_DIR</code>、既定 <code>../egison</code>)を
-使います — 同梱の数学ライブラリが新しい必要があるためです。MPI は不要(1ランク用スタブ同梱)。</p>
 
-<h2 id="tutorial">3. チュートリアル: 拡散方程式を動かす</h2>
-<p><code>examples/diffusion3d/diffusion3d.fme</code> の全文:</p>
-<pre>
--- The 3D diffusion equation: du/dt = kappa * laplacian(u)
+<pre><span class="c"># GHC 9.6系、cabal、stack(Formura用)、隣接する ../egison が必要</span>
+make setup
+cabal build
+make diffusion3d
+make all</pre>
 
-mode collocated
+<p class="note">FormuraeとEgisonはcabalでbuildします。Formura upstreamのbuildだけにstackを使います。
+MPIがない環境向けに1-rank stubを同梱しています。</p>
+
+<h2 id="tutorial">3. 拡散方程式</h2>
+
+<pre>mode collocated
 dimension 3
 axes x, y, z
-metric g
 
 param κ = 1.0
 param dt = 0.1*dx*dx
 
-extern exp
-def Δ u = g~i~j . ∂_i ∂_j u
-raw gauss = fun(x,y,z) exp(-((x-(total_grid_x*dx/2))/(5*dx))**2 - ...)
+def Δ u = divg (grad u)
+raw gauss = fun(x,y,z) exp(-((x-32*dx)/(5*dx))**2 - ...)
 
 field u : scalar
 
@@ -107,233 +92,128 @@ init:
   u = gauss(i*dx,j*dy,k*dz)
 
 step:
-  u' = u + dt * κ * Δ u
-</pre>
-<p>物理は最後の1行だけです。格子・分割は同じディレクトリの yaml(§5)に書きます。実行:</p>
-<pre>
-make diffusion3d
-<span class="c">#   fec が .egi を生成 → Egison が .fmr を生成 → formura が C を生成
-#   → cc でドライバとリンク → ./check が質量保存を検査して [OK]</span>
-</pre>
-<p>式を変えたら(例: <code>u' = u + dt * κ * Δ u - dt * u * ∂_x u</code> で移流を足す)、
-もう一度 <code>make diffusion3d</code> — 生成された式は <code>examples/diffusion3d/diffusion3d.fmr</code> で確認できます。</p>
+  u' = u + dt * κ * Δ u</pre>
 
-<h2 id="fme">4. Formurae 言語リファレンス(.fme)</h2>
+<p><code>make diffusion3d</code>で4つの中間artifactを生成し、FormuraとC checkまで実行します。
+<code>Δ</code>は通常のuser-defined Egison functionです。成分展開やstencil callbackを含みません。</p>
 
-<h3>宣言</h3>
+<h2 id="syntax">4. 表層構文</h2>
+
 <table>
 <tr><th>構文</th><th>意味</th></tr>
-<tr><td><code>mode collocated</code> / <code>mode dec</code></td><td>空間離散化と生成 Egison context を選ぶ宣言(<b>必須・top-level で1回</b>)。テンソル primitive は <code>lib/formurae-tensor.egi</code> から共通にロードする</td></tr>
-<tr><td><code>dimension 1</code> / <code>dimension 2</code> / <code>dimension 3</code></td><td>次元(<b>必須</b>)。scalar/vector/rank-2 field と <code>k-form</code> は 1D/2D/3D に対応。<code>curl</code> と <code>epsilon~i~j~k</code> は3次元専用として検査する</td></tr>
-<tr><td><code>curl X</code> / <code>divg X</code> / <code>grad u</code></td><td>collocated mode の通常の TensorExpr prelude <code>Def</code>。呼び出し側の field 成分と配置へコンパイル時に特殊化する</td></tr>
-<tr><td><code>d ω</code> / <code>δ ω</code></td><td>dec mode の標準 form 演算子。形式場では生成 .egi の <code>dForm</code>/<code>codiff</code> へ接続する</td></tr>
-<tr><td><code>metric g</code> + <code>def Δ u = g~i~j . ∂_i ∂_j u</code></td><td><b>ユーザ定義演算子</b>(ファイルスコープ・使用箇所で展開。本文は先に定義された演算子のみ参照可、再帰不可)。平坦格子の Laplacian は metric と <code>.</code> による明示縮約で定義でき、生成時に <code>∂^2_x u + ∂^2_y u + ∂^2_z u</code> へ下りる</td></tr>
-<tr><td><code>def Δ u = lb u</code></td><td>計量宣言下の Laplace-Beltrami を <code>Δ</code> として使う例。<code>lb</code> は計量係数場を生成する低水準プリミティブ</td></tr>
-<tr><td><code>def grad u = withSymbols [i] ∂_i u</code></td><td>Egison と同様に、演算子定義には結果添字を書かない。<code>withSymbols</code> で導入した自由添字は、呼び出し側の添字へ付け替えられて成分展開される</td></tr>
-<tr><td><code>def div X = contractWith (+) (∂_i X~i)</code></td><td>同じ上下添字が現れただけでは総和しない。<code>contractWith</code> が diagonal axis を明示的に有限和へ畳み込む</td></tr>
-<tr><td><code>def (.) A B = contractWith (+) (A * B)</code></td><td><code>.</code> は bridge の通常の Egison operator。任意のテンソル同士の積を作り、上下ペアを縮約する</td></tr>
-<tr><td><code>tensorMap f A</code></td><td>スカラー関数 <code>f</code> をテンソルの各成分へ適用する TensorExpr primitive。<code>def mapExp X... = tensorMap exp X</code> のように、rank ごとの添字ループを書かずに再利用できる</td></tr>
-<tr><td><code>subrefs A [_i, _j]</code></td><td>テンソルへ添字列を付加する primitive。添字付き <code>def</code> の本体で、引数の添字を明示的に取り出すために使う。裸の <code>[i, j]</code> は下付き添字として扱う</td></tr>
-<tr><td><code>transpose [j, i] A</code></td><td>引数の添字列を指定順に並べ替える primitive。<code>sym</code>/<code>antisym</code> のような通常の演算子定義で使える</td></tr>
-<tr><td><code>grad u..._i</code></td><td>Egison の tensor-valued operator の結果成分を呼び出し側で選ぶ。<code>...</code> は演算子の結果へ添字を付けるための Formurae 表層記法で、生成 Egison では <code>(grad u)_1</code> のようになる</td></tr>
-<tr><td><code>A !. B</code></td><td>縮約しない disjoint tensor product。<code>.</code> と違って上下添字を畳み込まず、添字が衝突する場合は右辺を hygienic に改名する</td></tr>
-<tr><td><code>trace</code> / <code>wedge</code> / <code>sym</code> / <code>antisym</code> / <code>norm2</code></td><td><code>lib/formurae-tensor.egi</code> の通常の Egison 定義。Tensor primitive と同じ評価経路を使う。<code>hessian</code> は TensorExpr prelude である</td></tr>
-<tr><td><code>axes r, θ, φ</code></td><td>軸名(<b>必須</b>)。<code>∂_θ</code> の解決や添字文字の走る範囲=座標系を確定させる宣言。生成 Formura の <code>axes ::</code>、格子幅 <code>dr</code>/<code>dtheta</code>、C ドライバの <code>space_interval_r</code>/<code>lower_theta</code> まで宣言名を使う。CAS 内部だけは正規座標 <code>x,y,z</code> に写像する</td></tr>
-<tr><td><code>param dt = 0.5*dx</code></td><td>Formura パラメタ(<code>double :: dt = …</code>)。値は Formura 式</td></tr>
-<tr><td><code>extern exp</code></td><td><code>extern function :: exp</code>。<code>sin</code>, <code>cos</code>, <code>exp</code>, <code>sqrt</code>, <code>fabs</code> など Formura が扱えるスカラー関数は、式や raw ヘルパで使われたら不足分を自動 extern する。明示 <code>extern</code> も従来通り可</td></tr>
-<tr><td><code>raw <i>行</i></code></td><td>Formura ソースへそのまま出す行(ヘルパ関数・コメント)</td></tr>
-<tr><td><code>field u : scalar</code></td><td>スカラー場</td></tr>
-<tr><td><code>field E : vector</code></td><td>ベクトル場。生成 Formura/C の成分名は <code>E_1,E_2,...</code>。成分数は <code>dimension</code> に従い、Formurae ソースには成分名を書かない</td></tr>
-<tr><td><code>field E : k-form</code></td><td>微分形式。<code>0 <= k <= dimension</code> を検査し、成分は昇順の軸組で <code>E_1</code>、<code>B_1_2</code>、<code>C_1_2_3</code> のように出力する。配置は次数と primal/dual から決まる</td></tr>
-<tr><td><code>field v~i @ staggered</code></td><td>スタガード rank-1 tensor。添字の上下は宣言時に固定され、v_i と参照するとエラー</td></tr>
-<tr><td><code>field σ{~i~j} @ staggered</code></td><td>対称 rank-2 tensor。<code>{...}</code> は対称、σ^ij は辺i⊕辺j — Virieux 配置が導出される</td></tr>
-<tr><td><code>field A[_i_j] @ staggered</code></td><td>反対称 rank-2 tensor。<code>[...]</code> は反対称。独立 storage は上三角 off-diagonal 成分のみ(2D なら1成分、3D なら3成分)で、<code>A_j_i</code> は <code>-A_i_j</code>、<code>A_i_i</code> は 0 に下りる</td></tr>
-<tr><td><code>metric g</code></td><td>計量テンソルとして使う表層名を宣言する。宣言後は <code>g~i~j</code>/<code>g_i_j</code> などを書ける。宣言した名前を <code>param</code>/<code>field</code> にも使うと warning を出し、添字なし <code>g</code> は param/field、添字つき <code>g_i_j</code> は metric として扱う</td></tr>
-<tr><td><code>metric scale [1, 2 + cos theta, 1]</code></td><td>直交計量を Lamé スケール因子で直接指定 → <code>lb</code> が使える</td></tr>
-<tr><td><code>embedding [`(1+r) * cos phi, …]</code></td><td>座標系の埋め込みから計量を CAS が<b>自動導出</b>(直交性は記号検査で強制)。バッククォートで因子を原子に保つと √ が閉じる</td></tr>
-<tr><td><code>g~i~j</code> / <code>g~i_j</code> / <code>g_i~j</code> / <code>g_i_j</code></td><td><code>metric g</code> で宣言した計量テンソル。上下添字の形ごとに反変・混合・共変の内部テンソルへ下りる。Euclidean でも単位行列として扱う</td></tr>
-<tr><td><code>assert-dd-zero E'</code></td><td>d∘d(E′)=0 を CAS が確認できない限り生成を拒否</td></tr>
+<tr><td><code>mode collocated</code> / <code>mode dec</code></td><td>modelの格子・演算子context。必須</td></tr>
+<tr><td><code>dimension 1..3</code></td><td>Formura backendの次元</td></tr>
+<tr><td><code>axes x, y, z</code></td><td>座標名とAxisId。必須</td></tr>
+<tr><td><code>param dt = ...</code></td><td>Formura parameter</td></tr>
+<tr><td><code>extern exp</code></td><td>external scalar function</td></tr>
+<tr><td><code>raw NAME = ...</code></td><td>verbatim Formura helper</td></tr>
+<tr><td><code>def Δ u = divg (grad u)</code></td><td>通常のEgison functionとしてemitするpure user operator</td></tr>
+<tr><td><code>field u : scalar</code></td><td>scalar state field</td></tr>
+<tr><td><code>field E_i @ primal</code></td><td>variance付きrank-1 field</td></tr>
+<tr><td><code>field σ{~i~j} @ primal</code></td><td>symmetric rank-2 field</td></tr>
+<tr><td><code>field B : 2-form</code></td><td>differential form。既定policyはPrimal</td></tr>
+<tr><td><code>let q = ...</code></td><td>step内のpure binding</td></tr>
+<tr><td><code>local q = ...</code></td><td>materializeするgrid field</td></tr>
+<tr><td><code>u' = ...</code></td><td>next-time field update</td></tr>
 </table>
 
-<h3>init ブロック</h3>
-<table>
-<tr><th>構文</th><th>意味</th></tr>
-<tr><td><code>u = gauss(i*dx,j*dy,k*dz)</code></td><td>スカラー場の生の Formura 初期化式</td></tr>
-<tr><td><code>E = [| 0, gauss1(i*dx), 0 |]</code></td><td>ベクトル/形式の成分一括指定(要素は Formura 式)</td></tr>
-<tr><td><code>σ~i~j := g~i~j * exp(x)</code></td><td><b>添字付き CAS 初期化</b>: strict 添字検査後に成分展開し、field の配置に合わせて半セル substitute して init に焼き込む</td></tr>
-<tr><td><code>A_i_j = [| [| a12,a13 |], [| a23 |] |]_i_j</code></td><td>反対称 rank-2 field の上三角 off-diagonal 初期化。宣言次元の full 反対称行列も受け付ける</td></tr>
-<tr><td><code>u := exp (cos theta - 1)</code></td><td><b>CAS 初期化</b>: 記号式を評価して init に焼き込む(座標は軸名で書く)</td></tr>
-</table>
+<p>縮約は<code>contractWith</code>または<code>.</code>で明示します。同じ文字の上下添字が現れただけでは
+surfaceで暗黙総和しません。<code>withSymbols</code>、<code>tensorMap</code>、<code>subrefs</code>、
+<code>transpose</code>、<code>!.</code>はEgison tensor algebraへ渡されます。</p>
 
-<h3>step ブロック</h3>
-<table>
-<tr><th>構文</th><th>意味</th></tr>
-<tr><td><code>u' = 式</code></td><td>スカラー更新。<code>X'</code> を右辺に書くと「更新後の X」への参照(symplectic な leapfrog が書ける)</td></tr>
-<tr><td><code>E'_i = E_i + dt * curl B_i</code></td><td>添字付きベクトル方程式。collocated mode の標準 <code>curl</code> は TensorExpr prelude として各 storage 成分へ特殊化される</td></tr>
-<tr><td><code>B' = B - dt * d E'</code></td><td>dec mode の形式方程式。<code>d</code>/<code>δ</code> は mode が選ぶ form context へ下りる</td></tr>
-<tr><td><code>v'~i = v~i + (dt/ρ0) * contractWith (+) (∂_j σ~i~j)</code></td><td><b>テンソル添字方程式</b>(staggered 場)。各項は strict 検査され、自由添字は LHS と上下まで一致する。上下ペアは <code>contractWith</code> または <code>.</code> で明示的に縮約する。<code>∂_a</code> は対象成分の配置にアンカーされた半セル差分</td></tr>
-<tr><td><code>local w = ∂^2_x u</code></td><td>中間<b>格子場</b>(.fmr に1行として出る — 4階微分の2段化などに)</td></tr>
-<tr><td><code>let En_i = …</code></td><td>名前つき式(インライン展開される。格子場にはならない)</td></tr>
-</table>
+<h2 id="derivative">5. 微分と離散化精度</h2>
 
-<h3>演算子の由来: mode / TensorExpr / Egison ライブラリ</h3>
-<table>
-<tr><th>分類</th><th>演算子</th><th>説明</th></tr>
-<tr><td><code>mode dec</code></td><td><code>d ω</code>, <code>δ ω</code></td><td>離散外微分・余微分。形式場では生成 .egi の <code>dForm</code>/<code>codiff</code> へ下ろす</td></tr>
-<tr><td><code>mode collocated</code></td><td><code>grad u</code>, <code>divg X</code>, <code>curl X</code>, <code>lap u</code>, <code>Δ u</code></td><td>通常の TensorExpr prelude <code>Def</code>。ユーザー <code>def</code> と同じ経路で自由添字・縮約・配置を成分特殊化し、同名定義で shadow できる</td></tr>
-<tr><td>ユーザ定義</td><td><code>def customDiv X = ...</code>, <code>def Δ u = ...</code></td><td><code>withSymbols</code>, <code>contractWith</code>, <code>.</code>, <code>∂_i</code>, <code>∂_x</code> などを組み合わせて問題固有の演算子を書き、TensorExpr 上で展開する。特殊化後にも残る <code>sym</code>/<code>wedge</code> などは Egison が評価する</td></tr>
-<tr><td><code>fec</code> 組み込み変換</td><td><code>∂_x e</code>, <code>∂^2_x e</code>, <code>∂'^2_x e</code></td><td>軸名を見て中心差分または Taylor 条件から導出する stencil へ下ろす。1階微分は <code>∂_x e</code>、高階・広幅 stencil は <code>∂^m_x e</code> や <code>∂'^m_x e</code> のように書く</td></tr>
-<tr><td><code>TensorExpr</code> 組み込み</td><td><code>∂_i X~i</code>, <code>contractWith (+) A~i_i</code>, <code>.</code>, <code>!.</code>, <code>tensorMap</code>, <code>subrefs</code>, <code>transpose</code>, <code>δ~i_j</code>, <code>epsilon~i~j~k</code>, <code>g_i_j</code></td><td>添字式を TensorExpr AST として展開する。<code>g</code> は上下パターンごとの計量テンソル、metric 名でない <code>δ~i_j</code> は Kronecker identity。<code>.</code> と <code>contractWith</code> は縮約、<code>!.</code> は disjoint product、<code>tensorMap</code> はスカラー関数の成分 lift、<code>subrefs</code>/<code>transpose</code> は添字列操作を行う</td></tr>
-<tr><td><code>lib/formurae-tensor.egi</code></td><td><code>contractWith</code>、<code>.</code>、<code>wedge</code>、<code>trace</code>、<code>sym</code>、<code>antisym</code></td><td>Egison の Tensor primitive を使う Formurae 用 bridge。<code>tensorMap</code>/<code>subrefs</code>/<code>transpose</code>/<code>!.</code> は Egison primitive を直接使う</td></tr>
-<tr><td><code>fec</code> 組み込み変換</td><td><code>d ω</code>, <code>δ ω</code> / <code>delta ω</code> / <code>codiff ω</code></td><td><code>mode dec</code> の <code>field E : 1-form</code> などの形式場を、生成 Egison の <code>dForm</code>/<code>codiff</code> 呼び出しへ下ろす</td></tr>
-<tr><td>Formura/extern 組み込み</td><td><code>sin</code>, <code>cos</code>, <code>exp</code>, <code>sqrt</code>, <code>fabs</code> など</td><td>スカラー関数。テンソル成分に適用されると成分ごとへ lift され、不足する <code>extern function :: ...</code> は <code>fec</code> が自動で出す</td></tr>
-<tr><td>生成 .egi の残余文脈</td><td><code>∂</code>/<code>dTaylor</code>, <code>dYee</code>, <code>dForm</code>/<code>codiff</code>, metric family</td><td>最終残余式が参照する依存閉包だけを生成する。DEC form context は <code>mode dec</code> が選ぶ</td></tr>
-<tr><td><code>lib/formurae-runtime.egi</code></td><td><code>FMR.show</code>, <code>FMR.eq</code>, <code>FMR.init</code>, <code>FMR.emitModelOn</code></td><td>座標・格子幅・名前変換表を明示 context として受け取る共有 Formura プリンタ</td></tr>
-<tr><td>生成先 Egison ライブラリ</td><td><code>taylorStencil</code>, <code>formComps</code>, <code>scaleForm</code></td><td>座標非依存の小さな core として <code>lib/fmrgen.egi</code> に残る</td></tr>
-</table>
+<h3>解析微分</h3>
 
-<h3>ユーザ定義演算子</h3>
-<p><code>Δ</code> は平坦格子用 prelude を同名の <code>def</code> で置き換えられます。<code>Δ4</code> など問題固有の演算子も .fme 側で定義します。</p>
-<pre>
-def Δ u = ∂^2_x u + ∂^2_y u + ∂^2_z u
-def Δ4 u = ∂'^2_x u + ∂'^2_y u + ∂'^2_z u
+<pre>∂_x (u * u)     <span class="c">-- 2*u*FieldJet(u,{x:1})</span>
+∂^2_x u        <span class="c">-- FieldJet(u,{x:2})</span></pre>
 
-def customDiv X = contractWith (+) (∂_i X~i)
-def customCurl X = withSymbols [i, j, k] (epsilon_i~j~k . ∂_j X_k)
-</pre>
-<p><code>fec</code> は次のようなモデル固有 context と、残余式が実際に使う低水準 helper だけを生成します。標準 <code>grad</code>/<code>curl</code> などと Formura プリンタ本体はここには複製しません。</p>
-<pre>
-def feDim : Integer := 3
-def feAxes : [String] := ["theta", "phi", "z"]
-def feAxisIds : [Integer] := [1, 2, 3]
-def feCoords : Vector MathValue := [| x, y, z |]
-def feHsteps : Vector MathValue := [| hx, hy, hz |]
+<p>通常の<code>∂</code>はEgisonがproduct/quotient/chain ruleを適用する解析微分です。
+導関数はFunctionDataのuser indexからFEIRのFieldJet multi-indexへ変換されます。</p>
 
-def feSymbolNames := [("hx", "dtheta"), ..., ("x", "(i*dtheta)"), ...]
-def fePrinterContext :=
-  (feSymbolNames, feFieldNames, ["i", "j", "k"], feCoords, feHsteps, feAxisIds)
-def fmrEq := FMR.eq fePrinterContext
+<h3>model profile</h3>
 
--- ∂ が残るモデルだけ shift/dC/dC2/dTaylor/∂ を生成。
--- dYee、DEC、metric の各 context も参照時だけ追加する。
-</pre>
-<p><code>taylorStencil</code> などの座標非依存 core は <code>lib/fmrgen.egi</code>、Formura 文字列化は <code>lib/formurae-runtime.egi</code> に一度だけ定義します。<code>dTaylor</code> は使うモデルだけに残ります。</p>
+<pre>discretization collocated derivative 2 centered accuracy 4
+def Δ u = divg (grad u)</pre>
 
-<h3>演算子リファレンス(数式のまま書く)</h3>
-<table>
-<tr><th>演算子</th><th>由来</th><th>意味</th></tr>
-<tr><td><code>∂_x e</code></td><td><code>fec</code> 組み込み</td><td>1階中心差分(軸名で: <code>∂_r</code>, <code>∂_θ</code>, <code>∂_φ</code> …)。</td></tr>
-<tr><td><code>∂^2_x e</code></td><td><code>fec</code> 組み込み</td><td>x 方向の2階中心差分。<code>∂^2_θ</code> のように任意の宣言軸名で書ける</td></tr>
-<tr><td><code>∂'^2_x e</code></td><td><code>fec</code> 組み込み</td><td>x 方向の2階微分を半径2の5点 stencil <code>[-2,-1,0,1,2]</code> で近似する。係数は <code>taylorStencil</code> が導出する</td></tr>
-<tr><td><code>∂_i X~i</code></td><td>TensorExpr 組み込み</td><td>添字微分。<code>axes</code> で宣言した座標方向について展開する。単独では未縮約の diagonal tensor なので、発散なら <code>contractWith (+) (∂_i X~i)</code> のように書く</td></tr>
-<tr><td><code>Δ e</code></td><td>collocated prelude / ユーザ定義</td><td>平坦格子の標準 <code>lap</code> を使う。<code>metric g</code> と <code>def Δ u = g~i~j . ∂_i ∂_j u</code>、計量下の <code>def Δ u = lb u</code> などで shadow できる</td></tr>
-<tr><td><code>lb e</code></td><td><code>fec</code> 組み込み生成</td><td>計量宣言下の Laplace–Beltrami。hodge 因子の係数場生成・半セル CAS 評価・保存流束まで自動</td></tr>
-<tr><td><code>Δ4 e</code></td><td>ユーザ定義</td><td><code>def Δ4 u = ∂'^2_x u + ∂'^2_y u + ∂'^2_z u</code>。4階微分ではなく、4次精度の2階微分和</td></tr>
-<tr><td><code>curl X</code></td><td><code>mode collocated</code></td><td><code>epsilon_i~j~k . ∂_j X_k</code> という通常の TensorExpr prelude を成分・配置へ特殊化する(3D)</td></tr>
-<tr><td><code>divg X</code></td><td><code>mode collocated</code></td><td><code>contractWith (+) (∂_i X~i)</code> を各軸の成分差分の和へ特殊化する</td></tr>
-<tr><td><code>d ω</code></td><td><code>mode dec</code></td><td>離散外微分(k-form → (k+1)-form)。形式場では <code>dForm</code> 呼び出しになる</td></tr>
-<tr><td><code>delta ω</code>(= <code>codiff</code>/<code>δ</code>)</td><td><code>mode dec</code></td><td>余微分 (−1)^{n(k+1)+1} ⋆d⋆。形式場では <code>codiff</code> 呼び出しになる</td></tr>
-</table>
+<p>精度は演算子本文と独立です。post-fecがformal accuracyを満たす最小radiusを探索し、
+Taylor moment条件からexact rational coefficientを解きます。この例はcompact 5点二階差分になります。</p>
 
-<p><b>添字</b>: 添字方程式では上付き <code>~i</code> と下付き <code>_i</code> を常に区別します。添字つき field は <code>field v~i @ staggered</code>、<code>field σ{~i~j} @ staggered</code>、<code>field A[_i_j] @ staggered</code> のように宣言し、rank・上下・対称性・Formura 出力 layout は添字仕様から推論します。初期値も <code>v~i = [| ... |]~i</code>、<code>σ~i~j = [| ... |]~i~j</code>、<code>σ~i~j := g~i~j * exp(x)</code> のように同じ添字 suffix を明示します。<code>{...}</code> は対称、<code>[...]</code> は反対称です。反対称 field は <code>A_j_i = -A_i_j</code>、<code>A_i_i = 0</code> に正準化されます。右辺の各項は strict 検査され、自由添字は LHS と上下まで一致します。同じ上下添字が残る式は diagonal tensor であり、scalar にするには <code>contractWith</code> または <code>.</code> が必要です。添字の上げ下げは自動化しないため、必要なら <code>g_i_j . v~j</code> のように metric を明示します。<code>metric g</code> で宣言した計量名は <code>g~i~j</code>/<code>g~i_j</code>/<code>g_i~j</code>/<code>g_i_j</code> のうち参照された variance だけを内部計量へ下ろします(Euclidean は成分式へ inline)。Kronecker delta は <code>δ~i_j</code> のような mixed identity としてだけ書けます(融合形 <code>delta_ij</code> は不可)。例(弾性波):
-<code>v'~i = v~i + (dt / ρ0) * contractWith (+) (∂_j σ~i~j)</code></p>
+<h3>式全体の離散微分</h3>
 
-<p><b>内部名</b>: 非 Euclidean metric の参照成分は必要に応じて <code>FormuraeInternalMetricContra</code>、<code>FormuraeInternalMetricMixedUpDown</code>、<code>FormuraeInternalMetricMixedDownUp</code>、<code>FormuraeInternalMetricCov</code> の該当 family へ下ります。field と indexed <code>let</code> は生成 Egison で bare tensor binding になり、<code>E'_1</code> のような成分参照も <code>wedge E' B</code> のような Tensor 全体の参照も同じ束縛から解決されます。旧 <code>FormuraeInternalTensor...</code> や <code>E' := E'_#</code> のような alias は生成しません。<code>FormuraeInternal</code> prefix は予約済みで、ユーザ定義名には使えません。</p>
+<pre>gridD_x (u * u / 2)</pre>
 
-<p><b>Unicode</b>: ギリシャ文字(θ, φ, ρ, τ, κ, μ, λ, …)は識別子として使え、
-fec が Formura 向けに ASCII 名(theta, phi, …)へ字訳します。
-<code>∂</code>=d、<code>δ</code>=delta(余微分)、<code>−</code>=-。
-<code>Δ</code> は通常の識別子なので、必要なら <code>def</code> で定義します。
-例: トーラス上の熱方程式は <code>axes θ, φ, z</code> +
-<code>embedding [ `(2 + cos θ) * cos φ, … ]</code> +
-<code>def Δ u = lb u</code> +
-<code>u' = u + dt * Δ u</code> の4行で幾何・使う演算子・物理を書けます
-(metric_torus.fme がこの形)。</p>
+<p>保存形など、積を解析的に展開せず式全体を同じoffsetでsampleしたい場合に使います。
+これはversioned opaque requestで、model profileをbypassします。per-occurrence radius overrideの
+<code>∂'</code>も同じく明示的なlow-level requestです。</p>
 
-<p class="note"><b>現在の実装範囲</b>: scalar/vector/rank-2/k-form field の 1D/2D/3D 生成、添字付き field の上下・自由添字・未縮約 diagonal 検査、indexed CAS initializer、対称/反対称 rank-2 field backend、DEC の一般次元基底生成、<code>withSymbols</code>/<code>contractWith</code>/<code>.</code>/<code>!.</code>/<code>tensorMap</code>/<code>subrefs</code>/<code>transpose</code> を使うユーザ定義テンソル演算子は実装済みです。添字列パターンは固定長の indexed parameter と <code>X...</code> の rank-polymorphic marker を受け付けます。
-scalar 式も <code>TENumber</code>、<code>TEUnary</code>、<code>TECall</code>、<code>TEApply</code>、<code>TEIf</code>、<code>TEBinary</code> などの TensorExpr AST として保持します。
-parser error は式全体、失敗近傍、column を表示します。source span つき診断は今後の拡張です。</p>
+<h3>その他の明示離散primitive</h3>
 
-<h2 id="papers">5. 関連論文</h2>
-<ul>
-<li><b>Formurae paper draft</b>: <a href="../../formurae-paper/main.tex">formurae-paper/main.tex</a>。Formurae の設計、TensorExpr lowering、Egison から Formura への生成、26例の検証をまとめる論文ドラフトです。</li>
-<li><b>Formura</b>: Takayuki Muranushi ほか, <a href="https://github.com/nushio3/formura/blob/master/reference/muranushi%2B-fhpc2016.pdf">Automatic Generation of Efficient Codes from Mathematical Descriptions of Stencil Computation</a>, FHPC 2016。Formurae のバックエンドである Formura と、Pearson 反応拡散の看板例の出典です。</li>
-<li><b>Egison tensor index notation</b>: <a href="../../type-tensor-paper/main.tex">type-tensor-paper/main.tex</a> / <a href="../../tensor-paper5/main.tex">tensor-paper5/main.tex</a>。<code>withSymbols</code>、<code>contractWith</code>、ユーザ定義可能な <code>.</code>、テンソル演算子を通常の関数として扱う設計の背景です。</li>
-</ul>
+<pre>orderedD(q, x, y)   <span class="c">-- whole derivativeのaxis順を保持</span>
+resample(q, 0, 1)   <span class="c">-- 絶対placementへ線形補間</span>
+fluxDiv(F)          <span class="c">-- Primal face fluxの保存divergence</span>
+materialize(q)      <span class="c">-- 型・配置を保つstep-local barrier</span></pre>
 
-<h2 id="yaml">6. yaml リファレンス(格子と実行構成)</h2>
-<pre>
-length_per_node: [6.283185307179586, 1.0, 0.0625]   <span class="c"># 物理サイズ(→ dx,dy,dz)</span>
-grid_per_node:   [128, 64, 4]                        <span class="c"># 格子点数</span>
-mpi_shape:       [1, 1, 1]                           <span class="c"># ランク分割</span>
-grid_per_block:  [8, 8, 8]                           <span class="c"># temporal blocking(任意)</span>
-temporal_blocking_interval: 4
-boundary: [periodic, mirror, fixed 0.0]              <span class="c"># fork 拡張: 軸ごとの境界条件</span>
-reduces:  [tot = sum u, umax = max u]                <span class="c"># fork 拡張: 大域リダクション</span>
-</pre>
-<ul>
-<li><b>boundary</b>(fork 拡張): <code>periodic</code> / <code>mirror</code>(Neumann)/ <code>fixed v</code>(Dirichlet)。
-    非周期軸がある場合は temporal blocking なし・<code>mpi_shape [1,…]</code> が必要。</li>
-<li><b>reduces</b>(fork 拡張): 毎ステップ全域で集計され <code>n.reduce_&lt;名前&gt;</code> で読める
-    (<code>sum</code>/<code>max</code>/<code>min</code>/<code>absmax</code>)。収束判定・保存則監視・最大値原理の検査に。</li>
-<li><b>temporal blocking の制約</b>: <code>grid_per_block ≥ 2×袖幅×interval</code>(違反は fork が検出して拒否)。</li>
-</ul>
+<p>これらは数学的合成では表せない離散意味を明示するときだけ使います。通常の
+<code>grad</code>/<code>divg</code>/<code>lap</code>には不要です。<code>lb</code>や可変計量
+<code>codiff</code>の補助fieldはpost-fecが自動で計画します。</p>
 
-<h2 id="driver">7. 検証ドライバの書き方(*_check.c)</h2>
-<pre>
-#include "モデル名.h"
-int main(int argc, char **argv) {
-  Formura_Navi n;
-  Formura_Init(&argc, &argv, &n);            <span class="c">// init() が走る</span>
-  double h = n.space_interval_x;             <span class="c">// axes x,y,z の dx</span>
-  double m0 = n.reduce_tot;                  <span class="c">// yaml の reduces</span>
-  while (n.time_step < 1000) Formura_Forward(&n);
-  for (int i = n.lower_x; i < n.upper_x; i++)  <span class="c">// 内部セルを走査</span>
-    ... formura_data.u[i][j][k] ...
-  Formura_Finalize();
-  return ok ? 0 : 1;                         <span class="c">// 失敗は exit≠0(make が止まる)</span>
-}
-</pre>
-<ul>
-<li><b>軸名</b>は <code>.fme</code> の <code>axes</code> 宣言に追随します。たとえば <code>axes r, θ, φ</code> なら
-    <code>n.space_interval_r</code>、<code>n.lower_theta</code>、<code>n.upper_phi</code> のような C 名になります。</li>
-<li><b>周期境界のみのモデル</b>では、配列内でデータが毎ステップ平行移動します。物理座標は
-    <code>to_pos_x(i, n)</code> で取るか、論理セル <code>((round(to_pos_x(i,n)/h)) % N + N) % N</code> に写像してから比較します。</li>
-<li><b>boundary を使う(アンカー経路)モデル</b>では移動がなく、生の添字がそのまま物理位置です。</li>
-<li>検証は「保存則(流束形式なら機械精度)・厳密解や離散固有値・独立参照実装との比較・
-    reduces による最大値原理」を組み合わせるのが本リポジトリの流儀です(実例は各 examples/*/*_check.c)。</li>
-</ul>
+<h2 id="tensor">6. Tensor、form、placement</h2>
 
-<h2 id="make">8. Makefile への登録</h2>
-<p>新しい例 <code>examples/foo/</code>(foo.fme・foo.yaml・foo_check.c)を追加したら、Makefile の2行だけ:</p>
-<pre>
-FME_EXAMPLES  := ... spherical3d foo      <span class="c"># 一覧に追加</span>
-CHECK_foo    := foo_check.c              <span class="c"># ドライバ名(必要なら RUNARGS_foo も)</span>
-</pre>
-<p><code>make foo</code> で全段が走ります。生成物(.egi/.fmr は追跡、.c/.h は .gitignore)。</p>
+<p><code>Collocated</code>はcell位置を保ちます。<code>Primal</code>/<code>Dual</code>では、policyとcomponent basisの
+parityから各軸の半セルbitを求めます。微分は自然なtarget placementへ移り、異なるplacementを
+加算すると明示errorになります。暗黙補間はしません。</p>
 
-<h2 id="gallery">9. ギャラリーの再生成</h2>
-<pre>
-gallery/gen.sh                    <span class="c"># 各例からデータをダンプ(make all 後に)</span>
-python3 gallery/tools/render.py   <span class="c"># PNG/SVG を描画(標準ライブラリのみ; 曲面は 3D 描画)</span>
-python3 gallery/tools/embed_src.py<span class="c"># カードに .fme / .egi / .fmr 全文を再埋め込み</span>
-</pre>
+<pre>mode dec
+dimension 3
+axes x, y, z
 
-<h2 id="layers">10. 3層構造と検証の考え方</h2>
-<ul>
-<li><b>.fme</b> が唯一の編集対象。<b>.egi は生成中間物</b>(ヘッダに GENERATED 印)。
-    TensorExpr で特殊化済みのモデル式と、残余依存の座標/DEC context だけを持つ。
-    tensor semantics・座標非依存 core・プリンタはそれぞれ共有ライブラリへ分離した。
-    一部の例(Yee・LBM・MHD・音響)はまだ埋め込み形で直接書かれており、
-    それらだけ <code>lib/fmrlegacy3d.egi</code> を読む。</li>
-<li>リファクタや DSL 拡張の際の意味保存は「<b>生成 .fmr のバイト一致</b>」で検証するのが本リポジトリの
-    流儀 — 記法を変えても同じ機械コードに落ちることが証明になる(例: 弾性波は成分手書き → generateTensor →
-    明示縮約つき添字 .fme と3世代進化して .fmr は不変)。</li>
-<li>数式的な恒等式は<b>生成時に CAS が検査</b>する(DEC の d∘d=0、埋め込みの直交性)。</li>
-</ul>
+field E : 1-form
+field B : 2-form
 
-<p style="margin-top:40px"><a href="index.html">→ 総合ギャラリー(26例)</a> /
-   <a href="dsl/index.html">→ DSL ギャラリー(22例)</a></p>
+step:
+  E' = E + dt * codiff B
+  B' = B - dt * d E'
+
+assert-dd-zero E'</pre>
+
+<p><code>d</code>、orthogonal-metric <code>hodge</code>、constant-metric <code>codiff</code>は短いpure Egison definitionです。
+variable-metric <code>codiff</code>はweighted discrete-adjoint requestとしてpost-fecが補助fieldへlowerします。
+<code>assert-dd-zero</code>はEgison normalizationで<code>d(d E') = 0</code>を確認します。</p>
+
+<h2 id="geometry">7. 直交geometryとlb</h2>
+
+<pre>axes θ, φ, z
+embedding [ `(2 + cos θ) * cos φ, `(2 + cos θ) * sin φ, sin θ, z ]
+
+def Δ u = lb u</pre>
+
+<p><code>metric scale [...]</code>ではLamé factorを直接指定し、<code>embedding [...]</code>ではEgisonが
+induced metricを導出して直交性をgateします。metric、inverse、scale、volumeはGeometryNFへ入ります。</p>
+
+<p><code>lb</code>は係数field、cell-to-face gradient、materialized flux、face-to-cell divergence、volume除算を
+必要とするため、Egisonでは短いopaque requestです。post-fecのBackendPlanがstorageとscheduleを決めます。</p>
+
+<h2 id="artifacts">8. 生成artifactと検証</h2>
+
+<p><code>.fme</code>が編集対象です。FME exampleではreview用に次を追跡します。</p>
+
+<ol>
+  <li><code>.egi</code>: pre-fec output</li>
+  <li><code>.feir</code>: Egison normalization result</li>
+  <li><code>.fmr</code>: post-fec output</li>
+</ol>
+
+<pre>python3 gallery/tools/embed_src.py  <span class="c"># galleryへ4段sourceを再埋め込み</span>
+make all                           <span class="c"># 全exampleのC numerical check</span></pre>
+
+<p>FEIR codec/fingerprint、source diagnostic、effect、operator、placement、Taylor stencil、geometry/lb、
+end-to-end pipelineをfocused testで検査します。Egison本体を変更した場合はrepresentative math samples、
+mini-test全件、<code>cabal test</code>も実行します。</p>
+
+<p>詳しい責務境界とprotocolは
+<a href="../design/20260711-pre-post-fec-pipeline.md">pre-fec / post-fec設計書</a>を参照してください。</p>
+
 </main>
 </body>
 </html>

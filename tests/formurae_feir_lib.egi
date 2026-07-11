@@ -1,0 +1,355 @@
+assertEqual "FEIR atom renderer"
+  (FEIR.render (FEIR.atom "field-jet"))
+  "field-jet"
+
+assertEqual "FEIR canonical string escaping keeps UTF-8"
+  (FEIR.render (FEIR.string "θ\n\t\"\\"))
+  "\"θ\\n\\t\\\"\\\\\""
+
+assertEqual "FEIR list and record renderer"
+  (FEIR.render
+    (FEIR.record "axis"
+      [ FEIR.field "id" (FEIR.int 2)
+      , FEIR.field "source-name" (FEIR.string "θ")
+      ]))
+  "(axis (id 2) (source-name \"θ\"))"
+
+assertEqual "FEIR S-expression structural canonical sort"
+  (map FEIR.render
+    (FEIR.sortSExprs
+      [ FEIR.list [FEIR.atom "parameter", FEIR.int 1]
+      , FEIR.list [FEIR.atom "exact", FEIR.int 1, FEIR.int 2]
+      , FEIR.list [FEIR.atom "coordinate", FEIR.int 2]
+      ]))
+  ["(coordinate 2)", "(exact 1 2)", "(parameter 1)"]
+
+declare symbol x, y, a
+
+def feirFieldU := function (x, y)
+def feirAnalyticQ := functionSymbol "potential" [x, y]
+
+def feirParameters := [(a, 1)]
+def feirCoordinates := [(x, 1), (y, 2)]
+def feirFields := [FEIR.fieldEntry 1 "current" [] feirFieldU]
+def feirIntrinsics := [("sin", 1), ("exp", 2)]
+def feirAnalytics := [FEIR.analyticEntry 3 feirAnalyticQ]
+
+def encodeScalarFixture value :=
+  FEIR.encodeScalar feirParameters feirCoordinates feirFields
+    feirIntrinsics feirAnalytics value
+
+assertEqual "FEIR exact rational is structural"
+  (FEIR.render (encodeScalarFixture (1 / 2)))
+  "(exact 1 2)"
+
+assertEqual "FEIR registered parameter and coordinate IDs"
+  (map (\value -> FEIR.render (encodeScalarFixture value)) [a, x, y])
+  ["(parameter 1)", "(coordinate 1)", "(coordinate 2)"]
+
+def feirQuotedPolynomial := `(x + 1)
+
+assertEqual "FEIR final-boundary unquote is structural"
+  ( FEIR.unquoteAll feirQuotedPolynomial
+  , FEIR.unquoteAll (feirQuotedPolynomial ^ 2 * y)
+  , FEIR.unquoteAll (sin feirQuotedPolynomial)
+  , FEIR.unquoteAll
+      (functionSymbol "quotedArgument" [feirQuotedPolynomial, y]) )
+  ( x + 1
+  , (x + 1) ^ 2 * y
+  , sin (x + 1)
+  , functionSymbol "quotedArgument" [x + 1, y] )
+
+assertEqual "FEIR tensor unquote maps components without eager expansion API"
+  (FEIR.unquoteTensor [|feirQuotedPolynomial, y|])
+  [|x + 1, y|]
+
+assertEqual "FEIR derivative-free field FunctionData"
+  (FEIR.render (encodeScalarFixture feirFieldU))
+  "(field-jet (field 1) (time-slot current) (basis (basis)) (arguments ((coordinate 1) (coordinate 2))) (multi-index ()))"
+
+assertEqual "FEIR first derivative uses the FunctionData User position"
+  (FEIR.render (encodeScalarFixture (strictPartialDiffMV feirFieldU x)))
+  "(field-jet (field 1) (time-slot current) (basis (basis)) (arguments ((coordinate 1) (coordinate 2))) (multi-index ((axis-order (axis 1) (count 1)))))"
+
+assertEqual "FEIR repeated derivative counts one canonical axis"
+  (FEIR.render
+    (encodeScalarFixture
+      (strictPartialDiffMV (strictPartialDiffMV feirFieldU x) x)))
+  "(field-jet (field 1) (time-slot current) (basis (basis)) (arguments ((coordinate 1) (coordinate 2))) (multi-index ((axis-order (axis 1) (count 2)))))"
+
+assertEqual "FEIR mixed derivative is an axis-count map"
+  (map
+    (\value -> FEIR.render (encodeScalarFixture value))
+    [ strictPartialDiffMV (strictPartialDiffMV feirFieldU y) x
+    , strictPartialDiffMV (strictPartialDiffMV feirFieldU x) y
+    ])
+  [ "(field-jet (field 1) (time-slot current) (basis (basis)) (arguments ((coordinate 1) (coordinate 2))) (multi-index ((axis-order (axis 1) (count 1)) (axis-order (axis 2) (count 1)))))"
+  , "(field-jet (field 1) (time-slot current) (basis (basis)) (arguments ((coordinate 1) (coordinate 2))) (multi-index ((axis-order (axis 1) (count 1)) (axis-order (axis 2) (count 1)))))"
+  ]
+
+def feirFieldV := generateTensor (\[i] -> function (x, y)) [2]
+def feirVectorFields :=
+  [ FEIR.fieldEntry 2 "current" [1] feirFieldV_1
+  , FEIR.fieldEntry 2 "current" [2] feirFieldV_2
+  ]
+
+def encodeVectorScalarFixture value :=
+  FEIR.encodeScalar feirParameters feirCoordinates feirVectorFields
+    feirIntrinsics feirAnalytics value
+
+assertEqual "FEIR tensor component Sub index is separate from derivative User index"
+  (FEIR.render
+    (encodeVectorScalarFixture (strictPartialDiffMV feirFieldV_2 y)))
+  "(field-jet (field 2) (time-slot current) (basis (basis 2)) (arguments ((coordinate 1) (coordinate 2))) (multi-index ((axis-order (axis 2) (count 1)))))"
+
+assertEqual "FEIR strict product rule produces only ordinary nodes and FieldJets"
+  (FEIR.render
+    (encodeScalarFixture (strictPartialDiffMV (feirFieldU ^ 2) x)))
+  "(mul (exact 2 1) (field-jet (field 1) (time-slot current) (basis (basis)) (arguments ((coordinate 1) (coordinate 2))) (multi-index ((axis-order (axis 1) (count 1))))) (field-jet (field 1) (time-slot current) (basis (basis)) (arguments ((coordinate 1) (coordinate 2))) (multi-index ())))"
+
+assertEqual "FEIR intrinsic apply is structural"
+  (FEIR.render (encodeScalarFixture (sin x)))
+  "(intrinsic 1 ((coordinate 1)))"
+
+assertEqual "FEIR analytic FunctionData is structural"
+  (FEIR.render (encodeScalarFixture feirAnalyticQ))
+  "(analytic-call 3 ((coordinate 1) (coordinate 2)))"
+
+assertEqual "FEIR Add/Mul encoder sorts semantic children"
+  (FEIR.render (encodeScalarFixture (a * feirFieldU + sin x + 1 / 2)))
+  "(add (exact 1 2) (intrinsic 1 ((coordinate 1))) (mul (field-jet (field 1) (time-slot current) (basis (basis)) (arguments ((coordinate 1) (coordinate 2))) (multi-index ())) (parameter 1)))"
+
+assertEqual "FEIR Div and Pow preserve CAS structure"
+  (map
+    (\value -> FEIR.render (encodeScalarFixture value))
+    [(x + 1) / (y + 2), x ^ 2])
+  [ "(div (add (coordinate 1) (exact 1 1)) (add (coordinate 2) (exact 2 1)))"
+  , "(pow (coordinate 1) (exact 2 1))"
+  ]
+
+def feirTensorFixture :=
+  generateTensor (\[i] -> if i = 1 then feirFieldU else sin x) [2]
+
+assertEqual "FEIR TensorNF encoder emits full canonical components"
+  (FEIR.render
+    (FEIR.encodeTensorWithMetadata feirParameters feirCoordinates feirFields
+      feirIntrinsics feirAnalytics ["down"] 0 feirTensorFixture))
+  "(tensor (shape (2)) (variances (down)) (df-order 0) (components ((component (basis (basis 1)) (value (field-jet (field 1) (time-slot current) (basis (basis)) (arguments ((coordinate 1) (coordinate 2))) (multi-index ())))) (component (basis (basis 2)) (value (intrinsic 1 ((coordinate 1))))))))"
+
+def feirSourceLocation :=
+  FEIR.record "source-location"
+    [ FEIR.field "source" (FEIR.string "source:fixture")
+    , FEIR.field "path" (FEIR.string "/tmp/テンソル.fme")
+    , FEIR.field "line" (FEIR.int 1)
+    , FEIR.field "end-line" (FEIR.int 1)
+    , FEIR.field "start-column" (FEIR.int 1)
+    , FEIR.field "end-column" (FEIR.int 10)
+    ]
+
+def feirSourceOrigin :=
+  FEIR.record "source-origin"
+    [ FEIR.field "location" feirSourceLocation
+    , FEIR.field "trace" (FEIR.list [])
+    ]
+
+def feirEmptyProfile :=
+  FEIR.record "discretization-profile"
+    [ FEIR.field "version" (FEIR.string "formurae-discretization@1")
+    , FEIR.field "fingerprint"
+        (FEIR.string
+          "sha256:2bf180015cdf4e5818e8a9e364f5fa7f278c357d129314b4baa34201e8bac32a")
+    , FEIR.field "rules" (FEIR.list [])
+    , FEIR.field "mixed" (FEIR.atom "fixed-axis-order")
+    ]
+
+def feirEncodedTensorFixture :=
+  FEIR.encodeTensorWithMetadata feirParameters feirCoordinates feirFields
+    feirIntrinsics feirAnalytics ["down"] 0 feirTensorFixture
+
+def feirDerivativeFixture :=
+  encodeScalarFixture
+    (strictPartialDiffMV (strictPartialDiffMV feirFieldU y) x)
+
+def feirOpaqueFixture :=
+  FEIR.encodeOpaqueRef feirParameters feirCoordinates feirFields
+    feirIntrinsics feirAnalytics
+    (functionSymbol "FormuraeInternalOpaqueLbOrthogonalV1"
+      [feirFieldU, 1, 1])
+
+def feirWideOpaqueFixture :=
+  FEIR.encodeOpaqueRef feirParameters feirCoordinates feirFields
+    feirIntrinsics feirAnalytics
+    (functionSymbol "FormuraeInternalOpaqueCoordinateWideV1"
+      [feirFieldU, 2, 2, 2])
+
+def feirGridWholeFixture :=
+  FEIR.encodeOpaqueRef feirParameters feirCoordinates feirFields
+    feirIntrinsics feirAnalytics
+    (functionSymbol "FormuraeInternalOpaqueGridWholeV1"
+      [feirFieldU * feirFieldU / 2, 1])
+
+-- A complete wire fixture including a canonical mixed FieldJet.  This uses
+-- the same record tags and field order as Formurae.FEIR.Codec; the final
+-- `main` value is consumed by tests/feir_egison_wire.hs.
+def feirProgramFixture :=
+  FEIR.list
+    [ FEIR.atom "feir"
+    , FEIR.int 1
+    , FEIR.field "model"
+        (FEIR.record "model-identity"
+          [ FEIR.field "id" (FEIR.string "model:fixture")
+          , FEIR.field "name" (FEIR.string "Egison渦fixture")
+          , FEIR.field "source"
+              (FEIR.record "source-identity"
+                [ FEIR.field "id" (FEIR.string "source:fixture")
+                , FEIR.field "path" (FEIR.string "/tmp/テンソル.fme")
+                ])
+          ])
+    , FEIR.field "registry-id" (FEIR.string "registry:fixture")
+    , FEIR.field "primitive-manifest-id" (FEIR.string "primitives@1")
+    , FEIR.field "discretization" feirEmptyProfile
+    , FEIR.field "mode" (FEIR.atom "collocated")
+    , FEIR.field "dimension" (FEIR.int 2)
+    , FEIR.field "axes"
+        (FEIR.list
+          [ FEIR.record "axis"
+              [ FEIR.field "id" (FEIR.int 1)
+              , FEIR.field "source-name" (FEIR.string "x")
+              , FEIR.field "canonical-name" (FEIR.string "x")
+              , FEIR.field "origin" (FEIR.int 1)
+              ]
+          , FEIR.record "axis"
+              [ FEIR.field "id" (FEIR.int 2)
+              , FEIR.field "source-name" (FEIR.string "θ")
+              , FEIR.field "canonical-name" (FEIR.string "y")
+              , FEIR.field "origin" (FEIR.int 1)
+              ]
+          ])
+    , FEIR.field "geometry"
+        (FEIR.record "geometry"
+          [ FEIR.field "id" (FEIR.int 1)
+          , FEIR.field "source-name" FEIR.none
+          , FEIR.field "origin" FEIR.none
+          , FEIR.field "kind" (FEIR.list [FEIR.atom "euclidean"])
+          ])
+    , FEIR.field "parameters"
+        (FEIR.list
+          [ FEIR.record "parameter"
+              [ FEIR.field "id" (FEIR.int 1)
+              , FEIR.field "source-name" (FEIR.string "a")
+              , FEIR.field "backend-name" (FEIR.string "a")
+              , FEIR.field "raw-value" (FEIR.string "1.0")
+              , FEIR.field "origin" (FEIR.int 1)
+              ]])
+    , FEIR.field "functions"
+        (FEIR.list
+          [ FEIR.record "function"
+              [ FEIR.field "id" (FEIR.int 1)
+              , FEIR.field "source-name" (FEIR.string "sin")
+              , FEIR.field "backend-name" (FEIR.string "sin")
+              , FEIR.field "arity" (FEIR.some (FEIR.int 1))
+              , FEIR.field "class" (FEIR.atom "intrinsic")
+              , FEIR.field "origin" FEIR.none
+              ]
+          , FEIR.record "function"
+              [ FEIR.field "id" (FEIR.int 3)
+              , FEIR.field "source-name" (FEIR.string "potential")
+              , FEIR.field "backend-name" (FEIR.string "potential")
+              , FEIR.field "arity" (FEIR.some (FEIR.int 2))
+              , FEIR.field "class" (FEIR.atom "analytic")
+              , FEIR.field "origin" (FEIR.some (FEIR.int 1))
+              ]
+          ])
+    , FEIR.field "fields"
+        (FEIR.list
+          [ FEIR.record "field"
+              [ FEIR.field "id" (FEIR.int 1)
+              , FEIR.field "source-name" (FEIR.string "u")
+              , FEIR.field "policy" (FEIR.atom "collocated")
+              , FEIR.field "tensor-type"
+                  (FEIR.record "tensor-type"
+                    [ FEIR.field "shape" (FEIR.list [])
+                    , FEIR.field "variances" (FEIR.list [])
+                    , FEIR.field "df-order" (FEIR.int 0)
+                    ])
+              , FEIR.field "layout" (FEIR.atom "scalar")
+              , FEIR.field "declared-variances" (FEIR.list [])
+              , FEIR.field "lifetime" (FEIR.atom "user-state")
+              , FEIR.field "origin" (FEIR.int 1)
+              ]])
+    , FEIR.field "initializers" (FEIR.list [])
+    , FEIR.field "step-actions"
+        (FEIR.list
+          [ FEIR.record "bind-value"
+              [ FEIR.field "node" (FEIR.int 1)
+              , FEIR.field "value"
+                  (FEIR.scalarValue (encodeScalarFixture (a + 1 / 2)))
+              , FEIR.field "origin" (FEIR.int 1)
+              ]
+          , FEIR.record "bind-value"
+              [ FEIR.field "node" (FEIR.int 2)
+              , FEIR.field "value" (FEIR.tensorValue feirEncodedTensorFixture)
+              , FEIR.field "origin" (FEIR.int 1)
+              ]
+          , FEIR.record "bind-value"
+              [ FEIR.field "node" (FEIR.int 3)
+              , FEIR.field "value" (FEIR.scalarValue feirDerivativeFixture)
+              , FEIR.field "origin" (FEIR.int 1)
+              ]
+          , FEIR.record "bind-value"
+              [ FEIR.field "node" (FEIR.int 4)
+              , FEIR.field "value" (FEIR.scalarValue feirOpaqueFixture)
+              , FEIR.field "origin" (FEIR.int 1)
+              ]
+          , FEIR.record "bind-value"
+              [ FEIR.field "node" (FEIR.int 5)
+              , FEIR.field "value" (FEIR.scalarValue feirWideOpaqueFixture)
+              , FEIR.field "origin" (FEIR.int 1)
+              ]
+          , FEIR.record "bind-value"
+              [ FEIR.field "node" (FEIR.int 6)
+              , FEIR.field "value" (FEIR.scalarValue feirGridWholeFixture)
+              , FEIR.field "origin" (FEIR.int 1)
+              ]
+          ])
+    , FEIR.field "raw-helpers" (FEIR.list [])
+    , FEIR.field "origins"
+        (FEIR.list
+          [ FEIR.record "origin-entry"
+              [ FEIR.field "id" (FEIR.int 1)
+              , FEIR.field "origin" feirSourceOrigin
+              ]])
+    , FEIR.field "provenance"
+        (FEIR.list
+          [ FEIR.record "provenance-entry"
+              [ FEIR.field "node" (FEIR.int 1)
+              , FEIR.field "origins" (FEIR.list [FEIR.int 1])
+              ]
+          , FEIR.record "provenance-entry"
+              [ FEIR.field "node" (FEIR.int 2)
+              , FEIR.field "origins" (FEIR.list [FEIR.int 1])
+              ]
+          , FEIR.record "provenance-entry"
+              [ FEIR.field "node" (FEIR.int 3)
+              , FEIR.field "origins" (FEIR.list [FEIR.int 1])
+              ]
+          , FEIR.record "provenance-entry"
+              [ FEIR.field "node" (FEIR.int 4)
+              , FEIR.field "origins" (FEIR.list [FEIR.int 1])
+              ]
+          , FEIR.record "provenance-entry"
+              [ FEIR.field "node" (FEIR.int 5)
+              , FEIR.field "origins" (FEIR.list [FEIR.int 1])
+              ]
+          , FEIR.record "provenance-entry"
+              [ FEIR.field "node" (FEIR.int 6)
+              , FEIR.field "origins" (FEIR.list [FEIR.int 1])
+              ]
+          ])
+    ]
+
+assertEqual "complete FEIR fixture has canonical protocol prefix"
+  (take 7 (unpack (FEIR.render feirProgramFixture)))
+  (unpack "(feir 1")
+
+def main (args: [String]) : IO () := print (FEIR.render feirProgramFixture)

@@ -1,0 +1,12 @@
+mode collocated
+dimension 1
+metric r
+axes r
+
+field u : scalar
+
+init:
+  u = 0
+
+step:
+  u' = u

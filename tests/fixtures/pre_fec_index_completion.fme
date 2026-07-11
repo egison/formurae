@@ -1,0 +1,17 @@
+mode dec
+dimension 2
+axes x, y
+
+field u : scalar
+field q_i
+field f : 0-form @ primal
+field A : 1-form @ primal
+field D : 1-form @ primal
+field H : 1-form @ dual
+
+def gradLike u = withSymbols [i] (∂_i u)
+
+step:
+  q' = gradLike u
+  D' = d f
+  H' = hodge A

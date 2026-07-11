@@ -1,0 +1,19 @@
+mode collocated
+dimension 2
+axes x, y
+
+field u : scalar
+field X_i
+field Y_i
+field A_i_j
+field B_i_j
+
+def materialize x = x + 1
+def applyShadow materialize x = materialize x
+def rankIdentity X... = X
+def fixedIdentity X_i_j = X
+
+step:
+  u' = applyShadow materialize u
+  Y' = rankIdentity X
+  B' = fixedIdentity A

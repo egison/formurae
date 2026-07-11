@@ -1,0 +1,15 @@
+mode dec
+dimension 1
+axes x
+
+field A : 1-form @ primal
+field B : 1-form @ dual
+field C : 1-form @ primal
+
+init:
+  A = [| 0 |]
+  B = [| 0 |]
+  C = [| 0 |]
+
+step:
+  C' = if x < 0 then A else B

@@ -2,7 +2,10 @@
 
 Date: 2026-07-10
 
-Implementation status (2026-07-11):
+> **履歴文書:** 以下はcutover前の実装記録である。現行のmode、placement、form演算子の
+> 責務境界は[20260711-pre-post-fec-pipeline.md](20260711-pre-post-fec-pipeline.md)を正とする。
+
+Implementation status at the time (2026-07-11):
 
 - `mode collocated` / `mode dec`、mode の必須化、重複検査を実装済み。
 - `collocated` の `grad` / `dGrad` / `divg` / `curl` / `lap` / `hessian` は標準 marker を

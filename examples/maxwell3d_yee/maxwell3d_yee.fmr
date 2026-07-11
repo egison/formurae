@@ -17,10 +17,10 @@ begin function (E_down1,E_down2,E_down3,B_down1,B_down2,B_down3) = init()
 end function
 
 begin function (E_down1',E_down2',E_down3',B_down1',B_down2',B_down3') = step(E_down1,E_down2,E_down3,B_down1,B_down2,B_down3)
-  E_down1' = E_down1[i,j,k] + B_down3[i,j,k]*dt/(dy) + (-1)*B_down3[i,j-1,k]*dt/(dy) + (-1)*B_down2[i,j,k]*dt/(dz) + B_down2[i,j,k-1]*dt/(dz)
-  E_down2' = E_down2[i,j,k] + (-1)*B_down3[i,j,k]*dt/(dx) + B_down3[i-1,j,k]*dt/(dx) + B_down1[i,j,k]*dt/(dz) + (-1)*B_down1[i,j,k-1]*dt/(dz)
-  E_down3' = E_down3[i,j,k] + B_down2[i,j,k]*dt/(dx) + (-1)*B_down2[i-1,j,k]*dt/(dx) + (-1)*B_down1[i,j,k]*dt/(dy) + B_down1[i,j-1,k]*dt/(dy)
-  B_down1' = E_down3'[i,j,k]*dt/(dy) + (-1)*E_down3'[i,j+1,k]*dt/(dy) + (-1)*E_down2'[i,j,k]*dt/(dz) + E_down2'[i,j,k+1]*dt/(dz) + B_down1[i,j,k]
-  B_down2' = (-1)*E_down3'[i,j,k]*dt/(dx) + E_down3'[i+1,j,k]*dt/(dx) + E_down1'[i,j,k]*dt/(dz) + (-1)*E_down1'[i,j,k+1]*dt/(dz) + B_down2[i,j,k]
-  B_down3' = E_down2'[i,j,k]*dt/(dx) + (-1)*E_down2'[i+1,j,k]*dt/(dx) + (-1)*E_down1'[i,j,k]*dt/(dy) + E_down1'[i,j+1,k]*dt/(dy) + B_down3[i,j,k]
+  E_down1'[i,j,k] = E_down1[i,j,k] + (-1) * dt * (B_down2[i,j,k] + (-1) * B_down2[i,j,k-1]) / dz + dt * (B_down3[i,j,k] + (-1) * B_down3[i,j-1,k]) / dy
+  E_down2'[i,j,k] = E_down2[i,j,k] + (-1) * dt * (B_down3[i,j,k] + (-1) * B_down3[i-1,j,k]) / dx + dt * (B_down1[i,j,k] + (-1) * B_down1[i,j,k-1]) / dz
+  E_down3'[i,j,k] = E_down3[i,j,k] + (-1) * dt * (B_down1[i,j,k] + (-1) * B_down1[i,j-1,k]) / dy + dt * (B_down2[i,j,k] + (-1) * B_down2[i-1,j,k]) / dx
+  B_down1'[i,j,k] = B_down1[i,j,k] + (-1) * dt * (E_down3'[i,j+1,k] + (-1) * E_down3'[i,j,k]) / dy + dt * (E_down2'[i,j,k+1] + (-1) * E_down2'[i,j,k]) / dz
+  B_down2'[i,j,k] = B_down2[i,j,k] + (-1) * dt * (E_down1'[i,j,k+1] + (-1) * E_down1'[i,j,k]) / dz + dt * (E_down3'[i+1,j,k] + (-1) * E_down3'[i,j,k]) / dx
+  B_down3'[i,j,k] = B_down3[i,j,k] + (-1) * dt * (E_down2'[i+1,j,k] + (-1) * E_down2'[i,j,k]) / dx + dt * (E_down1'[i,j+1,k] + (-1) * E_down1'[i,j,k]) / dy
 end function

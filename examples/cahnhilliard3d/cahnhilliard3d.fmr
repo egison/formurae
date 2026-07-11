@@ -13,6 +13,6 @@ begin function c = init()
 end function
 
 begin function c' = step(c)
-  mu = c[i,j,k]**3 + (-1)*c[i,j,k] + 2*c[i,j,k]*kap/(dz**2) + 2*c[i,j,k]*kap/(dy**2) + 2*c[i,j,k]*kap/(dx**2) + (-1)*c[i,j,k-1]*kap/(dz**2) + (-1)*c[i,j,k+1]*kap/(dz**2) + (-1)*c[i,j-1,k]*kap/(dy**2) + (-1)*c[i,j+1,k]*kap/(dy**2) + (-1)*c[i-1,j,k]*kap/(dx**2) + (-1)*c[i+1,j,k]*kap/(dx**2)
-  c' = (-2)*dt*mob*mu[i,j,k]/(dz**2) + dt*mob*mu[i,j,k-1]/(dz**2) + dt*mob*mu[i,j,k+1]/(dz**2) + (-2)*dt*mob*mu[i,j,k]/(dy**2) + dt*mob*mu[i,j-1,k]/(dy**2) + dt*mob*mu[i,j+1,k]/(dy**2) + (-2)*dt*mob*mu[i,j,k]/(dx**2) + dt*mob*mu[i-1,j,k]/(dx**2) + dt*mob*mu[i+1,j,k]/(dx**2) + c[i,j,k]
+  mu[i,j,k] = (-1) * kap * (c[i-1,j,k] + c[i+1,j,k] + (-2) * c[i,j,k]) / dx**2 + (-1) * kap * (c[i,j-1,k] + c[i,j+1,k] + (-2) * c[i,j,k]) / dy**2 + (-1) * kap * (c[i,j,k-1] + c[i,j,k+1] + (-2) * c[i,j,k]) / dz**2 + (-1) * c[i,j,k] + c[i,j,k]**3
+  c'[i,j,k] = c[i,j,k] + dt * mob * (mu[i-1,j,k] + mu[i+1,j,k] + (-2) * mu[i,j,k]) / dx**2 + dt * mob * (mu[i,j-1,k] + mu[i,j+1,k] + (-2) * mu[i,j,k]) / dy**2 + dt * mob * (mu[i,j,k-1] + mu[i,j,k+1] + (-2) * mu[i,j,k]) / dz**2
 end function

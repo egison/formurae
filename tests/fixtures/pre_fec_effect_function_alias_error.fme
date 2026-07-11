@@ -1,0 +1,9 @@
+mode collocated
+dimension 1
+axes x
+field u : scalar
+def weighted q = lb q
+def alias ignored = weighted
+def bad q = pd1r1_x (alias 0 q)
+step:
+  u' = u

@@ -1,0 +1,22 @@
+mode collocated
+dimension 2
+axes x, y
+
+param threshold = 0.5
+
+field u : scalar
+field v : scalar
+field q_i
+field r_i
+
+init:
+  u := if x < threshold then 1 else 0
+  v = 0
+  q_i = [| 0, 0 |]_i
+  r_i = [| 1, 2 |]_i
+
+step:
+  u' = u
+  v' = if !(x < threshold) || False || u >= 0 || u >= 0 then u else threshold
+  q' = if x < threshold && u >= 0 then grad u else r
+  r' = r

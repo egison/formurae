@@ -1,0 +1,53 @@
+assertEqual "generated primitive manifest ID"
+  "sha256:f6294c222255af0cbc20d76a46e6eecb1858d3c4a370500f9c7c8b510a18010f"
+  Formurae.Primitives.primitiveManifestV1Id
+
+assertEqual "generated primitive operation IDs"
+  [ "codiff.metric@1"
+  , "derivative.coordinate-wide@1"
+  , "derivative.grid-whole@1"
+  , "derivative.ordered@1"
+  , "flux.conservative-divergence@1"
+  , "lb.orthogonal@1"
+  , "operator.materialized@1"
+  , "resample.explicit@1"
+  ]
+  Formurae.Primitives.operationIds
+
+assertEqual "generated full primitive signatures"
+  [ ("codiff.metric@1", "codiff.metric", 1, ["form"], "form", "dual-adjoint",
+      "needs-materialization", ["coefficient", "flux", "result", "volume"],
+      "ordered")
+  , ("derivative.coordinate-wide@1", "derivative.coordinate-wide", 1,
+      ["scalar"], "scalar",
+      "derivative-target", "pure-local", [], "ordered")
+  , ("derivative.grid-whole@1", "derivative.grid-whole", 1,
+      ["scalar"], "scalar",
+      "derivative-target", "pure-local", [], "ordered")
+  , ("derivative.ordered@1", "derivative.ordered", 1,
+      ["scalar"], "scalar",
+      "derivative-target", "pure-local", [], "ordered")
+  , ("flux.conservative-divergence@1", "flux.conservative-divergence", 1,
+      ["tensor"], "scalar",
+      "conservative-cell", "needs-materialization", ["flux", "result"],
+      "declared-commutative")
+  , ("lb.orthogonal@1", "lb.orthogonal", 1, ["scalar"], "scalar",
+      "conservative-cell",
+      "needs-materialization", ["coefficient", "flux", "result", "volume"],
+      "declared-commutative")
+  , ("operator.materialized@1", "operator.materialized", 1,
+      ["any"], "any", "preserve-source",
+      "needs-materialization", ["intermediate"], "ordered")
+  , ("resample.explicit@1", "resample.explicit", 1,
+      ["scalar"], "scalar", "explicit-target",
+      "pure-local", [], "ordered")
+  ]
+  Formurae.Primitives.signatures
+
+assertEqual "every generated operation ID resolves to one signature"
+  Formurae.Primitives.operationIds
+  (map
+    (\operationId ->
+      Formurae.Primitives.signatureOperationId
+        (Formurae.Primitives.signatureFor operationId))
+    Formurae.Primitives.operationIds)
