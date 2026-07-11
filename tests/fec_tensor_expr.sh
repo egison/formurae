@@ -102,10 +102,10 @@ write_case "$f" \
   "  B'~i = g~i~j . A_j"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'def FormuraeInternalMetricContra_i_j' 'non-Euclidean contravariant metric is retained'
-assert_not_contains "$out" 'def FormuraeInternalMetricCov_i_j' 'unused covariant metric is not emitted'
-assert_not_contains "$out" 'def FormuraeInternalMetricMixedUpDown_i_j' 'unused mixed metric is not emitted'
-assert_not_contains "$out" 'def FormuraeInternalMetricMixedDownUp_i_j' 'unused reverse mixed metric is not emitted'
+assert_contains "$out" 'def FormuraeInternalMetricContra := generateTensor' 'non-Euclidean contravariant metric is retained as a bare tensor'
+assert_not_contains "$out" 'def FormuraeInternalMetricCov :=' 'unused covariant metric is not emitted'
+assert_not_contains "$out" 'def FormuraeInternalMetricMixedUpDown :=' 'unused mixed metric is not emitted'
+assert_not_contains "$out" 'def FormuraeInternalMetricMixedDownUp :=' 'unused reverse mixed metric is not emitted'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -266,7 +266,9 @@ write_case "$f" \
 out=$(compile_fme "$f")
 rm -f "$f"
 assert_contains "$out" 'def feqS12 := (sym A)_1_2' 'Egison symmetrize bridge'
-assert_contains "$out" 'def A := A_#_#' 'bare tensor alias retained for runtime sym'
+assert_contains "$out" 'def A := generateTensor' 'field tensor is generated as a bare binding'
+assert_not_contains "$out" 'def A_i_j := generateTensor' 'indexed field binding is not generated'
+assert_not_contains "$out" 'def A := A_#_#' 'bare field alias is unnecessary'
 assert_not_contains "$out" 'FormuraeInternalTensor' 'obsolete internal tensor aliases are not emitted'
 
 f=$(tmp_fme)
@@ -282,8 +284,10 @@ write_case "$f" \
 out=$(compile_fme "$f")
 rm -f "$f"
 assert_contains "$out" 'def feqC12 := (wedge A B)_1_2' 'Egison wedge bridge'
-assert_contains "$out" 'def A := A_#' 'bare tensor alias retained for runtime wedge lhs'
-assert_contains "$out" 'def B := B_#' 'bare tensor alias retained for runtime wedge rhs'
+assert_contains "$out" 'def A := generateTensor' 'wedge lhs is a bare field binding'
+assert_contains "$out" 'def B := generateTensor' 'wedge rhs is a bare field binding'
+assert_not_contains "$out" 'def A := A_#' 'wedge lhs needs no alias'
+assert_not_contains "$out" 'def B := B_#' 'wedge rhs needs no alias'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -298,8 +302,27 @@ write_case "$f" \
   "  C'_i_j = wedge A' B..._i_j"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" "def A' := A'_#" 'bare primed tensor alias retained for runtime wedge'
+assert_contains "$out" "def A' := generateTensor" 'primed tensor is generated as a bare binding'
+assert_not_contains "$out" "def A'_i := generateTensor" 'indexed primed binding is not generated'
+assert_not_contains "$out" "def A' := A'_#" 'primed tensor needs no alias'
 assert_contains "$out" "def feqC12 := (wedge A' B)_1_2" 'primed bare tensor reaches Egison bridge'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field A_i' \
+  'field B_i' \
+  'field C_i_j' \
+  'step:' \
+  '  let T_i = B_i' \
+  "  C'_i_j = wedge A T..._i_j"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" 'def T := withSymbols [i] B_i' 'indexed let is generated as a bare tensor binding'
+assert_not_contains "$out" 'def T_i := withSymbols' 'indexed let binding is not retained'
+assert_not_contains "$out" 'def T := T_#' 'indexed let needs no alias'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -371,8 +394,9 @@ write_case "$f" \
 out=$(compile_fme "$f")
 rm -f "$f"
 assert_contains "$out" '∂ 1 1 y B_3 - ∂ 1 1 z B_2' 'standard curl component expansion'
-assert_contains "$out" "def E'_i := generateTensor" 'primed component family is retained'
-assert_not_contains "$out" "def E' := E'_#" 'primed component references do not retain a bare tensor alias'
+assert_contains "$out" "def E' := generateTensor" 'primed component family uses a bare tensor binding'
+assert_not_contains "$out" "def E'_i := generateTensor" 'indexed primed binding is not generated'
+assert_not_contains "$out" "def E' := E'_#" 'primed tensor alias is unnecessary'
 assert_not_contains "$out" 'def curl ' 'standard curl is not emitted'
 
 f=$(tmp_fme)
@@ -723,6 +747,103 @@ if [ "$status" -eq 0 ]; then
   exit 1
 fi
 assert_contains "$out" 'coordinate derivative must be written with subscript notation' 'compact coordinate derivative rejection'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'param A = 1.0' \
+  'field A_i' \
+  'step:' \
+  "  A'_i = A_i"
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+rm -f "$f"
+if [ "$status" -eq 0 ]; then
+  printf 'duplicate param/field value name unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_contains "$out" "value name 'A' is declared more than once as param/field" 'bare binding name collision'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field feDim_i' \
+  'step:' \
+  "  feDim'_i = feDim_i"
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+rm -f "$f"
+if [ "$status" -eq 0 ]; then
+  printf 'field/generated value name collision unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_contains "$out" "value name 'feDim' is reserved for generated Egison code (field)" 'bare field/generated name collision'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field A_i' \
+  'step:' \
+  '  let feAxes_i = A_i' \
+  "  A'_i = A_i"
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+rm -f "$f"
+if [ "$status" -eq 0 ]; then
+  printf 'indexed let/generated value name collision unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_contains "$out" "value name 'feAxes' is reserved for generated Egison code (let)" 'bare indexed let/generated name collision'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field generateTensor_i' \
+  'step:' \
+  "  generateTensor'_i = generateTensor_i"
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+rm -f "$f"
+if [ "$status" -eq 0 ]; then
+  printf 'Egison keyword field name unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_contains "$out" "value name 'generateTensor' is reserved for generated Egison code (field)" 'bare field/Egison keyword collision'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field contractWith_i' \
+  'step:' \
+  "  contractWith'_i = contractWith_i"
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+rm -f "$f"
+if [ "$status" -eq 0 ]; then
+  printf 'generated helper field name unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_contains "$out" "value name 'contractWith' is reserved for generated Egison code (field)" 'bare field/generated helper collision'
 
 f=$(tmp_fme)
 write_case "$f" \

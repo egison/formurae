@@ -459,7 +459,7 @@ def fmrInit : String -&gt; MathValue -&gt; String := FMR.init fePrinterContext
 def componentEqs : [String] -&gt; [MathValue] -&gt; [String] := FMR.componentEqs fePrinterContext
 def scalarEq : String -&gt; MathValue -&gt; [String] := FMR.scalarEq fePrinterContext
 
-def V_i := generateTensor (\[i] -&gt; function (x, y)) [2]
+def V := generateTensor (\[i] -&gt; function (x, y)) [2]
 def q := function (x, y)
 
 def feqV1 := V_1
@@ -810,9 +810,9 @@ def fmrInit : String -&gt; MathValue -&gt; String := FMR.init fePrinterContext
 def componentEqs : [String] -&gt; [MathValue] -&gt; [String] := FMR.componentEqs fePrinterContext
 def scalarEq : String -&gt; MathValue -&gt; [String] := FMR.scalarEq fePrinterContext
 
-def E_i := generateTensor (\[i] -&gt; function (x, y, z)) [3]
-def B_i := generateTensor (\[i] -&gt; function (x, y, z)) [3]
-def E'_i := generateTensor (\[i] -&gt; function (x, y, z)) [3]
+def E := generateTensor (\[i] -&gt; function (x, y, z)) [3]
+def B := generateTensor (\[i] -&gt; function (x, y, z)) [3]
+def E' := generateTensor (\[i] -&gt; function (x, y, z)) [3]
 
 def feqE1 := E_1 + (dt * ((∂ 1 1 y B_3 - ∂ 1 1 z B_2)))
 def feqE2 := E_2 + (dt * ((0 - ∂ 1 1 x B_3 + ∂ 1 1 z B_1)))
@@ -1078,11 +1078,11 @@ def fmrInit : String -&gt; MathValue -&gt; String := FMR.init fePrinterContext
 def componentEqs : [String] -&gt; [MathValue] -&gt; [String] := FMR.componentEqs fePrinterContext
 def scalarEq : String -&gt; MathValue -&gt; [String] := FMR.scalarEq fePrinterContext
 
-def E_i := generateTensor (\[i] -&gt; function (x, y, z)) [3]
+def E := generateTensor (\[i] -&gt; function (x, y, z)) [3]
 def Ef : (Integer, Integer, [MathValue]) := (0, 1, [E_1, E_2, E_3])
-def B_i_j := generateTensor (\[i, j] -&gt; function (x, y, z)) [3, 3]
+def B := generateTensor (\[i, j] -&gt; function (x, y, z)) [3, 3]
 def Bf : (Integer, Integer, [MathValue]) := (0, 2, [B_1_2, B_1_3, B_2_3])
-def E'_i := generateTensor (\[i] -&gt; function (x, y, z)) [3]
+def E' := generateTensor (\[i] -&gt; function (x, y, z)) [3]
 def EfN : (Integer, Integer, [MathValue]) := (0, 1, [E'_1, E'_2, E'_3])
 
 def feDD := foldl (\acc x -&gt; acc + x ^ 2) 0 (formComps (dForm (dForm EfN)))
@@ -1315,9 +1315,9 @@ def fmrInit : String -&gt; MathValue -&gt; String := FMR.init fePrinterContext
 def componentEqs : [String] -&gt; [MathValue] -&gt; [String] := FMR.componentEqs fePrinterContext
 def scalarEq : String -&gt; MathValue -&gt; [String] := FMR.scalarEq fePrinterContext
 
-def v_i := generateTensor (\[i] -&gt; function (x, y, z)) [3]
-def sigma_i_j := generateTensor (\[i, j] -&gt; function (x, y, z)) [3, 3]
-def v'_i := generateTensor (\[i] -&gt; function (x, y, z)) [3]
+def v := generateTensor (\[i] -&gt; function (x, y, z)) [3]
+def sigma := generateTensor (\[i, j] -&gt; function (x, y, z)) [3, 3]
+def v' := generateTensor (\[i] -&gt; function (x, y, z)) [3]
 
 def feqv1 := v_1 + ((dt / rho0) * (dYee 1 [1 / 2, 0, 0] (sigma_1_1, [0, 0, 0]) + dYee 2 [1 / 2, 0, 0] (sigma_1_2, [1 / 2, 1 / 2, 0]) + dYee 3 [1 / 2, 0, 0] (sigma_1_3, [1 / 2, 0, 1 / 2])))
 def feqv2 := v_2 + ((dt / rho0) * (dYee 1 [0, 1 / 2, 0] (sigma_1_2, [1 / 2, 1 / 2, 0]) + dYee 2 [0, 1 / 2, 0] (sigma_2_2, [0, 0, 0]) + dYee 3 [0, 1 / 2, 0] (sigma_2_3, [0, 1 / 2, 1 / 2])))

@@ -41,7 +41,7 @@ def fmrInit : String -> MathValue -> String := FMR.init fePrinterContext
 def componentEqs : [String] -> [MathValue] -> [String] := FMR.componentEqs fePrinterContext
 def scalarEq : String -> MathValue -> [String] := FMR.scalarEq fePrinterContext
 
-def V_i := generateTensor (\[i] -> function (x, y)) [2]
+def V := generateTensor (\[i] -> function (x, y)) [2]
 def q := function (x, y)
 
 def feqV1 := V_1

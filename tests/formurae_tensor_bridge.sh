@@ -8,7 +8,7 @@ fmr_tmp=$(mktemp "${TMPDIR:-/tmp}/formurae-standard-ops.XXXXXX.fmr")
 err_tmp=$(mktemp "${TMPDIR:-/tmp}/formurae-standard-ops.XXXXXX.err")
 trap 'rm -f "$egi_tmp" "$type_tmp" "$fmr_tmp" "$err_tmp"' EXIT
 
-for model in formurae_standard_ops formurae_runtime_tensor_ops; do
+for model in formurae_standard_ops formurae_runtime_tensor_ops formurae_metric_tensor_ops; do
   (cd "$root" && cabal run -v0 fec -- "tests/$model.fme" >"$egi_tmp")
   (cd "$root/../egison" && cabal run -v0 egison -- \
     -t \

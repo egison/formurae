@@ -150,6 +150,30 @@ standardNames =
   , "norm2", "hessian", "grad", "dGrad", "divg", "curl", "lap", "Δ"
   ]
 
+-- A bare generated binding must not reuse an Egison keyword or an
+-- unqualified helper referenced by the generated program.  Indexed bindings
+-- used to avoid some of these collisions accidentally; bare tensors make the
+-- value namespace explicit, so reject them at the Formurae boundary.
+egisonReservedWords :: [String]
+egisonReservedWords =
+  [ "True", "False", "loadFile", "load", "def", "declare", "if", "then"
+  , "else", "seq", "capply", "memoizedLambda", "cambda", "let", "in"
+  , "where", "withSymbols", "loop", "forall", "match", "matchDFS"
+  , "matchAll", "matchAllDFS", "as", "with", "matcher", "do", "something"
+  , "undefined", "algebraicDataMatcher", "generateTensor", "tensor"
+  , "contract", "tensorMap", "tensorMap2", "transpose", "flipIndices"
+  , "subrefs", "subrefs!", "suprefs", "suprefs!", "userRefs", "userRefs!"
+  , "function", "infixl", "infixr", "infix", "simplify", "using"
+  ]
+
+generatedEgisonDependencies :: [String]
+generatedEgisonDependencies =
+  [ "FMR", "print", "substitute", "taylorStencil", "between", "nth", "zip"
+  , "filter", "any", "head", "length", "foldl", "map", "sum", "sqrt"
+  , "unquoteAll", "expandAll", "contractWith", "formComps", "formDeg"
+  , "scaleForm"
+  ]
+
 coordinatePreludeDefs :: Model -> [Def]
 coordinatePreludeDefs m =
   [ Def "grad" ["u"] "withSymbols [i] ∂_i u"
@@ -227,6 +251,55 @@ metricNameConflicts :: Model -> [(String, String)]
 metricNameConflicts m =
   [("param", nm) | (nm, _) <- mParams m]
   ++ [("field", nm) | (nm, _) <- mFlds m]
+
+validateValueBindingNames :: Model -> IO ()
+validateValueBindingNames m =
+  case duplicateBindings of
+    [] -> checkGeneratedConflicts
+    (name, kinds) : _ ->
+      fatal ("value name '" ++ name ++ "' is declared more than once as "
+             ++ intercalate "/" kinds)
+  where
+    bindings =
+      [("param", nm) | (nm, _) <- mParams m]
+      ++ [("field", nm) | (nm, _) <- mFlds m]
+      ++ [("let", sNm st) | st <- mSteps m, sk st == KLet]
+      ++ [("local", sNm st) | st <- mSteps m, sk st == KLocal]
+    duplicateBindings =
+      [(name, map fst matches)
+      | name <- nub (map snd bindings)
+      , let matches = filter ((== name) . snd) bindings
+      , length matches > 1]
+    checkGeneratedConflicts =
+      case [(kind, name) | (kind, name) <- bindings, isGeneratedValueName name] of
+        [] -> return ()
+        (kind, name) : _ ->
+          fatal ("value name '" ++ name
+                 ++ "' is reserved for generated Egison code (" ++ kind ++ ")")
+    isGeneratedValueName name =
+      name `elem` generatedValueNames || "feq" `isPrefixOf` name
+    generatedValueNames =
+      internalCoordNames m
+      ++ internalHstepNames m
+      ++ [ "feDim", "feAxes", "feAxisIds", "feCoords", "feHsteps"
+         , "shift", "dC", "dC2", "dTaylor", "axisId", "∂"
+         , "yeeRef", "unit3", "dYee"
+         , "formBasis", "basisSign", "basisContains", "basisRemove"
+         , "complementBasis", "formIndex", "formComponent", "sigmaOf"
+         , "sigmaC", "hodge", "dForm", "codiff"
+         , "feSymbolNames", "feFieldNames", "feIndexNames", "fePrinterContext"
+         , "fmrEq", "fmrInit", "componentEqs", "scalarEq"
+         , "feX", "feGd", "feGo", "feDD"
+         , "feParams", "feHelpers", "feComps", "feInits", "feSteps", "main"
+         , "ca", "cb", "cc", "sg", "f1", "f2", "f3"
+         ]
+      ++ ["feH" ++ show a | a <- axisRange m]
+      ++ concat [[name ++ "f", name ++ "fN"]
+                | (name, Form _) <- mFlds m]
+      ++ standardNames
+      ++ scalarIntrinsics
+      ++ egisonReservedWords
+      ++ generatedEgisonDependencies
 
 validateMetricName :: Model -> IO ()
 validateMetricName m =
@@ -496,6 +569,7 @@ parseFe name txt = go STop initialModel
       | mMode m == Nothing = fatal "mode declaration is required (mode collocated or mode dec)"
       | otherwise = do
           let mUse = m
+          validateValueBindingNames mUse
           validateMetricName mUse
           validateDimensionFeatures mUse
           mapM_ (\df ->
@@ -1227,25 +1301,6 @@ egiStringPairs pairs =
     | (source, target) <- pairs]
   ++ "]"
 
--- References such as E'_3 are component accesses, not uses of the whole E'
--- tensor.  Keep a separate view of residual identifiers for deciding whether
--- an Egison-level whole-tensor alias (E' := E'_#) is actually required.
-bareValueRefs :: [Tok] -> [(String, Bool)]
-bareValueRefs = go Nothing
-  where
-    go _ [] = []
-    go prev (tok : rest) =
-      case tok of
-        TId name primed
-          | not (afterIndexMark prev)
-          , not (beforeIndexMark rest) ->
-              (name, primed) : go (Just tok) rest
-        _ -> go (Just tok) rest
-    afterIndexMark (Just (TC mark)) = mark == '_' || mark == '~'
-    afterIndexMark _ = False
-    beforeIndexMark (TC mark : _) = mark == '_' || mark == '~'
-    beforeIndexMark _ = False
-
 emit :: Model -> IO String
 emit m = do
   if length (mAxes m) /= mDim m
@@ -1383,7 +1438,7 @@ emit m = do
               _ ->
                 let identity = "if i = j then 1 else 0"
                     gen nm expr =
-                      (nm, "def " ++ nm ++ "_i_j := generateTensor (\\[i, j] -> "
+                      (nm, "def " ++ nm ++ " := generateTensor (\\[i, j] -> "
                            ++ expr ++ ") [feDim, feDim]")
                     (covExpr, contraExpr) = case (mMetric m, mEmbed m) of
                       (Just hs0, _) ->
@@ -1479,10 +1534,7 @@ emit m = do
       residualText = unlines
         (concat body ++ concat inits ++ mtInits ++ stepItems ++ embDefs ++ ddDef
          ++ map fst gates)
-      residualTokens = tokenize residualText
-      residualIds = [(name, primed) | TId name primed <- residualTokens]
-      residualBareValues = bareValueRefs residualTokens
-      residualNames = map fst residualIds
+      residualNames = [name | TId name _ <- tokenize residualText]
       usesResidualName names = any (`elem` residualNames) names
       needsScalarContext =
         "∂ " `isInfixOf` residualText
@@ -1499,14 +1551,6 @@ emit m = do
             residualNames
       liveMetricContextDecls =
         [decl | (name, decl) <- metricContextDecls, usesResidualFamily name]
-      needsBareValue name primed = (name, primed) `elem` residualBareValues
-      bodyWithBareLets = zipWith addBareLetAlias (mSteps m) body
-      addBareLetAlias st decls
-        | sk st == KLet
-        , isIndexI (sIdx st)
-        , needsBareValue (sNm st) False =
-            decls ++ ["def " ++ sNm st ++ " := " ++ sNm st ++ "_#"]
-        | otherwise = decls
       header =
         [ "--"
         , "-- GENERATED by fec (the Formurae compiler) from " ++ mName m
@@ -1517,8 +1561,8 @@ emit m = do
         , "" ] ++
         (if null (mParams m) then []
          else [ "declare symbol " ++ intercalate ", " (map fst (mParams m)), "" ])
-      fieldDecls = concatMap (\field@(name, _) -> fdecl (needsBareValue name False) field) (mFlds m)
-      primDecls = concatMap (\name -> pdecl (needsBareValue name True) name) prims
+      fieldDecls = concatMap fdecl (mFlds m)
+      primDecls = concatMap pdecl prims
       localDecls = [ "def " ++ sNm st ++ " := function (" ++ coordArgs ++ ")"
                    | st <- mSteps m, sk st == KLocal ] ++ embDefs ++ mtDecls
       feParams = "def feParams := ["
@@ -1552,7 +1596,7 @@ emit m = do
                    ++ (if null contextDecls then [] else [""])
                    ++ fieldDecls ++ primDecls ++ localDecls
                    ++ liveMetricContextDecls ++ [""]
-                   ++ concat bodyWithBareLets ++ ddDef ++ [""]
+                   ++ concat body ++ ddDef ++ [""]
                    ++ [feParams] ++ feHelpers ++ [feComps] ++ feInits
                    ++ [feSteps] ++ [""] ++ mainDef))
   where
@@ -1560,43 +1604,34 @@ emit m = do
     shape1 = "[" ++ show (mDim m) ++ "]"
     shape2 = "[" ++ show (mDim m) ++ ", " ++ show (mDim m) ++ "]"
     shapeK k = "[" ++ intercalate ", " (replicate k (show (mDim m))) ++ "]"
-    tensorIndexVars k = take k (internalIndexNames m)
     formComponentNames nm primes k =
       [nm ++ primes ++ concatMap (('_' :) . show) inds
       | inds <- componentIndices (mDim m) (Form k)]
     formComponentList nm primes k =
       "[" ++ intercalate ", " (formComponentNames nm primes k) ++ "]"
-    fdecl _ (nm, Scalar) = ["def " ++ nm ++ " := function (" ++ fieldCoordArgs ++ ")"]
-    fdecl keepBare (nm, Vector _) =
-      ["def " ++ nm ++ "_i := generateTensor (\\[i] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape1]
-      ++ ["def " ++ nm ++ " := " ++ nm ++ "_#" | keepBare]
-    fdecl keepBare (nm, SymM) =
-      ["def " ++ nm ++ "_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2]
-      ++ ["def " ++ nm ++ " := " ++ nm ++ "_#_#" | keepBare]
-    fdecl keepBare (nm, AntiM) =
-      ["def " ++ nm ++ "_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2]
-      ++ ["def " ++ nm ++ " := " ++ nm ++ "_#_#" | keepBare]
-    fdecl keepBare (nm, Tensor2 _) =
-      ["def " ++ nm ++ "_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2]
-      ++ ["def " ++ nm ++ " := " ++ nm ++ "_#_#" | keepBare]
-    fdecl _ (nm, Form k) =
+    fdecl (nm, Scalar) = ["def " ++ nm ++ " := function (" ++ fieldCoordArgs ++ ")"]
+    fdecl (nm, Vector _) =
+      ["def " ++ nm ++ " := generateTensor (\\[i] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape1]
+    fdecl (nm, SymM) =
+      ["def " ++ nm ++ " := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2]
+    fdecl (nm, AntiM) =
+      ["def " ++ nm ++ " := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2]
+    fdecl (nm, Tensor2 _) =
+      ["def " ++ nm ++ " := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2]
+    fdecl (nm, Form k) =
       formFamilyDecl nm "" k
       ++ [ "def " ++ nm ++ "f : (Integer, Integer, [MathValue]) := (0, " ++ show k
            ++ ", " ++ formComponentList nm "" k ++ ")" ]
-    pdecl keepBare nm = case kindOf m nm of
+    pdecl nm = case kindOf m nm of
       Just Scalar -> ["def " ++ nm ++ "' := function (" ++ fieldCoordArgs ++ ")"]
       Just (Vector _) ->
-        ["def " ++ nm ++ "'_i := generateTensor (\\[i] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape1]
-        ++ ["def " ++ nm ++ "' := " ++ nm ++ "'_#" | keepBare]
+        ["def " ++ nm ++ "' := generateTensor (\\[i] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape1]
       Just SymM ->
-        ["def " ++ nm ++ "'_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2]
-        ++ ["def " ++ nm ++ "' := " ++ nm ++ "'_#_#" | keepBare]
+        ["def " ++ nm ++ "' := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2]
       Just AntiM ->
-        ["def " ++ nm ++ "'_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2]
-        ++ ["def " ++ nm ++ "' := " ++ nm ++ "'_#_#" | keepBare]
+        ["def " ++ nm ++ "' := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2]
       Just (Tensor2 _) ->
-        ["def " ++ nm ++ "'_i_j := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2]
-        ++ ["def " ++ nm ++ "' := " ++ nm ++ "'_#_#" | keepBare]
+        ["def " ++ nm ++ "' := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2]
       Just (Form k) ->
         formFamilyDecl nm "'" k
         ++ [ "def " ++ nm ++ "fN : (Integer, Integer, [MathValue]) := (0, " ++ show k
@@ -1606,8 +1641,8 @@ emit m = do
       | k == 0 =
           ["def " ++ nm ++ primes ++ " := function (" ++ fieldCoordArgs ++ ")"]
       | k > 0 =
-          let vars = tensorIndexVars k
-          in ["def " ++ nm ++ primes ++ concatMap ('_' :) vars
+          let vars = take k (internalIndexNames m)
+          in ["def " ++ nm ++ primes
               ++ " := generateTensor (\\[" ++ intercalate ", " vars
               ++ "] -> function (" ++ fieldCoordArgs ++ ")) " ++ shapeK k]
       | otherwise =
@@ -1616,7 +1651,7 @@ emit m = do
       KLet | isIndexI (sIdx st) -> do
                e <- rewrite m lets Nothing (sEx st)
                let nm = sNm st
-               return ["def " ++ nm ++ "_i := withSymbols [i] " ++ e]
+               return ["def " ++ nm ++ " := withSymbols [i] " ++ e]
            | otherwise -> do
                e <- rewriteScalar m lets (sEx st)
                return ["def " ++ sNm st ++ " := " ++ e]

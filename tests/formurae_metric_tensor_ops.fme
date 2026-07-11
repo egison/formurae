@@ -1,0 +1,16 @@
+mode collocated
+dimension 2
+axes x, y
+
+metric g
+metric scale [1, 2]
+
+field A_j
+field B~i
+
+init:
+  A_j = [| 1, 2 |]_j
+  B~i = [| 0, 0 |]~i
+
+step:
+  B'~i = g~i~j . A_j

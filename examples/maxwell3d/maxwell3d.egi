@@ -42,9 +42,9 @@ def fmrInit : String -> MathValue -> String := FMR.init fePrinterContext
 def componentEqs : [String] -> [MathValue] -> [String] := FMR.componentEqs fePrinterContext
 def scalarEq : String -> MathValue -> [String] := FMR.scalarEq fePrinterContext
 
-def E_i := generateTensor (\[i] -> function (x, y, z)) [3]
-def B_i := generateTensor (\[i] -> function (x, y, z)) [3]
-def E'_i := generateTensor (\[i] -> function (x, y, z)) [3]
+def E := generateTensor (\[i] -> function (x, y, z)) [3]
+def B := generateTensor (\[i] -> function (x, y, z)) [3]
+def E' := generateTensor (\[i] -> function (x, y, z)) [3]
 
 def feqE1 := E_1 + (dt * ((∂ 1 1 y B_3 - ∂ 1 1 z B_2)))
 def feqE2 := E_2 + (dt * ((0 - ∂ 1 1 x B_3 + ∂ 1 1 z B_1)))
