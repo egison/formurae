@@ -506,7 +506,9 @@ step:
   生成 `.fmr` のバイト一致テストを意味のアンカーとして維持する。
 - parser と TensorExpr の def 解決/strict diagnostics/fallback は Haskell(base のみ)で実装済みである。
   生成物はデバッグ可能な中間 `.egi` として追跡し、parser error は式全体・失敗近傍・
-  column を返す。正確な source span は今後の診断改善対象である。
+  column を返す。直接の backend request は元 `.fme` の path/line/column まで対応済みで、
+  user `def` の展開 trace と transliteration 前の column を含む完全な source map は今後の
+  診断改善対象である。
 
 ### 初期 v1 スコープ案(履歴)
 
