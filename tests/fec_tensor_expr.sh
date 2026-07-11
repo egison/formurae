@@ -614,6 +614,53 @@ write_case "$f" \
   'mode collocated' \
   'dimension 1' \
   'axes x' \
+  'metric scale [1]' \
+  'field u : scalar' \
+  'field v : scalar' \
+  'init:' \
+  '  u = blb[i] + lb(v[i])' \
+  'step:' \
+  "  u' = u"
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+rm -f "$f"
+if [ "$status" -eq 0 ]; then
+  printf 'raw lb request after a containing identifier unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_contains "$out" "$f:8:16-17" 'raw fallback ignores lb inside a larger identifier'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'metric scale [1, 1]' \
+  'field U_i' \
+  'field v : scalar' \
+  'init:' \
+  '  U_i = [| 0,' \
+  '          α + lb(v[i]) |]_i' \
+  'step:' \
+  "  v' = v"
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+rm -f "$f"
+if [ "$status" -eq 0 ]; then
+  printf 'multiline raw lb initializer unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_contains "$out" "$f:9:15-16" 'multiline initializer maps request to its physical pre-transliteration location'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 1' \
+  'axes x' \
   'def op q = lb q' \
   'metric scale [1]' \
   'field u : scalar' \

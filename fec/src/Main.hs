@@ -700,11 +700,11 @@ parseFe sourceFile name txt = go STop initialModel
               -- an init line may continue over following lines until its
               -- brackets balance (tensor initializers span rows)
               SInit | bal s > 0 ->
-                let (more, moreOriginal, rest') = grab (bal s) rest
-                in ini ln (originalCode ++ " " ++ moreOriginal)
-                          (s ++ " " ++ more) m
+                let (more, moreSourceLines, rest') = grab (bal s) rest
+                in ini ((ln, originalCode) : moreSourceLines)
+                       (s ++ " " ++ more) m
                      >>= \m' -> go SInit m' rest'
-              SInit -> ini ln originalCode s m >>= \m' -> go SInit m' rest
+              SInit -> ini [(ln, originalCode)] s m >>= \m' -> go SInit m' rest
               SStep -> stp ln originalCode code m >>= \m' -> go SStep m' rest
 
     bal t = sum [1 :: Int | c <- t, c `elem` "(["] - sum [1 | c <- t, c `elem` ")]"]
@@ -752,15 +752,16 @@ parseFe sourceFile name txt = go STop initialModel
         checkUserSurface m' [] ("in init expression: " ++ nm ++ showIxParts ix) ex
       _ -> return ()
 
-    grab _ [] = ("", "", [])
-    grab d ((_, raw, originalRaw):rest) =
+    grab _ [] = ("", [], [])
+    grab d ((lineNumber, raw, originalRaw):rest) =
       let t = strip (rstrip (stripComment raw))
-          original = strip (rstrip (stripComment originalRaw))
+          original = rstrip (stripComment originalRaw)
           d' = d + bal t
       in if d' <= 0
-           then (t, original, rest)
-           else let (more, moreOriginal, rest') = grab d' rest
-                in (t ++ " " ++ more, original ++ " " ++ moreOriginal, rest')
+           then (t, [(lineNumber, original)], rest)
+           else let (more, moreSourceLines, rest') = grab d' rest
+                in (t ++ " " ++ more,
+                    (lineNumber, original) : moreSourceLines, rest')
 
     top ln originalLine s m
       | Just r <- stripPrefix "mode " s =
@@ -833,7 +834,8 @@ parseFe sourceFile name txt = go STop initialModel
                                 ++ show n ++ ")")
                     else return m { mDim = n }
               | otherwise = fatal ("bad dimension (line " ++ show ln ++ ")")
-    ini ln originalLine s m
+    ini [] _ _ = fatal "internal error: initializer has no source lines"
+    ini sourceLines@((ln, _):_) s m
       | Just (nm, ix, ex) <- casForm s = do
           rejectReservedName ln (dropWhileEnd (== '\'') nm)
           if null ix
@@ -932,7 +934,7 @@ parseFe sourceFile name txt = go STop initialModel
       | otherwise = fatal ("bad init: " ++ s ++ " (line " ++ show ln ++ ")")
       where
         addInit value = do
-          source <- sourceTextForRhs ln originalLine (assignmentRhs s)
+          source <- sourceTextForRhsLines sourceLines (assignmentRhs s)
           return m
             { mInits = value : mInits m
             , mInitSourceTexts = source : mInitSourceTexts m
@@ -1090,20 +1092,55 @@ parseFe sourceFile name txt = go STop initialModel
         banned = surfaceBanned m [] s
 
     sourceTextForRhs ln originalLine translatedExpression = do
-      let originalExpression = assignmentRhs originalLine
-          (translated, offsets) = transliterateWithMap originalExpression
+      sourceTextForRhsLines [(ln, originalLine)] translatedExpression
+
+    sourceTextForRhsLines sourceLines translatedExpression = do
+      let pieces = sourcePieces sourceLines
+          originalExpression = intercalate "\n" [text | (_, _, text) <- pieces]
+          translatedPieces = map translatePiece pieces
+          translated = intercalate " " [text | (text, _) <- translatedPieces]
+          positions = intercalatePositions pieces translatedPieces
+          (firstLine, firstColumn) =
+            case pieces of
+              (lineNumber, column, _) : _ -> (lineNumber, column)
+              [] -> (1, 1)
       if translated == translatedExpression
         then return SourceText
           { sourcePath = sourceFile
-          , sourceLine = ln
-          , sourceColumn = rhsStartColumn originalLine
+          , sourceLine = firstLine
+          , sourceColumn = firstColumn
           , sourceOriginal = originalExpression
           , sourceTranslated = translatedExpression
-          , sourceOffsetMap = offsets
+          , sourcePositionMap = positions
           }
         else fatal ("internal source-map transliteration mismatch on line "
-                    ++ show ln ++ ": " ++ translated ++ " /= "
+                    ++ show firstLine ++ ": " ++ translated ++ " /= "
                     ++ translatedExpression)
+      where
+        sourcePieces [] = []
+        sourcePieces ((lineNumber, originalLine) : rest) =
+          (lineNumber, rhsStartColumn originalLine,
+           assignmentRhs originalLine)
+          : map continuationPiece rest
+        continuationPiece (lineNumber, originalLine) =
+          let text = strip originalLine
+              column = length (takeWhile isSpace originalLine) + 1
+          in (lineNumber, column, text)
+        translatePiece (lineNumber, column, original) =
+          let (translated, offsets) = transliterateWithMap original
+          in (translated,
+              [SourcePosition lineNumber (column + offset - 1)
+              | offset <- offsets])
+        intercalatePositions _ [] = []
+        intercalatePositions _ [(_, positions)] = positions
+        intercalatePositions (_ : nextPiece : restPieces)
+                             ((_, positions) : restTranslated) =
+          positions ++ [separatorPosition nextPiece]
+          ++ intercalatePositions (nextPiece : restPieces) restTranslated
+        intercalatePositions _ translatedPieces =
+          concatMap snd translatedPieces
+        separatorPosition (lineNumber, column, _) =
+          SourcePosition lineNumber (max 1 (column - 1))
 
     assignmentRhs line =
       case break (== '=') line of

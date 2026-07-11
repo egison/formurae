@@ -48,17 +48,23 @@ data Init = IRaw String String | IVec String [String]
 
 data SK = KLet | KLocal | KEq deriving Eq
 
+data SourcePosition = SourcePosition
+  { positionLine   :: Int
+  , positionColumn :: Int
+  } deriving (Eq, Show)
+
 -- One expression as it appeared in the original .fme source and after
--- transliteration.  Each character in `sourceTranslated` has a 1-based
--- offset into `sourceOriginal`; multi-character transliterations therefore
--- map back to the single source character that produced them.
+-- transliteration.  Every character in `sourceTranslated` maps to its exact
+-- original line/column; multi-character transliterations therefore map back
+-- to the single source character that produced them, and multiline
+-- initializers retain their physical lines instead of flattened columns.
 data SourceText = SourceText
   { sourcePath       :: FilePath
   , sourceLine       :: Int
   , sourceColumn     :: Int
   , sourceOriginal   :: String
   , sourceTranslated :: String
-  , sourceOffsetMap  :: [Int]
+  , sourcePositionMap :: [SourcePosition]
   } deriving (Eq, Show)
 
 data Step = Step

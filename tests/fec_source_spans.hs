@@ -31,11 +31,12 @@ main = do
         , sourceColumn = 5
         , sourceOriginal = "α + lb u"
         , sourceTranslated = "alpha + lb u"
-        , sourceOffsetMap = [1, 1, 1, 1, 1, 2, 3, 4, 5, 6, 7, 8]
+        , sourcePositionMap = positions 10 5
+            [1, 1, 1, 1, 1, 2, 3, 4, 5, 6, 7, 8]
         }
   case parseSourceTensorExpr mapped of
     Right (TEBinary "+" _ request) ->
-      assertOrigin "pre-transliteration request" (10, 9, 12) [] request
+      assertOrigin "pre-transliteration request" (10, 9, 10, 12) [] request
     result -> fail ("unexpected source-mapped AST: " ++ show result)
 
   let definitionSource = SourceText
@@ -44,7 +45,8 @@ main = do
         , sourceColumn = 12
         , sourceOriginal = "α + lb q"
         , sourceTranslated = "alpha + lb q"
-        , sourceOffsetMap = [1, 1, 1, 1, 1, 2, 3, 4, 5, 6, 7, 8]
+        , sourcePositionMap = positions 4 12
+            [1, 1, 1, 1, 1, 2, 3, 4, 5, 6, 7, 8]
         }
       callSource = SourceText
         { sourcePath = "model.fme"
@@ -52,15 +54,31 @@ main = do
         , sourceColumn = 8
         , sourceOriginal = "op u"
         , sourceTranslated = "op u"
-        , sourceOffsetMap = [1, 2, 3, 4]
+        , sourcePositionMap = positions 8 8 [1, 2, 3, 4]
         }
       operator = Def "op" ["q"] "alpha + lb q" (Just definitionSource)
   expanded <- expandDefsWithSource [operator] callSource
   case expanded of
     TEBinary "+" _ request ->
-      assertOrigin "definition expansion" (4, 16, 19)
-        [("op", (4, 12, 19), (8, 8, 11))] request
+      assertOrigin "definition expansion" (4, 16, 4, 19)
+        [("op", (4, 12, 4, 19), (8, 8, 8, 11))] request
     result -> fail ("unexpected expanded source-mapped AST: " ++ show result)
+
+  let multiline = SourceText
+        { sourcePath = "initializer.fme"
+        , sourceLine = 8
+        , sourceColumn = 12
+        , sourceOriginal = "0,\nlb(v)"
+        , sourceTranslated = "0, lb(v)"
+        , sourcePositionMap =
+            [ SourcePosition 8 12, SourcePosition 8 13
+            , SourcePosition 9 10, SourcePosition 9 11
+            , SourcePosition 9 12, SourcePosition 9 13
+            , SourcePosition 9 14, SourcePosition 9 15
+            ]
+        }
+  assertLocation "multiline source position"
+    (9, 11, 9, 12) (sourceLocationForSpan multiline (SourceSpan 4 5))
 
   putStrLn "fec source span tests: ok"
 
@@ -74,8 +92,8 @@ assertSpan label (expectedStart, expectedEnd) expr =
 
 assertOrigin
   :: String
-  -> (Int, Int, Int)
-  -> [(String, (Int, Int, Int), (Int, Int, Int))]
+  -> (Int, Int, Int, Int)
+  -> [(String, (Int, Int, Int, Int), (Int, Int, Int, Int))]
   -> TensorExpr
   -> IO ()
 assertOrigin label expectedLocation expectedTrace expr =
@@ -93,14 +111,19 @@ assertOrigin label expectedLocation expectedTrace expr =
         else fail (label ++ ": expected trace " ++ show expectedTrace
                    ++ ", got " ++ show actualTrace)
 
-assertLocation :: String -> (Int, Int, Int) -> SourceLocation -> IO ()
+assertLocation :: String -> (Int, Int, Int, Int) -> SourceLocation -> IO ()
 assertLocation label expected actual =
   if locationTuple actual == expected
     then return ()
     else fail (label ++ ": expected " ++ show expected
                ++ ", got " ++ show (locationTuple actual))
 
-locationTuple :: SourceLocation -> (Int, Int, Int)
+locationTuple :: SourceLocation -> (Int, Int, Int, Int)
 locationTuple location =
   (locationLine location, locationStartColumn location,
+   locationEndLine location,
    locationEndColumn location)
+
+positions :: Int -> Int -> [Int] -> [SourcePosition]
+positions lineNumber column offsets =
+  [SourcePosition lineNumber (column + offset - 1) | offset <- offsets]

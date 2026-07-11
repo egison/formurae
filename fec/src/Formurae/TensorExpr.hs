@@ -65,6 +65,7 @@ noSourceSpan = SourceSpan 0 0
 data SourceLocation = SourceLocation
   { locationPath        :: FilePath
   , locationLine        :: Int
+  , locationEndLine     :: Int
   , locationStartColumn :: Int
   , locationEndColumn   :: Int
   } deriving (Eq, Show)
@@ -655,26 +656,28 @@ sourceLocationForSpan :: SourceText -> SourceSpan -> SourceLocation
 sourceLocationForSpan source spanValue =
   SourceLocation
     { locationPath = sourcePath source
-    , locationLine = sourceLine source
-    , locationStartColumn = sourceColumn source + mappedStart - 1
-    , locationEndColumn = sourceColumn source + mappedEnd - 1
+    , locationLine = positionLine mappedStart
+    , locationEndLine = positionLine mappedEnd
+    , locationStartColumn = positionColumn mappedStart
+    , locationEndColumn = positionColumn mappedEnd
     }
   where
-    offsets = sourceOffsetMap source
+    positions = sourcePositionMap source
     translatedLength = length (sourceTranslated source)
     startOffset = boundedOffset (sourceStart spanValue)
     endOffset = boundedOffset (sourceEnd spanValue)
-    mappedStart = mapOffset startOffset
-    mappedEnd = mapOffset endOffset
+    mappedStart = mapPosition startOffset
+    mappedEnd = mapPosition endOffset
     boundedOffset value
       | translatedLength <= 0 = 1
       | value <= 0 = 1
       | value > translatedLength = translatedLength
       | otherwise = value
-    mapOffset value =
-      case drop (value - 1) offsets of
+    mapPosition value =
+      case drop (value - 1) positions of
         mapped : _ -> mapped
-        [] -> value
+        [] -> SourcePosition (sourceLine source)
+                 (sourceColumn source + value - 1)
 
 mapTensorChildren :: (TensorExpr -> TensorExpr) -> TensorExpr -> TensorExpr
 mapTensorChildren walk expr =

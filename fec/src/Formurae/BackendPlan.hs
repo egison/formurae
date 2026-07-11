@@ -13,6 +13,7 @@ module Formurae.BackendPlan
   , hasLbRequest
   ) where
 
+import Data.Char (isAlpha, isAlphaNum, isDigit, isSpace)
 import Data.List (nubBy)
 
 import Formurae.Common (reservedInternalPrefix)
@@ -177,17 +178,46 @@ directInitializerOrigin :: SourceText -> Maybe SourceOrigin
 directInitializerOrigin source =
   case parseSourceTensorExpr source of
     Right expression -> tensorExprOrigin =<< firstLbApplication expression
-    Left _ ->
-      let start = firstLbOffset (sourceTranslated source)
-          location = sourceLocationForSpan source (SourceSpan start (start + 1))
-      in Just (SourceOrigin location [])
+    Left _ -> do
+      spanValue <- rawLbApplicationSpan (sourceTranslated source)
+      let location = sourceLocationForSpan source spanValue
+      return (SourceOrigin location [])
 
-firstLbOffset :: String -> Int
-firstLbOffset = go 1
+-- Raw Formura initializer syntax can contain constructs outside TensorExpr.
+-- Locate only a standalone `lb` token that is actually applied; a substring
+-- such as the `lb` in `blb[i]` must never steal the diagnostic location from
+-- a later `lb(v[i])` request.
+rawLbApplicationSpan :: String -> Maybe SourceSpan
+rawLbApplicationSpan = go 1 Nothing
   where
-    go offset ('l':'b':_) = offset
-    go offset (_:rest) = go (offset + 1) rest
-    go _ [] = 1
+    go _ _ [] = Nothing
+    go offset previous source@('l':'b':rest)
+      | boundaryBefore previous
+      , boundaryAfter rest
+      , applicationFollows rest = Just (SourceSpan offset (offset + 1))
+      | otherwise = advance offset previous source
+    go offset previous source = advance offset previous source
+
+    advance offset _ (char : rest) = go (offset + 1) (Just char) rest
+    advance _ _ [] = Nothing
+
+    boundaryBefore Nothing = True
+    boundaryBefore (Just char) = not (wordChar char)
+    boundaryAfter [] = True
+    boundaryAfter (char : _) = not (wordChar char)
+    wordChar char = isAlphaNum char || char == '_'
+
+    applicationFollows rest =
+      let (spaces, following) = span isSpace rest
+          separated = not (null spaces)
+      in case following of
+           '(' : _ -> True
+           char : _ | isAlpha char -> True
+           char : _ | isDigit char -> True
+           '[' : _ | separated -> True
+           '.' : char : _ | separated && isDigit char -> True
+           char : _ | char `elem` "\"`{" -> True
+           _ -> False
 
 requestsInExpr :: Model -> TensorExpr -> Either String [BackendRequest]
 requestsInExpr model expr =
@@ -304,7 +334,11 @@ sourceOriginText origin =
 locationText :: SourceLocation -> String
 locationText location =
   locationPath location ++ ":" ++ show (locationLine location) ++ ":"
-  ++ if locationStartColumn location == locationEndColumn location
-       then show (locationStartColumn location)
-       else show (locationStartColumn location) ++ "-"
+  ++ if locationLine location /= locationEndLine location
+       then show (locationStartColumn location) ++ "-"
+            ++ show (locationEndLine location) ++ ":"
             ++ show (locationEndColumn location)
+       else if locationStartColumn location == locationEndColumn location
+         then show (locationStartColumn location)
+         else show (locationStartColumn location) ++ "-"
+              ++ show (locationEndColumn location)
