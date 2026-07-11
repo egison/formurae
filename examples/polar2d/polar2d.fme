@@ -12,11 +12,8 @@ axes r, φ, z
 
 param dt = 0.0001
 
-extern exp
-extern cos
 def Δ u = lb u
 
-metric g
 embedding [ `(1 + r) * cos φ, `(1 + r) * sin φ, z ]
 
 field u : scalar

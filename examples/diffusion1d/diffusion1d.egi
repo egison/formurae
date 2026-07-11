@@ -42,7 +42,6 @@ def scalarEq : String -> MathValue -> [String] := FMR.scalarEq fePrinterContext
 
 def u := function (x)
 
-
 def feParams := [("kappa", "1.0"), ("dt", "0.1*dx*dx")]
 def feHelpers :=
   [ "extern function :: exp"

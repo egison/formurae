@@ -34,9 +34,9 @@
 --                                   symbolically and gates generation);
 --                                   scale factors h_a = sqrt(g_aa).
 --                                   Backquotes keep factors compact
---                                   (`(2 + cos theta)), and expandAll
---                                   removes them before the half-cell
---                                   substitution.
+--                                   (`(2 + cos theta)); Egison's
+--                                   quote-transparent substitution keeps
+--                                   them compact at half-cell placements.
 --                                   Enables lb (Laplace-Beltrami): the
 --                                   hodge factors sqrt(g)/h_a^2 become
 --                                   coefficient FIELDS evaluated by the
@@ -169,8 +169,8 @@ egisonReservedWords =
 generatedEgisonDependencies :: [String]
 generatedEgisonDependencies =
   [ "FMR", "print", "substitute", "taylorStencil", "between", "nth", "zip"
-  , "filter", "any", "head", "length", "foldl", "map", "sum", "sqrt"
-  , "unquoteAll", "expandAll", "contractWith", "formComps", "formDeg"
+  , "filter", "any", "head", "length", "foldl", "map", "sum", "product"
+  , "sqrt", "contractWith", "formComps", "formDeg"
   , "scaleForm"
   ]
 
@@ -204,10 +204,19 @@ autoScalarExterns m helps =
   [ "extern function :: " ++ nm
   | nm <- scalarIntrinsics
   , nm `notElem` declared
-  , any (usesFunctionName nm) (modelExprTexts m)
+  , required nm
   ]
   where
     declared = declaredExterns helps
+    required nm =
+      any (usesFunctionName nm) (modelExprTexts m)
+      || nm `elem` embeddingDerivativeDependencies
+    embeddingDerivativeDependencies =
+      concat
+        [ deps
+        | (fn, deps) <- [("sin", ["cos"]), ("cos", ["sin"])]
+        , any (usesFunctionName fn) (maybe [] id (mEmbed m))
+        ]
 
 modelExprTexts :: Model -> [String]
 modelExprTexts m =
@@ -216,6 +225,7 @@ modelExprTexts m =
   ++ concatMap initExpr (mInits m)
   ++ map sEx (mSteps m)
   ++ maybe [] id (mMetric m)
+  ++ maybe [] id (mEmbed m)
   ++ map defBody (mDefs m)
   where
     helperExprs = filter isExprHelper
@@ -289,11 +299,10 @@ validateValueBindingNames m =
          , "sigmaC", "hodge", "dForm", "codiff"
          , "feSymbolNames", "feFieldNames", "feIndexNames", "fePrinterContext"
          , "fmrEq", "fmrInit", "componentEqs", "scalarEq"
-         , "feX", "feGd", "feGo", "feDD"
+         , "feX", "feG", "feH", "feSqrtG", "feDD"
          , "feParams", "feHelpers", "feComps", "feInits", "feSteps", "main"
          , "ca", "cb", "cc", "sg", "f1", "f2", "f3"
          ]
-      ++ ["feH" ++ show a | a <- axisRange m]
       ++ concat [[name ++ "f", name ++ "fN"]
                 | (name, Form _) <- mFlds m]
       ++ standardNames
@@ -1059,13 +1068,11 @@ surfaceBanned m locals s =
     orElse (Just x) _ = Just x
     orElse Nothing y = y
 
--- the field to which lb is applied, if any (scans the same
+-- fields to which lb is applied (scans the same
 -- preprocessed form the rewriter uses, so a user-defined Δ can expand
 -- to lb u before this pass)
-lbTarget :: Model -> Maybe String
-lbTarget m = case concatMap scan (mSteps m) of
-               (nm:_) -> Just nm
-               [] -> Nothing
+lbTargets :: Model -> [String]
+lbTargets m = nub (concatMap scan (mSteps m))
   where
     scan st = go (tokenize (sEx st))
     go (TId "lb" False : ts) =
@@ -1301,6 +1308,20 @@ egiStringPairs pairs =
     | (source, target) <- pairs]
   ++ "]"
 
+egiListDef :: String -> String -> [String] -> [String]
+egiListDef name emptyTypeAnnotation elems
+  | null elems = ["def " ++ name ++ emptyTypeAnnotation ++ " := []"]
+  | otherwise =
+      ("def " ++ name ++ " :=")
+      : [ (if i == (0 :: Int) then "  [ " else "  , ") ++ elemText
+        | (i, elemText) <- zip [0 ..] elems ]
+      ++ ["  ]"]
+
+egiConcatDef :: String -> [String] -> String
+egiConcatDef name elems =
+  "def " ++ name ++ " := "
+  ++ if null elems then "[]" else intercalate " ++ " elems
+
 emit :: Model -> IO String
 emit m = do
   if length (mAxes m) /= mDim m
@@ -1309,16 +1330,19 @@ emit m = do
     else return ()
   let lets = [sNm st | st <- mSteps m, sk st == KLet, isIndexI (sIdx st)]
       prims = primedRefs m
+      metricTargets = lbTargets m
   if mMetric m /= Nothing && mEmbed m /= Nothing
     then fatal "declare either 'metric scale' or 'embedding', not both"
     else return ()
-  mtx <- case (lbTarget m, mMetric m, mEmbed m) of
-    (Just _, Nothing, Nothing) ->
-      fatal "lb needs a 'metric scale [...]' or 'embedding [...]' declaration"
-    (Just u, Just hs, _) -> return (Just (u, map (renameAxes m) hs))
-    (Just u, Nothing, Just _) ->
-      return (Just (u, ["feH" ++ show a | a <- axisRange m]))
-    (Nothing, _, _) -> return Nothing
+  metricTarget <- case metricTargets of
+    [] -> return Nothing
+    [u] -> case (mMetric m, mEmbed m) of
+      (Nothing, Nothing) ->
+        fatal "lb needs a 'metric scale [...]' or 'embedding [...]' declaration"
+      _ -> return (Just u)
+    us ->
+      fatal ("lb currently supports one scalar field per model; found: "
+             ++ intercalate ", " us)
   let internalCoords = internalCoordNames m
       internalHsteps = internalHstepNames m
       internalGridSteps = map ("d" ++) (mAxes m)
@@ -1326,7 +1350,7 @@ emit m = do
       coordVec = "[| " ++ intercalate ", " internalCoords ++ " |]"
       hstepVec = "[| " ++ intercalate ", " internalHsteps ++ " |]"
       coordArgs = intercalate ", " internalCoords
-      axisIds = [1 .. mDim m]
+      axisIds = axisRange m
       axisList = "[" ++ intercalate ", " (map show axisIds) ++ "]"
       symbolDecl = "declare symbol " ++ intercalate ", " (internalCoords ++ internalHsteps)
       ifChain cases fallback =
@@ -1441,14 +1465,12 @@ emit m = do
                       (nm, "def " ++ nm ++ " := generateTensor (\\[i, j] -> "
                            ++ expr ++ ") [feDim, feDim]")
                     (covExpr, contraExpr) = case (mMetric m, mEmbed m) of
-                      (Just hs0, _) ->
-                        let hs = "[" ++ intercalate ", " (map (renameAxes m) hs0) ++ "]"
-                            hI = "(nth i " ++ hs ++ ")"
-                        in ("if i = j then (" ++ hI ++ ") ^ 2 else 0",
-                            "if i = j then 1 / ((" ++ hI ++ ") ^ 2) else 0")
+                      (Just _, _) ->
+                        ("if i = j then (feH i) ^ 2 else 0",
+                         "if i = j then 1 / ((feH i) ^ 2) else 0")
                       (Nothing, Just _) ->
-                        ("if i = j then feGd i else feGo i j",
-                         "if i = j then 1 / (feGd i) else 0")
+                        ("feG i j",
+                         "if i = j then 1 / (feG i i) else 0")
                       (Nothing, Nothing) -> (identity, identity)
                 in [ gen (metricInternalBase VDown VDown) covExpr
                    , gen (metricInternalBase VUp VUp) contraExpr
@@ -1470,77 +1492,76 @@ emit m = do
             , "def componentEqs : [String] -> [MathValue] -> [String] := FMR.componentEqs fePrinterContext"
             , "def scalarEq : String -> MathValue -> [String] := FMR.scalarEq fePrinterContext"
             ]
-      embDefs = case mEmbed m of
+      embeddingDefs = case mEmbed m of
         Nothing -> []
         Just es ->
           [ "def feX : [MathValue] := [" ++ intercalate ", " (map (renameAxes m) es) ++ "]"
-          , "def feGd (a: Integer) : MathValue := sum (map (\\e -> (\8706/\8706 e feCoords_a) ^ 2) feX)"
-          , "def feGo (a: Integer) (b: Integer) : MathValue := sum (map (\\e -> \8706/\8706 e feCoords_a * \8706/\8706 e feCoords_b) feX)"
+          , "def feG (a: Integer) (b: Integer) : MathValue := sum (map (\\e -> \8706/\8706 e feCoords_a * \8706/\8706 e feCoords_b) feX)"
           ]
-          ++ [ "def feH" ++ show a ++ " := unquoteAll (expandAll (sqrt (feGd "
-               ++ show a ++ ")))"
-             | a <- axisRange m ]
       orthoGate = case mEmbed m of
         Nothing -> []
         Just _ ->
           let offDiag = [(a, b) | a <- axisRange m, b <- axisRange m, a < b]
               cond = intercalate " && "
-                       ["feGo " ++ show a ++ " " ++ show b ++ " = 0"
+                       ["feG " ++ show a ++ " " ++ show b ++ " = 0"
                        | (a, b) <- offDiag]
               msg = "# ERROR: the embedding is not orthogonal (off-diagonal metric terms must vanish symbolically); general metrics are not supported yet"
           in if null offDiag then [] else [(cond, msg)]
   body <- mapM (stepDefs lets) (mSteps m)
   items <- mapM (stepItem lets) (mSteps m)
   inits <- mapM (initLine lets) (mInits m)
-  let sqgOf hs = intercalate " * " ["(" ++ h ++ ")" | h <- hs]
-      metricCoeffNames = take (mDim m) ["ca", "cb", "cc"]
+  let metricCoeffNames = take (mDim m) ["ca", "cb", "cc"]
+      metricStateNames = metricCoeffNames ++ ["sg"]
       metricFluxNames = ["f" ++ show a | a <- axisRange m]
-      mtDecls = case mtx of
+      metricAxes = zip3 (axisRange m) metricCoeffNames metricFluxNames
+      mtDecls = case metricTarget of
         Nothing -> []
         Just _ -> [ "def " ++ n ++ " := function (" ++ coordArgs ++ ")"
-                  | n <- metricCoeffNames ++ ["sg"] ++ metricFluxNames ]
-      mtInits = case mtx of
+                  | n <- metricStateNames ++ metricFluxNames ]
+      mtInits = case metricTarget of
         Nothing -> []
-        Just (_, hs) ->
+        Just _ ->
           [ "fmrInit \"" ++ n ++ "\" (substitute [(feCoords_" ++ show a
             ++ ", feCoords_" ++ show a ++ " + feHsteps_" ++ show a
-            ++ " / 2)] (" ++ sqgOf hs ++ " / ((" ++ h ++ ") ^ 2)))"
-          | (n, a, h) <- zip3 metricCoeffNames (axisRange m) hs ]
-          ++ [ "fmrInit \"sg\" (" ++ sqgOf hs ++ ")" ]
-      mtFlds = case mtx of
+            ++ " / 2)] (feSqrtG / ((feH " ++ show a ++ ") ^ 2)))"
+          | (a, n, _) <- metricAxes ]
+          ++ [ "fmrInit \"sg\" feSqrtG" ]
+      mtFlds = case metricTarget of
         Nothing -> []
-        Just _ -> [(n, Scalar) | n <- metricCoeffNames ++ ["sg"]]
-      mtFlux = case mtx of
+        Just _ -> [(n, Scalar) | n <- metricStateNames]
+      mtFlux = case metricTarget of
         Nothing -> []
-        Just (u, _) ->
-          [ "[fmrEq \"f" ++ show a ++ "\" (" ++ coeff
+        Just u ->
+          [ "[fmrEq \"" ++ flux ++ "\" (" ++ coeff
             ++ " * dYee " ++ show a ++ " " ++ placeV m a
             ++ " (" ++ u ++ ", " ++ zeroPlaceM m ++ "))]"
-          | (a, coeff) <- zip (axisRange m) metricCoeffNames
+          | (a, coeff, flux) <- metricAxes
           ]
-      mtPass = case mtx of
+      mtPass = case metricTarget of
         Nothing -> []
         Just _ -> [ "scalarEq \"" ++ n ++ "\" (" ++ n ++ ")"
-                  | n <- metricCoeffNames ++ ["sg"] ]
+                  | n <- metricStateNames ]
       stepItems = mtFlux ++ [it | Just it <- items] ++ mtPass
       ddDef = case mDd m of
         Nothing -> []
         Just g -> ["def feDD := foldl (\\acc x -> acc + x ^ 2) 0 (formComps (dForm (dForm "
                    ++ dropWhileEnd (== '\'') g ++ "fN)))"]
+      generatedBody = concat body ++ ddDef
       gates = orthoGate ++ (case mDd m of
                 Just _ -> [("feDD = 0",
                             "# ERROR: d . d /= 0 on this grid -- refusing to generate")]
                 Nothing -> [])
-      residualText = unlines
-        (concat body ++ concat inits ++ mtInits ++ stepItems ++ embDefs ++ ddDef
-         ++ map fst gates)
+      operationalResidualText = unlines
+        (generatedBody ++ concat inits ++ mtInits ++ stepItems)
+      residualText = operationalResidualText ++ unlines (map fst gates)
       residualNames = [name | TId name _ <- tokenize residualText]
-      usesResidualName names = any (`elem` residualNames) names
+      operationalNames = [name | TId name _ <- tokenize operationalResidualText]
+      usesOperationalName names = any (`elem` operationalNames) names
       needsScalarContext =
-        "∂ " `isInfixOf` residualText
-        || usesResidualName ["shift", "dC", "dC2", "dTaylor", "axisId"]
+        "∂ " `isInfixOf` operationalResidualText
+        || usesOperationalName ["shift", "dC", "dC2", "dTaylor", "axisId"]
       needsResidualYeeContext =
-        usesResidualName ["dYee", "yeeRef", "unit3"]
+        usesOperationalName ["dYee", "yeeRef", "unit3"]
       contextMathDecls =
         (if needsScalarContext then scalarContextDecls else [])
         ++ (if needsFormContext || needsResidualYeeContext then yeeContextDecls else [])
@@ -1549,8 +1570,28 @@ emit m = do
         any (\residualName -> residualName == name
                               || (name ++ "_") `isPrefixOf` residualName)
             residualNames
-      liveMetricContextDecls =
-        [decl | (name, decl) <- metricContextDecls, usesResidualFamily name]
+      liveMetricContext =
+        [(name, decl) | (name, decl) <- metricContextDecls, usesResidualFamily name]
+      liveMetricContextDecls = map snd liveMetricContext
+      scaleMetricFamilies =
+        [metricInternalBase VDown VDown, metricInternalBase VUp VUp]
+      needsScaleFactors =
+        metricTarget /= Nothing
+        || (mMetric m /= Nothing
+            && any (\(name, _) -> name `elem` scaleMetricFamilies) liveMetricContext)
+      scaleFactorDefs = case (mMetric m, mEmbed m) of
+        (Just hs, _)
+          | needsScaleFactors ->
+              [ "def feH (a: Integer) : MathValue := nth a ["
+                  ++ intercalate ", " (map (renameAxes m) hs) ++ "]" ]
+        (Nothing, Just _)
+          | metricTarget /= Nothing ->
+              [ "def feH (a: Integer) : MathValue := sqrt (feG a a)" ]
+        _ -> []
+      volumeDefs = case metricTarget of
+        Nothing -> []
+        Just _ -> ["def feSqrtG : MathValue := product (map feH feAxisIds)"]
+      metricDefs = embeddingDefs ++ scaleFactorDefs ++ volumeDefs
       header =
         [ "--"
         , "-- GENERATED by fec (the Formurae compiler) from " ++ mName m
@@ -1564,26 +1605,24 @@ emit m = do
       fieldDecls = concatMap fdecl (mFlds m)
       primDecls = concatMap pdecl prims
       localDecls = [ "def " ++ sNm st ++ " := function (" ++ coordArgs ++ ")"
-                   | st <- mSteps m, sk st == KLocal ] ++ embDefs ++ mtDecls
+                   | st <- mSteps m, sk st == KLocal ] ++ metricDefs ++ mtDecls
       feParams = "def feParams := ["
                  ++ intercalate ", " [ "(\"" ++ n ++ "\", \"" ++ v ++ "\")"
                                      | (n, v) <- mParams m ] ++ "]"
-      explicitHelps = mHelp m ++ (case mEmbed m of
-                              Just _ -> ["extern function :: sqrt"]
-                              Nothing -> [])
+      generatedHelps = case (mEmbed m, metricTarget) of
+        (Just _, Just _)
+          | "sqrt" `notElem` declaredExterns (mHelp m) ->
+              ["extern function :: sqrt"]
+        _ -> []
+      explicitHelps = mHelp m ++ generatedHelps
       helps = autoScalarExterns m explicitHelps ++ explicitHelps
-      feHelpers
-        | null helps = ["def feHelpers : [String] := []"]
-        | otherwise = "def feHelpers :="
-            : [ (if i == (0 :: Int) then "  [ " else "  , ") ++ "\"" ++ escH h ++ "\""
-              | (i, h) <- zip [0 ..] helps ] ++ ["  ]"]
+      feHelpers = egiListDef "feHelpers" " : [String]"
+        ["\"" ++ escH h ++ "\"" | h <- helps]
       feComps = "def feComps : [String] := "
                 ++ egiStringList (concat [componentStorageNames m n k
                                           | (n, k) <- mFlds m ++ mtFlds])
-      feInits = "def feInits :="
-        : [ (if i == (0 :: Int) then "  [ " else "  , ") ++ ln
-          | (i, ln) <- zip [0 ..] (concat inits ++ mtInits) ] ++ ["  ]"]
-      feSteps = "def feSteps := " ++ intercalate " ++ " stepItems
+      feInits = egiListDef "feInits" "" (concat inits ++ mtInits)
+      feSteps = egiConcatDef "feSteps" stepItems
       emitter = "FMR.emitModelOn feDim feAxes"
       emitCall = "print (" ++ emitter ++ " feParams feHelpers feComps feInits feSteps)"
       nest [] = emitCall
@@ -1596,7 +1635,7 @@ emit m = do
                    ++ (if null contextDecls then [] else [""])
                    ++ fieldDecls ++ primDecls ++ localDecls
                    ++ liveMetricContextDecls ++ [""]
-                   ++ concat body ++ ddDef ++ [""]
+                   ++ generatedBody ++ (if null generatedBody then [] else [""])
                    ++ [feParams] ++ feHelpers ++ [feComps] ++ feInits
                    ++ [feSteps] ++ [""] ++ mainDef))
   where

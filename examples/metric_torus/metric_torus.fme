@@ -10,7 +10,7 @@
 --
 -- Backquotes keep `(2 + cos θ) atomic during the CAS work
 -- (sin^2 + cos^2 collapses to 1, sqrt of the quoted square reduces),
--- and are expanded away before the half-cell substitution.
+-- and quote-transparent substitution keeps the reduced factor compact.
 
 mode collocated
 dimension 3
@@ -18,11 +18,8 @@ axes θ, φ, z
 
 param dt = 0.0005
 
-extern exp
-extern cos
 def Δ u = lb u
 
-metric g
 embedding [ `(2 + cos θ) * cos φ, `(2 + cos θ) * sin φ, sin θ, z ]
 
 field u : scalar

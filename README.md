@@ -142,7 +142,7 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
 |---|---|
 | `fec/` + `fec.cabal` | **Formurae コンパイラ**: 表層言語 Formurae(.fme;`field E_i`・`def curl X = ...`・`E'_i = E_i + dt * curl B_i`・`B' = B - dt * d E'`)を埋め込み形 .egi に変換。Haskell(base のみ)、リポジトリ直下で `cabal build` / `cabal run -v0 fec -- model.fme`。TensorExpr 上で `def`、添字、縮約、配置を成分特殊化する |
 | `lib/formurae-tensor.egi` | Formurae 用 Egison テンソル bridge。Egison primitive を使って `contractWith`、`.`、`.'`、`wedge`、`trace`、`sym`、`antisym`、`norm2` を定義する。`tensorMap`、`subrefs`、`transpose`、`!.` は primitive を直接使う |
-| `lib/fmrgen.egi` | 生成コア: Taylor 条件から係数を導出する **`taylorStencil`**、quote cleanup、形式補助などの座標非依存基盤 |
+| `lib/fmrgen.egi` | 生成コア: Taylor 条件から係数を導出する **`taylorStencil`** と形式補助などの座標非依存基盤 |
 | `lib/formurae-runtime.egi` | 共有 Formura プリンタ。生成 `.egi` から座標名・storage名・座標ベクトルを明示 context として受け取り、正規化済み `MathValue` を `.fmr` へ変換する |
 | `lib/fmrlegacy3d.egi` | まだ `.fme` 化していない手書き `.egi` 例のための 3D 互換文脈。`.fme` 由来の生成物では使わない |
 | `examples/diffusion1d/` | 1D 拡散方程式。`def Δ u = ∂^2_x u` と書き、check driver が質量保存とピーク減衰を検査 |

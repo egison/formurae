@@ -3,9 +3,9 @@ axes :: theta,phi,z
 
 double :: dt = 0.0001
 
-extern function :: exp
-extern function :: cos
 extern function :: sin
+extern function :: cos
+extern function :: exp
 extern function :: sqrt
 
 begin function (u,ca,cb,cc,sg) = init()

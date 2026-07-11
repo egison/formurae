@@ -49,7 +49,6 @@ def fmxx := function (x, y, z)
 def fmxy := function (x, y, z)
 def fmyy := function (x, y, z)
 
-
 def feParams := [("g", "1.0"), ("lambda", "0.05"), ("dt", "0.05")]
 def feHelpers :=
   [ "extern function :: exp"

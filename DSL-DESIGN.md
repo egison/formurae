@@ -124,8 +124,8 @@ v1.17 で生成 `.egi` 側の座標文脈つき定義へ移した。
 **v1.16(2026-07-09): 生成 `.egi` への座標文脈定義** —
 `use` または計量宣言を持つモデルの生成 `.egi` に
 `feDim`・`feAxes`・`feCoords`・`feHsteps` を出すようにした。
-`embedding` から計量を導出する `feGd`/`feGo` は `[x, y, z]` の直書きではなく
-`feCoords_a` を参照し、計量係数場の半セル評価も `feCoords_a`/`feHsteps_a`
+`embedding` から計量を導出する `feG a b` は `[x, y, z]` の直書きではなく
+`feCoords_a`/`feCoords_b` を参照し、計量係数場の半セル評価も `feCoords_a`/`feHsteps_a`
 を使う。これはまだ `lib/fmrgen.egi` の `coords`/`hsteps` 本体置換ではないが、
 座標文脈つきライブラリ生成へ進むための足場になる。生成 `.fmr` は全 `.fme` 例で
 バイト一致。
@@ -143,7 +143,7 @@ v1.17 で生成 `.egi` 側の座標文脈つき定義へ移した。
 固定の `lib/fmrgen.egi` から座標依存の数学演算子と `.fmr` プリンタを外し、
 `.fme` から生成される `.egi` が毎回 `feDim`/`feAxes`/`feCoords`/`feHsteps`、
 ステンシル・Yee/DEC 演算子、`showFmr`/`fmrEq`/`emitModelOn` まで含むようにした。
-`lib/fmrgen.egi` は `taylorStencil`・quote cleanup・形式補助などの座標非依存 core に縮小。
+`lib/fmrgen.egi` は `taylorStencil`・形式補助などの座標非依存 core に縮小。
 まだ `.fme` 化していない手書き `.egi` 例だけは `lib/fmrlegacy3d.egi` の 3D 互換文脈を読む。
 全 `.fme` 例と手書き `.egi` 例で生成 `.fmr` はバイト一致。
 
@@ -426,7 +426,7 @@ step:
   標準座標演算子を同じ TensorExpr lowering に通し、自由添字・縮約・配置を
   storage 成分へ特殊化する。`lib/formurae-tensor.egi` は、特殊化後にも残る
   `sym`/`wedge` などへ Egison Tensor primitive の bridge を提供する。
-  `lib/fmrgen.egi` は `taylorStencil` や quote cleanup などの座標非依存 core、
+  `lib/fmrgen.egi` は `taylorStencil` や形式補助などの座標非依存 core、
   `lib/formurae-runtime.egi` は明示 context を受け取る共有 `.fmr` プリンタである。
   生成 `.egi` にはモデル固有の場・残余式と、実際に参照される座標文脈だけを出す。
   生成 `.fmr` のバイト一致テストを意味のアンカーとして維持する。
@@ -471,13 +471,13 @@ step:
    `x,y,z` に正規化し、生成 Formura/C へ出すときに宣言名へ戻す。embedding では
    CAS が g_ab = ∂X/∂xₐ·∂X/∂x_b を計算(sin²+cos²=1 は自動簡約)、
    **直交性 g_ab=0 (a≠b) を記号検査してゲート**、h_a = √g_aa。quote
-   (`` `(2+cos θ) ``)で因子を原子に保つと √ が閉じ、`expandAll` で
-   quote を外してから半セル substitute(substitute は quote 非対応と判明;
-   printer には quote ケースを追加)。宣言から hodge 因子 √g/hᵢ² の係数場
+   (`` `(2+cos θ) ``)で因子を原子に保つと √ が閉じる。現在の Egison は
+   quote 内部を保ったまま半セル substitute でき、printer もquoteを直接扱うため、
+   展開・quote除去の中間処理は不要。宣言から hodge 因子 √g/hᵢ² の係数場
    (1D: ca/sg、2D: ca/cb/sg、3D: ca/cb/cc/sg)生成・半セル CAS 評価・保存流束・`lb`(Laplace–Beltrami)
-   まで自動。トーラスを R⁴ 埋め込みから生成すると **hand-written スケール
-   因子版と .fmr が extern sqrt 1行差で一致**。√ が閉じない埋め込みでも
-   extern sqrt 経由で init が数値評価するので動く。球座標 hs=[1,r,r sinθ] は
+   まで自動。embedding 内のスカラー関数と、√ が閉じない場合に必要な `sqrt` は
+   安全側にexternとして自動収集するため、CASで消える関数も宣言に残ることがある。
+   閉じない√もextern経由でinitが数値評価するので動く。球座標 hs=[1,r,r sinθ] は
    r=0・θ=0,π の座標特異点があるため、次例は円筒環状領域
    (embedding [r cos phi, r sin phi, zz]、r 壁は fork の boundary)推奨。
    残り = indexed family(`field f : family 19`)で LBM、ε_ijk とスカラー対象の

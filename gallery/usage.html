@@ -189,7 +189,7 @@ make diffusion3d
 <tr><td>Formura/extern 組み込み</td><td><code>sin</code>, <code>cos</code>, <code>exp</code>, <code>sqrt</code>, <code>fabs</code> など</td><td>スカラー関数。テンソル成分に適用されると成分ごとへ lift され、不足する <code>extern function :: ...</code> は <code>fec</code> が自動で出す</td></tr>
 <tr><td>生成 .egi の残余文脈</td><td><code>∂</code>/<code>dTaylor</code>, <code>dYee</code>, <code>dForm</code>/<code>codiff</code>, metric family</td><td>最終残余式が参照する依存閉包だけを生成する。DEC form context は <code>mode dec</code> が選ぶ</td></tr>
 <tr><td><code>lib/formurae-runtime.egi</code></td><td><code>FMR.show</code>, <code>FMR.eq</code>, <code>FMR.init</code>, <code>FMR.emitModelOn</code></td><td>座標・格子幅・名前変換表を明示 context として受け取る共有 Formura プリンタ</td></tr>
-<tr><td>生成先 Egison ライブラリ</td><td><code>taylorStencil</code>, <code>unquoteAll</code>, <code>formComps</code>, <code>scaleForm</code></td><td>座標非依存の小さな core として <code>lib/fmrgen.egi</code> に残る</td></tr>
+<tr><td>生成先 Egison ライブラリ</td><td><code>taylorStencil</code>, <code>formComps</code>, <code>scaleForm</code></td><td>座標非依存の小さな core として <code>lib/fmrgen.egi</code> に残る</td></tr>
 </table>
 
 <h3>ユーザ定義演算子</h3>

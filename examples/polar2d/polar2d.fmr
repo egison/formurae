@@ -3,17 +3,18 @@ axes :: r,phi,z
 
 double :: dt = 0.0001
 
-extern function :: exp
+extern function :: sin
 extern function :: cos
+extern function :: exp
 extern function :: sqrt
 
 begin function (u,ca,cb,cc,sg) = init()
   double [] :: u, ca, cb, cc, sg
   u[i,j,k] = exp((-4)*(i*dr)**2 + 4*(i*dr) + cos((j*dphi)) + (-2))
-  ca[i,j,k] = (i*dr) + dr/(2) + 1
-  cb[i,j,k] = (1)/((i*dr) + 1)
-  cc[i,j,k] = (i*dr) + 1
-  sg[i,j,k] = (i*dr) + 1
+  ca[i,j,k] = ((i*dr) + dr/(2) + 1)
+  cb[i,j,k] = 1/(((i*dr) + 1))
+  cc[i,j,k] = ((i*dr) + 1)
+  sg[i,j,k] = ((i*dr) + 1)
 end function
 
 begin function (u',ca',cb',cc',sg') = step(u,ca,cb,cc,sg)

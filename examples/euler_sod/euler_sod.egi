@@ -49,7 +49,6 @@ def pr := function (x, y, z)
 def fm := function (x, y, z)
 def fe := function (x, y, z)
 
-
 def feParams := [("lambda", "0.028"), ("dt", "0.01")]
 def feHelpers :=
   [ "extern function :: tanh"

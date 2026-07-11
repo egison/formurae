@@ -46,7 +46,6 @@ def phi := function (x, y, z)
 def w := function (x, y, z)
 def w' := function (x, y, z)
 
-
 def feParams := [("dt", "0.05")]
 def feHelpers :=
   [ "extern function :: tanh"

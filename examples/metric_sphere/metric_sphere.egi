@@ -12,27 +12,6 @@ def feAxes : [String] := ["theta", "phi", "z"]
 def feAxisIds : [Integer] := [1, 2, 3]
 def feCoords : Vector MathValue := [| x, y, z |]
 def feHsteps : Vector MathValue := [| hx, hy, hz |]
-def shift (a: Integer) (c: MathValue) (u: MathValue) : MathValue :=
-  substitute [(feCoords_a, feCoords_a + c * feHsteps_a)] u
-def dC (a: Integer) (u: MathValue) : MathValue :=
-  (shift a 1 u - shift a (-1) u) / (2 * feHsteps_a)
-def dC2 (a: Integer) (u: MathValue) : MathValue :=
-  (shift a 1 u - 2 * u + shift a (-1) u) / ((feHsteps_a) ^ 2)
-def dTaylor (m: Integer) (ks: [MathValue]) (a: Integer) (u: MathValue) : MathValue :=
-  sum (map (\(c, k) -> c * shift a k u) (zip (taylorStencil m ks) ks)) / (feHsteps_a ^ m)
-def axisId (axis: MathValue) : Integer :=
-  match axis as mathValue with
-    | symbol $v _ ->
-        match v as string with
-          | #"x" -> 1
-          | #"y" -> 2
-          | #"z" -> 3
-          | _ -> 0
-def ∂ (m: Integer) (r: Integer) (axis: MathValue) (u: MathValue) : MathValue :=
-  let a := axisId axis
-   in if m = 1 && r = 1 then dC a u
-      else if m = 2 && r = 1 then dC2 a u
-      else dTaylor m (between (0 - r) r) a u
 def yeeRef (sT: [MathValue]) (fld: (MathValue, [MathValue])) (disp: [MathValue]) : MathValue :=
   let (fF, sF) := fld
    in substitute
@@ -53,11 +32,9 @@ def scalarEq : String -> MathValue -> [String] := FMR.scalarEq fePrinterContext
 
 def u := function (x, y, z)
 def feX : [MathValue] := [sin (1 + x) * cos y, sin (1 + x) * sin y, cos (1 + x), z]
-def feGd (a: Integer) : MathValue := sum (map (\e -> (∂/∂ e feCoords_a) ^ 2) feX)
-def feGo (a: Integer) (b: Integer) : MathValue := sum (map (\e -> ∂/∂ e feCoords_a * ∂/∂ e feCoords_b) feX)
-def feH1 := unquoteAll (expandAll (sqrt (feGd 1)))
-def feH2 := unquoteAll (expandAll (sqrt (feGd 2)))
-def feH3 := unquoteAll (expandAll (sqrt (feGd 3)))
+def feG (a: Integer) (b: Integer) : MathValue := sum (map (\e -> ∂/∂ e feCoords_a * ∂/∂ e feCoords_b) feX)
+def feH (a: Integer) : MathValue := sqrt (feG a a)
+def feSqrtG : MathValue := product (map feH feAxisIds)
 def ca := function (x, y, z)
 def cb := function (x, y, z)
 def cc := function (x, y, z)
@@ -66,23 +43,22 @@ def f1 := function (x, y, z)
 def f2 := function (x, y, z)
 def f3 := function (x, y, z)
 
-
 def feParams := [("dt", "0.0001")]
 def feHelpers :=
-  [ "extern function :: exp"
+  [ "extern function :: sin"
   , "extern function :: cos"
-  , "extern function :: sin"
+  , "extern function :: exp"
   , "extern function :: sqrt"
   ]
 def feComps : [String] := ["u", "ca", "cb", "cc", "sg"]
 def feInits :=
   [ fmrInit "u" (exp (0 - (4 * ((x - (1 / 2)) ^ 2))) * exp (cos y - 1))
-  , fmrInit "ca" (substitute [(feCoords_1, feCoords_1 + feHsteps_1 / 2)] ((feH1) * (feH2) * (feH3) / ((feH1) ^ 2)))
-  , fmrInit "cb" (substitute [(feCoords_2, feCoords_2 + feHsteps_2 / 2)] ((feH1) * (feH2) * (feH3) / ((feH2) ^ 2)))
-  , fmrInit "cc" (substitute [(feCoords_3, feCoords_3 + feHsteps_3 / 2)] ((feH1) * (feH2) * (feH3) / ((feH3) ^ 2)))
-  , fmrInit "sg" ((feH1) * (feH2) * (feH3))
+  , fmrInit "ca" (substitute [(feCoords_1, feCoords_1 + feHsteps_1 / 2)] (feSqrtG / ((feH 1) ^ 2)))
+  , fmrInit "cb" (substitute [(feCoords_2, feCoords_2 + feHsteps_2 / 2)] (feSqrtG / ((feH 2) ^ 2)))
+  , fmrInit "cc" (substitute [(feCoords_3, feCoords_3 + feHsteps_3 / 2)] (feSqrtG / ((feH 3) ^ 2)))
+  , fmrInit "sg" feSqrtG
   ]
 def feSteps := [fmrEq "f1" (ca * dYee 1 [1 / 2, 0, 0] (u, [0, 0, 0]))] ++ [fmrEq "f2" (cb * dYee 2 [0, 1 / 2, 0] (u, [0, 0, 0]))] ++ [fmrEq "f3" (cc * dYee 3 [0, 0, 1 / 2] (u, [0, 0, 0]))] ++ scalarEq "u" (u + (dt * ((dYee 1 [0, 0, 0] (f1, [1 / 2, 0, 0]) + dYee 2 [0, 0, 0] (f2, [0, 1 / 2, 0]) + dYee 3 [0, 0, 0] (f3, [0, 0, 1 / 2])) / sg))) ++ scalarEq "ca" (ca) ++ scalarEq "cb" (cb) ++ scalarEq "cc" (cc) ++ scalarEq "sg" (sg)
 
 def main (args: [String]) : IO () :=
-  if feGo 1 2 = 0 && feGo 1 3 = 0 && feGo 2 3 = 0 then (print (FMR.emitModelOn feDim feAxes feParams feHelpers feComps feInits feSteps)) else print "# ERROR: the embedding is not orthogonal (off-diagonal metric terms must vanish symbolically); general metrics are not supported yet"
+  if feG 1 2 = 0 && feG 1 3 = 0 && feG 2 3 = 0 then (print (FMR.emitModelOn feDim feAxes feParams feHelpers feComps feInits feSteps)) else print "# ERROR: the embedding is not orthogonal (off-diagonal metric terms must vanish symbolically); general metrics are not supported yet"

@@ -43,8 +43,8 @@ Date: 2026-07-09
   計量つき `Δ` は保存流束に必要な Yee プリミティブを生成する。
   生成 `.fmr` は全 `.fme` 例でバイト一致。
 - 2026-07-09: `showFmr`、`fmrEq`、`fmrInit`、`emitModelOn` などの出力層も
-  生成 `.egi` 側へ移した。`lib/fmrgen.egi` は `taylorStencil`、quote cleanup、
-  形式補助だけの座標非依存 core になった。手書き `.egi` 例は移行まで
+  生成 `.egi` 側へ移した。`lib/fmrgen.egi` は `taylorStencil` と形式補助だけの
+  座標非依存 core になった。手書き `.egi` 例は移行まで
   `lib/fmrlegacy3d.egi` の 3D 互換文脈を読む。
 
 このメモは、Formurae の数学演算子ライブラリを
@@ -190,7 +190,7 @@ fec: error: curl requires dimension 3
 ```text
 1. 座標非依存の基盤
    lib/fmrgen.egi:
-   taylorStencil, gaussSolve, unquoteAll, formComps, scaleForm など
+   taylorStencil, gaussSolve, formComps, scaleForm など
 
 2. モデルごとに生成する残余文脈と式
    生成 .egi:

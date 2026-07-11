@@ -31,6 +31,8 @@ def componentEqs : [String] -> [MathValue] -> [String] := FMR.componentEqs fePri
 def scalarEq : String -> MathValue -> [String] := FMR.scalarEq fePrinterContext
 
 def u := function (x, y, z)
+def feH (a: Integer) : MathValue := nth a [1 / (1 + y), 1 / (1 + y), 1]
+def feSqrtG : MathValue := product (map feH feAxisIds)
 def ca := function (x, y, z)
 def cb := function (x, y, z)
 def cc := function (x, y, z)
@@ -39,19 +41,18 @@ def f1 := function (x, y, z)
 def f2 := function (x, y, z)
 def f3 := function (x, y, z)
 
-
 def feParams := [("dt", "0.00002")]
 def feHelpers :=
-  [ "extern function :: exp"
-  , "extern function :: cos"
+  [ "extern function :: cos"
+  , "extern function :: exp"
   ]
 def feComps : [String] := ["u", "ca", "cb", "cc", "sg"]
 def feInits :=
   [ fmrInit "u" (exp (cos x - 1) * exp (0 - (4 * ((y - (1 / 2)) ^ 2))))
-  , fmrInit "ca" (substitute [(feCoords_1, feCoords_1 + feHsteps_1 / 2)] ((1 / (1 + y)) * (1 / (1 + y)) * (1) / ((1 / (1 + y)) ^ 2)))
-  , fmrInit "cb" (substitute [(feCoords_2, feCoords_2 + feHsteps_2 / 2)] ((1 / (1 + y)) * (1 / (1 + y)) * (1) / ((1 / (1 + y)) ^ 2)))
-  , fmrInit "cc" (substitute [(feCoords_3, feCoords_3 + feHsteps_3 / 2)] ((1 / (1 + y)) * (1 / (1 + y)) * (1) / ((1) ^ 2)))
-  , fmrInit "sg" ((1 / (1 + y)) * (1 / (1 + y)) * (1))
+  , fmrInit "ca" (substitute [(feCoords_1, feCoords_1 + feHsteps_1 / 2)] (feSqrtG / ((feH 1) ^ 2)))
+  , fmrInit "cb" (substitute [(feCoords_2, feCoords_2 + feHsteps_2 / 2)] (feSqrtG / ((feH 2) ^ 2)))
+  , fmrInit "cc" (substitute [(feCoords_3, feCoords_3 + feHsteps_3 / 2)] (feSqrtG / ((feH 3) ^ 2)))
+  , fmrInit "sg" feSqrtG
   ]
 def feSteps := [fmrEq "f1" (ca * dYee 1 [1 / 2, 0, 0] (u, [0, 0, 0]))] ++ [fmrEq "f2" (cb * dYee 2 [0, 1 / 2, 0] (u, [0, 0, 0]))] ++ [fmrEq "f3" (cc * dYee 3 [0, 0, 1 / 2] (u, [0, 0, 0]))] ++ scalarEq "u" (u + (dt * ((dYee 1 [0, 0, 0] (f1, [1 / 2, 0, 0]) + dYee 2 [0, 0, 0] (f2, [0, 1 / 2, 0]) + dYee 3 [0, 0, 0] (f3, [0, 0, 1 / 2])) / sg))) ++ scalarEq "ca" (ca) ++ scalarEq "cb" (cb) ++ scalarEq "cc" (cc) ++ scalarEq "sg" (sg)
 

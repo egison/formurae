@@ -45,7 +45,6 @@ def scalarEq : String -> MathValue -> [String] := FMR.scalarEq fePrinterContext
 def c := function (x, y, z)
 def mu := function (x, y, z)
 
-
 def feParams := [("kap", "2.0"), ("mob", "1.0"), ("dt", "0.004")]
 def feHelpers :=
   [ "extern function :: sin"

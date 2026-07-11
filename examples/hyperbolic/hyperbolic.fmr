@@ -3,8 +3,8 @@ axes :: x,y,z
 
 double :: dt = 0.00002
 
-extern function :: exp
 extern function :: cos
+extern function :: exp
 
 begin function (u,ca,cb,cc,sg) = init()
   double [] :: u, ca, cb, cc, sg

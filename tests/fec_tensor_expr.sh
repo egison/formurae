@@ -2,9 +2,26 @@
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+EGISON_DIR=${EGISON_DIR:-"$ROOT/../egison"}
 
 compile_fme() {
   (cd "$ROOT" && cabal run -v0 fec -- "$1")
+}
+
+typecheck_generated() {
+  printf '%s\n' "$1" |
+    (cd "$EGISON_DIR" && cabal run -v0 egison -- -t \
+      -l "$ROOT/lib/formurae-tensor.egi" \
+      -l "$ROOT/lib/fmrgen.egi" \
+      -l "$ROOT/lib/formurae-runtime.egi" /dev/stdin)
+}
+
+run_generated() {
+  printf '%s\n' "$1" |
+    (cd "$EGISON_DIR" && cabal run -v0 egison -- \
+      -l "$ROOT/lib/formurae-tensor.egi" \
+      -l "$ROOT/lib/fmrgen.egi" \
+      -l "$ROOT/lib/formurae-runtime.egi" /dev/stdin)
 }
 
 tmp_fme() {
@@ -106,6 +123,138 @@ assert_contains "$out" 'def FormuraeInternalMetricContra := generateTensor' 'non
 assert_not_contains "$out" 'def FormuraeInternalMetricCov :=' 'unused covariant metric is not emitted'
 assert_not_contains "$out" 'def FormuraeInternalMetricMixedUpDown :=' 'unused mixed metric is not emitted'
 assert_not_contains "$out" 'def FormuraeInternalMetricMixedDownUp :=' 'unused reverse mixed metric is not emitted'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'metric g' \
+  'metric scale [1, 2]' \
+  'field u : scalar' \
+  'step:' \
+  "  u' = u"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_not_contains "$out" 'def feH ' 'unused direct metric scale helper is omitted'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes r,phi' \
+  'def Δ u = lb u' \
+  'embedding [ `(1 + r) * cos phi, `(1 + r) * sin phi ]' \
+  'field u : scalar' \
+  'step:' \
+  "  u' = Δ u"
+out=$(compile_fme "$f")
+rm -f "$f"
+typecheck_generated "$out"
+assert_contains "$out" 'def feG (a: Integer) (b: Integer) : MathValue :=' 'embedding metric helper is unified'
+assert_contains "$out" 'def feH (a: Integer) : MathValue := sqrt (feG a a)' 'embedding scale helper is unified'
+assert_contains "$out" 'def feSqrtG : MathValue := product (map feH feAxisIds)' 'embedding volume factor is shared'
+assert_contains "$out" 'feG 1 2 = 0' 'embedding orthogonality gate uses unified metric'
+assert_contains "$out" 'extern function :: sin' 'embedding intrinsic sin is detected'
+assert_contains "$out" 'extern function :: cos' 'embedding intrinsic cos is detected'
+assert_contains "$out" 'extern function :: sqrt' 'derived embedding sqrt is declared'
+assert_not_contains "$out" 'feGd' 'old diagonal metric helper is absent'
+assert_not_contains "$out" 'feGo' 'old off-diagonal metric helper is absent'
+assert_not_contains "$out" 'unquoteAll' 'quote cleanup workaround is absent'
+assert_not_contains "$out" 'expandAll' 'eager metric expansion is absent'
+assert_not_contains "$out" 'def shift ' 'embedding derivatives do not pull in finite-difference helpers'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 1' \
+  'axes x' \
+  'def Δ u = lb u' \
+  'embedding [sin x]' \
+  'field u : scalar' \
+  'init:' \
+  '  u := 0' \
+  'step:' \
+  "  u' = Δ u"
+out=$(compile_fme "$f")
+rm -f "$f"
+typecheck_generated "$out"
+fmr=$(run_generated "$out")
+assert_contains "$out" 'extern function :: cos' 'embedding derivative dependency is declared'
+assert_contains "$fmr" 'extern function :: cos' 'derived embedding function reaches Formura helpers'
+assert_contains "$fmr" 'cos(' 'derived embedding function reaches Formura expressions'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'embedding [sin x, y]' \
+  'field u : scalar' \
+  'step:' \
+  "  u' = u"
+out=$(compile_fme "$f")
+rm -f "$f"
+typecheck_generated "$out"
+assert_contains "$out" 'def feG (a: Integer) (b: Integer) : MathValue :=' 'embedding metric remains available without lb'
+assert_contains "$out" 'extern function :: sin' 'embedding-only intrinsic is detected'
+assert_contains "$out" 'def feInits := []' 'empty initializer list is valid Egison'
+assert_not_contains "$out" 'def feH ' 'unused embedding scale helper is omitted'
+assert_not_contains "$out" 'extern function :: sqrt' 'unused derived sqrt helper is omitted'
+assert_not_contains "$out" 'def shift ' 'embedding-only model omits finite-difference helpers'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'metric g' \
+  'embedding [2 * x, 3 * y]' \
+  'field A_j' \
+  'field B~i' \
+  'step:' \
+  "  B'~i = g~i~j . A_j"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" 'def FormuraeInternalMetricContra := generateTensor (\[i, j] -> if i = j then 1 / (feG i i) else 0)' 'embedding contravariant metric uses unified metric helper'
+assert_not_contains "$out" 'def feH ' 'indexed embedding metric does not need scale factors'
+assert_not_contains "$out" 'extern function :: sqrt' 'indexed embedding metric does not need sqrt'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 1' \
+  'axes x' \
+  'field u : scalar' \
+  'init:' \
+  '  u = 0.0'
+out=$(compile_fme "$f")
+rm -f "$f"
+typecheck_generated "$out"
+assert_contains "$out" 'def feSteps := []' 'empty step list is valid Egison'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'def Δ q = lb q' \
+  'metric scale [1, 1]' \
+  'field u : scalar' \
+  'field v : scalar' \
+  'step:' \
+  "  u' = Δ u" \
+  "  v' = Δ v"
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+rm -f "$f"
+if [ "$status" -eq 0 ]; then
+  printf 'multiple lb targets unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_contains "$out" 'lb currently supports one scalar field per model; found: u, v' 'multiple lb target rejection'
 
 f=$(tmp_fme)
 write_case "$f" \
