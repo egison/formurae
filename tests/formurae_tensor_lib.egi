@@ -17,6 +17,27 @@ def testTensorDerivative
   + 10 * sum sourceBasis
   + value
 
+assertEqual "scalar tensor has rank zero and preserves its value"
+  (tensorSignature (FE.scalarTensor 7), tensorToList (FE.scalarTensor 7))
+  (([], []), [7])
+
+assertEqual "runtime partial chain passes grad target and derivative axes"
+  (FE.partialChainTensor
+    testTensorDerivative [2] [4, 7] 1 (FE.scalarTensor 1))
+  [|2401, 2701|]
+
+assertEqual "runtime partial chain passes divergence source bases"
+  (withSymbols [i]
+    contractWith (+)
+      ((FE.partialChainTensor
+          testTensorDerivative [] [1, 2] 1 [|3, 4|])_i~i))
+  337
+
+assertEqual "runtime partial chain keeps a complete hessian axis chain"
+  (FE.partialChainTensor
+    testTensorDerivative [1, 2] [1, 2] 2 (FE.scalarTensor 3))
+  [|[|3203, 3303|], [|3303, 3403|]|]
+
 def testGradOperator := FE.grad testTensorDerivative [1, 2]
 
 assertEqual "native operator supports a user-style binding"

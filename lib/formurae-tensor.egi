@@ -103,6 +103,39 @@ def FE.tensorComponentAt {a}
         then nth (FE.flatTensorIndex shape indices) (tensorToList t)
         else head (tensorToList t)
 
+-- Lift a scalar into the rank-0 tensor representation used by the generic
+-- indexed-expression evaluator.
+def FE.scalarTensor {a} (value: a) : Tensor a :=
+  generateTensor (\[] -> value) []
+
+-- Materialize an indexed partial-derivative chain without enumerating tensor
+-- components in the frontend.  The leading dimensions select derivative
+-- axes; the remaining dimensions select a component of the source tensor.
+-- `targetBasis` is the concrete component currently requested by the final
+-- equation tensor and therefore fixes its staggered-grid placement.
+def FE.partialChainTensor
+      (derivative:
+         [Integer] -> [Integer] -> [Integer] -> MathValue -> MathValue)
+      (targetBasis: [Integer]) (axisIds: [Integer])
+      (derivativeOrder: Integer) (source: Tensor MathValue)
+      : Tensor MathValue :=
+  let outputShape :=
+        map (\_ -> length axisIds) (between 1 derivativeOrder)
+        ++ tensorShape source
+   in if assert "partial derivative chain needs a positive derivative order"
+                (0 < derivativeOrder)
+        then generateTensor
+               (\indices ->
+                  let derivativePositions := take derivativeOrder indices
+                   in let sourceBasis := drop derivativeOrder indices
+                   in derivative targetBasis
+                        (map (\position -> nth position axisIds)
+                             derivativePositions)
+                        sourceBasis
+                        (FE.tensorComponentAt source sourceBasis))
+               outputShape
+        else source
+
 def FE.chooseAxes (degree: Integer) (axes: [Integer]) : [[Integer]] :=
   if degree = 0
     then [[]]

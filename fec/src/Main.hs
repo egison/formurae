@@ -113,6 +113,7 @@ import System.IO (hPutStrLn, stderr)
 import Formurae.BackendPlan
 import Formurae.Common
 import Formurae.Index
+import Formurae.RuntimeTensor
 import Formurae.Syntax
 import Formurae.TensorExpr
   ( TensorExpr
@@ -1558,6 +1559,14 @@ validateNativeResult m targetPolicy targetKind source value = do
              ++ gridPolicySurfaceName policy ++ " in: " ++ source)
     _ -> return ()
 
+checkedNativeTensor :: Model -> String -> [IxPart] -> String -> String
+checkedNativeTensor m target indices source =
+  renderCheckedRuntimeTensor m target indices RuntimeTensorExpr
+    { runtimeTensorText = "(" ++ source ++ ")" ++ concatMap ixSuffix indices
+    , runtimeTensorSymbols = nub
+        [ixName index | index <- indices, not (all isDigit (ixName index))]
+    }
+
 
 -- ------------------------------------ tensor index equations
 --
@@ -1574,14 +1583,41 @@ indexDefs m lets st = do
         then validateSharpTarget
         else return ()
       validateNativeResult m (fieldPolicyOf m (sNm st)) kind ex value
-      return ["def " ++ base ++ " := " ++ nativeText value]
+      return ["def " ++ base ++ " := "
+              ++ checkedNativeTensor m (sNm st) (sIdx st) (nativeText value)]
     _ -> do
       signature <- nativeSignatureExpression (sNm st) (sIdx st) ex
       legacy <- nativeLegacyExpression m signature
       strictEinstein m lets (sIdx st) legacy
-      legacyDefs legacy
+      runtimeDefsOrLegacy legacy
   where
     base = "feq" ++ sNm st
+    runtimeDefsOrLegacy source =
+      case parseTensorExprEither source of
+        Left _ -> legacyDefs source
+        Right expression -> do
+          rendered <- renderRuntimeTensorExpr
+            m lets (fieldPolicyOf m (sNm st)) (sIdx st)
+            "feTargetBasis" expression
+          case rendered of
+            Left _ -> legacyDefs source
+            Right runtime -> do
+              -- Keep the old component path temporarily as a checked oracle;
+              -- only the compact runtime tensor expression is emitted.
+              _ <- legacyDefs source
+              let checked = renderCheckedRuntimeTensor m (sNm st) (sIdx st) runtime
+                  atName = base ++ "At"
+                  shape = replicate (length (sIdx st)) (mDim m)
+              return
+                [ "def " ++ atName
+                  ++ " (feTargetBasis: [Integer]) : Tensor MathValue := "
+                  ++ checked
+                , "def " ++ base
+                  ++ " := generateTensor (\\feTargetBasis -> "
+                  ++ "FE.tensorComponentAt (" ++ atName
+                  ++ " feTargetBasis) feTargetBasis) " ++ show shape
+                ]
+
     legacyDefs ex =
       case (kindOf m (sNm st), sIdx st) of
         (Just Vector, [fi]) -> do
@@ -1648,7 +1684,8 @@ implicitVectorDefs m lets st = do
         then validateSharpTarget
         else return ()
       validateNativeResult m (fieldPolicyOf m (sNm st)) Vector ex value
-      return ["def feq" ++ sNm st ++ " := " ++ nativeText value]
+      return ["def feq" ++ sNm st ++ " := "
+              ++ checkedNativeTensor m (sNm st) [lhsIx] (nativeText value)]
     Nothing -> do
       signature <- nativeSignatureExpression (sNm st) [lhsIx] ex
       legacy <- nativeLegacyExpression m signature
@@ -2504,7 +2541,8 @@ emit m = do
                      then fatal "sharp in an indexed let needs an explicitly contravariant field target"
                      else return ()
                    validateNativeResult m Collocated Vector lowered value
-                   return ["def " ++ nm ++ " := " ++ nativeText value]
+                   return ["def " ++ nm ++ " := "
+                           ++ checkedNativeTensor m nm (sIdx st) (nativeText value)]
                  Nothing -> do
                    signature <- nativeSignatureExpression (sNm st) (sIdx st) lowered
                    legacy <- nativeLegacyExpression m signature

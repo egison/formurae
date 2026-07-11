@@ -50,7 +50,8 @@ def scalarEq : String -> MathValue -> [String] := FMR.scalarEq fePrinterContext
 def V := generateTensor (\[i] -> function (x, y)) [2]
 def q := function (x, y)
 
-def feqV := [| V_1, V_2 |]
+def feqVAt (feTargetBasis: [Integer]) : Tensor MathValue := withSymbols [i] (FE.checkedTensorSignature "tensor signature mismatch for V" [2] ["down"] (V_i))
+def feqV := generateTensor (\feTargetBasis -> FE.tensorComponentAt (feqVAt feTargetBasis) feTargetBasis) [2]
 
 def feParams := [("dt", "1.0")]
 def feHelpers :=

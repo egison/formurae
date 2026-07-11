@@ -675,7 +675,11 @@ write_case "$f" \
   "  C'~i_j = A~i_k . B~k_j"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'A_1_1 * B_1_1 + A_1_2 * B_2_1' 'prelude dot'
+assert_contains "$out" 'def feqCAt (feTargetBasis: [Integer])' 'prelude dot uses one runtime tensor evaluator'
+assert_contains "$out" 'A~i_k' 'prelude dot keeps the left tensor indexed'
+assert_contains "$out" 'B~k_j' 'prelude dot keeps the right tensor indexed'
+assert_not_contains "$out" 'def feqC11 :=' 'prelude dot is not component-expanded by fec'
+typecheck_generated "$out"
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -690,7 +694,9 @@ write_case "$f" \
   "  C'~i_j = A~i_j . B~i_j"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'A_1_1 + B_1_1' 'user-defined dot shadowing'
+assert_contains "$out" 'A~i_j + B~i_j' 'user-defined dot shadowing remains tensor-valued'
+assert_not_contains "$out" 'def feqC11 :=' 'user-defined dot has no component helpers'
+typecheck_generated "$out"
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -719,7 +725,10 @@ write_case "$f" \
   "  q'_j = grad u"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'def feqq := [| ∂ 1 1 x u, ∂ 1 1 y u |]' 'withSymbols alpha-renaming in tensor RHS'
+assert_contains "$out" 'FE.partialChainTensor (feTensorDerivative Collocated Collocated)' 'withSymbols derivative is evaluated as a tensor in Egison'
+assert_contains "$out" ')_j' 'withSymbols local free index is alpha-renamed to the LHS index'
+assert_not_contains "$out" 'def feqq1 :=' 'withSymbols derivative has no component helpers'
+typecheck_generated "$out"
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -733,8 +742,11 @@ write_case "$f" \
   "  q'_i = shaped A_i"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'exp(0 - (A_1 ^ 2)) + sin(A_1)' 'scalar call and power AST'
-assert_contains "$out" 'exp(0 - (A_2 ^ 2)) + sin(A_2)' 'scalar call and power AST component 2'
+assert_contains "$out" 'exp(' 'scalar call remains in the runtime tensor expression'
+assert_contains "$out" 'sin(' 'second scalar call remains in the runtime tensor expression'
+assert_contains "$out" 'A_i' 'scalar calls consume the indexed tensor operand'
+assert_not_contains "$out" 'def feqq1 :=' 'componentwise scalar calls have no component helpers'
+typecheck_generated "$out"
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -748,8 +760,9 @@ write_case "$f" \
   "  q'_i = mapExp A"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'exp A_1' 'explicit tensorMap component 1'
-assert_contains "$out" 'exp A_2' 'explicit tensorMap component 2'
+assert_contains "$out" 'tensorMap (exp) (A_i)' 'explicit tensorMap materializes the indexed operand in Egison'
+assert_not_contains "$out" 'def feqq1 :=' 'tensorMap has no component helpers'
+typecheck_generated "$out"
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -763,8 +776,24 @@ write_case "$f" \
   "  q'_i = copy A"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'A_1' 'subrefs component 1'
-assert_contains "$out" 'A_2' 'subrefs component 2'
+assert_contains "$out" 'subrefs (A) [i]' 'subrefs uses Egison dynamic tensor refs'
+assert_not_contains "$out" 'def feqq1 :=' 'subrefs has no component helpers'
+typecheck_generated "$out"
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field A~i_j' \
+  'field q~i_j' \
+  'def copy X = subrefs X [~i, _j]' \
+  'step:' \
+  "  q'~i_j = copy A"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" 'subrefs (suprefs (A) [i]) [j]' 'mixed dynamic refs preserve each requested variance'
+typecheck_generated "$out"
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -778,8 +807,48 @@ write_case "$f" \
   "  C'_i_j = transpose2 A"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'A_1_1' 'transpose diagonal component'
-assert_contains "$out" 'A_2_1' 'transpose off-diagonal component'
+assert_contains "$out" 'transpose [i, j] (A_j_i)' 'transpose is reordered into LHS index order before projection'
+assert_not_contains "$out" 'def feqC11 :=' 'transpose has no component helpers'
+typecheck_generated "$out"
+fmr=$(run_generated "$out")
+assert_contains "$fmr" "C_down1_down2' = A_down2_down1" 'transpose preserves off-diagonal component order'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field A_i_j' \
+  'field C_i_j' \
+  'field D_i_j' \
+  'step:' \
+  "  C'_i_j = if 1 > 2 then A_i_j else A_j_i" \
+  "  D'_i_j = if 2 > 1 then A_j_i else A_i_j"
+out=$(compile_fme "$f")
+rm -f "$f"
+typecheck_generated "$out"
+fmr=$(run_generated "$out")
+assert_contains "$out" 'transpose [i, j] (if' 'runtime result normalizes the selected conditional branch order'
+assert_contains "$fmr" "C_down1_down2' = A_down2_down1" 'false conditional branch preserves transposed component order'
+assert_contains "$fmr" "C_down2_down1' = A_down1_down2" 'false conditional branch preserves reverse component order'
+assert_contains "$fmr" "D_down1_down2' = A_down2_down1" 'true conditional branch preserves transposed component order'
+assert_contains "$fmr" "D_down2_down1' = A_down1_down2" 'true conditional branch preserves reverse component order'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field A[_i_j]' \
+  'field G_i_j' \
+  'step:' \
+  "  G'_i_j = A_j_i"
+out=$(compile_fme "$f")
+rm -f "$f"
+typecheck_generated "$out"
+fmr=$(run_generated "$out")
+assert_contains "$fmr" "G_down1_down2' = (-1)*A_down1_down2" 'antisymmetric transpose negates the upper component'
+assert_contains "$fmr" "G_down2_down1' = A_down1_down2" 'antisymmetric transpose restores the lower component sign'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -793,8 +862,11 @@ write_case "$f" \
   "  C'~i_j = A~i !. B_j"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'A_1 * B_1' 'disjoint product component 1'
-assert_contains "$out" 'A_2 * B_2' 'disjoint product component 2'
+assert_contains "$out" 'A~i' 'disjoint product keeps its contravariant operand indexed'
+assert_contains "$out" 'B_j' 'disjoint product keeps its covariant operand indexed'
+assert_contains "$out" ' !. ' 'disjoint product is evaluated by Egison'
+assert_not_contains "$out" 'def feqC11 :=' 'disjoint product has no component helpers'
+typecheck_generated "$out"
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -807,11 +879,13 @@ write_case "$f" \
   "  S'_i_j = sym A..._i_j"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'def feqS12 := (sym A)_1_2' 'Egison symmetrize bridge'
+assert_contains "$out" 'sym' 'Egison symmetrize bridge remains in the runtime tensor expression'
+assert_not_contains "$out" 'def feqS12 :=' 'symmetrize bridge has no component helpers'
 assert_contains "$out" 'def A := generateTensor' 'field tensor is generated as a bare binding'
 assert_not_contains "$out" 'def A_i_j := generateTensor' 'indexed field binding is not generated'
 assert_not_contains "$out" 'def A := A_#_#' 'bare field alias is unnecessary'
 assert_not_contains "$out" 'FormuraeInternalTensor' 'obsolete internal tensor aliases are not emitted'
+typecheck_generated "$out"
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -825,11 +899,13 @@ write_case "$f" \
   "  C'_i_j = wedge A B..._i_j"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'def feqC12 := (wedge A B)_1_2' 'Egison wedge bridge'
+assert_contains "$out" 'wedge' 'Egison wedge bridge remains in the runtime tensor expression'
+assert_not_contains "$out" 'def feqC12 :=' 'wedge bridge has no component helpers'
 assert_contains "$out" 'def A := generateTensor' 'wedge lhs is a bare field binding'
 assert_contains "$out" 'def B := generateTensor' 'wedge rhs is a bare field binding'
 assert_not_contains "$out" 'def A := A_#' 'wedge lhs needs no alias'
 assert_not_contains "$out" 'def B := B_#' 'wedge rhs needs no alias'
+typecheck_generated "$out"
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -847,7 +923,9 @@ rm -f "$f"
 assert_contains "$out" "def A' := generateTensor" 'primed tensor is generated as a bare binding'
 assert_not_contains "$out" "def A'_i := generateTensor" 'indexed primed binding is not generated'
 assert_not_contains "$out" "def A' := A'_#" 'primed tensor needs no alias'
-assert_contains "$out" "def feqC12 := (wedge A' B)_1_2" 'primed bare tensor reaches Egison bridge'
+assert_contains "$out" "wedge" 'primed bare tensor reaches Egison bridge'
+assert_not_contains "$out" 'def feqC12 :=' 'primed wedge has no component helpers'
+typecheck_generated "$out"
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -941,7 +1019,9 @@ assert_not_contains "$out" '∂ 1 1 y B_3 - ∂ 1 1 z B_2' 'native curl is not c
 assert_contains "$out" "def E' := generateTensor" 'primed component family uses a bare tensor binding'
 assert_not_contains "$out" "def E'_i := generateTensor" 'indexed primed binding is not generated'
 assert_not_contains "$out" "def E' := E'_#" 'primed tensor alias is unnecessary'
-assert_contains "$out" 'def feqE := FE.curl ' 'collocated vector update is one native tensor RHS'
+assert_contains "$out" 'def feqE := withSymbols' 'collocated vector update is one checked native tensor RHS'
+assert_contains "$out" 'FE.curl (feTensorDerivative Collocated Collocated) feAxisIds B' 'checked native tensor retains curl'
+assert_contains "$out" 'FE.checkedTensorSignature "tensor signature mismatch for E"' 'native curl signature is checked through tensorIndices'
 assert_not_contains "$out" 'def feqE1 :=' 'collocated vector update has no scalar helper definitions'
 assert_contains "$out" 'fieldEqs (nth 1 feFieldDescriptors) (Collocated, feqE)' 'descriptor equation printer receives the whole tensor RHS'
 assert_contains "$out" '("E", Collocated, [3], ["down"], "vector"' 'ordinary fields default to a collocated descriptor'
@@ -963,7 +1043,8 @@ write_case "$f" \
   "  q'_i = grad u"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'def feqq := FE.grad (feTensorDerivative Collocated Collocated) feAxisIds u' 'standard grad tensor RHS remains native'
+assert_contains "$out" 'FE.grad (feTensorDerivative Collocated Collocated) feAxisIds u' 'standard grad tensor RHS remains native'
+assert_contains "$out" 'FE.checkedTensorSignature "tensor signature mismatch for q"' 'standard grad uses runtime index metadata validation'
 assert_not_contains "$out" 'def grad ' 'standard grad is not emitted'
 
 f=$(tmp_fme)
@@ -977,7 +1058,8 @@ write_case "$f" \
   "  q'~i = grad u"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'def feqq := FE.grad (feTensorDerivative Collocated Collocated) feAxisIds u' 'native indexed equation trusts whole-tensor rank instead of legacy free-index variance'
+assert_contains "$out" 'FE.grad (feTensorDerivative Collocated Collocated) feAxisIds u' 'native indexed equation keeps the whole-tensor operator'
+assert_contains "$out" '["up"]' 'native indexed equation validates the declared result variance in Egison'
 assert_not_contains "$out" 'def feqq1 :=' 'native indexed equation does not enter ixExpand validation'
 typecheck_generated "$out"
 
@@ -993,7 +1075,8 @@ write_case "$f" \
   "  q' = grad u + X~i"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'def feqq := (FE.grad ' 'implicit vector native equation bypasses the legacy signature oracle'
+assert_contains "$out" 'FE.grad ' 'implicit vector native equation bypasses the legacy signature oracle'
+assert_contains "$out" 'FE.checkedTensorSignature "tensor signature mismatch for q"' 'implicit vector result is checked in Egison'
 assert_not_contains "$out" 'def feqq1 :=' 'implicit vector native equation has no component fallback helpers'
 typecheck_generated "$out"
 
@@ -1025,7 +1108,8 @@ write_case "$f" \
   "  q'_i = T_i"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'def T := FE.grad (feTensorDerivative Collocated Collocated) feAxisIds u' 'indexed let keeps the standard operator native'
+assert_contains "$out" 'def T := withSymbols' 'indexed let keeps one checked tensor binding'
+assert_contains "$out" 'FE.grad (feTensorDerivative Collocated Collocated) feAxisIds u' 'indexed let keeps the standard operator native'
 assert_not_contains "$out" 'FormuraeInternalNativeGrad' 'indexed let emits no native marker'
 typecheck_generated "$out"
 
@@ -1039,7 +1123,8 @@ write_case "$f" \
   '  let T~i = grad u'
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'def T := FE.grad (feTensorDerivative Collocated Collocated) feAxisIds u' 'native indexed let trusts NativeValue rank without legacy variance validation'
+assert_contains "$out" 'def T := withSymbols' 'native indexed let uses one checked tensor binding'
+assert_contains "$out" 'FE.grad (feTensorDerivative Collocated Collocated) feAxisIds u' 'native indexed let trusts NativeValue rank without legacy component validation'
 assert_not_contains "$out" 'withSymbols [i] d_i u' 'native indexed let does not construct its legacy fallback'
 typecheck_generated "$out"
 
@@ -1116,7 +1201,8 @@ write_case "$f" \
   "  G'_i_j = dGrad X"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'def feqG := FE.dGrad (feTensorDerivative Collocated Collocated) feAxisIds X' 'standard dGrad remains a native rank-2 tensor'
+assert_contains "$out" 'FE.dGrad (feTensorDerivative Collocated Collocated) feAxisIds X' 'standard dGrad remains a native rank-2 tensor'
+assert_contains "$out" 'FE.checkedTensorSignature "tensor signature mismatch for G"' 'native rank-2 result is checked through tensorIndices'
 assert_not_contains "$out" 'def feqG12 :=' 'native dGrad has no component helper definitions'
 assert_not_contains "$out" 'def dGrad ' 'standard dGrad is not emitted'
 
@@ -1386,7 +1472,8 @@ write_case "$f" \
 out=$(compile_fme "$f")
 rm -f "$f"
 assert_contains "$out" '-- mode collocated' 'explicit collocated mode metadata'
-assert_contains "$out" 'def feqH := FE.hessian (feTensorDerivative Collocated Collocated) feAxisIds u' 'standard hessian remains native and delegates fused derivative axes'
+assert_contains "$out" 'FE.hessian (feTensorDerivative Collocated Collocated) feAxisIds u' 'standard hessian remains native and delegates fused derivative axes'
+assert_contains "$out" 'FE.checkedTensorSignature "tensor signature mismatch for H"' 'native hessian result signature is checked in Egison'
 assert_not_contains "$out" 'def feqH11 :=' 'native hessian has no component helper definitions'
 assert_not_contains "$out" 'fePartial2' 'obsolete hessian helper is not emitted'
 

@@ -11,7 +11,8 @@ trap 'rm -f "$egi_tmp" "$type_tmp" "$fmr_tmp" "$err_tmp"' EXIT
 for model in formurae_standard_ops formurae_runtime_tensor_ops formurae_metric_tensor_ops formurae_musical_ops formurae_musical_variable_metric formurae_hodge_variable_metric formurae_native_rank2_ops; do
   (cd "$root" && cabal run -v0 fec -- "tests/$model.fme" >"$egi_tmp")
   if [ "$model" = formurae_standard_ops ]; then
-    if ! grep -F 'def feqq := FE.grad ' "$egi_tmp" >/dev/null \
+    if ! grep -F 'FE.grad (feTensorDerivative Collocated Collocated) feAxisIds u' "$egi_tmp" >/dev/null \
+       || ! grep -F 'FE.checkedTensorSignature "tensor signature mismatch for q"' "$egi_tmp" >/dev/null \
        || ! grep -F 'FE.lap ' "$egi_tmp" >/dev/null \
        || ! grep -F 'fieldEqs (nth 2 feFieldDescriptors) (Collocated, feqq)' "$egi_tmp" >/dev/null; then
       printf 'generated tensor equation bridge is missing for %s:\n' "$model" >&2
@@ -70,7 +71,8 @@ for model in formurae_standard_ops formurae_runtime_tensor_ops formurae_metric_t
     fi
   fi
   if [ "$model" = formurae_native_rank2_ops ]; then
-    if ! grep -F 'def feqH := FE.hessian ' "$egi_tmp" >/dev/null \
+    if ! grep -F 'FE.hessian (feTensorDerivative Collocated Collocated) feAxisIds u' "$egi_tmp" >/dev/null \
+       || ! grep -F 'FE.checkedTensorSignature "tensor signature mismatch for H"' "$egi_tmp" >/dev/null \
        || ! grep -F 'FE.dGrad (feTensorDerivative Collocated Collocated) feAxisIds q' "$egi_tmp" >/dev/null \
        || grep -F 'def feqH11 :=' "$egi_tmp" >/dev/null \
        || grep -F 'def feqG11 :=' "$egi_tmp" >/dev/null \

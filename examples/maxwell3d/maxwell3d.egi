@@ -68,8 +68,8 @@ def E := generateTensor (\[i] -> function (x, y, z)) [3]
 def B := generateTensor (\[i] -> function (x, y, z)) [3]
 def E' := generateTensor (\[i] -> function (x, y, z)) [3]
 
-def feqE := (E + ((dt * FE.curl (feTensorDerivative Collocated Collocated) feAxisIds B)))
-def feqB := (B - ((dt * FE.curl (feTensorDerivative Collocated Collocated) feAxisIds E')))
+def feqE := withSymbols [i] (FE.checkedTensorSignature "tensor signature mismatch for E" [3] ["down"] (((E + ((dt * FE.curl (feTensorDerivative Collocated Collocated) feAxisIds B))))_i))
+def feqB := withSymbols [i] (FE.checkedTensorSignature "tensor signature mismatch for B" [3] ["down"] (((B - ((dt * FE.curl (feTensorDerivative Collocated Collocated) feAxisIds E'))))_i))
 
 def feParams := [("dt", "0.1*dx")]
 def feHelpers :=
