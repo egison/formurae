@@ -896,6 +896,37 @@ write_case "$f" \
   'dimension 2' \
   'axes x,y' \
   'field u : scalar' \
+  'field q~i' \
+  'step:' \
+  "  q'~i = grad u"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" 'def feqq := FE.grad (feTensorDerivative Collocated Collocated) feAxisIds u' 'native indexed equation trusts whole-tensor rank instead of legacy free-index variance'
+assert_not_contains "$out" 'def feqq1 :=' 'native indexed equation does not enter ixExpand validation'
+typecheck_generated "$out"
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field u : scalar' \
+  'field X~i' \
+  'field q : vector' \
+  'step:' \
+  "  q' = grad u + X~i"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" 'def feqq := (FE.grad ' 'implicit vector native equation bypasses the legacy signature oracle'
+assert_not_contains "$out" 'def feqq1 :=' 'implicit vector native equation has no component fallback helpers'
+typecheck_generated "$out"
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field u : scalar' \
   'field q_i' \
   'init:' \
   '  u = x' \
@@ -927,6 +958,20 @@ write_case "$f" \
   'mode collocated' \
   'dimension 2' \
   'axes x,y' \
+  'field u : scalar' \
+  'step:' \
+  '  let T~i = grad u'
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" 'def T := FE.grad (feTensorDerivative Collocated Collocated) feAxisIds u' 'native indexed let trusts NativeValue rank without legacy variance validation'
+assert_not_contains "$out" 'withSymbols [i] d_i u' 'native indexed let does not construct its legacy fallback'
+typecheck_generated "$out"
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
   'param a = 1' \
   'field u : scalar' \
   'field q_i' \
@@ -936,6 +981,53 @@ out=$(compile_fme "$f")
 rm -f "$f"
 assert_contains "$out" 'if (a > 0) then FE.grad ' 'native if validates branch signatures independently'
 typecheck_generated "$out"
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field X_i' \
+  'field q : scalar' \
+  'step:' \
+  "  q' = divg X_i"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" 'scalarEq "q" (FE.divg (feTensorDerivative Collocated Collocated) feAxisIds X)' 'native scalar equation bypasses legacy divg index validation'
+typecheck_generated "$out"
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field X_i' \
+  'field q : scalar' \
+  'init:' \
+  '  X_i = [| 0, 0 |]_i' \
+  '  q := divg X_i'
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" 'fmrInit "q" (FE.divg (feTensorDerivative Collocated Collocated) feAxisIds X)' 'native scalar initializer bypasses legacy divg component expansion'
+typecheck_generated "$out"
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field u : scalar' \
+  'field X~i' \
+  'field q_i' \
+  'step:' \
+  "  q'_i = grad u + X_i"
+if out=$(compile_fme "$f" 2>&1); then
+  rm -f "$f"
+  printf 'native symbolic field reference unexpectedly ignored declared variance\n' >&2
+  exit 1
+fi
+rm -f "$f"
+assert_contains "$out" 'referenced with incompatible index variance' 'NativeValue validates explicit field reference variance without strictEinstein'
 
 f=$(tmp_fme)
 write_case "$f" \

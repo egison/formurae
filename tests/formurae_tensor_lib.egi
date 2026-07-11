@@ -64,6 +64,18 @@ assertEqual "native operator tensor signatures"
   , (([2, 2], []), 2)
   ]
 
+assertEqual "runtime tensor variance metadata"
+  (withSymbols [i, j] tensorVariances m~i_j)
+  ["up", "down"]
+
+assertEqual "checked tensor signature returns a bare tensor"
+  (tensorSignature
+    (withSymbols [i, j]
+      FE.checkedTensorSignature
+        "rank-2 signature mismatch"
+        [3, 3] ["up", "down"] m~i_j))
+  ([3, 3], [])
+
 def form0 := FE.canonicalFormTensor (\[] -> function (x, y, z)) 3 0
 def form1Basis := generateTensor (\[i] -> function (x, y, z)) [3]
 def form1 := FE.canonicalFormTensor (FE.tensorComponentAt form1Basis) 3 1

@@ -1177,9 +1177,9 @@ nativeMarkerMap =
   , (nativeHessianName, "hessian")
   ]
 
--- Reconstruct the former component expression only for validation and for
--- surface constructs that are not yet representable by the native emitter.
--- Native equations themselves never contain this expansion.
+-- Reconstruct the former component expression only when the native emitter
+-- cannot represent an expression.  A successful native path is validated by
+-- its NativeValue rank/policy and never enters component lowering.
 nativeLegacyExpression :: Model -> String -> IO String
 nativeLegacyExpression m source =
   expandDefs (legacyNativeValidationDefs m) (untok (map replace (tokenize source)))
@@ -1191,9 +1191,9 @@ nativeLegacyExpression m source =
     replace token = token
 
 -- `sharp` changes representation from a form tuple to a rank-1 tensor.  The
--- legacy signature oracle has no form tuple node, so use the actual target
--- field reference as a signature/placement placeholder while validating the
--- complete surrounding expression.  This does not affect emitted code.
+-- legacy fallback has no form tuple node, so use the actual target field
+-- reference as a placeholder only when that fallback is selected.  This does
+-- not affect native emitted code.
 nativeSignatureExpression :: String -> [IxPart] -> String -> IO String
 nativeSignatureExpression target targetIndices source =
   case parseTensorExprEither source of
@@ -1327,7 +1327,9 @@ nativeValueAt targetPolicy m lets expr =
            Just kind
              | null parts ->
                  return (Just (fieldValue base0 kind))
-             | symbolicParts && length parts == componentRank kind ->
+             | symbolicParts && length parts == componentRank kind -> do
+                 validateFieldRefParts m lets
+                   (renderTensorExpr (TEIdent base0 parts))
                  return (Just (fieldValue base0 kind))
              | all (all isDigit . ixName) parts
              , length parts == componentRank kind ->
@@ -1528,9 +1530,6 @@ indexDefs m lets st = do
   validateFieldRefParts m lets (sNm st ++ concatMap ixSuffix (sIdx st))
   pre <- preprocessTensorExpr m (sEx st)
   ex <- lowerBackendText m pre
-  signature <- nativeSignatureExpression (sNm st) (sIdx st) ex
-  legacy <- nativeLegacyExpression m signature
-  strictEinstein m lets (sIdx st) legacy
   native <- nativeExpressionAt (fieldPolicyOf m (sNm st)) m lets ex
   case (kindOf m (sNm st), native) of
     (Just kind, Just value) -> do
@@ -1538,9 +1537,12 @@ indexDefs m lets st = do
         then validateSharpTarget
         else return ()
       validateNativeResult m (fieldPolicyOf m (sNm st)) kind ex value
-      validateComponents kind legacy
       return ["def " ++ base ++ " := " ++ nativeText value]
-    _ -> legacyDefs legacy
+    _ -> do
+      signature <- nativeSignatureExpression (sNm st) (sIdx st) ex
+      legacy <- nativeLegacyExpression m signature
+      strictEinstein m lets (sIdx st) legacy
+      legacyDefs legacy
   where
     base = "feq" ++ sNm st
     legacyDefs ex =
@@ -1569,24 +1571,6 @@ indexDefs m lets st = do
                                     (base ++ show a ++ show b))
                   (rank2Pairs (componentIndices (mDim m) Tensor2)))
         _ -> fatal ("index equation has wrong indices for its field kind: " ++ sNm st)
-
-    validateComponents kind ex =
-      case (kind, sIdx st) of
-        (Vector, [fi]) ->
-          mapM_ (\a -> ixExpand m lets [(ixName fi, a)]
-                           (componentPlacement m (fieldPolicyOf m (sNm st)) [a]) ex
-                         >> return ())
-                (axisRange m)
-        (SymM, [fi, fj]) -> validateRank2 fi fj (symComponentIndices (mDim m)) ex
-        (AntiM, [fi, fj]) -> validateRank2 fi fj (antiComponentIndices (mDim m)) ex
-        (Tensor2, [fi, fj]) -> validateRank2 fi fj (componentIndices (mDim m) Tensor2) ex
-        _ -> fatal ("index equation has wrong indices for its field kind: " ++ sNm st)
-
-    validateRank2 fi fj indices ex =
-      mapM_ (\(a, b) -> ixExpand m lets [(ixName fi, a), (ixName fj, b)]
-                            (componentPlacement m (fieldPolicyOf m (sNm st)) [a, b]) ex
-                          >> return ())
-            (rank2Pairs indices)
 
     comp ex env anchor defnm = do
       e <- ixExpand m lets env anchor ex
@@ -1620,19 +1604,17 @@ implicitVectorDefs :: Model -> [String] -> Step -> IO [String]
 implicitVectorDefs m lets st = do
   pre <- preprocessTensorExpr m (sEx st)
   ex <- lowerBackendText m pre
-  signature <- nativeSignatureExpression (sNm st) [lhsIx] ex
-  legacy <- nativeLegacyExpression m signature
   native <- nativeExpressionAt (fieldPolicyOf m (sNm st)) m lets ex
   case native of
     Just value -> do
       if "FE.sharp " `isInfixOf` nativeText value
         then validateSharpTarget
         else return ()
-      strictEinstein m lets [lhsIx] legacy
       validateNativeResult m (fieldPolicyOf m (sNm st)) Vector ex value
-      mapM_ (validateComp legacy) (axisRange m)
       return ["def feq" ++ sNm st ++ " := " ++ nativeText value]
-    Nothing ->
+    Nothing -> do
+      signature <- nativeSignatureExpression (sNm st) [lhsIx] ex
+      legacy <- nativeLegacyExpression m signature
       if hasIndexSyntax m legacy
         then do
           strictEinstein m lets [lhsIx] legacy
@@ -1647,9 +1629,6 @@ implicitVectorDefs m lets st = do
       let anchor = componentPlacement m (fieldPolicyOf m (sNm st)) [a]
       e <- ixExpand m lets [(ixName lhsIx, a)] anchor ex'
       return ("def feq" ++ sNm st ++ show a ++ " := " ++ e)
-    validateComp ex' a = do
-      let anchor = componentPlacement m (fieldPolicyOf m (sNm st)) [a]
-      ixExpand m lets [(ixName lhsIx, a)] anchor ex' >> return ()
     vectorTensorDef =
       "def feq" ++ sNm st ++ " := [| "
       ++ intercalate ", " ["feq" ++ sNm st ++ show a | a <- axisRange m]
@@ -1905,54 +1884,46 @@ rewriteScalarAt :: GridPolicy -> Model -> [String] -> String -> IO String
 rewriteScalarAt targetPolicy m lets expr = do
   pre <- preprocessTensorExpr m expr
   lowered <- lowerBackendText m pre
-  parsed <- case parseTensorExprEither lowered of
-              Right ast -> return ast
-              Left msg -> fatal ("bad scalar expression: " ++ msg)
-  legacy <- nativeLegacyExpression m lowered
   native <- nativeExpressionAt targetPolicy m lets lowered
   case native of
     Just value -> do
-      if hasIndexSyntax m legacy
-        then strictEinstein m lets [] legacy
-        else return ()
       validateNativeResult m targetPolicy Scalar lowered value
-      ixExpand m lets [] (componentPlacement m targetPolicy []) legacy >> return ()
       return (nativeText value)
-    Nothing ->
+    Nothing -> do
+      parsed <- case parseTensorExprEither lowered of
+                  Right ast -> return ast
+                  Left msg -> fatal ("bad scalar expression: " ++ msg)
+      legacy <- nativeLegacyExpression m lowered
       if hasIndexSyntax m legacy
         then strictEinstein m lets [] legacy
              >> ixExpand m lets [] (componentPlacement m targetPolicy []) legacy
         else do
-      let sourcePolicies = nub
-            [fieldPolicyOf m fieldName
-            | TId tokenName _ <- tokenize lowered
-            , let (fieldName, _) = fieldBaseOf tokenName
-            , kindOf m fieldName == Just Scalar]
-      case [policy | policy <- sourcePolicies, policy /= targetPolicy] of
-        policy:_ ->
-          fatal ("grid policy mismatch in scalar equation: target is "
-                 ++ gridPolicySurfaceName targetPolicy ++ " but source is "
-                 ++ gridPolicySurfaceName policy ++ " in: " ++ expr)
-        [] -> return ()
-      if targetPolicy /= Collocated && hasLbRequest parsed
-        then fatal ("lb currently requires a collocated scalar target: " ++ expr)
-        else rewrite m lets Nothing lowered
+          let sourcePolicies = nub
+                [fieldPolicyOf m fieldName
+                | TId tokenName _ <- tokenize lowered
+                , let (fieldName, _) = fieldBaseOf tokenName
+                , kindOf m fieldName == Just Scalar]
+          case [policy | policy <- sourcePolicies, policy /= targetPolicy] of
+            policy:_ ->
+              fatal ("grid policy mismatch in scalar equation: target is "
+                     ++ gridPolicySurfaceName targetPolicy ++ " but source is "
+                     ++ gridPolicySurfaceName policy ++ " in: " ++ expr)
+            [] -> return ()
+          if targetPolicy /= Collocated && hasLbRequest parsed
+            then fatal ("lb currently requires a collocated scalar target: " ++ expr)
+            else rewrite m lets Nothing lowered
 
 rewriteScalarInitializerAt :: GridPolicy -> Model -> [String] -> String -> IO String
 rewriteScalarInitializerAt targetPolicy m lets expr = do
   pre <- preprocessTensorExpr m expr
   lowered <- lowerBackendText m pre
-  legacy <- nativeLegacyExpression m lowered
   native <- nativeExpressionAt targetPolicy m lets lowered
   case native of
     Just value -> do
-      if hasIndexSyntax m legacy
-        then strictEinstein m lets [] legacy
-        else return ()
       validateNativeResult m targetPolicy Scalar lowered value
-      ixExpandInitializer m lets [] (componentPlacement m targetPolicy []) legacy
-        >> return (nativeText value)
-    Nothing ->
+      return (nativeText value)
+    Nothing -> do
+      legacy <- nativeLegacyExpression m lowered
       if hasIndexSyntax m legacy
         then strictEinstein m lets [] legacy
              >> ixExpandInitializer m lets [] (componentPlacement m targetPolicy []) legacy
@@ -2488,9 +2459,6 @@ emit m = do
       KLet | isIndexI (sIdx st) -> do
                pre <- preprocessTensorExpr m (sEx st)
                lowered <- lowerBackendText m pre
-               signature <- nativeSignatureExpression (sNm st) (sIdx st) lowered
-               legacy <- nativeLegacyExpression m signature
-               strictEinstein m lets (sIdx st) legacy
                native <- nativeExpressionAt Collocated m lets lowered
                let nm = sNm st
                case native of
@@ -2499,15 +2467,11 @@ emit m = do
                      then fatal "sharp in an indexed let needs an explicitly contravariant field target"
                      else return ()
                    validateNativeResult m Collocated Vector lowered value
-                   case sIdx st of
-                     [lhsIx] ->
-                       mapM_ (\a -> ixExpand m lets [(ixName lhsIx, a)]
-                                          (componentPlacement m Collocated [a]) legacy
-                                        >> return ())
-                             (axisRange m)
-                     _ -> fatal "internal error: indexed let lost its single index"
                    return ["def " ++ nm ++ " := " ++ nativeText value]
                  Nothing -> do
+                   signature <- nativeSignatureExpression (sNm st) (sIdx st) lowered
+                   legacy <- nativeLegacyExpression m signature
+                   strictEinstein m lets (sIdx st) legacy
                    e <- rewrite m lets Nothing legacy
                    return ["def " ++ nm ++ " := withSymbols [i] " ++ e]
            | otherwise -> do

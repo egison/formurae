@@ -46,6 +46,21 @@ def antisym {Ring a} (a: Tensor a) : Tensor a :=
 def norm2 {Ring a} (a: Tensor a) : a :=
   withSymbols [i] (a~i . a_i)
 
+-- Keep index-variance validation on the Egison side while a tensor still has
+-- its symbolic indices attached.  `withSymbols` turns those local indices
+-- back into anonymous tensor dimensions when the checked value leaves its
+-- scope, so callers receive the ordinary bare tensor expected by the backend
+-- printer.  `tensorVariances` is defined next to Egison's `TensorIndex` type.
+def FE.checkedTensorSignature {a}
+      (message: String) (shape: [Integer]) (variances: [String])
+      (value: Tensor a) : Tensor a :=
+  if assert message
+       (tensorShape value = shape
+        && tensorVariances value = variances
+        && dfOrder value = 0)
+    then value
+    else value
+
 -- Canonical full-tensor view of a differential form.  The component callback
 -- is evaluated only for strictly increasing index lists; repeated indices are
 -- zero and permutations share the same component with the alternating sign.
