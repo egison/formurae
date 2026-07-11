@@ -304,8 +304,55 @@ if [ "$status" -eq 0 ]; then
   printf 'expanded lb without metric unexpectedly succeeded\n' >&2
   exit 1
 fi
-assert_contains "$out" 'expanded-expression columns' 'definition expansion is honestly labelled until expansion traces are available'
-assert_not_contains "$out" "$f:7:" 'expanded expression columns are not misreported as original source columns'
+assert_contains "$out" "$f:7:26-29" 'direct request keeps its exact source span after unrelated definition expansion'
+assert_not_contains "$out" 'expanded-expression columns' 'expanded expressions no longer fall back to translated columns'
+rm -f "$f"
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 1' \
+  'axes x' \
+  'param α = 1' \
+  'def op q = α + lb q' \
+  'field u : scalar' \
+  'step:' \
+  "  u' = op u"
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+if [ "$status" -eq 0 ]; then
+  rm -f "$f"
+  printf 'source-mapped user definition unexpectedly succeeded without a metric\n' >&2
+  exit 1
+fi
+assert_contains "$out" "$f:5:16-19" 'definition-body request uses pre-transliteration source columns'
+assert_contains "$out" "in expansion of op (defined at $f:5:12-19, called at $f:8:8-11)" 'user definition diagnostic includes definition and call sites'
+rm -f "$f"
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 1' \
+  'axes x' \
+  'def inner q = lb q' \
+  'def outer q = 1 + inner q' \
+  'field u : scalar' \
+  'step:' \
+  "  u' = outer u"
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+if [ "$status" -eq 0 ]; then
+  rm -f "$f"
+  printf 'nested source-mapped definitions unexpectedly succeeded without a metric\n' >&2
+  exit 1
+fi
+assert_contains "$out" "$f:4:15-18" 'nested request retains its innermost definition span'
+assert_contains "$out" "in expansion of inner (defined at $f:4:15-18, called at $f:5:19-25)" 'nested trace includes the inner definition call'
+assert_contains "$out" "in expansion of outer (defined at $f:5:15-25, called at $f:8:8-14)" 'nested trace includes the outer step call'
 rm -f "$f"
 
 f=$(tmp_fme)
@@ -488,6 +535,7 @@ if [ "$status" -eq 0 ]; then
   exit 1
 fi
 assert_contains "$out" 'lb is not supported in an initializer' 'lb initializer rejection'
+assert_contains "$out" "$f:8:8-11" 'CAS initializer backend request maps to its source span'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -511,6 +559,7 @@ if [ "$status" -eq 0 ]; then
   exit 1
 fi
 assert_contains "$out" 'lb is not supported in an initializer' 'raw lb initializer rejection'
+assert_contains "$out" "$f:8:7-10" 'raw initializer backend request maps to its source span'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -534,6 +583,7 @@ if [ "$status" -eq 0 ]; then
   exit 1
 fi
 assert_contains "$out" 'lb is not supported in an initializer' 'raw Formura lb application rejection'
+assert_contains "$out" "$f:8:7-8" 'raw Formura initializer fallback maps the operator token'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -557,6 +607,32 @@ if [ "$status" -eq 0 ]; then
   exit 1
 fi
 assert_contains "$out" 'lb is not supported in an initializer' 'numeric raw Formura lb application rejection'
+assert_contains "$out" "$f:8:7-8" 'numeric raw initializer fallback maps the operator token'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 1' \
+  'axes x' \
+  'def op q = lb q' \
+  'metric scale [1]' \
+  'field u : scalar' \
+  'field v : scalar' \
+  'init:' \
+  '  u := op v' \
+  'step:' \
+  "  u' = u"
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+rm -f "$f"
+if [ "$status" -eq 0 ]; then
+  printf 'definition-expanded lb initializer unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_contains "$out" "$f:4:12-15" 'initializer definition request keeps its definition span'
+assert_contains "$out" "in expansion of op (defined at $f:4:12-15, called at $f:9:8-11)" 'initializer definition trace includes its call site'
 
 f=$(tmp_fme)
 write_case "$f" \

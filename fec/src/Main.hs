@@ -200,33 +200,33 @@ nativeHessianName = reservedInternalPrefix ++ "NativeHessian"
 -- because they are inserted before the prelude in the definition lookup.
 nativeOperatorDefs :: Model -> [Def]
 nativeOperatorDefs m =
-  [ Def "grad" ["u"] (nativeGradName ++ " u")
-  , Def "dGrad" ["X"] (nativeDGradName ++ " X")
-  , Def "divg" ["X"] (nativeDivgName ++ " X")
+  [ Def "grad" ["u"] (nativeGradName ++ " u") Nothing
+  , Def "dGrad" ["X"] (nativeDGradName ++ " X") Nothing
+  , Def "divg" ["X"] (nativeDivgName ++ " X") Nothing
   ]
-  ++ [ Def "curl" ["X"] (nativeCurlName ++ " X")
+  ++ [ Def "curl" ["X"] (nativeCurlName ++ " X") Nothing
      | mDim m == 3
      ]
-  ++ [ Def "lap" ["u"] (nativeLapName ++ " u")
-     , Def "Δ" ["u"] (nativeLapName ++ " u")
-     , Def "hessian" ["u"] (nativeHessianName ++ " u")
+  ++ [ Def "lap" ["u"] (nativeLapName ++ " u") Nothing
+     , Def "Δ" ["u"] (nativeLapName ++ " u") Nothing
+     , Def "hessian" ["u"] (nativeHessianName ++ " u") Nothing
      ]
 
 -- The component lowering remains a temporary validation oracle while the
 -- native path is rolled out.  It is never emitted for a native expression.
 legacyNativeValidationDefs :: Model -> [Def]
 legacyNativeValidationDefs m =
-  [ Def "grad" ["u"] "withSymbols [i] ∂_i u"
-  , Def "dGrad" ["X"] "withSymbols [i, j] ∂_i X_j"
-  , Def "divg" ["X"] "contractWith (+) (∂_i X~i)"
+  [ Def "grad" ["u"] "withSymbols [i] ∂_i u" Nothing
+  , Def "dGrad" ["X"] "withSymbols [i, j] ∂_i X_j" Nothing
+  , Def "divg" ["X"] "contractWith (+) (∂_i X~i)" Nothing
   ]
   ++ [ Def "curl" ["X"]
-         "withSymbols [i, j, k] (epsilon_i~j~k . ∂_j X_k)"
+         "withSymbols [i, j, k] (epsilon_i~j~k . ∂_j X_k)" Nothing
      | mDim m == 3
      ]
-  ++ [ Def "lap" ["u"] "divg (grad u)"
-     , Def "Δ" ["u"] "lap u"
-     , Def "hessian" ["u"] "withSymbols [i, j] ∂_i ∂_j u"
+  ++ [ Def "lap" ["u"] "divg (grad u)" Nothing
+     , Def "Δ" ["u"] "lap u" Nothing
+     , Def "hessian" ["u"] "withSymbols [i, j] ∂_i ∂_j u" Nothing
      ]
 
 -- ---------------------------------------------------------------- model
@@ -471,7 +471,7 @@ defForm r = do
   params <- parseParams (words lhs)
   if null rhs || null params
     then Nothing
-    else Just (Def nm params rhs)
+    else Just (Def nm params rhs Nothing)
   where
     defNameP ('(':'.':')':rest) = Just (".", rest)
     defNameP s = identU s
@@ -609,12 +609,13 @@ unavailableOperator m s = go (tokenize s)
     orElse Nothing y = y
 
 parseFe :: FilePath -> String -> String -> IO Model
-parseFe sourcePath name txt = go STop initialModel
-                      (zip [1 :: Int ..] (lines txt))
+parseFe sourceFile name txt = go STop initialModel
+                      [(lineNumber, transliterate raw, raw)
+                      | (lineNumber, raw) <- zip [1 :: Int ..] (lines txt)]
   where
     initialModel = Model
       { mName = name
-      , mSourcePath = sourcePath
+      , mSourcePath = sourceFile
       , mDim = 0
       , mAxes = []
       , mMode = Nothing
@@ -624,6 +625,7 @@ parseFe sourcePath name txt = go STop initialModel
       , mFlds = []
       , mFieldDecls = []
       , mInits = []
+      , mInitSourceTexts = []
       , mSteps = []
       , mDd = Nothing
       , mMetric = Nothing
@@ -665,8 +667,7 @@ parseFe sourcePath name txt = go STop initialModel
           let mDef = mUse { mDefs = defs }
           steps' <- mapM (\st -> do ex0 <- preprocessTensorExpr mUse (sEx st)
                                     ex <- expandDefs allDefs ex0
-                                    return st { sEx = ex
-                                              , sSourceMapped = ex == ex0 })
+                                    return st { sEx = ex })
                          (reverse (mSteps mUse))
           inits' <- mapM (expandInit mUse allDefs) (reverse (mInits mUse))
           mapM_ (\df ->
@@ -680,10 +681,12 @@ parseFe sourcePath name txt = go STop initialModel
           return mDef { mParams = reverse (mParams mDef), mHelp = reverse (mHelp mDef)
                    , mFlds = reverse (mFlds mDef)
                    , mFieldDecls = reverse (mFieldDecls mDef), mInits = inits'
+                   , mInitSourceTexts = reverse (mInitSourceTexts mDef)
                    , mSteps = steps' }
 
-    go sec m ((ln, raw):rest) = do
+    go sec m ((ln, raw, originalRaw):rest) = do
       let code = rstrip (stripComment raw)
+          originalCode = rstrip (stripComment originalRaw)
           s = strip code
       if null s then go sec m rest else do
         case s of
@@ -692,14 +695,16 @@ parseFe sourcePath name txt = go STop initialModel
           _ -> do
             let sec' = if take 1 code /= " " then STop else sec
             case sec' of
-              STop -> top ln s m >>= \m' -> go STop m' rest
+              STop -> top ln originalCode s m >>= \m' -> go STop m' rest
               -- an init line may continue over following lines until its
               -- brackets balance (tensor initializers span rows)
               SInit | bal s > 0 ->
-                let (more, rest') = grab (bal s) rest
-                in ini ln (s ++ " " ++ more) m >>= \m' -> go SInit m' rest'
-              SInit -> ini ln s m >>= \m' -> go SInit m' rest
-              SStep -> stp ln code m >>= \m' -> go SStep m' rest
+                let (more, moreOriginal, rest') = grab (bal s) rest
+                in ini ln (originalCode ++ " " ++ moreOriginal)
+                          (s ++ " " ++ more) m
+                     >>= \m' -> go SInit m' rest'
+              SInit -> ini ln originalCode s m >>= \m' -> go SInit m' rest
+              SStep -> stp ln originalCode code m >>= \m' -> go SStep m' rest
 
     bal t = sum [1 :: Int | c <- t, c `elem` "(["] - sum [1 | c <- t, c `elem` ")]"]
 
@@ -746,16 +751,17 @@ parseFe sourcePath name txt = go STop initialModel
         checkUserSurface m' [] ("in init expression: " ++ nm ++ showIxParts ix) ex
       _ -> return ()
 
-    grab _ [] = ("", [])
-    grab d ((_, raw):rest) =
+    grab _ [] = ("", "", [])
+    grab d ((_, raw, originalRaw):rest) =
       let t = strip (rstrip (stripComment raw))
+          original = strip (rstrip (stripComment originalRaw))
           d' = d + bal t
       in if d' <= 0
-           then (t, rest)
-           else let (more, rest') = grab d' rest
-                in (t ++ " " ++ more, rest')
+           then (t, original, rest)
+           else let (more, moreOriginal, rest') = grab d' rest
+                in (t ++ " " ++ more, original ++ " " ++ moreOriginal, rest')
 
-    top ln s m
+    top ln originalLine s m
       | Just r <- stripPrefix "mode " s =
           case strip r of
             "collocated" -> setMode CollocatedMode
@@ -767,7 +773,8 @@ parseFe sourcePath name txt = go STop initialModel
             Just df -> do
               rejectReservedName ln (defName df)
               mapM_ (rejectReservedName ln) (defParams df)
-              return m { mDefs = df : mDefs m }
+              source <- sourceTextForRhs ln originalLine (defBody df)
+              return m { mDefs = df { defSourceText = Just source } : mDefs m }
             Nothing -> fatal ("bad def (line " ++ show ln
                               ++ "): def NAME ARG... = EXPR")
       | Just r <- stripPrefix "param " s =
@@ -825,11 +832,11 @@ parseFe sourcePath name txt = go STop initialModel
                                 ++ show n ++ ")")
                     else return m { mDim = n }
               | otherwise = fatal ("bad dimension (line " ++ show ln ++ ")")
-    ini ln s m
+    ini ln originalLine s m
       | Just (nm, ix, ex) <- casForm s = do
           rejectReservedName ln (dropWhileEnd (== '\'') nm)
           if null ix
-            then return m { mInits = ICas nm ex : mInits m }
+            then addInit (ICas nm ex)
             else do
               let baseNm = dropWhileEnd (== '\'') nm
               if baseNm /= nm
@@ -838,7 +845,7 @@ parseFe sourcePath name txt = go STop initialModel
                 else return ()
               validateInitTarget baseNm ix
               if isIndexKind (kindOf m baseNm)
-                then return m { mInits = ICasIndex baseNm ix ex : mInits m }
+                then addInit (ICasIndex baseNm ix ex)
                 else fatal ("CAS initializer with indices needs an indexed tensor field: "
                             ++ nm ++ showIxParts ix ++ " (line " ++ show ln ++ ")")
       | Just (nm, lhsIx, rhs) <- rawForm s = do
@@ -864,7 +871,7 @@ parseFe sourcePath name txt = go STop initialModel
                                      | (a, b) <- rank2Pairs (symComponentIndices (mDim m))]
                          else fatal ("symmetric initializer needs a full matrix or upper-triangle rows (line "
                                      ++ show ln ++ ")")
-              return m { mInits = ISym nm comps : mInits m }
+              addInit (ISym nm comps)
             (Just AntiM, Just (rows, rhsIx)) -> do
               validateInitSuffix nm lhsIx rhsIx
               rows' <- mapM (\r -> case vecLit (strip r) of
@@ -885,7 +892,7 @@ parseFe sourcePath name txt = go STop initialModel
                                      | (a, b) <- rank2Pairs (antiComponentIndices (mDim m))]
                          else fatal ("antisymmetric initializer needs a full matrix or upper-off-diagonal rows (line "
                                      ++ show ln ++ ")")
-              return m { mInits = IAnti nm comps : mInits m }
+              addInit (IAnti nm comps)
             (Just Tensor2, Just (rows, rhsIx)) -> do
               validateInitSuffix nm lhsIx rhsIx
               rows' <- mapM (\r -> case vecLit (strip r) of
@@ -900,7 +907,7 @@ parseFe sourcePath name txt = go STop initialModel
                               | (a, b) <- rank2Pairs (componentIndices (mDim m) Tensor2)]
                   else fatal ("tensor initializer needs a full matrix (line "
                               ++ show ln ++ ")")
-              return m { mInits = ITensor2 nm comps : mInits m }
+              addInit (ITensor2 nm comps)
             (k, Just (elems, rhsIx)) -> do
               validateInitSuffix nm lhsIx rhsIx
               let ok = case k of
@@ -914,15 +921,21 @@ parseFe sourcePath name txt = go STop initialModel
                   then fatal ("[| ... |] initializer needs " ++ show (componentCount k)
                               ++ " components (line "
                               ++ show ln ++ ")")
-                  else return m { mInits = IVec nm elems : mInits m }
+                  else addInit (IVec nm elems)
             _
               | not (null lhsIx) ->
                   fatal ("indexed initializer needs a [| ... |] literal with matching suffix: "
                          ++ nm ++ showIxParts lhsIx ++ " = [| ... |]"
                          ++ showIxParts lhsIx ++ " (line " ++ show ln ++ ")")
-              | otherwise -> return m { mInits = IRaw nm rhs : mInits m }
+              | otherwise -> addInit (IRaw nm rhs)
       | otherwise = fatal ("bad init: " ++ s ++ " (line " ++ show ln ++ ")")
       where
+        addInit value = do
+          source <- sourceTextForRhs ln originalLine (assignmentRhs s)
+          return m
+            { mInits = value : mInits m
+            , mInitSourceTexts = source : mInitSourceTexts m
+            }
         casForm t = do
           (nm, ix, r1) <- initLhs t
           let (nm', r1') = case stripPrefix "'" r1 of
@@ -1055,23 +1068,46 @@ parseFe sourcePath name txt = go STop initialModel
     -- Euclidean/Staggered fields to the same stored components, but
     -- variance is preserved long enough for metric references such as
     -- g~i_j and for future variance-aware contraction checks.
-    stp ln s0 m
+    stp ln originalLine s0 m
       | Just bad <- banned =
           fatal (bad ++ " (line " ++ show ln ++ ")")
       | Just (nm, ix, ex) <- eqForm "let" s = do
           rejectReservedName ln nm
-          return m { mSteps = Step KLet nm ix ex ln expressionColumn ex True : mSteps m }
+          source <- sourceTextForRhs ln originalLine ex
+          return m { mSteps = Step KLet nm ix ex source : mSteps m }
       | Just (nm, _, ex) <- eqForm "local" s = do
           rejectReservedName ln nm
-          return m { mSteps = Step KLocal nm [] ex ln expressionColumn ex True : mSteps m }
+          source <- sourceTextForRhs ln originalLine ex
+          return m { mSteps = Step KLocal nm [] ex source : mSteps m }
       | Just (nm, ixs, ex) <- primeEqForm s = do
           rejectReservedName ln nm
-          return m { mSteps = Step KEq nm ixs ex ln expressionColumn ex True : mSteps m }
+          source <- sourceTextForRhs ln originalLine ex
+          return m { mSteps = Step KEq nm ixs ex source : mSteps m }
       | otherwise = fatal ("bad step eq: " ++ s ++ " (line " ++ show ln ++ ")")
       where
         s = strip s0
         banned = surfaceBanned m [] s
-        expressionColumn = rhsStartColumn s0
+
+    sourceTextForRhs ln originalLine translatedExpression = do
+      let originalExpression = assignmentRhs originalLine
+          (translated, offsets) = transliterateWithMap originalExpression
+      if translated == translatedExpression
+        then return SourceText
+          { sourcePath = sourceFile
+          , sourceLine = ln
+          , sourceColumn = rhsStartColumn originalLine
+          , sourceOriginal = originalExpression
+          , sourceTranslated = translatedExpression
+          , sourceOffsetMap = offsets
+          }
+        else fatal ("internal source-map transliteration mismatch on line "
+                    ++ show ln ++ ": " ++ translated ++ " /= "
+                    ++ translatedExpression)
+
+    assignmentRhs line =
+      case break (== '=') line of
+        (_, []) -> ""
+        (_, _ : rhs) -> strip rhs
 
     rhsStartColumn line =
       case break (== '=') line of
@@ -1142,8 +1178,9 @@ surfaceBanned m locals s =
     orElse Nothing y = y
 
 backendPlanFor :: Model -> IO BackendPlan
-backendPlanFor m =
-  case collectBackendRequests m >>= planBackend m of
+backendPlanFor m = do
+  requests <- collectBackendRequests m
+  case requests >>= planBackend m of
     Right plan -> return plan
     Left msg -> fatal msg
 
@@ -2593,22 +2630,42 @@ emit m = do
 -- axis.  A bare partial sign still becomes d.  The small delta becomes the
 -- codifferential, and the minus sign becomes '-'.
 transliterate :: String -> String
-transliterate = go
+transliterate = fst . transliterateWithMap
+
+-- Return the transliterated text together with a 1-based map from every
+-- generated character to the original source character that produced it.
+-- The map is monotone and covers whole decorated-derivative spellings, so a
+-- translated AST span can always be projected back to its pre-transliteration
+-- source columns.
+transliterateWithMap :: String -> (String, [Int])
+transliterateWithMap = go 1
   where
-    go [] = []
-    go ('\8706':cs) =
+    go _ [] = ([], [])
+    go offset ('\8706':cs) =
       case coordDerivative cs of
         Just ((ordr, radius, part), rest) ->
-          "pd" ++ show ordr ++ "r" ++ show radius
-          ++ renderDerivativePart part ++ go rest
+          appendMapped offset (1 + length cs - length rest)
+            ("pd" ++ show ordr ++ "r" ++ show radius
+             ++ renderDerivativePart part) rest
         Nothing | oldCompactDerivative cs ->
-          "badPartialDerivative " ++ go cs
+          appendMapped offset 1 "badPartialDerivative " cs
         Nothing ->
           case cs of
-            '_':rest -> "d_" ++ go rest
-            '~':rest -> "d~" ++ go rest
-            _ -> "d" ++ go cs
-    go (c:cs) = tr c ++ go cs
+            '_':rest -> appendMapped offset 2 "d_" rest
+            '~':rest -> appendMapped offset 2 "d~" rest
+            _ -> appendMapped offset 1 "d" cs
+    go offset (c:cs) = appendMapped offset 1 (tr c) cs
+
+    appendMapped offset consumed replacement rest =
+      let (suffix, suffixMap) = go (offset + consumed) rest
+      in (replacement ++ suffix,
+          replacementOffsets offset consumed (length replacement) ++ suffixMap)
+
+    replacementOffsets _ _ 0 = []
+    replacementOffsets offset consumed 1 = [offset + consumed - 1]
+    replacementOffsets offset consumed count =
+      [offset + (position * (consumed - 1)) `div` (count - 1)
+      | position <- [0 .. count - 1]]
 
     coordDerivative cs =
       decoratedDerivative cs
@@ -2684,7 +2741,7 @@ main = do
   args <- getArgs
   case args of
     [path] -> do
-      txt <- fmap transliterate (readFile path)
+      txt <- readFile path
       let name = takeWhile (/= '.') (reverse (takeWhile (/= '/') (reverse path)))
       m <- parseFe path name txt
       out <- emit m

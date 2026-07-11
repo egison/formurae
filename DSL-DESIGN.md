@@ -26,8 +26,9 @@ de Rham map、reconstruction を含めず、scale factor は component basis の
 Phase 7 は標準6演算子と whole-field printer について
 完了したが、`TensorExpr` / `ixExpand` / `strictEinstein` は native subset 外の複合式、user tensor
 def、indexed initializer、strict diagnostics の validation/fallback に残る。元 `.fme` への
-source map は直接の backend request まで path/line/column 対応済みで、user `def` 展開 trace と
-transliteration 前 column が未完である。
+source map は transliteration 前の path/line/column を保持し、user `def` を跨ぐ backend request
+には definition-site / call-site を nested trace として表示する。initializer の backend request も
+同じ provenance 経路を使う。
 
 **v1.34(2026-07-11): Phase 6 geometry + structural `lb` planner** —
 `embedding` からの induced metric、直交計量と逆計量、体積要素、Hodge coefficient
@@ -506,9 +507,8 @@ step:
   生成 `.fmr` のバイト一致テストを意味のアンカーとして維持する。
 - parser と TensorExpr の def 解決/strict diagnostics/fallback は Haskell(base のみ)で実装済みである。
   生成物はデバッグ可能な中間 `.egi` として追跡し、parser error は式全体・失敗近傍・
-  column を返す。直接の backend request は元 `.fme` の path/line/column まで対応済みで、
-  user `def` の展開 trace と transliteration 前の column を含む完全な source map は今後の
-  診断改善対象である。
+  column を返す。backend request は transliteration の長さ変化と user `def` substitution を
+  跨いでも元 `.fme` の path/line/column を返し、各 expansion の definition/call site を表示する。
 
 ### 初期 v1 スコープ案(履歴)
 
@@ -621,8 +621,8 @@ Egison library へ移行済みである。最終的には座標文脈・field la
 
 7. **残課題**
    scalar 式は演算子優先順位を持つ TensorExpr AST として保持するようになった。
-   parser error は式全体、失敗近傍、column を返すようになったため、次は source span つき診断と
-   Egison 本体の添字規則との差分を小さくするテスト群を追加する。Phase 7 の残りは
+   parser error は式全体、失敗近傍、column を返し、backend request は完全な source provenance を
+   保持する。Phase 7 の残りは Egison 本体の添字規則との差分を小さくするテスト群を追加し、
    strict result signature の権威を Egison `tensorIndices` へ移し、user tensor def、indexed
    initializer、strict diagnostics に残る `ixExpand` / `strictEinstein` fallback を削除することである。
    geometry 側では非対角 metric、一般 rank の musical map、cochain 用 de Rham/reconstruction と

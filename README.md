@@ -44,6 +44,8 @@ component basis、微分軸列を共有 Egison grid kernel に渡して選びま
 標準定義を shadow できます。数式の正規化は Egison CAS、Formura への文字列化と field
 projection は `lib/formurae-runtime.egi` が担当します。native emitter がまだ扱えない複合
 TensorExpr だけは、strict 診断を保つため従来の成分 lowering に fallback します。
+backend request の診断は transliteration 前の `.fme` path/line/column を保持し、
+user `def` を跨ぐ場合は definition-site と call-site を nested expansion trace として表示します。
 
 標準 `curl` のテンソル意味は共有 `FE.curl` にあり、概念的には次の Egison 添字式に
 対応します。同名のユーザー `def` を書けば標準演算子を置き換えられます。

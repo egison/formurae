@@ -22,10 +22,7 @@ import Formurae.TensorExpr
 
 data BackendRequest = LbRequest
   { brSource :: String
-  , brSpan   :: SourceSpan
-  , brPath   :: FilePath
-  , brLine   :: Int
-  , brExprColumn :: Int
+  , brOrigin :: Maybe SourceOrigin
   } deriving (Eq, Show)
 
 data AuxLifetime = PersistentState | StepLocal
@@ -56,17 +53,17 @@ data BackendPlan = BackendPlan
   , bpLbPlans         :: [LbPlan]
   }
 
-collectBackendRequests :: Model -> Either String [BackendRequest]
+collectBackendRequests :: Model -> IO (Either String [BackendRequest])
 collectBackendRequests model = do
-  rejectInitializerRequests model
-  requests <- concat <$> mapM requestsInStep (mSteps model)
-  return (nubBy sameSource requests)
+  initializerError <- rejectInitializerRequests model
+  case initializerError of
+    Just message -> return (Left message)
+    Nothing -> do
+      expanded <- mapM (expandDefsWithSource (mDefs model) . sSourceText)
+                       (mSteps model)
+      let requestResults = map (requestsInExpr model) expanded
+      return (nubBy sameSource . concat <$> sequence requestResults)
   where
-    requestsInStep step =
-      if sSourceMapped step
-        then requestsInText model (sLine step) (sExprColumn step)
-               (sOriginalEx step)
-        else requestsInText model 0 0 (sEx step)
     sameSource lhs rhs = brSource lhs == brSource rhs
 
 planBackend :: Model -> [BackendRequest] -> Either String BackendPlan
@@ -76,7 +73,7 @@ planBackend model requests =
     request:_
       | mMetric model == Nothing && mEmbed model == Nothing ->
           Left ("lb needs a 'metric scale [...]' or 'embedding [...]' declaration"
-                ++ expandedSpanText request)
+                ++ requestOriginText request)
       | otherwise ->
           Right (BackendPlan (makeMetricAuxFields model)
                   (zipWith (makeLbPlan model) [1 ..] requests))
@@ -137,48 +134,85 @@ makeLbPlan model requestId request =
        , lpAuxFields = map flux axes
        }
 
-rejectInitializerRequests :: Model -> Either String ()
-rejectInitializerRequests model =
-  case [expr | initValue <- mInits model, expr <- initExpressions initValue,
-               containsLbApplication expr] of
-    [] -> Right ()
-    expr:_ ->
-      Left ("lb is not supported in an initializer because its auxiliary "
-            ++ "flux fields are materialized during the step: " ++ expr)
+rejectInitializerRequests :: Model -> IO (Maybe String)
+rejectInitializerRequests model = do
+  errors <- mapM inspect (zip (mInits model) (mInitSourceTexts model))
+  return $ case [message | Just message <- errors] of
+    message : _ -> Just message
+    [] -> Nothing
+  where
+    inspect (initValue, source)
+      | isCasInitializer initValue = do
+          expression <- expandDefsWithSource (mDefs model) source
+          return (initializerError expression)
+      | containsLbApplication (sourceTranslated source) =
+          return (Just (initializerMessage (directInitializerOrigin source)))
+      | otherwise = return Nothing
 
-requestsInText :: Model -> Int -> Int -> String -> Either String [BackendRequest]
-requestsInText model line exprColumn source = do
-  expr <- case parseTensorExprEither source of
-            Right parsed -> Right parsed
-            Left msg -> Left ("bad backend request expression: " ++ msg)
-  requestsInExpr model line exprColumn expr
+    initializerError expression =
+      case firstLbApplication expression of
+        Just request -> Just (initializerMessage (tensorExprOrigin request))
+        Nothing -> Nothing
 
-requestsInExpr :: Model -> Int -> Int -> TensorExpr -> Either String [BackendRequest]
-requestsInExpr model line exprColumn expr =
+    initializerMessage origin =
+      "lb is not supported in an initializer because its auxiliary "
+      ++ "flux fields are materialized during the step"
+      ++ maybe "" sourceOriginText origin
+
+    isCasInitializer (ICas _ _) = True
+    isCasInitializer (ICasIndex _ _ _) = True
+    isCasInitializer _ = False
+
+firstLbApplication :: TensorExpr -> Maybe TensorExpr
+firstLbApplication expression
+  | lbApplication expression /= Nothing = Just expression
+  | invalidLbHead expression = Just expression
+  | otherwise = firstJust (map firstLbApplication (children expression))
+  where
+    firstJust [] = Nothing
+    firstJust (Just value : _) = Just value
+    firstJust (Nothing : rest) = firstJust rest
+
+directInitializerOrigin :: SourceText -> Maybe SourceOrigin
+directInitializerOrigin source =
+  case parseSourceTensorExpr source of
+    Right expression -> tensorExprOrigin =<< firstLbApplication expression
+    Left _ ->
+      let start = firstLbOffset (sourceTranslated source)
+          location = sourceLocationForSpan source (SourceSpan start (start + 1))
+      in Just (SourceOrigin location [])
+
+firstLbOffset :: String -> Int
+firstLbOffset = go 1
+  where
+    go offset ('l':'b':_) = offset
+    go offset (_:rest) = go (offset + 1) rest
+    go _ [] = 1
+
+requestsInExpr :: Model -> TensorExpr -> Either String [BackendRequest]
+requestsInExpr model expr =
   case lbApplication expr of
     Just operand -> do
-      source <- withExpressionSpan model line exprColumn expr (simpleLbSource operand)
+      source <- withExpressionOrigin expr (simpleLbSource operand)
       case kindOf model source of
         Just Scalar
           | fieldPolicyOf model source == Collocated ->
-              Right [LbRequest source (tensorExprSpan expr) (mSourcePath model)
-                       line exprColumn]
+              Right [LbRequest source (tensorExprOrigin expr)]
           | otherwise ->
               Left ("lb currently requires a collocated scalar source: " ++ source
-                    ++ sourceExprSpanText model line exprColumn expr)
+                    ++ expressionOriginText expr)
         _ -> Left ("lb expects a scalar field argument: " ++ source
-                   ++ sourceExprSpanText model line exprColumn expr)
+                   ++ expressionOriginText expr)
     Nothing
       | invalidLbHead expr ->
           Left ("lb expects exactly one unindexed collocated scalar field"
-                ++ sourceExprSpanText model line exprColumn expr)
-      | otherwise -> concat <$> mapM (requestsInExpr model line exprColumn) (children expr)
+                ++ expressionOriginText expr)
+      | otherwise -> concat <$> mapM (requestsInExpr model) (children expr)
 
-withExpressionSpan
-  :: Model -> Int -> Int -> TensorExpr -> Either String a -> Either String a
-withExpressionSpan model line exprColumn expr result =
+withExpressionOrigin :: TensorExpr -> Either String a -> Either String a
+withExpressionOrigin expr result =
   case result of
-    Left message -> Left (message ++ sourceExprSpanText model line exprColumn expr)
+    Left message -> Left (message ++ expressionOriginText expr)
     Right value -> Right value
 
 lbApplication :: TensorExpr -> Maybe TensorExpr
@@ -231,17 +265,6 @@ children expr =
     TEBinary _ lhs rhs -> [lhs, rhs]
     TEGroup body -> [body]
 
-initExpressions :: Init -> [String]
-initExpressions initValue =
-  case initValue of
-    IRaw _ rhs -> [rhs]
-    IVec _ values -> values
-    ISym _ values -> values
-    IAnti _ values -> values
-    ITensor2 _ values -> values
-    ICas _ value -> [value]
-    ICasIndex _ _ value -> [value]
-
 containsLbApplication :: String -> Bool
 containsLbApplication source =
   case parseTensorExprEither source of
@@ -262,33 +285,26 @@ containsLbApplication source =
         _ -> rawApplication rest
     rawApplication (_ : rest) = rawApplication rest
 
-expandedSpanText :: BackendRequest -> String
-expandedSpanText request =
-  sourceLocationText (brPath request) (brLine request) (brExprColumn request)
-    (brSpan request)
+requestOriginText :: BackendRequest -> String
+requestOriginText = maybe "" sourceOriginText . brOrigin
 
-sourceExprSpanText :: Model -> Int -> Int -> TensorExpr -> String
-sourceExprSpanText model line exprColumn expr =
-  sourceLocationText (mSourcePath model) line exprColumn (tensorExprSpan expr)
+expressionOriginText :: TensorExpr -> String
+expressionOriginText = maybe "" sourceOriginText . tensorExprOrigin
 
-sourceLocationText :: FilePath -> Int -> Int -> SourceSpan -> String
-sourceLocationText path line exprColumn spanValue
-  | line <= 0 || sourceStart spanValue <= 0 = expandedSourceSpanText spanValue
-  | otherwise =
-      let startColumn = exprColumn + sourceStart spanValue - 1
-          endColumn = exprColumn + sourceEnd spanValue - 1
-          columnText = if startColumn == endColumn
-                         then show startColumn
-                         else show startColumn ++ "-" ++ show endColumn
-      in " (" ++ path ++ ":" ++ show line ++ ":" ++ columnText ++ ")"
+sourceOriginText :: SourceOrigin -> String
+sourceOriginText origin =
+  " (" ++ locationText (originLocation origin) ++ ")"
+  ++ concatMap expansionText (originTrace origin)
+  where
+    expansionText frame =
+      "\n  in expansion of " ++ expansionName frame
+      ++ " (defined at " ++ locationText (expansionDefinition frame)
+      ++ ", called at " ++ locationText (expansionCall frame) ++ ")"
 
-expandedSourceSpanText :: SourceSpan -> String
-expandedSourceSpanText spanValue
-  | sourceStart spanValue <= 0 = ""
-  | otherwise =
-      " (expanded-expression columns " ++ sourceSpanText spanValue ++ ")"
-
-sourceSpanText :: SourceSpan -> String
-sourceSpanText spanValue
-  | sourceStart spanValue == sourceEnd spanValue = show (sourceStart spanValue)
-  | otherwise = show (sourceStart spanValue) ++ "-" ++ show (sourceEnd spanValue)
+locationText :: SourceLocation -> String
+locationText location =
+  locationPath location ++ ":" ++ show (locationLine location) ++ ":"
+  ++ if locationStartColumn location == locationEndColumn location
+       then show (locationStartColumn location)
+       else show (locationStartColumn location) ++ "-"
+            ++ show (locationEndColumn location)

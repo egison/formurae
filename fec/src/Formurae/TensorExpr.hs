@@ -3,8 +3,12 @@
 module Formurae.TensorExpr
   ( TensorExpr
   , SourceSpan(..)
+  , SourceLocation(..)
+  , ExpansionFrame(..)
+  , SourceOrigin(..)
   , noSourceSpan
   , tensorExprSpan
+  , tensorExprOrigin
   , pattern TENumber
   , pattern TEIdent
   , pattern TEUnary
@@ -27,6 +31,8 @@ module Formurae.TensorExpr
   , ElaboratedTensorExpr(..)
   , parseTensorExpr
   , parseTensorExprEither
+  , parseSourceTensorExpr
+  , sourceLocationForSpan
   , renderTensorExpr
   , transformTensorExprM
   , normalizeTensorExpr
@@ -35,6 +41,7 @@ module Formurae.TensorExpr
   , ixExpand
   , ixExpandInitializer
   , expandDefs
+  , expandDefsWithSource
   , strictEinstein
   , validateFieldRefParts
   ) where
@@ -55,8 +62,27 @@ data SourceSpan = SourceSpan
 noSourceSpan :: SourceSpan
 noSourceSpan = SourceSpan 0 0
 
+data SourceLocation = SourceLocation
+  { locationPath        :: FilePath
+  , locationLine        :: Int
+  , locationStartColumn :: Int
+  , locationEndColumn   :: Int
+  } deriving (Eq, Show)
+
+data ExpansionFrame = ExpansionFrame
+  { expansionName       :: String
+  , expansionDefinition :: SourceLocation
+  , expansionCall       :: SourceLocation
+  } deriving (Eq, Show)
+
+data SourceOrigin = SourceOrigin
+  { originLocation :: SourceLocation
+  , originTrace    :: [ExpansionFrame]
+  } deriving (Eq, Show)
+
 data TensorExpr = TensorExpr
   { tensorExprSpan :: SourceSpan
+  , tensorExprOrigin :: Maybe SourceOrigin
   , tensorExprNode :: TensorExprNode
   } deriving (Eq, Show)
 
@@ -85,72 +111,72 @@ data TensorExprNode
 -- lowering; `!.` is a disjoint product and never contracts an index pair.
 
 pattern TENumber :: String -> TensorExpr
-pattern TENumber s <- TensorExpr _ (TENumberNode s)
-  where TENumber s = TensorExpr noSourceSpan (TENumberNode s)
+pattern TENumber s <- TensorExpr _ _ (TENumberNode s)
+  where TENumber s = TensorExpr noSourceSpan Nothing (TENumberNode s)
 
 pattern TEIdent :: String -> [IxPart] -> TensorExpr
-pattern TEIdent base parts <- TensorExpr _ (TEIdentNode base parts)
-  where TEIdent base parts = TensorExpr noSourceSpan (TEIdentNode base parts)
+pattern TEIdent base parts <- TensorExpr _ _ (TEIdentNode base parts)
+  where TEIdent base parts = TensorExpr noSourceSpan Nothing (TEIdentNode base parts)
 
 pattern TEUnary :: String -> TensorExpr -> TensorExpr
-pattern TEUnary op e <- TensorExpr _ (TEUnaryNode op e)
-  where TEUnary op e = TensorExpr noSourceSpan (TEUnaryNode op e)
+pattern TEUnary op e <- TensorExpr _ _ (TEUnaryNode op e)
+  where TEUnary op e = TensorExpr noSourceSpan Nothing (TEUnaryNode op e)
 
 pattern TECall :: TensorExpr -> [TensorExpr] -> TensorExpr
-pattern TECall f args <- TensorExpr _ (TECallNode f args)
-  where TECall f args = TensorExpr noSourceSpan (TECallNode f args)
+pattern TECall f args <- TensorExpr _ _ (TECallNode f args)
+  where TECall f args = TensorExpr noSourceSpan Nothing (TECallNode f args)
 
 pattern TEApply :: TensorExpr -> [TensorExpr] -> TensorExpr
-pattern TEApply f args <- TensorExpr _ (TEApplyNode f args)
-  where TEApply f args = TensorExpr noSourceSpan (TEApplyNode f args)
+pattern TEApply f args <- TensorExpr _ _ (TEApplyNode f args)
+  where TEApply f args = TensorExpr noSourceSpan Nothing (TEApplyNode f args)
 
 pattern TEIf :: TensorExpr -> TensorExpr -> TensorExpr -> TensorExpr
-pattern TEIf c t e <- TensorExpr _ (TEIfNode c t e)
-  where TEIf c t e = TensorExpr noSourceSpan (TEIfNode c t e)
+pattern TEIf c t e <- TensorExpr _ _ (TEIfNode c t e)
+  where TEIf c t e = TensorExpr noSourceSpan Nothing (TEIfNode c t e)
 
 pattern TEAppendIndexed :: TensorExpr -> [IxPart] -> TensorExpr
-pattern TEAppendIndexed e parts <- TensorExpr _ (TEAppendIndexedNode e parts)
-  where TEAppendIndexed e parts = TensorExpr noSourceSpan (TEAppendIndexedNode e parts)
+pattern TEAppendIndexed e parts <- TensorExpr _ _ (TEAppendIndexedNode e parts)
+  where TEAppendIndexed e parts = TensorExpr noSourceSpan Nothing (TEAppendIndexedNode e parts)
 
 pattern TEWithSymbols :: [String] -> TensorExpr -> TensorExpr
-pattern TEWithSymbols names body <- TensorExpr _ (TEWithSymbolsNode names body)
-  where TEWithSymbols names body = TensorExpr noSourceSpan (TEWithSymbolsNode names body)
+pattern TEWithSymbols names body <- TensorExpr _ _ (TEWithSymbolsNode names body)
+  where TEWithSymbols names body = TensorExpr noSourceSpan Nothing (TEWithSymbolsNode names body)
 
 pattern TEContractWith :: String -> TensorExpr -> TensorExpr
-pattern TEContractWith reducer body <- TensorExpr _ (TEContractWithNode reducer body)
-  where TEContractWith reducer body = TensorExpr noSourceSpan (TEContractWithNode reducer body)
+pattern TEContractWith reducer body <- TensorExpr _ _ (TEContractWithNode reducer body)
+  where TEContractWith reducer body = TensorExpr noSourceSpan Nothing (TEContractWithNode reducer body)
 
 pattern TETensorMap :: TensorExpr -> TensorExpr -> TensorExpr
-pattern TETensorMap f body <- TensorExpr _ (TETensorMapNode f body)
-  where TETensorMap f body = TensorExpr noSourceSpan (TETensorMapNode f body)
+pattern TETensorMap f body <- TensorExpr _ _ (TETensorMapNode f body)
+  where TETensorMap f body = TensorExpr noSourceSpan Nothing (TETensorMapNode f body)
 
 pattern TESubrefs :: TensorExpr -> [IxPart] -> TensorExpr
-pattern TESubrefs body parts <- TensorExpr _ (TESubrefsNode body parts)
-  where TESubrefs body parts = TensorExpr noSourceSpan (TESubrefsNode body parts)
+pattern TESubrefs body parts <- TensorExpr _ _ (TESubrefsNode body parts)
+  where TESubrefs body parts = TensorExpr noSourceSpan Nothing (TESubrefsNode body parts)
 
 pattern TETranspose :: [String] -> TensorExpr -> TensorExpr
-pattern TETranspose names body <- TensorExpr _ (TETransposeNode names body)
-  where TETranspose names body = TensorExpr noSourceSpan (TETransposeNode names body)
+pattern TETranspose names body <- TensorExpr _ _ (TETransposeNode names body)
+  where TETranspose names body = TensorExpr noSourceSpan Nothing (TETransposeNode names body)
 
 pattern TEDisjoint :: [TensorExpr] -> TensorExpr
-pattern TEDisjoint parts <- TensorExpr _ (TEDisjointNode parts)
-  where TEDisjoint parts = TensorExpr noSourceSpan (TEDisjointNode parts)
+pattern TEDisjoint parts <- TensorExpr _ _ (TEDisjointNode parts)
+  where TEDisjoint parts = TensorExpr noSourceSpan Nothing (TEDisjointNode parts)
 
 pattern TEDerivative :: [IxPart] -> TensorExpr -> TensorExpr
-pattern TEDerivative parts body <- TensorExpr _ (TEDerivativeNode parts body)
-  where TEDerivative parts body = TensorExpr noSourceSpan (TEDerivativeNode parts body)
+pattern TEDerivative parts body <- TensorExpr _ _ (TEDerivativeNode parts body)
+  where TEDerivative parts body = TensorExpr noSourceSpan Nothing (TEDerivativeNode parts body)
 
 pattern TEDot :: [TensorExpr] -> TensorExpr
-pattern TEDot parts <- TensorExpr _ (TEDotNode parts)
-  where TEDot parts = TensorExpr noSourceSpan (TEDotNode parts)
+pattern TEDot parts <- TensorExpr _ _ (TEDotNode parts)
+  where TEDot parts = TensorExpr noSourceSpan Nothing (TEDotNode parts)
 
 pattern TEBinary :: String -> TensorExpr -> TensorExpr -> TensorExpr
-pattern TEBinary op lhs rhs <- TensorExpr _ (TEBinaryNode op lhs rhs)
-  where TEBinary op lhs rhs = TensorExpr noSourceSpan (TEBinaryNode op lhs rhs)
+pattern TEBinary op lhs rhs <- TensorExpr _ _ (TEBinaryNode op lhs rhs)
+  where TEBinary op lhs rhs = TensorExpr noSourceSpan Nothing (TEBinaryNode op lhs rhs)
 
 pattern TEGroup :: TensorExpr -> TensorExpr
-pattern TEGroup e <- TensorExpr _ (TEGroupNode e)
-  where TEGroup e = TensorExpr noSourceSpan (TEGroupNode e)
+pattern TEGroup e <- TensorExpr _ _ (TEGroupNode e)
+  where TEGroup e = TensorExpr noSourceSpan Nothing (TEGroupNode e)
 
 {-# COMPLETE TENumber, TEIdent, TEUnary, TECall, TEApply, TEIf,
              TEAppendIndexed, TEWithSymbols, TEContractWith, TETensorMap,
@@ -195,6 +221,10 @@ parseTensorExpr src =
 
 parseTensorExprEither :: String -> Either String TensorExpr
 parseTensorExprEither src = parseTensorTokensE src (trimTensorIToks (itok src))
+
+parseSourceTensorExpr :: SourceText -> Either String TensorExpr
+parseSourceTensorExpr source =
+  annotateSource source <$> parseTensorExprEither (sourceTranslated source)
 
 parseTensorExprIO :: String -> String -> IO TensorExpr
 parseTensorExprIO context src =
@@ -295,7 +325,7 @@ preprocessTensorAst m expr =
       keep (TEGroup (pre body))
   where
     pre = preprocessTensorAst m
-    keep = setTensorSpan (tensorExprSpan expr)
+    keep = copyTensorMetadata expr
     axmap = zip (mAxes m) (internalCoordNames m)
     renameDerivativePart (IxPart v nm) =
       case lookup nm axmap of
@@ -609,7 +639,64 @@ parseTensorTokensE src ts0 =
     parse = parseTensorTokensE src
 
 setTensorSpan :: SourceSpan -> TensorExpr -> TensorExpr
-setTensorSpan sp (TensorExpr _ node) = TensorExpr sp node
+setTensorSpan sp (TensorExpr _ origin node) = TensorExpr sp origin node
+
+copyTensorMetadata :: TensorExpr -> TensorExpr -> TensorExpr
+copyTensorMetadata source (TensorExpr _ _ node) =
+  TensorExpr (tensorExprSpan source) (tensorExprOrigin source) node
+
+annotateSource :: SourceText -> TensorExpr -> TensorExpr
+annotateSource source expr =
+  let rebuilt = mapTensorChildren (annotateSource source) expr
+      origin = SourceOrigin (sourceLocationForSpan source (tensorExprSpan expr)) []
+  in TensorExpr (tensorExprSpan expr) (Just origin) (tensorExprNode rebuilt)
+
+sourceLocationForSpan :: SourceText -> SourceSpan -> SourceLocation
+sourceLocationForSpan source spanValue =
+  SourceLocation
+    { locationPath = sourcePath source
+    , locationLine = sourceLine source
+    , locationStartColumn = sourceColumn source + mappedStart - 1
+    , locationEndColumn = sourceColumn source + mappedEnd - 1
+    }
+  where
+    offsets = sourceOffsetMap source
+    translatedLength = length (sourceTranslated source)
+    startOffset = boundedOffset (sourceStart spanValue)
+    endOffset = boundedOffset (sourceEnd spanValue)
+    mappedStart = mapOffset startOffset
+    mappedEnd = mapOffset endOffset
+    boundedOffset value
+      | translatedLength <= 0 = 1
+      | value <= 0 = 1
+      | value > translatedLength = translatedLength
+      | otherwise = value
+    mapOffset value =
+      case drop (value - 1) offsets of
+        mapped : _ -> mapped
+        [] -> value
+
+mapTensorChildren :: (TensorExpr -> TensorExpr) -> TensorExpr -> TensorExpr
+mapTensorChildren walk expr =
+  copyTensorMetadata expr $
+    case expr of
+      TENumber value -> TENumber value
+      TEIdent base parts -> TEIdent base parts
+      TEUnary op body -> TEUnary op (walk body)
+      TECall fn args -> TECall (walk fn) (map walk args)
+      TEApply fn args -> TEApply (walk fn) (map walk args)
+      TEIf condition yes no -> TEIf (walk condition) (walk yes) (walk no)
+      TEAppendIndexed body parts -> TEAppendIndexed (walk body) parts
+      TEWithSymbols names body -> TEWithSymbols names (walk body)
+      TEContractWith reducer body -> TEContractWith reducer (walk body)
+      TETensorMap fn body -> TETensorMap (walk fn) (walk body)
+      TESubrefs body parts -> TESubrefs (walk body) parts
+      TETranspose names body -> TETranspose names (walk body)
+      TEDisjoint parts -> TEDisjoint (map walk parts)
+      TEDerivative parts body -> TEDerivative parts (walk body)
+      TEDot parts -> TEDot (map walk parts)
+      TEBinary op lhs rhs -> TEBinary op (walk lhs) (walk rhs)
+      TEGroup body -> TEGroup (walk body)
 
 -- Top-down, span-preserving transformation used by backend request lowering.
 -- Returning Just replaces the whole current subtree; returning Nothing walks
@@ -622,8 +709,8 @@ transformTensorExprM
 transformTensorExprM transform expr = do
   replacement <- transform expr
   case replacement of
-    Just expr' -> return (setTensorSpan (tensorExprSpan expr) expr')
-    Nothing -> setTensorSpan (tensorExprSpan expr) <$> descend expr
+    Just expr' -> return (copyTensorMetadata expr expr')
+    Nothing -> copyTensorMetadata expr <$> descend expr
   where
     walk = transformTensorExprM transform
     descend current =
@@ -1241,6 +1328,17 @@ expandDefs defs s = renderTensorExpr <$> expandDefsAst defs s
 expandDefsAst :: [Def] -> String -> IO TensorExpr
 expandDefsAst defs s = do
   ast <- parseTensorExprIO "bad tensor expression" s
+  expandDefExpr (map (\df -> df { defSourceText = Nothing }) defs) ast
+
+-- Expand the original, source-annotated expression through the original
+-- bodies of user definitions.  Unlike `expandDefs`, this path preserves the
+-- definition-site origin of each introduced subtree and records every call
+-- site crossed on the way to it.
+expandDefsWithSource :: [Def] -> SourceText -> IO TensorExpr
+expandDefsWithSource defs source = do
+  ast <- case parseSourceTensorExpr source of
+           Right expression -> return expression
+           Left message -> fatal ("bad source-mapped tensor expression: " ++ message)
   expandDefExpr defs ast
 
 expandDefExpr :: [Def] -> TensorExpr -> IO TensorExpr
@@ -1251,7 +1349,7 @@ expandDefExprAt fuel defs expr =
   case expr of
     TENumber _ -> return expr
     TEIdent nm [] | Just df <- lookupDef nm defs, null (defParams df) ->
-      applyDefAst defs df []
+      applyDefAtCall defs df expr []
     TEIdent _ _ -> return expr
     TEUnary op body ->
       keepSpan (TEUnary op <$> expand body)
@@ -1275,14 +1373,14 @@ expandDefExprAt fuel defs expr =
           -- body may return a function (pass lap u) or a partial application
           -- (apply apply lap u), and both must see the surplus arguments as
           -- part of the same application node.
-          body0 <- applyDefAst defs df used
+          body0 <- applyDefAtCall defs df expr used
           let result0 = appendApplyArgs body0 rest
           result <- expandDefExprAt (fuel - 1) defs result0
           return (setTensorSpan (tensorExprSpan expr) result)
     TEApply f args -> do
       f' <- expand f
       args' <- mapM expand args
-      let result0 = appendApplyArgs f' args'
+      let result0 = copyTensorMetadata expr (appendApplyArgs f' args')
       if hasDefinitionHead result0
         then do
           result <- expandDefExprAt fuel defs result0
@@ -1316,7 +1414,7 @@ expandDefExprAt fuel defs expr =
                         ++ "; possible higher-order recursion")
             else return ()
           parts' <- mapM expand parts
-          body0 <- expandDotAst defs dotDef parts'
+          body0 <- expandDotAst defs dotDef expr parts'
           body <- expandDefExprAt (fuel - 1) defs body0
           return (setTensorSpan (tensorExprSpan expr) body)
       | otherwise ->
@@ -1327,11 +1425,11 @@ expandDefExprAt fuel defs expr =
       keepSpan (TEGroup <$> expand body)
   where
     expand = expandDefExprAt fuel defs
-    keepSpan action = setTensorSpan (tensorExprSpan expr) <$> action
+    keepSpan action = copyTensorMetadata expr <$> action
     appendApplyArgs body [] = body
     appendApplyArgs (TEGroup body) outer = appendApplyArgs body outer
     appendApplyArgs (TEApply f inner) outer = appendApplyArgs f (inner ++ outer)
-    appendApplyArgs body outer = TEApply body outer
+    appendApplyArgs body outer = copyTensorMetadata body (TEApply body outer)
     hasDefinitionHead (TEApply (TEIdent nm []) _) =
       case lookupDef nm defs of
         Just _ -> True
@@ -1344,15 +1442,25 @@ lookupDef nm defs =
     df:_ -> Just df
     [] -> Nothing
 
-expandDotAst :: [Def] -> Def -> [TensorExpr] -> IO TensorExpr
-expandDotAst _ _ [] = return (TENumber "1")
-expandDotAst _ _ [p] = return p
-expandDotAst defs dotDef (p:ps) =
-  foldM (\lhs rhs -> applyDefAst defs dotDef [lhs, rhs]) p ps
+expandDotAst :: [Def] -> Def -> TensorExpr -> [TensorExpr] -> IO TensorExpr
+expandDotAst _ _ _ [] = return (TENumber "1")
+expandDotAst _ _ _ [p] = return p
+expandDotAst defs dotDef call (p:ps) =
+  foldM (\lhs rhs -> applyDefAtCall defs dotDef call [lhs, rhs]) p ps
+
+applyDefAtCall :: [Def] -> Def -> TensorExpr -> [TensorExpr] -> IO TensorExpr
+applyDefAtCall defs df call args = do
+  body <- applyDefAst defs df args
+  return (addDefinitionExpansion df call body)
 
 applyDefAst :: [Def] -> Def -> [TensorExpr] -> IO TensorExpr
 applyDefAst _ df args = do
-  ast <- parseTensorExprIO ("in def " ++ defName df) (defBody df)
+  ast <- case defSourceText df of
+           Just source ->
+             case parseSourceTensorExpr source of
+               Right expression -> return expression
+               Left message -> fatal ("in def " ++ defName df ++ ": " ++ message)
+           Nothing -> parseTensorExprIO ("in def " ++ defName df) (defBody df)
   let env = zip (map defParamBase (defParams df)) (map argInfo args)
   substExpr df env ast
   where
@@ -1360,6 +1468,30 @@ applyDefAst _ df args = do
     stripPatternEllipsis p
       | "..." `isSuffixOf` p = take (length p - 3) p
       | otherwise = p
+
+addDefinitionExpansion :: Def -> TensorExpr -> TensorExpr -> TensorExpr
+addDefinitionExpansion df call body =
+  case (defSourceText df, tensorExprOrigin call) of
+    (Just definitionSource, Just callOrigin) ->
+      addFrame frame (originTrace callOrigin) body
+      where
+        frame = ExpansionFrame
+          { expansionName = defName df
+          , expansionDefinition =
+              sourceLocationForSpan definitionSource
+                (SourceSpan 1 (max 1 (length (sourceTranslated definitionSource))))
+          , expansionCall = originLocation callOrigin
+          }
+    _ -> body
+  where
+    addFrame frame inherited expr =
+      let rebuilt = mapTensorChildren (addFrame frame inherited) expr
+          origin = case tensorExprOrigin expr of
+            Just current ->
+              Just current
+                { originTrace = frame : nub (originTrace current ++ inherited) }
+            Nothing -> Nothing
+      in TensorExpr (tensorExprSpan expr) origin (tensorExprNode rebuilt)
 
 type ArgInfo = (TensorExpr, Maybe (String, Int, [IxPart]))
 
@@ -1418,15 +1550,17 @@ substExpr df env expr =
       keepSpan (TEGroup <$> subst e)
   where
     subst = substExpr df env
-    keepSpan action = setTensorSpan (tensorExprSpan expr) <$> action
+    keepSpan action = copyTensorMetadata expr <$> action
 
 argWithPrimes :: ArgInfo -> Int -> TensorExpr
-argWithPrimes (_, Just (base, primes0, parts)) primes =
-  TEIdent (base ++ replicate (primes0 + primes) '\'') parts
+argWithPrimes (arg, Just (base, primes0, parts)) primes =
+  copyTensorMetadata arg
+    (TEIdent (base ++ replicate (primes0 + primes) '\'') parts)
 argWithPrimes (arg, Nothing) primes
   | primes == 0 = arg
   | otherwise =
-      TEApply (TEIdent (renderTensorAtom arg ++ replicate primes '\'') []) []
+      copyTensorMetadata arg
+        (TEApply (TEIdent (renderTensorAtom arg ++ replicate primes '\'') []) [])
 
 argWithParts :: Def -> ArgInfo -> Int -> [IxPart] -> IO TensorExpr
 argWithParts _ (arg, _) primes parts
@@ -1441,15 +1575,18 @@ argWithParts _ (arg, _) primes parts
           let (base, primes0) = fieldBaseOf base0
           in Just (base, primes0, parts0)
         _ -> Nothing
-argWithParts _ (_, Just (base, primes0, _)) primes parts =
-  return (TEIdent (base ++ replicate (primes0 + primes) '\'') parts)
+argWithParts _ (arg, Just (base, primes0, _)) primes parts =
+  return (copyTensorMetadata arg
+            (TEIdent (base ++ replicate (primes0 + primes) '\'') parts))
 argWithParts _ (arg, Nothing) primes parts =
   return (appendPartsWithPrimes arg primes parts)
 
 argWithAppendParts :: ArgInfo -> Int -> [IxPart] -> [IxPart] -> TensorExpr
-argWithAppendParts (_, Just (base, primes0, argParts)) primes parts appendParts =
+argWithAppendParts (arg, Just (base, primes0, argParts)) primes parts appendParts =
   let keptParts = if null parts then argParts else parts
-  in TEIdent (base ++ replicate (primes0 + primes) '\'') (keptParts ++ appendParts)
+  in copyTensorMetadata arg
+       (TEIdent (base ++ replicate (primes0 + primes) '\'')
+                (keptParts ++ appendParts))
 argWithAppendParts (arg, Nothing) primes parts appendParts =
   appendPartsWithPrimes arg primes (parts ++ appendParts)
 
@@ -1457,8 +1594,9 @@ appendPartsWithPrimes :: TensorExpr -> Int -> [IxPart] -> TensorExpr
 appendPartsWithPrimes arg primes parts =
   let arg' = if primes == 0
                then arg
-               else TEApply (TEIdent (renderTensorAtom arg ++ replicate primes '\'') []) []
-  in TEAppendIndexed arg' parts
+               else copyTensorMetadata arg
+                      (TEApply (TEIdent (renderTensorAtom arg ++ replicate primes '\'') []) [])
+  in copyTensorMetadata arg (TEAppendIndexed arg' parts)
 
 renameLocalIxAst :: [(String, IxPart)] -> TensorExpr -> TensorExpr
 renameLocalIxAst aliases expr =
@@ -1499,7 +1637,7 @@ renameLocalIxAst aliases expr =
       keep (TEGroup (rename body))
   where
     rename = renameLocalIxAst aliases
-    keep = setTensorSpan (tensorExprSpan expr)
+    keep = copyTensorMetadata expr
     renameParts =
       map (\p@(IxPart _ nm) ->
              case lookup nm aliases of

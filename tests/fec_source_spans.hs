@@ -3,6 +3,7 @@
 module Main where
 
 import Formurae.TensorExpr
+import Formurae.Syntax
 
 main :: IO ()
 main = do
@@ -24,6 +25,43 @@ main = do
       assertSpan "inner nested lb application" (13, 16) inner
     result -> fail ("unexpected nested-application AST: " ++ show result)
 
+  let mapped = SourceText
+        { sourcePath = "mapped.fme"
+        , sourceLine = 10
+        , sourceColumn = 5
+        , sourceOriginal = "α + lb u"
+        , sourceTranslated = "alpha + lb u"
+        , sourceOffsetMap = [1, 1, 1, 1, 1, 2, 3, 4, 5, 6, 7, 8]
+        }
+  case parseSourceTensorExpr mapped of
+    Right (TEBinary "+" _ request) ->
+      assertOrigin "pre-transliteration request" (10, 9, 12) [] request
+    result -> fail ("unexpected source-mapped AST: " ++ show result)
+
+  let definitionSource = SourceText
+        { sourcePath = "definitions.fme"
+        , sourceLine = 4
+        , sourceColumn = 12
+        , sourceOriginal = "α + lb q"
+        , sourceTranslated = "alpha + lb q"
+        , sourceOffsetMap = [1, 1, 1, 1, 1, 2, 3, 4, 5, 6, 7, 8]
+        }
+      callSource = SourceText
+        { sourcePath = "model.fme"
+        , sourceLine = 8
+        , sourceColumn = 8
+        , sourceOriginal = "op u"
+        , sourceTranslated = "op u"
+        , sourceOffsetMap = [1, 2, 3, 4]
+        }
+      operator = Def "op" ["q"] "alpha + lb q" (Just definitionSource)
+  expanded <- expandDefsWithSource [operator] callSource
+  case expanded of
+    TEBinary "+" _ request ->
+      assertOrigin "definition expansion" (4, 16, 19)
+        [("op", (4, 12, 19), (8, 8, 11))] request
+    result -> fail ("unexpected expanded source-mapped AST: " ++ show result)
+
   putStrLn "fec source span tests: ok"
 
 assertSpan :: String -> (Int, Int) -> TensorExpr -> IO ()
@@ -33,3 +71,36 @@ assertSpan label (expectedStart, expectedEnd) expr =
        then return ()
        else fail (label ++ ": expected " ++ show (expectedStart, expectedEnd)
                   ++ ", got " ++ show actual)
+
+assertOrigin
+  :: String
+  -> (Int, Int, Int)
+  -> [(String, (Int, Int, Int), (Int, Int, Int))]
+  -> TensorExpr
+  -> IO ()
+assertOrigin label expectedLocation expectedTrace expr =
+  case tensorExprOrigin expr of
+    Nothing -> fail (label ++ ": missing source origin")
+    Just origin -> do
+      assertLocation (label ++ " location") expectedLocation (originLocation origin)
+      let actualTrace =
+            [ (expansionName frame,
+               locationTuple (expansionDefinition frame),
+               locationTuple (expansionCall frame))
+            | frame <- originTrace origin]
+      if actualTrace == expectedTrace
+        then return ()
+        else fail (label ++ ": expected trace " ++ show expectedTrace
+                   ++ ", got " ++ show actualTrace)
+
+assertLocation :: String -> (Int, Int, Int) -> SourceLocation -> IO ()
+assertLocation label expected actual =
+  if locationTuple actual == expected
+    then return ()
+    else fail (label ++ ": expected " ++ show expected
+               ++ ", got " ++ show (locationTuple actual))
+
+locationTuple :: SourceLocation -> (Int, Int, Int)
+locationTuple location =
+  (locationLine location, locationStartColumn location,
+   locationEndColumn location)

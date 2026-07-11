@@ -48,21 +48,32 @@ data Init = IRaw String String | IVec String [String]
 
 data SK = KLet | KLocal | KEq deriving Eq
 
+-- One expression as it appeared in the original .fme source and after
+-- transliteration.  Each character in `sourceTranslated` has a 1-based
+-- offset into `sourceOriginal`; multi-character transliterations therefore
+-- map back to the single source character that produced them.
+data SourceText = SourceText
+  { sourcePath       :: FilePath
+  , sourceLine       :: Int
+  , sourceColumn     :: Int
+  , sourceOriginal   :: String
+  , sourceTranslated :: String
+  , sourceOffsetMap  :: [Int]
+  } deriving (Eq, Show)
+
 data Step = Step
   { sk :: SK
   , sNm :: String
   , sIdx :: [IxPart]
   , sEx :: String
-  , sLine :: Int
-  , sExprColumn :: Int
-  , sOriginalEx :: String
-  , sSourceMapped :: Bool
+  , sSourceText :: SourceText
   }
 
 data Def = Def
   { defName   :: String
   , defParams :: [String]
   , defBody   :: String
+  , defSourceText :: Maybe SourceText
   } deriving (Eq, Show)
 
 data Model = Model
@@ -77,6 +88,7 @@ data Model = Model
   , mFlds   :: [(String, Kind)]
   , mFieldDecls :: [FieldDecl]
   , mInits  :: [Init]
+  , mInitSourceTexts :: [SourceText]
   , mSteps  :: [Step]
   , mDd     :: Maybe String
   , mMetric :: Maybe [String]
