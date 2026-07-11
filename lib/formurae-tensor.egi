@@ -45,3 +45,122 @@ def antisym {Ring a} (a: Tensor a) : Tensor a :=
 
 def norm2 {Ring a} (a: Tensor a) : a :=
   withSymbols [i] (a~i . a_i)
+
+-- Canonical full-tensor view of a differential form.  The component callback
+-- is evaluated only for strictly increasing index lists; repeated indices are
+-- zero and permutations share the same component with the alternating sign.
+def FE.canonicalFormComponent
+      (component: [Integer] -> MathValue)
+      (indices: [Integer]) : MathValue :=
+  if length (unique indices) < length indices
+    then 0
+    else let (sign, sorted) := sortWithSign (map (\index -> [index]) indices)
+          in sign * component sorted
+
+def FE.canonicalFormTensor
+      (component: [Integer] -> MathValue)
+      (dim: Integer) (degree: Integer) : Tensor MathValue :=
+  if assert "canonical form tensor needs 0 <= degree <= dimension"
+            (0 <= degree && degree <= dim)
+    then generateTensor
+           (FE.canonicalFormComponent component)
+           (map (\_ -> dim) (between 1 degree))
+    else generateTensor (\[] -> 0) []
+
+def FE.validTensorComponent
+      (shape: [Integer]) (indices: [Integer]) : Bool :=
+  length shape = length indices
+  && all (\(size, index) -> 1 <= index && index <= size) (zip shape indices)
+
+def FE.flatTensorIndex
+      (shape: [Integer]) (indices: [Integer]) : Integer :=
+  match (shape, indices) as (list integer, list integer) with
+    | ([], []) -> 1
+    | ($size :: $restShape, $index :: $restIndices) ->
+        (index - 1) * product restShape
+        + FE.flatTensorIndex restShape restIndices
+
+def FE.tensorComponentAt {a}
+      (t: Tensor a) (indices: [Integer]) : a :=
+  let shape := tensorShape t
+   in if assert "tensor component indices do not match its shape"
+                (FE.validTensorComponent shape indices)
+        then nth (FE.flatTensorIndex shape indices) (tensorToList t)
+        else head (tensorToList t)
+
+def FE.chooseAxes (degree: Integer) (axes: [Integer]) : [[Integer]] :=
+  if degree = 0
+    then [[]]
+    else match axes as list integer with
+           | [] -> []
+           | $axis :: $rest ->
+               map (\basis -> axis :: basis) (FE.chooseAxes (degree - 1) rest)
+               ++ FE.chooseAxes degree rest
+
+def FE.formBasis (dim: Integer) (degree: Integer) : [[Integer]] :=
+  if assert "form basis needs 0 <= degree <= dimension"
+            (0 <= degree && degree <= dim)
+    then FE.chooseAxes degree (between 1 dim)
+    else []
+
+def FE.formComponents (t: Tensor MathValue) : [MathValue] :=
+  let shape := tensorShape t
+   in let degree := dfOrder t
+   in let dim := if shape = [] then 0 else head shape
+   in if assert "form tensor must have equal axis dimensions"
+                (all (\size -> size = dim) shape)
+        then map (FE.tensorComponentAt t) (FE.formBasis dim degree)
+        else []
+
+-- Coordinate operators take the discrete derivative as an explicit
+-- dependency.  `axisIds` determines the spatial dimension and maps tensor
+-- positions to the axis identifier expected by `partial`.  Keeping the
+-- derivative abstract lets generated models provide collocated, primal, or dual
+-- lowering without reimplementing the tensor algebra of each operator.
+def FE.axisTensor (axisIds: [Integer]) : Tensor Integer :=
+  generateTensor (\[i] -> nth i axisIds) [length axisIds]
+
+def FE.grad
+      (partial: Integer -> MathValue -> MathValue)
+      (axisIds: [Integer])
+      (u: MathValue) : Tensor MathValue :=
+  let axes := FE.axisTensor axisIds
+   in withSymbols [i] partial axes_i u
+
+def FE.dGrad
+      (partial: Integer -> MathValue -> MathValue)
+      (axisIds: [Integer])
+      (x: Tensor MathValue) : Tensor MathValue :=
+  match assert "dGrad expects a rank-1 tensor"
+               (length (tensorShape x) = 1) as bool with
+    | #True ->
+        let axes := FE.axisTensor axisIds
+         in withSymbols [i, j] partial axes_i x_j
+
+def FE.divg
+      (partial: Integer -> MathValue -> MathValue)
+      (axisIds: [Integer])
+      (x: Tensor MathValue) : MathValue :=
+  match assert "divg axis and vector dimensions differ"
+               (tensorShape x = [length axisIds]) as bool with
+    | #True ->
+        let axes := FE.axisTensor axisIds
+         in withSymbols [i] sum (contract (partial axes_i x~i))
+
+def FE.curl
+      (partial: Integer -> MathValue -> MathValue)
+      (axisIds: [Integer])
+      (x: Tensor MathValue) : Tensor MathValue :=
+  match assert "curl requires three axes and a three-component vector"
+               (length axisIds = 3 && tensorShape x = [3]) as bool with
+    | #True ->
+        let axes := FE.axisTensor axisIds
+         in withSymbols [i, j, k]
+              ((ε 3)_i~j~k . partial axes_j x_k)
+
+def FE.hessian
+      (partial: Integer -> MathValue -> MathValue)
+      (axisIds: [Integer])
+      (u: MathValue) : Tensor MathValue :=
+  let axes := FE.axisTensor axisIds
+   in withSymbols [i, j] partial axes_i (partial axes_j u)

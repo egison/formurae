@@ -1,0 +1,24 @@
+-- Yee-FDTD Maxwell solver derived from tensor component indices.
+-- E is a primal vector on edge centers; B is its dual-vector partner on
+-- face centers.  The standard curl definition and the two field policies
+-- determine every source/target placement used by dYee.
+
+mode collocated
+dimension 3
+axes x, y, z
+
+param dt = 0.5*dx
+
+extern exp
+raw gauss1 = fun(x) exp(-((x-(total_grid_x*dx/2))/(8*dx))**2)
+
+field E_i @ primal
+field B_i @ dual
+
+init:
+  E_i = [| 0, gauss1(i*dx), 0 |]_i
+  B_i = [| 0, 0, gauss1((i+0.5)*dx) |]_i
+
+step:
+  E'_i = E_i + dt * curl B_i
+  B'_i = B_i - dt * curl E'_i

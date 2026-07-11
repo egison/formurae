@@ -1,7 +1,7 @@
 module Formurae.Index where
 
 import Data.Char (isAlpha, isAlphaNum, isDigit, isSpace)
-import Data.List (intercalate, sort, stripPrefix)
+import Data.List (sort, stripPrefix)
 
 import Formurae.Common (fatal, reservedInternalPrefix, validSurfaceName)
 import Formurae.Syntax
@@ -131,23 +131,21 @@ parseFieldSpec spec = do
            Just (nm, Just (FieldIndex [Antisymmetric parts]))
       _ -> Nothing
 
-inferFieldLayout :: Int -> String -> Maybe FieldIndex -> Bool -> IO FieldLayout
-inferFieldLayout ln spec Nothing staggered
-  | staggered = fatal ("scalar field cannot be staggered: " ++ spec ++ " (line " ++ show ln ++ ")")
-  | otherwise = return ScalarLayout
-inferFieldLayout ln spec (Just (FieldIndex [Plain parts])) _
+inferFieldLayout :: Int -> String -> Maybe FieldIndex -> IO FieldLayout
+inferFieldLayout _ _ Nothing = return ScalarLayout
+inferFieldLayout ln spec (Just (FieldIndex [Plain parts]))
   | length parts == 1 = return Rank1Layout
   | length parts == 2 = return FullRank2Layout
   | otherwise = fatal ("unsupported field rank in " ++ spec ++ " (line " ++ show ln ++ ")")
-inferFieldLayout ln spec (Just (FieldIndex [Symmetric parts])) _
+inferFieldLayout ln spec (Just (FieldIndex [Symmetric parts]))
   | length parts == 2 && sameVarianceParts parts = return SymRank2Layout
   | length parts == 2 = fatal ("symmetric field needs same-variance indices: " ++ spec ++ " (line " ++ show ln ++ ")")
   | otherwise = fatal ("symmetric field must have rank 2: " ++ spec ++ " (line " ++ show ln ++ ")")
-inferFieldLayout ln spec (Just (FieldIndex [Antisymmetric parts])) _
+inferFieldLayout ln spec (Just (FieldIndex [Antisymmetric parts]))
   | length parts == 2 && sameVarianceParts parts = return AntiRank2Layout
   | length parts == 2 = fatal ("antisymmetric field needs same-variance indices: " ++ spec ++ " (line " ++ show ln ++ ")")
   | otherwise = fatal ("antisymmetric field must have rank 2: " ++ spec ++ " (line " ++ show ln ++ ")")
-inferFieldLayout ln spec _ _ =
+inferFieldLayout ln spec _ =
   fatal ("unsupported field spec: " ++ spec ++ " (line " ++ show ln ++ ")")
 
 metricInternalBase :: Variance -> Variance -> String
@@ -162,22 +160,40 @@ metricInternalBase VDown VDown = reservedInternalPrefix ++ "MetricCov"
 metricPreludeName :: String
 metricPreludeName = reservedInternalPrefix ++ "CartesianMetric"
 
-plOf :: [Bool] -> String
-plOf hs = "[" ++ intercalate ", " [if h then "1 / 2" else "0" | h <- hs] ++ "]"
-
 axisRange :: Model -> [Int]
 axisRange m = [1 .. mDim m]
 
-zeroPlaceM :: Model -> String
-zeroPlaceM m = plOf (replicate (mDim m) False)
+-- The generated program asks the shared Egison grid library to materialize
+-- concrete offsets.  The bits are retained temporarily as a compiler oracle:
+-- they choose collocated versus Yee derivative lowering and let us reject
+-- impossible placement combinations before emitting code.
+data Placement = Placement
+  { placementBits :: [Bool]
+  , placementExpr :: String
+  , placementPolicy :: GridPolicy
+  }
 
-placeV :: Model -> Int -> String
-placeV m a = plOf [c == a | c <- axisRange m]
+instance Eq Placement where
+  Placement lhs _ _ == Placement rhs _ _ = lhs == rhs
 
-placeS :: Model -> Int -> Int -> String
-placeS m a b
-  | a == b = zeroPlaceM m
-  | otherwise = plOf [c == a || c == b | c <- axisRange m]
+-- Grid placement is determined uniformly from the parity of the concrete
+-- component indices.  Layout/rank-specific placeV/placeS cases are all
+-- instances of this rule.
+componentPlacement :: Model -> GridPolicy -> [Int] -> Placement
+componentPlacement m policy indices =
+  Placement
+    [ policyBit (odd (length (filter (== axis) indices)))
+    | axis <- axisRange m
+    ]
+    ("(FE.componentPlacement feDim " ++ show policy ++ " " ++ show indices ++ ")")
+    policy
+  where
+    policyBit _ | policy == Collocated = False
+    policyBit parity | policy == Primal = parity
+    policyBit parity = not parity
+
+placeText :: Placement -> String
+placeText = placementExpr
 
 leviCivita3 :: [Int] -> Int
 leviCivita3 xs
@@ -213,11 +229,11 @@ fieldIndexParts fd =
 
 componentRank :: Kind -> Int
 componentRank Scalar = 0
-componentRank (Vector _) = 1
+componentRank Vector = 1
 componentRank (Form k) = k
 componentRank SymM = 2
 componentRank AntiM = 2
-componentRank (Tensor2 _) = 2
+componentRank Tensor2 = 2
 
 choose :: Int -> [a] -> [[a]]
 choose 0 _ = [[]]
@@ -236,11 +252,11 @@ antiComponentIndices dim =
 
 componentIndices :: Int -> Kind -> [[Int]]
 componentIndices _ Scalar = [[]]
-componentIndices dim (Vector _) = [[a] | a <- [1 .. dim]]
+componentIndices dim Vector = [[a] | a <- [1 .. dim]]
 componentIndices dim (Form k) = choose k [1 .. dim]
 componentIndices dim SymM = symComponentIndices dim
 componentIndices dim AntiM = antiComponentIndices dim
-componentIndices dim (Tensor2 _) = [[a, b] | a <- [1 .. dim], b <- [1 .. dim]]
+componentIndices dim Tensor2 = [[a, b] | a <- [1 .. dim], b <- [1 .. dim]]
 
 rank2Pairs :: [[Int]] -> [(Int, Int)]
 rank2Pairs = map pairOf
@@ -300,8 +316,8 @@ fieldStorageMapEntries m (nm, kind) =
   ]
 
 isIndexKind :: Maybe Kind -> Bool
-isIndexKind (Just (Vector _)) = True
+isIndexKind (Just Vector) = True
 isIndexKind (Just SymM) = True
 isIndexKind (Just AntiM) = True
-isIndexKind (Just (Tensor2 _)) = True
+isIndexKind (Just Tensor2) = True
 isIndexKind _ = False

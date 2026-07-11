@@ -1,0 +1,45 @@
+--
+-- formurae-grid.egi : Grid policy and component placement inference
+--
+-- A field carries only a GridPolicy.  Concrete component placement is derived
+-- from the parity of its completed component indices, independently of the
+-- storage layout used by the Formura backend.
+--
+
+inductive GridPolicy :=
+  | Collocated
+  | Primal
+  | Dual
+
+def FE.flipGridPolicy (policy: GridPolicy) : GridPolicy :=
+  if policy = Collocated
+    then Collocated
+    else if policy = Primal then Dual else Primal
+
+def FE.validComponentIndices (dim: Integer) (indices: [Integer]) : Bool :=
+  0 <= dim && all (\axis -> 1 <= axis && axis <= dim) indices
+
+def FE.axisParity (axis: Integer) (indices: [Integer]) : Integer :=
+  i.modulo (length (filter (\index -> index = axis) indices)) 2
+
+def FE.placementBit (policy: GridPolicy) (parity: Integer) : Integer :=
+  if policy = Collocated
+    then 0
+    else if policy = Primal then parity else 1 - parity
+
+def FE.componentPlacement
+      (dim: Integer) (policy: GridPolicy) (indices: [Integer]) : [MathValue] :=
+  if assert
+       "FE.componentPlacement: dimension must be nonnegative and component indices must be in 1..dim"
+       (FE.validComponentIndices dim indices)
+    then map (\axis -> FE.placementBit policy (FE.axisParity axis indices) / 2)
+             (between 1 dim)
+    else []
+
+def FE.togglePlacement (axis: Integer) (placement: [MathValue]) : [MathValue] :=
+  if assert
+       "FE.togglePlacement: axis must be in 1..length(placement)"
+       (1 <= axis && axis <= length placement)
+    then map (\(current, bit) -> if current = axis then 1 / 2 - bit else bit)
+             (zip (between 1 (length placement)) placement)
+    else []

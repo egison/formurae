@@ -2,6 +2,14 @@
 
 Date: 2026-07-10
 
+> **2026-07-11 superseded in part:** `TensorExpr` をテンソル意味論の最終的な
+> 実行主体とするロードマップは
+> [20260711-egison-centered-grid-semantics.md](20260711-egison-centered-grid-semantics.md)
+> で置き換えた。`TensorExpr` は移行中の surface parser / diagnostics / emitter と
+> 未移行式の lowering に限って残し、テンソル演算、operator evaluation、grid policy、
+> placement inference は段階的に Egison へ移す。本書の AST・診断・既存 lowering の
+> 説明は現状資料として引き続き有効である。
+
 ## 実装更新 (2026-07-10)
 
 - `lib/formurae-tensor.egi` を追加した。Egison の既存 Tensor primitive

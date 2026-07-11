@@ -10,16 +10,20 @@ compile_fme() {
 
 typecheck_generated() {
   printf '%s\n' "$1" |
-    (cd "$EGISON_DIR" && cabal run -v0 egison -- -t \
+    "$ROOT/tests/run_egison_strict.sh" "$EGISON_DIR" -t \
+      -l "$ROOT/lib/formurae-grid.egi" \
       -l "$ROOT/lib/formurae-tensor.egi" \
+      -l "$ROOT/lib/formurae-geometry.egi" \
       -l "$ROOT/lib/fmrgen.egi" \
-      -l "$ROOT/lib/formurae-runtime.egi" /dev/stdin)
+      -l "$ROOT/lib/formurae-runtime.egi" /dev/stdin
 }
 
 run_generated() {
   printf '%s\n' "$1" |
     (cd "$EGISON_DIR" && cabal run -v0 egison -- \
+      -l "$ROOT/lib/formurae-grid.egi" \
       -l "$ROOT/lib/formurae-tensor.egi" \
+      -l "$ROOT/lib/formurae-geometry.egi" \
       -l "$ROOT/lib/fmrgen.egi" \
       -l "$ROOT/lib/formurae-runtime.egi" /dev/stdin)
 }
@@ -47,6 +51,18 @@ assert_not_contains() {
     exit 1
   fi
 }
+
+# Egison reports type failures with exit status 0, so the strict wrapper must
+# turn diagnostics into a failing status.
+set +e
+strict_output=$(typecheck_generated 'def broken : Integer := missingValue' 2>&1)
+strict_status=$?
+set -e
+if [ "$strict_status" -eq 0 ]; then
+  printf 'strict Egison diagnostic wrapper unexpectedly accepted an unbound value\n' >&2
+  exit 1
+fi
+assert_contains "$strict_output" 'Type error:' 'strict Egison diagnostics are fatal'
 
 write_case() {
   file=$1
@@ -119,7 +135,8 @@ write_case "$f" \
   "  B'~i = g~i~j . A_j"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'def FormuraeInternalMetricContra := generateTensor' 'non-Euclidean contravariant metric is retained as a bare tensor'
+typecheck_generated "$out"
+assert_contains "$out" 'def FormuraeInternalMetricContra := FE.inverseDiagonalMetricTensor feDim feH' 'non-Euclidean contravariant metric uses shared geometry'
 assert_not_contains "$out" 'def FormuraeInternalMetricCov :=' 'unused covariant metric is not emitted'
 assert_not_contains "$out" 'def FormuraeInternalMetricMixedUpDown :=' 'unused mixed metric is not emitted'
 assert_not_contains "$out" 'def FormuraeInternalMetricMixedDownUp :=' 'unused reverse mixed metric is not emitted'
@@ -153,7 +170,13 @@ rm -f "$f"
 typecheck_generated "$out"
 assert_contains "$out" 'def feG (a: Integer) (b: Integer) : MathValue :=' 'embedding metric helper is unified'
 assert_contains "$out" 'def feH (a: Integer) : MathValue := sqrt (feG a a)' 'embedding scale helper is unified'
-assert_contains "$out" 'def feSqrtG : MathValue := product (map feH feAxisIds)' 'embedding volume factor is shared'
+assert_contains "$out" 'def feG (a: Integer) (b: Integer) : MathValue := FE.inducedMetric feCoords feX a b' 'induced metric is evaluated by shared geometry'
+assert_contains "$out" 'def feSqrtG : MathValue := FE.orthogonalVolume feAxisIds feH' 'embedding volume factor is shared'
+assert_contains "$out" 'FE.orthogonalHodgeCoefficient feAxisIds feH [1]' 'Hodge coefficient is evaluated by shared geometry'
+assert_contains "$out" 'FE.lbFromFluxes feAxisIds feLbDivergence feLbStoredFlux sg' 'Laplace-Beltrami divergence is evaluated by shared geometry'
+assert_contains "$out" 'FE.lbFlux feLbGradient feLbCoefficient axis u' 'Laplace-Beltrami flux is evaluated by shared geometry'
+assert_contains "$out" 'nth axis [f1, f2]' 'Laplace-Beltrami divergence reads the materialized flux fields'
+assert_not_contains "$out" 'feSqrtG / ((feH' 'generated code has no hand-written Hodge coefficient formula'
 assert_contains "$out" 'feG 1 2 = 0' 'embedding orthogonality gate uses unified metric'
 assert_contains "$out" 'extern function :: sin' 'embedding intrinsic sin is detected'
 assert_contains "$out" 'extern function :: cos' 'embedding intrinsic cos is detected'
@@ -183,6 +206,9 @@ fmr=$(run_generated "$out")
 assert_contains "$out" 'extern function :: cos' 'embedding derivative dependency is declared'
 assert_contains "$fmr" 'extern function :: cos' 'derived embedding function reaches Formura helpers'
 assert_contains "$fmr" 'cos(' 'derived embedding function reaches Formura expressions'
+assert_contains "$fmr" 'f1 =' 'Laplace-Beltrami flux is materialized before the update'
+assert_contains "$fmr" "u' =" 'Laplace-Beltrami update is emitted'
+assert_contains "$fmr" 'f1[' 'Laplace-Beltrami update reads the materialized flux'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -216,7 +242,8 @@ write_case "$f" \
   "  B'~i = g~i~j . A_j"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'def FormuraeInternalMetricContra := generateTensor (\[i, j] -> if i = j then 1 / (feG i i) else 0)' 'embedding contravariant metric uses unified metric helper'
+typecheck_generated "$out"
+assert_contains "$out" 'def FormuraeInternalMetricContra := FE.metricTensor feDim (\i j -> if i = j then 1 / (feG i i) else 0)' 'embedding contravariant metric uses shared metric helper'
 assert_not_contains "$out" 'def feH ' 'indexed embedding metric does not need scale factors'
 assert_not_contains "$out" 'extern function :: sqrt' 'indexed embedding metric does not need sqrt'
 
@@ -255,6 +282,224 @@ if [ "$status" -eq 0 ]; then
   exit 1
 fi
 assert_contains "$out" 'lb currently supports one scalar field per model; found: u, v' 'multiple lb target rejection'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 1' \
+  'axes x' \
+  'metric scale [1]' \
+  'field u : scalar' \
+  'step:' \
+  "  u' = 1 + 2 * lb (u)"
+out=$(compile_fme "$f")
+rm -f "$f"
+typecheck_generated "$out"
+assert_contains "$out" 'def feLbResult : MathValue :=' 'structural lb request result binding'
+assert_contains "$out" '1 + (2 * feLbResult)' 'nested and parenthesized lb lowering'
+assert_not_contains "$out" 'lb (u)' 'no unresolved parenthesized lb application'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 1' \
+  'axes x' \
+  'metric scale [1]' \
+  'field u : scalar' \
+  'field v : scalar' \
+  'step:' \
+  "  u' = lb (u + v)"
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+rm -f "$f"
+if [ "$status" -eq 0 ]; then
+  printf 'compound lb argument unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_contains "$out" 'lb expects an unindexed scalar field argument' 'compound lb argument rejection'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 1' \
+  'axes x' \
+  'metric scale [1]' \
+  'field u : scalar @ primal' \
+  'step:' \
+  "  u' = lb u"
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+rm -f "$f"
+if [ "$status" -eq 0 ]; then
+  printf 'non-collocated lb source unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_contains "$out" 'lb currently requires a collocated scalar source' 'non-collocated lb source rejection'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 1' \
+  'axes x' \
+  'metric scale [1]' \
+  'field u : scalar' \
+  'field V_i @ primal' \
+  'step:' \
+  "  V'_i = (lb u) * V_i"
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+rm -f "$f"
+if [ "$status" -eq 0 ]; then
+  printf 'collocated lb result unexpectedly mixed with a primal component\n' >&2
+  exit 1
+fi
+assert_contains "$out" 'grid placement mismatch between operands' 'lb result keeps collocated placement after lowering'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 1' \
+  'axes x' \
+  'field u : scalar' \
+  'def lb q = q' \
+  'step:' \
+  "  u' = lb u"
+out=$(compile_fme "$f")
+rm -f "$f"
+typecheck_generated "$out"
+assert_not_contains "$out" 'def feLbResult' 'user-defined lb shadows backend request'
+assert_contains "$out" 'scalarEq "u" (u)' 'user-defined lb is expanded normally'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 1' \
+  'axes x' \
+  'field lb : scalar' \
+  'field u : scalar' \
+  'init:' \
+  '  u := lb' \
+  'step:' \
+  "  u' = lb"
+out=$(compile_fme "$f")
+rm -f "$f"
+typecheck_generated "$out"
+assert_not_contains "$out" 'def feLbResult' 'a field named lb is not a backend request'
+assert_contains "$out" 'fmrInit "u" (lb)' 'a field named lb is valid in an initializer'
+assert_contains "$out" 'scalarEq "u" (lb)' 'a field named lb is valid in a step'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 1' \
+  'axes x' \
+  'metric scale [1]' \
+  'field u : scalar' \
+  'field v : scalar' \
+  'init:' \
+  '  u := lb v' \
+  'step:' \
+  "  u' = u"
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+rm -f "$f"
+if [ "$status" -eq 0 ]; then
+  printf 'lb initializer unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_contains "$out" 'lb is not supported in an initializer' 'lb initializer rejection'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 1' \
+  'axes x' \
+  'metric scale [1]' \
+  'field u : scalar' \
+  'field v : scalar' \
+  'init:' \
+  '  u = lb v' \
+  'step:' \
+  "  u' = u"
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+rm -f "$f"
+if [ "$status" -eq 0 ]; then
+  printf 'raw lb initializer unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_contains "$out" 'lb is not supported in an initializer' 'raw lb initializer rejection'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 1' \
+  'axes x' \
+  'metric scale [1]' \
+  'field u : scalar' \
+  'field v : scalar' \
+  'init:' \
+  '  u = lb(v[i])' \
+  'step:' \
+  "  u' = u"
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+rm -f "$f"
+if [ "$status" -eq 0 ]; then
+  printf 'raw Formura lb initializer unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_contains "$out" 'lb is not supported in an initializer' 'raw Formura lb application rejection'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 1' \
+  'axes x' \
+  'metric scale [1]' \
+  'field u : scalar' \
+  'field v : scalar' \
+  'init:' \
+  '  u = lb 1 + v[i]' \
+  'step:' \
+  "  u' = u"
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+rm -f "$f"
+if [ "$status" -eq 0 ]; then
+  printf 'numeric raw Formura lb initializer unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_contains "$out" 'lb is not supported in an initializer' 'numeric raw Formura lb application rejection'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'embedding [x + y, y]' \
+  'field u : scalar' \
+  'step:' \
+  "  u' = u"
+out=$(compile_fme "$f")
+rm -f "$f"
+typecheck_generated "$out"
+fmr=$(run_generated "$out")
+assert_contains "$fmr" 'the embedding is not orthogonal' 'non-orthogonal embedding runtime gate'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -326,7 +571,7 @@ write_case "$f" \
   "  q'_j = grad u"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'def feqq2 := ∂ 1 1 y u' 'withSymbols alpha-renaming'
+assert_contains "$out" 'def feqq := [| ∂ 1 1 x u, ∂ 1 1 y u |]' 'withSymbols alpha-renaming in tensor RHS'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -519,7 +764,7 @@ write_case "$f" \
   'mode collocated' \
   'dimension 2' \
   'axes x,y' \
-  'field V_i @ staggered' \
+  'field V_i @ primal' \
   'field q : scalar' \
   'def divg X = ∂_x X_1 + ∂_y X_2' \
   'step:' \
@@ -527,14 +772,15 @@ write_case "$f" \
   "  q' = divg V_i"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'dYee 1 [0, 0] (V_1, [1 / 2, 0])' 'staggered coordinate derivative x'
-assert_contains "$out" 'dYee 2 [0, 0] (V_2, [0, 1 / 2])' 'staggered coordinate derivative y'
+assert_contains "$out" 'dYee 1 (FE.componentPlacement feDim Collocated []) (V_1, (FE.componentPlacement feDim Primal [1]))' 'primal coordinate derivative x'
+assert_contains "$out" 'dYee 2 (FE.componentPlacement feDim Collocated []) (V_2, (FE.componentPlacement feDim Primal [2]))' 'primal coordinate derivative y'
 
 f=$(tmp_fme)
 write_case "$f" \
   'mode collocated' \
   'dimension 3' \
   'axes x,y,z' \
+  'param dt = 1' \
   'field E_i' \
   'field B_i' \
   'step:' \
@@ -546,7 +792,15 @@ assert_contains "$out" '∂ 1 1 y B_3 - ∂ 1 1 z B_2' 'standard curl component 
 assert_contains "$out" "def E' := generateTensor" 'primed component family uses a bare tensor binding'
 assert_not_contains "$out" "def E'_i := generateTensor" 'indexed primed binding is not generated'
 assert_not_contains "$out" "def E' := E'_#" 'primed tensor alias is unnecessary'
+assert_contains "$out" 'def feqE := [|' 'collocated vector update is one tensor RHS'
+assert_not_contains "$out" 'def feqE1 :=' 'collocated vector update has no scalar helper definitions'
+assert_contains "$out" "tensorEqs E' feqE" 'tensor equation printer receives the primed target tensor'
+assert_contains "$out" 'def feFieldPolicies : [(String, GridPolicy)] := [("E", Collocated), ("B", Collocated)]' 'ordinary fields default to collocated policy'
 assert_not_contains "$out" 'def curl ' 'standard curl is not emitted'
+typecheck_generated "$out"
+fmr=$(run_generated "$out")
+assert_contains "$fmr" "E_down1' =" 'tensor equation printer recovers the first storage target'
+assert_contains "$fmr" "B_down3' =" 'tensor equation printer recovers the last storage target'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -559,8 +813,7 @@ write_case "$f" \
   "  q'_i = grad u"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'def feqq1 := ∂ 1 1 x u' 'standard grad component 1'
-assert_contains "$out" 'def feqq2 := ∂ 1 1 y u' 'standard grad component 2'
+assert_contains "$out" 'def feqq := [| ∂ 1 1 x u, ∂ 1 1 y u |]' 'standard grad tensor RHS'
 assert_not_contains "$out" 'def grad ' 'standard grad is not emitted'
 
 f=$(tmp_fme)
@@ -580,43 +833,193 @@ assert_not_contains "$out" 'def dGrad ' 'standard dGrad is not emitted'
 f=$(tmp_fme)
 write_case "$f" \
   'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field X_j @ primal' \
+  'field G_i_j @ primal' \
+  'step:' \
+  "  G'_i_j = dGrad X"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" 'dYee 1 (FE.componentPlacement feDim Primal [1,2]) (X_2, (FE.componentPlacement feDim Primal [2]))' 'full rank-2 target placement uses both component indices'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
   'dimension 3' \
   'axes x,y,z' \
-  'field X_i @ staggered' \
-  'field C_i @ staggered' \
+  'field X_i @ primal' \
+  'field C_i @ dual' \
   'step:' \
   "  C'_i = curl X_i"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'dYee 2 [1 / 2, 0, 0] (X_3, [0, 0, 1 / 2])' 'standard curl uses staggered derivative'
-assert_contains "$out" 'dYee 3 [1 / 2, 0, 0] (X_2, [0, 1 / 2, 0])' 'standard curl uses staggered derivative second term'
+assert_contains "$out" 'dYee 2 (FE.componentPlacement feDim Dual [1]) (X_3, (FE.componentPlacement feDim Primal [3]))' 'curl derives dual target placement from index parity'
+assert_contains "$out" 'dYee 3 (FE.componentPlacement feDim Dual [1]) (X_2, (FE.componentPlacement feDim Primal [2]))' 'curl retains primal source placement'
+assert_contains "$out" '[("X", Primal), ("C", Dual)]' 'generated field policy metadata'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 3' \
+  'axes x,y,z' \
+  'field E_i @ primal' \
+  'field B_i @ dual' \
+  'step:' \
+  "  E'_i = B_i"
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+rm -f "$f"
+if [ "$status" -eq 0 ]; then
+  printf 'cross-policy assignment unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_contains "$out" 'grid placement mismatch in indexed equation' 'cross-policy assignment rejection'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 3' \
+  'axes x,y,z' \
+  'field E_i @ primal' \
+  'field B_i @ dual' \
+  'step:' \
+  "  E'_i = E_i + B_i"
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+rm -f "$f"
+if [ "$status" -eq 0 ]; then
+  printf 'cross-policy addition unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_contains "$out" 'grid placement mismatch between operands' 'cross-policy addition rejection'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 3' \
+  'axes x,y,z' \
+  'field E_i @ primal' \
+  'step:' \
+  "  E'_i = curl E_i"
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+rm -f "$f"
+if [ "$status" -eq 0 ]; then
+  printf 'same-policy primal curl assignment unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_contains "$out" 'grid placement mismatch in indexed equation' 'curl policy propagation rejection'
 
 f=$(tmp_fme)
 write_case "$f" \
   'mode collocated' \
   'dimension 2' \
   'axes x,y' \
-  'field V~i @ staggered' \
+  'field V~i @ primal' \
   'field q : scalar' \
   'step:' \
   "  V'~i = V~i" \
   "  q' = divg V~i"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'dYee 1 [0, 0] (V_1, [1 / 2, 0])' 'standard divg uses staggered coordinate derivative x'
-assert_contains "$out" 'dYee 2 [0, 0] (V_2, [0, 1 / 2])' 'standard divg uses staggered coordinate derivative y'
+assert_contains "$out" 'dYee 1 (FE.componentPlacement feDim Collocated []) (V_1, (FE.componentPlacement feDim Primal [1]))' 'standard divg uses primal coordinate derivative x'
+assert_contains "$out" 'dYee 2 (FE.componentPlacement feDim Collocated []) (V_2, (FE.componentPlacement feDim Primal [2]))' 'standard divg uses primal coordinate derivative y'
 
 f=$(tmp_fme)
 write_case "$f" \
   'mode collocated' \
   'dimension 2' \
   'axes x,y' \
-  'field V_i @ staggered' \
+  'field V_i @ primal' \
   'step:' \
   "  V'_i = V_i"
 out=$(compile_fme "$f")
 rm -f "$f"
 assert_not_contains "$out" 'def dYee ' 'unused Yee helpers are not emitted'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field X_i @ collocated' \
+  'field V_i @ dual' \
+  'init:' \
+  '  V_i := X_i'
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" 'nth a (FE.componentPlacement feDim Dual [1]) * feHsteps_a' 'dual component 1 CAS initializer placement'
+assert_contains "$out" 'nth a (FE.componentPlacement feDim Dual [2]) * feHsteps_a' 'dual component 2 CAS initializer placement'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field u : scalar @ dual' \
+  'field V : vector @ collocated' \
+  'field S : symmetric @ primal'
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" '[("u", Dual), ("V", Collocated), ("S", Primal)]' 'legacy field forms accept all grid policies'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field u : scalar @ dual' \
+  'init:' \
+  '  u := x + y' \
+  'step:' \
+  "  u' = u"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" 'FE.componentPlacement feDim Dual []' 'dual scalar CAS initializer is sampled at the dual cell'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field u : scalar' \
+  'field v : scalar @ dual' \
+  'step:' \
+  "  u' = v"
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+rm -f "$f"
+if [ "$status" -eq 0 ]; then
+  printf 'cross-policy scalar assignment unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_contains "$out" 'grid policy mismatch in scalar equation' 'cross-policy scalar assignment rejection'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field V_i @ staggered'
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+rm -f "$f"
+if [ "$status" -eq 0 ]; then
+  printf 'removed staggered policy unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_contains "$out" "bad grid policy 'staggered'" 'removed staggered policy'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -754,16 +1157,41 @@ write_case "$f" \
   'mode dec' \
   'dimension 3' \
   'axes x,y,z' \
+  'param dt = 1' \
   'field E : 1-form' \
   'field B : 2-form' \
+  'field H : 1-form @ dual' \
   'step:' \
   "  E' = E + dt * δ B" \
   "  B' = B - dt * d E'"
 out=$(compile_fme "$f")
 rm -f "$f"
 assert_contains "$out" '-- mode dec' 'explicit dec mode metadata'
-assert_contains "$out" 'def dForm (f:' 'dec exterior derivative is automatic'
-assert_contains "$out" 'formComps (codiff Bf)' 'dec codifferential is automatic'
+assert_contains "$out" '[("E", Primal), ("B", Primal), ("H", Dual)]' 'form policy defaults and explicit dual policy'
+assert_contains "$out" 'def Ef : (GridPolicy, Tensor MathValue) := (Primal,' 'default form value carries primal policy and a tensor'
+assert_contains "$out" 'def Hf : (GridPolicy, Tensor MathValue) := (Dual,' 'explicit dual form value carries dual policy and a tensor'
+assert_contains "$out" 'FE.canonicalFormTensor' 'form fields use canonical antisymmetric tensors'
+assert_contains "$out" 'FE.componentPlacement feDim policy targetBasis' 'form derivative uses shared parity inference'
+assert_not_contains "$out" 'def sigmaC ' 'complex-bit placement helper is removed'
+assert_not_contains "$out" '(Integer, Integer, [MathValue])' 'form tuples no longer encode policy as an integer'
+assert_not_contains "$out" 'def dForm ' 'exterior derivative semantics live in the shared geometry library'
+assert_contains "$out" 'formEqs EfN (FE.addForm Ef (FE.scaleForm (dt) (FE.codiffForm feDim feFormDerivative Bf)))' 'dec codifferential stays tensor-valued through the equation printer'
+assert_not_contains "$out" 'formComps' 'form component-list bridge is removed'
+typecheck_generated "$out"
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode dec' \
+  'dimension 2' \
+  'axes x,y' \
+  'field A : 1-form @ dual' \
+  'field H : 1-form' \
+  'step:' \
+  "  H' = hodge A"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" 'formEqs HfN (FE.hodgeForm feDim Af)' 'whole-form hodge flips dual input to primal target'
+typecheck_generated "$out"
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -777,7 +1205,7 @@ write_case "$f" \
   "  q' = lapForm u"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'formComps (codiff (dForm uf))' 'composed dec operators in user def'
+assert_contains "$out" 'formEqs qfN (FE.codiffForm feDim feFormDerivative (FE.dForm feDim feFormDerivative uf))' 'composed dec operators stay tensor-valued'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -842,8 +1270,7 @@ write_case "$f" \
   "  q'_i = ∂^2_i u"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'def feqq1 := ∂ 2 1 x u' 'decorated indexed derivative component 1'
-assert_contains "$out" 'def feqq2 := ∂ 2 1 y u' 'decorated indexed derivative component 2'
+assert_contains "$out" 'def feqq := [| ∂ 2 1 x u, ∂ 2 1 y u |]' 'decorated indexed derivative tensor RHS'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -856,8 +1283,7 @@ write_case "$f" \
   "  q'_i = ∂'^2_i u"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'def feqq1 := ∂ 2 2 x u' 'quoted indexed derivative component 1'
-assert_contains "$out" 'def feqq2 := ∂ 2 2 y u' 'quoted indexed derivative component 2'
+assert_contains "$out" 'def feqq := [| ∂ 2 2 x u, ∂ 2 2 y u |]' 'quoted indexed derivative tensor RHS'
 
 f=$(tmp_fme)
 write_case "$f" \

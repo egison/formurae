@@ -29,8 +29,8 @@ raw # lambda=2, mu=1, rho0=1  ->  vp = 2, vs = 1
 extern exp
 raw gp = fun(x) exp(-((x - 0.3)/0.02)*((x - 0.3)/0.02))
 
-field v~i @ staggered
-field σ{~i~j} @ staggered
+field v~i @ primal
+field σ{~i~j} @ primal
 
 init:
   v~i = [| gp((i + 0.5)*dx), gp(i*dx), 0.0 |]~i

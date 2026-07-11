@@ -1,0 +1,28 @@
+declare symbol x
+
+def testPrinterContext :=
+  ([],
+   [("T'_1", "T_down1'"), ("T'_2", "T_down2'"),
+    ("A'_1_2", "A_down1_down2'")],
+   ["i"],
+   [| x |],
+   [| 1 |],
+   [1])
+
+def T' := generateTensor (\[i] -> function (x)) [2]
+
+assertEqual
+  "tensor equations recover target component storage names"
+  (FMR.tensorEqs testPrinterContext T' [| 1, 2 |])
+  ["  T_down1' = 1", "  T_down2' = 2"]
+
+def A' := generateTensor (\[i, j] -> function (x)) [2, 2]
+def targetForm :=
+  (Primal, FE.canonicalFormTensor (FE.tensorComponentAt A') 2 2)
+def valueForm :=
+  (Primal, FE.canonicalFormTensor (\[i, j] -> if i = 1 && j = 2 then 7 else 0) 2 2)
+
+assertEqual
+  "form equations project only independent antisymmetric components"
+  (FMR.formEqs testPrinterContext targetForm valueForm)
+  ["  A_down1_down2' = 7"]

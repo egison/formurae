@@ -25,18 +25,15 @@ module Formurae.TensorExpr
   , TensorInfo(..)
   , DiagIx(..)
   , ElaboratedTensorExpr(..)
-  , Placement
-  , zeroPlaceB
-  , placeVB
-  , placeSB
-  , placeText
   , parseTensorExpr
   , parseTensorExprEither
   , renderTensorExpr
+  , transformTensorExprM
   , normalizeTensorExpr
   , preprocessTensorExpr
   , elaborateTensorExpr
   , ixExpand
+  , ixExpandInitializer
   , expandDefs
   , strictEinstein
   , validateFieldRefParts
@@ -178,25 +175,17 @@ data ElaboratedTensorExpr = ElaboratedTensorExpr
   , eteTermInfo :: [TensorInfo]
   } deriving (Eq, Show)
 
-type Placement = [Bool]
-
-zeroPlaceB :: Model -> Placement
-zeroPlaceB m = replicate (mDim m) False
-
-placeVB :: Model -> Int -> Placement
-placeVB m a = [c == a | c <- axisRange m]
-
-placeSB :: Model -> Int -> Int -> Placement
-placeSB m a b
-  | a == b = zeroPlaceB m
-  | otherwise = [c == a || c == b | c <- axisRange m]
+data PlacementInference
+  = PlacementUnknown
+  | PlacementNeutral
+  | PlacementLocated Placement
 
 togglePlace :: Int -> Placement -> Placement
-togglePlace a =
-  zipWith (\idx bit -> if idx == a then not bit else bit) [1 :: Int ..]
-
-placeText :: Placement -> String
-placeText = plOf
+togglePlace a (Placement bits expr policy) =
+  Placement
+    (zipWith (\idx bit -> if idx == a then not bit else bit) [1 :: Int ..] bits)
+    ("(FE.togglePlacement " ++ show a ++ " " ++ expr ++ ")")
+    policy
 
 parseTensorExpr :: String -> TensorExpr
 parseTensorExpr src =
@@ -614,6 +603,41 @@ parseTensorTokensE src ts0 =
 
 setTensorSpan :: SourceSpan -> TensorExpr -> TensorExpr
 setTensorSpan sp (TensorExpr _ node) = TensorExpr sp node
+
+-- Top-down, span-preserving transformation used by backend request lowering.
+-- Returning Just replaces the whole current subtree; returning Nothing walks
+-- its children and rebuilds the same node with the original source span.
+transformTensorExprM
+  :: Monad m
+  => (TensorExpr -> m (Maybe TensorExpr))
+  -> TensorExpr
+  -> m TensorExpr
+transformTensorExprM transform expr = do
+  replacement <- transform expr
+  case replacement of
+    Just expr' -> return (setTensorSpan (tensorExprSpan expr) expr')
+    Nothing -> setTensorSpan (tensorExprSpan expr) <$> descend expr
+  where
+    walk = transformTensorExprM transform
+    descend current =
+      case current of
+        TENumber value -> return (TENumber value)
+        TEIdent base parts -> return (TEIdent base parts)
+        TEUnary op body -> TEUnary op <$> walk body
+        TECall fn args -> TECall <$> walk fn <*> mapM walk args
+        TEApply fn args -> TEApply <$> walk fn <*> mapM walk args
+        TEIf cond yes no -> TEIf <$> walk cond <*> walk yes <*> walk no
+        TEAppendIndexed body parts -> TEAppendIndexed <$> walk body <*> pure parts
+        TEWithSymbols names body -> TEWithSymbols names <$> walk body
+        TEContractWith reducer body -> TEContractWith reducer <$> walk body
+        TETensorMap fn body -> TETensorMap <$> walk fn <*> walk body
+        TESubrefs body parts -> TESubrefs <$> walk body <*> pure parts
+        TETranspose names body -> TETranspose names <$> walk body
+        TEDisjoint parts -> TEDisjoint <$> mapM walk parts
+        TEDerivative parts body -> TEDerivative parts <$> walk body
+        TEDot parts -> TEDot <$> mapM walk parts
+        TEBinary op lhs rhs -> TEBinary op <$> walk lhs <*> walk rhs
+        TEGroup body -> TEGroup <$> walk body
 
 sourceSpanOf :: String -> [ITok] -> SourceSpan
 sourceSpanOf src ts =
@@ -1556,8 +1580,26 @@ validateFieldRefParts m lets w =
 -- components use half-cell differences anchored at the target component
 -- placement (Virieux/Yee); symmetric components are canonicalized.
 ixExpand :: Model -> [String] -> [(String, Int)] -> Placement -> String -> IO String
-ixExpand m lets env anchor expr = do
+ixExpand = ixExpandWithPlacementCheck True
+
+-- CAS initializers are analytic expressions sampled at the target location;
+-- referencing a differently placed field means evaluating that function at
+-- the target coordinates, not assigning one discrete storage value directly.
+ixExpandInitializer :: Model -> [String] -> [(String, Int)] -> Placement -> String -> IO String
+ixExpandInitializer = ixExpandWithPlacementCheck False
+
+ixExpandWithPlacementCheck
+  :: Bool -> Model -> [String] -> [(String, Int)] -> Placement -> String -> IO String
+ixExpandWithPlacementCheck checkPlacement m lets env anchor expr = do
   parsedExpr <- parseTensorExprIO "bad tensor expression" expr
+  inferred <- inferPlacementAst env parsedExpr
+  case (checkPlacement, inferred) of
+    (True, PlacementLocated rhs)
+      | rhs /= anchor ->
+          fatal ("grid placement mismatch in indexed equation: target "
+                 ++ placeText anchor ++ " but RHS " ++ placeText rhs
+                 ++ " in: " ++ expr)
+    _ -> return ()
   expandAst env parsedExpr
   where
     euclideanMetric =
@@ -1580,6 +1622,136 @@ ixExpand m lets env anchor expr = do
       | metricNm == metricPreludeName || euclideanMetric =
           if a == b then "1" else "0"
       | otherwise = metricInternalBase v1 v2 ++ "_" ++ show a ++ "_" ++ show b
+
+    inferPlacementAst env' ast =
+          case ast of
+            TENumber _ -> return PlacementNeutral
+            TEIdent base parts -> inferIdentPlacement env' base parts
+            TEUnary _ body -> inferPlacementAst env' body
+            TECall _ args -> inferPlacementList (map (inferPlacementAst env') args)
+            TEApply f args ->
+              case (f, args) of
+                (TEIdent fn fnParts, [arg])
+                  | Just (_, _, part) <- derivativeOpParts (fn ++ concatMap ixSuffix fnParts) -> do
+                      (n, isCoord) <- derivativeAxis env' part
+                      mref <- derivativeOperandAst env' arg
+                      case mref of
+                        Just (_, src) ->
+                          return (PlacementLocated
+                                  (if isCoord then anchor else derivativePlacement [n] src))
+                        Nothing -> return PlacementUnknown
+                _ -> inferPlacementList (map (inferPlacementAst env') args)
+            TEIf _ yes no -> do
+              lhs <- inferPlacementAst env' yes
+              rhs <- inferPlacementAst env' no
+              combinePlacements lhs rhs
+            TEAppendIndexed body parts ->
+              case stripGroupAst body of
+                TEIdent base existing ->
+                  inferPlacementAst env' (TEIdent base (existing ++ parts))
+                _ -> return PlacementUnknown
+            TEWithSymbols names body ->
+              let vals = map snd env'
+                  localEnv = zip names vals
+                  envNoShadow = [(k, v) | (k, v) <- env', k `notElem` names]
+              in inferPlacementAst (localEnv ++ envNoShadow) body
+            TEContractWith _ body
+              | containsMetricAst body -> return PlacementUnknown
+              | otherwise -> inferContractPlacement env' body
+            TETensorMap _ body -> do
+              body' <- materializeTensorAst env' body
+              inferPlacementAst env' body'
+            TESubrefs body parts ->
+              inferPlacementAst env' (appendIndexedAst body parts)
+            TETranspose names body -> do
+              body' <- materializeTensorAst env' body
+              inferPlacementAst env' (transposeAst names body')
+            TEDisjoint parts -> do
+              body <- disjointProductAst parts
+              inferPlacementAst env' body
+            TEDot parts
+              | any containsMetricAst parts -> return PlacementUnknown
+              | otherwise -> inferContractPlacement env' (dotAsProduct parts)
+            TEDerivative parts body -> do
+              let (parts', body') = flattenDerivative parts body
+              ns <- mapM (need env' . ixName) parts'
+              mref <- derivativeOperandAst env' body'
+              case mref of
+                Just (_, src) -> return (PlacementLocated (derivativePlacement ns src))
+                Nothing -> return PlacementUnknown
+            TEBinary _ lhs rhs -> do
+              lhsPlacement <- inferPlacementAst env' lhs
+              rhsPlacement <- inferPlacementAst env' rhs
+              combinePlacements lhsPlacement rhsPlacement
+            TEGroup body -> inferPlacementAst env' body
+
+    -- Metric contraction can eliminate terms component-by-component.  Until
+    -- the placement checker consumes the same fully specialized tensor AST as
+    -- the algebraic expander, treat such contractions conservatively instead
+    -- of diagnosing zero metric branches as located values.
+    containsMetricAst ast =
+      case ast of
+        TEIdent base parts -> metricIdent (base, parts) /= Nothing
+        TEUnary _ body -> containsMetricAst body
+        TECall f args -> any containsMetricAst (f : args)
+        TEApply f args -> any containsMetricAst (f : args)
+        TEIf condition yes no -> any containsMetricAst [condition, yes, no]
+        TEAppendIndexed body _ -> containsMetricAst body
+        TEWithSymbols _ body -> containsMetricAst body
+        TEContractWith _ body -> containsMetricAst body
+        TETensorMap f body -> containsMetricAst f || containsMetricAst body
+        TESubrefs body _ -> containsMetricAst body
+        TETranspose _ body -> containsMetricAst body
+        TEDisjoint parts -> any containsMetricAst parts
+        TEDerivative _ body -> containsMetricAst body
+        TEDot parts -> any containsMetricAst parts
+        TEBinary _ lhs rhs -> containsMetricAst lhs || containsMetricAst rhs
+        TEGroup body -> containsMetricAst body
+        _ -> False
+
+    inferIdentPlacement env' base parts =
+      let (fname, _) = fieldBaseOf base
+      in case kindOf m fname of
+           _ | fname == lbResultBindingName && null parts ->
+             return (PlacementLocated (componentPlacement m Collocated []))
+           Just Scalar | null parts ->
+             return (PlacementLocated
+                     (componentPlacement m (fieldPolicyOf m fname) []))
+           Just _ | not (null parts) -> do
+             (_, place) <- fieldRefParts env' base parts
+             return (PlacementLocated place)
+           Just _ -> return PlacementUnknown
+           Nothing | fname `elem` lets -> return PlacementUnknown
+           Nothing -> return PlacementNeutral
+
+    inferContractPlacement env' body0 = do
+      let body = stripGroupAst body0
+      dummies <- contractDummyNames env' body
+      case dummies of
+        k:_ ->
+          inferPlacementList
+            [inferContractPlacement ((k, n) : env') body | n <- axisRange m]
+        [] | zeroByIdentityAst env' body -> return PlacementNeutral
+           | otherwise -> inferPlacementAst env' body
+
+    inferPlacementList actions = do
+      placements <- sequence actions
+      foldM combinePlacements PlacementNeutral placements
+
+    combinePlacements PlacementUnknown _ = return PlacementUnknown
+    combinePlacements _ PlacementUnknown = return PlacementUnknown
+    combinePlacements PlacementNeutral rhs = return rhs
+    combinePlacements lhs PlacementNeutral = return lhs
+    combinePlacements lhs@(PlacementLocated p) (PlacementLocated q)
+      | p == q = return lhs
+      | otherwise =
+          fatal ("grid placement mismatch between operands: "
+                 ++ placeText p ++ " versus " ++ placeText q
+                 ++ " in: " ++ expr)
+
+    derivativePlacement ns src
+      | placementPolicy src == Collocated = src
+      | otherwise = naturalPlace ns src
 
     expandAst env' ast =
       case ast of
@@ -1955,30 +2127,31 @@ ixExpand m lets env anchor expr = do
       validateFieldRefParts m lets w
       ns <- mapM (need env' . ixName) parts
       case (kindOf m fname, ns) of
-        (Just (Vector staggered), [a]) ->
+        (Just Vector, [a]) ->
           return (fname ++ replicate primes '\'' ++ "_" ++ show a,
-                  if staggered then placeVB m a else zeroPlaceB m)
+                  componentPlacement m (fieldPolicyOf m fname) [a])
         (Just (Form _), [a]) ->
           return (fname ++ replicate primes '\'' ++ "_" ++ show a,
-                  zeroPlaceB m)
+                  componentPlacement m Collocated [])
         (Just SymM, [a, b2]) ->
           let (lo, hi) = (min a b2, max a b2)
           in return (fname ++ replicate primes '\'' ++ "_" ++ show lo ++ "_" ++ show hi,
-                     placeSB m a b2)
+                     componentPlacement m (fieldPolicyOf m fname) [a, b2])
         (Just AntiM, [a, b2]) ->
           let (lo, hi) = (min a b2, max a b2)
               comp = fname ++ replicate primes '\'' ++ "_" ++ show lo ++ "_" ++ show hi
               signed | a == b2 = "0"
                      | a < b2 = comp
                      | otherwise = "(0 - " ++ comp ++ ")"
-          in return (signed, placeSB m a b2)
-        (Just (Tensor2 staggered), [a, b2]) ->
+          in return (signed, componentPlacement m (fieldPolicyOf m fname) [a, b2])
+        (Just Tensor2, [a, b2]) ->
           return (fname ++ replicate primes '\'' ++ "_" ++ show a ++ "_" ++ show b2,
-                  if staggered then placeSB m a b2 else zeroPlaceB m)
+                  componentPlacement m (fieldPolicyOf m fname) [a, b2])
         (Just Scalar, []) ->
-          return (fname ++ replicate primes '\'', zeroPlaceB m)
+          return (fname ++ replicate primes '\'',
+                  componentPlacement m (fieldPolicyOf m fname) [])
         (Nothing, [a]) | fname `elem` lets, primes == 0 ->
-          return (fname ++ "_" ++ show a, zeroPlaceB m)
+          return (fname ++ "_" ++ show a, componentPlacement m Collocated [])
         _ -> fatal ("bad field reference in index equation: " ++ w)
 
     zeroByIdentityAst env' ast =

@@ -1,0 +1,71 @@
+assertEqual "grid policy flip"
+  (map FE.flipGridPolicy [Collocated, Primal, Dual])
+  [Collocated, Dual, Primal]
+
+assertEqual "collocated ignores component parity"
+  (FE.componentPlacement 3 Collocated [1, 2])
+  [0, 0, 0]
+
+assertEqual "rank-zero primal component"
+  (FE.componentPlacement 3 Primal [])
+  [0, 0, 0]
+
+assertEqual "rank-zero dual component"
+  (FE.componentPlacement 3 Dual [])
+  [1 / 2, 1 / 2, 1 / 2]
+
+assertEqual "primal vector component"
+  (FE.componentPlacement 3 Primal [1])
+  [1 / 2, 0, 0]
+
+assertEqual "dual vector component is the complement"
+  (FE.componentPlacement 3 Dual [1])
+  [0, 1 / 2, 1 / 2]
+
+assertEqual "repeated primal index cancels by parity"
+  (FE.componentPlacement 3 Primal [1, 1])
+  [0, 0, 0]
+
+assertEqual "mixed primal indices stagger both axes"
+  (FE.componentPlacement 3 Primal [1, 2])
+  [1 / 2, 1 / 2, 0]
+
+assertEqual "mixed dual indices complement both axes"
+  (FE.componentPlacement 3 Dual [1, 2])
+  [0, 0, 1 / 2]
+
+assertEqual "three occurrences remain odd"
+  (FE.componentPlacement 3 Primal [2, 2, 2])
+  [0, 1 / 2, 0]
+
+assertEqual "toggle placement changes one axis"
+  (FE.togglePlacement 2 (FE.componentPlacement 3 Primal [1]))
+  [1 / 2, 1 / 2, 0]
+
+assertEqual "toggle placement is an involution"
+  (FE.togglePlacement 2 (FE.togglePlacement 2 [0, 1 / 2, 0]))
+  [0, 1 / 2, 0]
+
+assertEqual "zero-dimensional placement"
+  (FE.componentPlacement 0 Primal [])
+  []
+
+assertEqual "component index lower boundary"
+  (FE.validComponentIndices 3 [1])
+  True
+
+assertEqual "component index upper boundary"
+  (FE.validComponentIndices 3 [3])
+  True
+
+assertEqual "component index zero is invalid"
+  (FE.validComponentIndices 3 [0])
+  False
+
+assertEqual "component index above dimension is invalid"
+  (FE.validComponentIndices 3 [4])
+  False
+
+assertEqual "negative dimension is invalid"
+  (FE.validComponentIndices (-1) [])
+  False

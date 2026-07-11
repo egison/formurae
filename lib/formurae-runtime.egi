@@ -1,6 +1,9 @@
 --
 -- formurae-runtime.egi : Formura output printer for generated Formurae models
 --
+-- Load formurae-grid.egi, formurae-tensor.egi, and formurae-geometry.egi
+-- before this file.
+--
 -- This file is loaded before the generated .egi file.  Egison treats files
 -- passed with `-l` and the executed file as separate definition batches, so
 -- definitions here must not refer directly to generated names such as
@@ -11,7 +14,8 @@
 --
 -- `symbolNames` and `fieldNames` are [(sourceName, outputName)] lookup tables.
 -- Missing names are preserved.  The generated file owns these policies and
--- passes the tuple to FMR.eq/FMR.init/FMR.componentEqs/FMR.scalarEq.
+-- passes the tuple to FMR.eq/FMR.init/FMR.componentEqs/FMR.tensorEqs/FMR.formEqs/
+-- FMR.scalarEq.
 --
 
 def FMR.lookupOr (key: String) (names: [(String, String)]) : String :=
@@ -136,6 +140,55 @@ def FMR.componentEqs
              Vector MathValue, Vector MathValue, [Integer]))
       (names: [String]) (values: [MathValue]) : [String] :=
   map (\(name, value) -> FMR.eq ctx (S.append name "'") value) (zip names values)
+
+-- Emit one equation for every component of a tensor-valued update.  The
+-- target tensor consists of generated field function symbols (E'_1, E'_2,
+-- ...), so its leaves are the single source of truth for the left-hand side.
+-- FEC still owns the source-to-storage mapping in `fieldNames`.
+def FMR.tensorTargetName
+      (ctx: ([(String, String)], [(String, String)], [String],
+             Vector MathValue, Vector MathValue, [Integer]))
+      (target: MathValue) : String :=
+  let (_, fieldNames, _, _, _, _) := ctx
+   in match target as mathValue with
+        | func $g _ -> FMR.lookupOr (show g) fieldNames
+
+def FMR.tensorEqs
+      (ctx: ([(String, String)], [(String, String)], [String],
+             Vector MathValue, Vector MathValue, [Integer]))
+      (targets: Tensor MathValue) (values: Tensor MathValue) : [String] :=
+  if tensorShape targets = tensorShape values
+    then map (\(target, value) -> FMR.eq ctx (FMR.tensorTargetName ctx target) value)
+             (zip (tensorToList targets) (tensorToList values))
+    else if assert
+              (S.concat ["tensor equation shape mismatch: ",
+                         show (tensorShape targets), " /= ", show (tensorShape values)])
+              False
+           then []
+           else []
+
+-- Differential forms are stored as full canonical antisymmetric tensors, but
+-- Formura owns only the strictly increasing independent components.
+def FMR.formEqs
+      (ctx: ([(String, String)], [(String, String)], [String],
+             Vector MathValue, Vector MathValue, [Integer]))
+      (targets: (GridPolicy, Tensor MathValue))
+      (values: (GridPolicy, Tensor MathValue)) : [String] :=
+  let (targetPolicy, targetTensor) := targets
+   in let (valuePolicy, valueTensor) := values
+   in if targetPolicy = valuePolicy
+         && tensorShape targetTensor = tensorShape valueTensor
+        then map (\(target, value) ->
+                    FMR.eq ctx (FMR.tensorTargetName ctx target) value)
+                 (zip (FE.formComponents targetTensor)
+                      (FE.formComponents valueTensor))
+        else if assert
+                  (S.concat ["form equation policy/shape mismatch: ",
+                             show targetPolicy, " ", show (tensorShape targetTensor),
+                             " /= ", show valuePolicy, " ", show (tensorShape valueTensor)])
+                  False
+               then []
+               else []
 
 def FMR.scalarEq
       (ctx: ([(String, String)], [(String, String)], [String],

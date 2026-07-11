@@ -21,6 +21,7 @@ build-type:         Simple
 executable fec
     main-is:          Main.hs
     other-modules:    Formurae.Common
+                    , Formurae.BackendPlan
                     , Formurae.Index
                     , Formurae.Syntax
                     , Formurae.TensorExpr

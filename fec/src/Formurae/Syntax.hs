@@ -5,7 +5,10 @@ import Data.Char (isAlpha, isAlphaNum, isSpace)
 data Mode = CollocatedMode | DecMode
   deriving (Eq, Show)
 
-data Kind = Scalar | Vector Bool | Form Int | SymM | AntiM | Tensor2 Bool
+data GridPolicy = Collocated | Primal | Dual
+  deriving (Eq, Show)
+
+data Kind = Scalar | Vector | Form Int | SymM | AntiM | Tensor2
   deriving (Eq, Show)
 
 data FieldLayout =
@@ -32,7 +35,7 @@ data FieldDecl = FieldDecl
   { fdName      :: String
   , fdIndex     :: Maybe FieldIndex
   , fdLayout    :: FieldLayout
-  , fdStaggered :: Bool
+  , fdPolicy    :: GridPolicy
   , fdKind      :: Kind
   } deriving (Eq, Show)
 
@@ -81,6 +84,17 @@ modeSurfaceName :: Mode -> String
 modeSurfaceName CollocatedMode = "collocated"
 modeSurfaceName DecMode = "dec"
 
+gridPolicySurfaceName :: GridPolicy -> String
+gridPolicySurfaceName Collocated = "collocated"
+gridPolicySurfaceName Primal = "primal"
+gridPolicySurfaceName Dual = "dual"
+
+-- Generated scalar binding used as the collocated result of a structural
+-- Laplace--Beltrami backend request.  Keeping the name here lets placement
+-- inference and emission share the same reserved identity.
+lbResultBindingName :: String
+lbResultBindingName = "feLbResult"
+
 data Tok = TId String Bool | TC Char
 
 tokenize :: String -> [Tok]
@@ -114,7 +128,7 @@ closeParenT n (TC ')' : ts) acc
   | otherwise = closeParenT (n - 1) ts (TC ')' : acc)
 closeParenT n (t : ts) acc = closeParenT n ts (t : acc)
 
-data Elem = EId String Bool | EC Char | ERaw String | EMarkL String
+data Elem = EId String Bool | EC Char
 
 kindOf :: Model -> String -> Maybe Kind
 kindOf m nm = lookup nm (mFlds m)
@@ -124,3 +138,9 @@ fieldDeclOf m nm =
   case [fd | fd <- mFieldDecls m, fdName fd == nm] of
     (fd:_) -> Just fd
     [] -> Nothing
+
+fieldPolicyOf :: Model -> String -> GridPolicy
+fieldPolicyOf m nm =
+  case fieldDeclOf m nm of
+    Just fd -> fdPolicy fd
+    Nothing -> Collocated

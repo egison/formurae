@@ -1,8 +1,8 @@
 --
 -- fmrgen.egi : Egison -> Formura code generation library (PoC)
 --
--- This file is the coordinate-free core: exact small linear algebra and
--- form helpers.  Generated/hand-written models
+-- This file is the coordinate-free stencil core: exact small linear algebra.
+-- Generated/hand-written models
 -- provide their own coordinate context, stencil/differential operators,
 -- and Formura printer.
 -- Tensor semantics live in lib/formurae-tensor.egi and are loaded separately.
@@ -40,12 +40,3 @@ def taylorStencil (m: Integer) (ks: [MathValue]) : [MathValue] :=
   gaussSolve
     (map (\mm -> map (\k -> k ^ mm / factI mm) ks ++ [if mm = m then 1 else 0])
          (between 0 (length ks - 1)))
-
-def formComps (f: (Integer, Integer, [MathValue])) : [MathValue] :=
-  let (_, _, cs) := f in cs
-
-def formDeg (f: (Integer, Integer, [MathValue])) : Integer :=
-  let (_, k, _) := f in k
-
-def scaleForm (s: MathValue) (f: (Integer, Integer, [MathValue])) : (Integer, Integer, [MathValue]) :=
-  let (c, k, cs) := f in (c, k, map (\v -> s * v) cs)

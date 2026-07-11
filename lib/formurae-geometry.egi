@@ -1,0 +1,154 @@
+--
+-- formurae-geometry.egi : differential-form geometry on structured grids
+--
+-- Load formurae-grid.egi and formurae-tensor.egi before this file.  The
+-- algebraic definitions live here; generated models provide only the actual
+-- discrete derivative callback for their coordinates and stencil policy.
+--
+
+def FE.formBasisSign (indices: [Integer]) : MathValue :=
+  if length (unique indices) < length indices
+    then 0
+    else let (sign, _) := sortWithSign (map (\index -> [index]) indices)
+          in sign
+
+def FE.formBasisContains (axis: Integer) (basis: [Integer]) : Bool :=
+  any (\candidate -> axis = candidate) basis
+
+def FE.formBasisRemove (axis: Integer) (basis: [Integer]) : [Integer] :=
+  filter (\candidate -> not (axis = candidate)) basis
+
+def FE.complementFormBasis
+      (dim: Integer) (basis: [Integer]) : [Integer] :=
+  filter (\axis -> not (FE.formBasisContains axis basis)) (between 1 dim)
+
+def FE.hodgeForm
+      (dim: Integer)
+      (f: (GridPolicy, Tensor MathValue))
+      : (GridPolicy, Tensor MathValue) :=
+  let (policy, t) := f
+   in let degree := dfOrder t
+   in let dualDegree := dim - degree
+   in (FE.flipGridPolicy policy,
+       FE.canonicalFormTensor
+         (\basis ->
+            let source := FE.complementFormBasis dim basis
+             in FE.formBasisSign (source ++ basis)
+                * FE.tensorComponentAt t source)
+         dim dualDegree)
+
+-- `derivative policy targetBasis axis sourceBasis value` supplies the
+-- coordinate/grid-specific derivative.  d itself owns degree, signs,
+-- antisymmetry, and policy preservation.
+def FE.dForm
+      (dim: Integer)
+      (derivative:
+         GridPolicy -> [Integer] -> Integer -> [Integer] -> MathValue -> MathValue)
+      (f: (GridPolicy, Tensor MathValue))
+      : (GridPolicy, Tensor MathValue) :=
+  let (policy, t) := f
+   in let nextDegree := dfOrder t + 1
+   in (policy,
+       FE.canonicalFormTensor
+         (\basis ->
+            foldl
+              (\acc axis ->
+                 let source := FE.formBasisRemove axis basis
+                  in acc + FE.formBasisSign (axis :: source)
+                     * derivative policy basis axis source
+                                  (FE.tensorComponentAt t source))
+              0 basis)
+         dim nextDegree)
+
+def FE.scaleForm
+      (scale: MathValue)
+      (f: (GridPolicy, Tensor MathValue))
+      : (GridPolicy, Tensor MathValue) :=
+  let (policy, t) := f
+   in let shape := tensorShape t
+   in let degree := dfOrder t
+   in let dim := if shape = [] then 0 else head shape
+   in (policy,
+       FE.canonicalFormTensor
+         (\basis -> scale * FE.tensorComponentAt t basis)
+         dim degree)
+
+def FE.addForm
+      (lhs: (GridPolicy, Tensor MathValue))
+      (rhs: (GridPolicy, Tensor MathValue))
+      : (GridPolicy, Tensor MathValue) :=
+  let (lhsPolicy, lhsTensor) := lhs
+   in let (rhsPolicy, rhsTensor) := rhs
+   in if assert "form addition needs equal policies and tensor shapes"
+                (lhsPolicy = rhsPolicy
+                 && tensorShape lhsTensor = tensorShape rhsTensor)
+        then let shape := tensorShape lhsTensor
+              in let degree := dfOrder lhsTensor
+              in let dim := if shape = [] then 0 else head shape
+              in (lhsPolicy,
+                  FE.canonicalFormTensor
+                    (\basis -> FE.tensorComponentAt lhsTensor basis
+                               + FE.tensorComponentAt rhsTensor basis)
+                    dim degree)
+        else lhs
+
+def FE.subForm
+      (lhs: (GridPolicy, Tensor MathValue))
+      (rhs: (GridPolicy, Tensor MathValue))
+      : (GridPolicy, Tensor MathValue) :=
+  FE.addForm lhs (FE.scaleForm (-1) rhs)
+
+def FE.codiffForm
+      (dim: Integer)
+      (derivative:
+         GridPolicy -> [Integer] -> Integer -> [Integer] -> MathValue -> MathValue)
+      (f: (GridPolicy, Tensor MathValue))
+      : (GridPolicy, Tensor MathValue) :=
+  FE.scaleForm
+    ((-1) ^ (dim * (dfOrder (snd f) + 1) + 1))
+    (FE.hodgeForm dim (FE.dForm dim derivative (FE.hodgeForm dim f)))
+
+-- Orthogonal metric geometry.  Storage/materialization remains a backend
+-- concern; these functions own only the coordinate-free symbolic formulas.
+def FE.inducedMetric
+      (coords: Vector MathValue) (embedding: [MathValue])
+      (a: Integer) (b: Integer) : MathValue :=
+  sum (map (\component ->
+              ∂/∂ component coords_a * ∂/∂ component coords_b)
+           embedding)
+
+def FE.metricTensor
+      (dim: Integer)
+      (component: Integer -> Integer -> MathValue) : Tensor MathValue :=
+  generateTensor (\[i, j] -> component i j) [dim, dim]
+
+def FE.diagonalMetricTensor
+      (dim: Integer) (scale: Integer -> MathValue) : Tensor MathValue :=
+  FE.metricTensor dim (\i j -> if i = j then (scale i) ^ 2 else 0)
+
+def FE.inverseDiagonalMetricTensor
+      (dim: Integer) (scale: Integer -> MathValue) : Tensor MathValue :=
+  FE.metricTensor dim (\i j -> if i = j then 1 / ((scale i) ^ 2) else 0)
+
+def FE.orthogonalVolume
+      (axes: [Integer]) (scale: Integer -> MathValue) : MathValue :=
+  product (map scale axes)
+
+def FE.orthogonalHodgeCoefficient
+      (axes: [Integer]) (scale: Integer -> MathValue)
+      (basis: [Integer]) : MathValue :=
+  FE.orthogonalVolume axes scale
+  / product (map (\axis -> (scale axis) ^ 2) basis)
+
+def FE.lbFlux
+      (gradient: Integer -> MathValue -> MathValue)
+      (coefficient: Integer -> MathValue)
+      (axis: Integer) (value: MathValue) : MathValue :=
+  coefficient axis * gradient axis value
+
+def FE.lbFromFluxes
+      (axes: [Integer])
+      (divergence: Integer -> MathValue -> MathValue)
+      (flux: Integer -> MathValue)
+      (volume: MathValue) : MathValue :=
+  sum (map (\axis -> divergence axis (flux axis)) axes) / volume

@@ -1,0 +1,79 @@
+def scalarForm : (GridPolicy, Tensor MathValue) :=
+  (Primal, FE.canonicalFormTensor (\[] -> 5) 2 0)
+
+def oneForm : (GridPolicy, Tensor MathValue) :=
+  (Primal, [|3, 4|])
+
+def testFormDerivative
+      (_: GridPolicy) (_: [Integer])
+      (axis: Integer) (_: [Integer])
+      (value: MathValue) : MathValue :=
+  axis * value
+
+assertEqual "hodge flips policy and complements the oriented basis"
+  (let (policy, t) := FE.hodgeForm 2 oneForm
+    in (policy, FE.formComponents t))
+  (Dual, [-4, 3])
+
+assertEqual "hodge twice has the expected two-dimensional one-form sign"
+  (let (policy, t) := FE.hodgeForm 2 (FE.hodgeForm 2 oneForm)
+    in (policy, FE.formComponents t))
+  (Primal, [-3, -4])
+
+assertEqual "hodge maps zero-forms to top forms and back"
+  (let dualTop := FE.hodgeForm 2 scalarForm
+       (topPolicy, topTensor) := dualTop
+       (scalarPolicy, scalarTensor) := FE.hodgeForm 2 dualTop
+    in (topPolicy, dfOrder topTensor, FE.formComponents topTensor,
+        scalarPolicy, dfOrder scalarTensor, FE.formComponents scalarTensor))
+  (Dual, 2, [5], Primal, 0, [5])
+
+assertEqual "exterior derivative preserves policy and infers degree"
+  (let (policy, t) := FE.dForm 2 testFormDerivative scalarForm
+    in (policy, dfOrder t, FE.formComponents t))
+  (Primal, 1, [5, 10])
+
+assertEqual "exterior derivative squares to zero"
+  (let (policy, t) := FE.dForm 2 testFormDerivative
+                         (FE.dForm 2 testFormDerivative scalarForm)
+    in (policy, dfOrder t, FE.formComponents t))
+  (Primal, 2, [0])
+
+assertEqual "form scaling preserves policy and tensor degree"
+  (let (policy, t) := FE.scaleForm 2 oneForm
+    in (policy, dfOrder t, FE.formComponents t))
+  (Primal, 1, [6, 8])
+
+assertEqual "form addition and subtraction preserve the tensor representation"
+  (let (_, sumTensor) := FE.addForm oneForm (FE.scaleForm 2 oneForm)
+       (_, differenceTensor) := FE.subForm oneForm (FE.scaleForm 2 oneForm)
+    in (FE.formComponents sumTensor, FE.formComponents differenceTensor))
+  ([9, 12], [-3, -4])
+
+declare symbol x, y
+
+def testScale (axis: Integer) : MathValue := nth axis [2, 3]
+
+assertEqual "orthogonal volume and Hodge coefficients"
+  (FE.orthogonalVolume [1, 2] testScale,
+   map (FE.orthogonalHodgeCoefficient [1, 2] testScale)
+       [[], [1], [2], [1, 2]])
+  (6, [6, 3 / 2, 2 / 3, 1 / 6])
+
+assertEqual "metric tensors are constructed by shared geometry helpers"
+  (FE.metricTensor 2 (FE.inducedMetric [|x, y|] [2 * x, 3 * y]),
+   FE.diagonalMetricTensor 2 testScale,
+   FE.inverseDiagonalMetricTensor 2 testScale)
+  ([|[|4, 0|], [|0, 9|]|],
+   [|[|4, 0|], [|0, 9|]|],
+   [|[|1 / 4, 0|], [|0, 1 / 9|]|])
+
+def testGradient (axis: Integer) (value: MathValue) : MathValue := axis + value
+def testCoefficient (axis: Integer) : MathValue := 2 * axis
+def testDivergence (axis: Integer) (value: MathValue) : MathValue := 10 * axis + value
+def testFlux (axis: Integer) : MathValue := axis
+
+assertEqual "Laplace-Beltrami flux and divergence composition"
+  (FE.lbFlux testGradient testCoefficient 1 3,
+   FE.lbFromFluxes [1, 2] testDivergence testFlux 2)
+  (8, 33 / 2)

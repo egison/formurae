@@ -1,7 +1,80 @@
-declare symbol i, j, k
+declare symbol i, j, k, x, y, z
 def m := [|[|1, 2, 3|], [|4, 5, 6|], [|7, 8, 9|]|]
 def vi_i := [|1, 2, 3|]
 def vi := vi_i
 assertEqual "bare-alias-component" vi_2 2
 assertEqual "trace" (trace m) 15
 assertEqual "sym" (sym m) [|[|1, 3, 5|], [|3, 5, 7|], [|5, 7, 9|]|]
+
+-- The mock derivative makes the derivative axis visible in every component,
+-- so these assertions test both tensor index order and contraction signs.
+def testPartial (a: Integer) (u: MathValue) : MathValue := 10 * a + u
+def testGradOperator := FE.grad testPartial [1, 2]
+
+assertEqual "native operator supports a user-style binding"
+  (testGradOperator 7)
+  [|17, 27|]
+
+assertEqual "native grad"
+  (FE.grad testPartial [1, 2, 3] 7)
+  [|17, 27, 37|]
+
+assertEqual "native derivative gradient"
+  (FE.dGrad testPartial [1, 2] [|3, 4|])
+  [|[|13, 14|], [|23, 24|]|]
+
+assertEqual "native divergence"
+  (FE.divg testPartial [1, 2] [|3, 4|])
+  37
+
+assertEqual "native curl"
+  (FE.curl testPartial [1, 2, 3] [|3, 4, 5|])
+  [|-9, 18, -9|]
+
+assertEqual "native hessian"
+  (FE.hessian testPartial [1, 2] 3)
+  [|[|23, 33|], [|33, 43|]|]
+
+assertEqual "native operator tensor signatures"
+  (map (\t -> (tensorSignature t, dfOrder t))
+       [ FE.grad testPartial [1, 2] 0
+       , FE.dGrad testPartial [1, 2] [|0, 0|]
+       , FE.curl testPartial [1, 2, 3] [|0, 0, 0|]
+       , FE.hessian testPartial [1, 2] 0
+       ])
+  [ (([2], []), 1)
+  , (([2, 2], []), 2)
+  , (([3], []), 1)
+  , (([2, 2], []), 2)
+  ]
+
+def form0 := FE.canonicalFormTensor (\[] -> function (x, y, z)) 3 0
+def form1Basis := generateTensor (\[i] -> function (x, y, z)) [3]
+def form1 := FE.canonicalFormTensor (FE.tensorComponentAt form1Basis) 3 1
+def form2Basis := generateTensor (\[i, j] -> function (x, y, z)) [3, 3]
+def form2 := FE.canonicalFormTensor (FE.tensorComponentAt form2Basis) 3 2
+def form3Basis := generateTensor (\[i, j, k] -> function (x, y, z)) [3, 3, 3]
+def form3 := FE.canonicalFormTensor (FE.tensorComponentAt form3Basis) 3 3
+
+assertEqual "canonical form tensor shapes and inferred degrees"
+  (map (\t -> (tensorShape t, dfOrder t)) [form0, form1, form2, form3])
+  [([], 0), ([3], 1), ([3, 3], 2), ([3, 3, 3], 3)]
+
+assertEqual "independent component counts follow binomial coefficients"
+  (map (\t -> length (FE.formComponents t)) [form0, form1, form2, form3])
+  [1, 3, 3, 1]
+
+assertEqual "canonical two-form permutations and diagonal"
+  [form2_1_1, form2_1_2, form2_2_1, form2_1_3, form2_3_1,
+   form2_2_3, form2_3_2, form2_3_3]
+  [0, form2Basis_1_2, -form2Basis_1_2,
+   form2Basis_1_3, -form2Basis_1_3,
+   form2Basis_2_3, -form2Basis_2_3, 0]
+
+assertEqual "independent form component projection"
+  (FE.formComponents form2)
+  [form2Basis_1_2, form2Basis_1_3, form2Basis_2_3]
+
+assertEqual "three-form shares one canonical component"
+  [form3_1_2_3, form3_2_3_1, form3_2_1_3, form3_1_1_2]
+  [form3Basis_1_2_3, form3Basis_1_2_3, -form3Basis_1_2_3, 0]
