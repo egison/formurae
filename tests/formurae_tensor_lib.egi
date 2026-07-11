@@ -6,41 +6,57 @@ assertEqual "bare-alias-component" vi_2 2
 assertEqual "trace" (trace m) 15
 assertEqual "sym" (sym m) [|[|1, 3, 5|], [|3, 5, 7|], [|5, 7, 9|]|]
 
--- The mock derivative makes the derivative axis visible in every component,
--- so these assertions test both tensor index order and contraction signs.
-def testPartial (a: Integer) (u: MathValue) : MathValue := 10 * a + u
-def testGradOperator := FE.grad testPartial [1, 2]
+-- The mock derivative encodes all four callback arguments, so these assertions
+-- test target/source component bases, derivative axes, and contraction
+-- signs independently.
+def testTensorDerivative
+      (targetBasis: [Integer]) (derivativeAxes: [Integer])
+      (sourceBasis: [Integer]) (value: MathValue) : MathValue :=
+  1000 * sum targetBasis
+  + 100 * sum derivativeAxes
+  + 10 * sum sourceBasis
+  + value
+
+def testGradOperator := FE.grad testTensorDerivative [1, 2]
 
 assertEqual "native operator supports a user-style binding"
   (testGradOperator 7)
-  [|17, 27|]
+  [|1107, 2207|]
 
 assertEqual "native grad"
-  (FE.grad testPartial [1, 2, 3] 7)
-  [|17, 27, 37|]
+  (FE.grad testTensorDerivative [1, 2, 3] 7)
+  [|1107, 2207, 3307|]
+
+assertEqual "native grad maps component positions to axis identifiers"
+  (FE.grad testTensorDerivative [4, 7] 1)
+  [|1401, 2701|]
 
 assertEqual "native derivative gradient"
-  (FE.dGrad testPartial [1, 2] [|3, 4|])
-  [|[|13, 14|], [|23, 24|]|]
+  (FE.dGrad testTensorDerivative [1, 2] [|3, 4|])
+  [|[|2113, 3124|], [|3213, 4224|]|]
 
 assertEqual "native divergence"
-  (FE.divg testPartial [1, 2] [|3, 4|])
-  37
+  (FE.divg testTensorDerivative [1, 2] [|3, 4|])
+  337
 
 assertEqual "native curl"
-  (FE.curl testPartial [1, 2, 3] [|3, 4, 5|])
-  [|-9, 18, -9|]
+  (FE.curl testTensorDerivative [1, 2, 3] [|3, 4, 5|])
+  [|-89, 178, -89|]
 
 assertEqual "native hessian"
-  (FE.hessian testPartial [1, 2] 3)
-  [|[|23, 33|], [|33, 43|]|]
+  (FE.hessian testTensorDerivative [1, 2] 3)
+  [|[|2203, 3303|], [|3303, 4403|]|]
+
+assertEqual "native laplacian passes repeated derivative axes together"
+  (FE.lap testTensorDerivative [1, 2] 3)
+  606
 
 assertEqual "native operator tensor signatures"
   (map (\t -> (tensorSignature t, dfOrder t))
-       [ FE.grad testPartial [1, 2] 0
-       , FE.dGrad testPartial [1, 2] [|0, 0|]
-       , FE.curl testPartial [1, 2, 3] [|0, 0, 0|]
-       , FE.hessian testPartial [1, 2] 0
+       [ FE.grad testTensorDerivative [1, 2] 0
+       , FE.dGrad testTensorDerivative [1, 2] [|0, 0|]
+       , FE.curl testTensorDerivative [1, 2, 3] [|0, 0, 0|]
+       , FE.hessian testTensorDerivative [1, 2] 0
        ])
   [ (([2], []), 1)
   , (([2, 2], []), 2)

@@ -24,6 +24,7 @@ def FE.complementFormBasis
 
 def FE.hodgeForm
       (dim: Integer)
+      (coefficient: GridPolicy -> [Integer] -> MathValue)
       (f: (GridPolicy, Tensor MathValue))
       : (GridPolicy, Tensor MathValue) :=
   let (policy, t) := f
@@ -34,6 +35,7 @@ def FE.hodgeForm
          (\basis ->
             let source := FE.complementFormBasis dim basis
              in FE.formBasisSign (source ++ basis)
+                * coefficient policy source
                 * FE.tensorComponentAt t source)
          dim dualDegree)
 
@@ -102,11 +104,13 @@ def FE.codiffForm
       (dim: Integer)
       (derivative:
          GridPolicy -> [Integer] -> Integer -> [Integer] -> MathValue -> MathValue)
+      (coefficient: GridPolicy -> [Integer] -> MathValue)
       (f: (GridPolicy, Tensor MathValue))
       : (GridPolicy, Tensor MathValue) :=
   FE.scaleForm
     ((-1) ^ (dim * (dfOrder (snd f) + 1) + 1))
-    (FE.hodgeForm dim (FE.dForm dim derivative (FE.hodgeForm dim f)))
+    (FE.hodgeForm dim coefficient
+      (FE.dForm dim derivative (FE.hodgeForm dim coefficient f)))
 
 -- Orthogonal metric geometry.  Storage/materialization remains a backend
 -- concern; these functions own only the coordinate-free symbolic formulas.
@@ -139,6 +143,40 @@ def FE.orthogonalHodgeCoefficient
       (basis: [Integer]) : MathValue :=
   FE.orthogonalVolume axes scale
   / product (map (\axis -> (scale axis) ^ 2) basis)
+
+-- Musical maps for a diagonal orthogonal metric.  `scale axis` supplies the
+-- coordinate scale factor h_axis, normally through a small generated
+-- callback.  These maps change only component values: they deliberately keep
+-- the grid policy and perform no interpolation, integration, or
+-- reconstruction.  A non-diagonal metric needs a separate matrix-contraction
+-- API rather than this scale-factor interface.
+def FE.orthogonalMusicalMap
+      (factor: Integer -> MathValue)
+      (field: (GridPolicy, Tensor MathValue))
+      : (GridPolicy, Tensor MathValue) :=
+  let (policy, t) := field
+   in let shape := tensorShape t
+   in if assert "orthogonal musical maps expect a rank-1 tensor"
+                (length shape = 1)
+        then (policy,
+              generateTensor
+                (\[axis] -> factor axis * FE.tensorComponentAt t [axis])
+                shape)
+        else field
+
+def FE.flat
+      (scale: GridPolicy -> Integer -> MathValue)
+      (vector: (GridPolicy, Tensor MathValue))
+      : (GridPolicy, Tensor MathValue) :=
+  let (policy, _) := vector
+   in FE.orthogonalMusicalMap (\axis -> (scale policy axis) ^ 2) vector
+
+def FE.sharp
+      (scale: GridPolicy -> Integer -> MathValue)
+      (covector: (GridPolicy, Tensor MathValue))
+      : (GridPolicy, Tensor MathValue) :=
+  let (policy, _) := covector
+   in FE.orthogonalMusicalMap (\axis -> 1 / ((scale policy axis) ^ 2)) covector
 
 def FE.lbFlux
       (gradient: Integer -> MathValue -> MathValue)

@@ -32,20 +32,23 @@ def ∂ (m: Integer) (r: Integer) (axis: MathValue) (u: MathValue) : MathValue :
    in if m = 1 && r = 1 then dC a u
       else if m = 2 && r = 1 then dC2 a u
       else dTaylor m (between (0 - r) r) a u
+def feFieldDescriptors :=
+  [ ("V", Collocated, [2], ["down"], "vector", [[1], [2]], [([1], "V_down1"), ([2], "V_down2")])
+  , ("q", Collocated, [], [], "scalar", [[]], [([], "q")])
+  ]
 def feSymbolNames : [(String, String)] := [("hx", "dx"), ("hy", "dy"), ("x", "(i*dx)"), ("y", "(j*dy)")]
-def feFieldNames : [(String, String)] := [("V_1", "V_down1"), ("V'_1", "V_down1'"), ("V_2", "V_down2"), ("V'_2", "V_down2'")]
-def feFieldPolicies : [(String, GridPolicy)] := [("V", Collocated), ("q", Collocated)]
+def feFieldNames : [(String, String)] := concat (map FMR.fieldNameMappings feFieldDescriptors)
+def feFieldPolicies : [(String, GridPolicy)] := map (\(name, policy, _, _, _, _, _) -> (name, policy)) feFieldDescriptors
 def feIndexNames : [String] := ["i", "j"]
 def fePrinterContext := (feSymbolNames, feFieldNames, feIndexNames, feCoords, feHsteps, feAxisIds)
 def fmrEq : String -> MathValue -> String := FMR.eq fePrinterContext
 def fmrInit : String -> MathValue -> String := FMR.init fePrinterContext
 def componentEqs : [String] -> [MathValue] -> [String] := FMR.componentEqs fePrinterContext
-def tensorEqs : Tensor MathValue -> Tensor MathValue -> [String] := FMR.tensorEqs fePrinterContext
+def fieldEqs descriptor value := FMR.fieldEqs fePrinterContext descriptor value
 def scalarEq : String -> MathValue -> [String] := FMR.scalarEq fePrinterContext
 
 def V := generateTensor (\[i] -> function (x, y)) [2]
 def q := function (x, y)
-def V' := generateTensor (\[i] -> function (x, y)) [2]
 
 def feqV := [| V_1, V_2 |]
 
@@ -61,6 +64,6 @@ def feInits :=
   , "  V_down2[i,j] = sy(j*dy)"
   , "  q[i,j] = 0.0"
   ]
-def feSteps := tensorEqs V' feqV ++ scalarEq "q" (∂ 1 1 x V_1 + ∂ 1 1 y V_2)
+def feSteps := fieldEqs (nth 1 feFieldDescriptors) (Collocated, feqV) ++ scalarEq "q" (∂ 1 1 x V_1 + ∂ 1 1 y V_2)
 
 def main (args: [String]) : IO () := print (FMR.emitModelOn feDim feAxes feParams feHelpers feComps feInits feSteps)

@@ -2,18 +2,19 @@
 
 Date: 2026-07-10
 
-Implementation status (2026-07-10):
+Implementation status (2026-07-11):
 
 - `mode collocated` / `mode dec`、mode の必須化、重複検査を実装済み。
-- `collocated` prelude の `grad` / `dGrad` / `divg` / `curl` / `lap` / `Δ` は
-  通常の TensorExpr `Def` として自動ロードする。
+- `collocated` の `grad` / `dGrad` / `divg` / `curl` / `lap` / `hessian` は標準 marker を
+  経由して共有 native `FE.*` tensor operator へ lower する。ユーザーの同名 `def` は shadow できる。
 - `mode dec` は既存の structured Yee/form context (`dForm`, `hodge`, `codiff`) を
   `use` なしで自動ロードし、`codiff (d a)` のような unary form operator 合成を扱う。
 - 現在の form storage は積分 cochain ではなく staggered 格子上の sampled component
   であり、`dForm` は `dYee` により格子幅で割る。この段階を厳密な incidence-only
   cochain DEC と同一視しない。
-- `flat` / `sharp` と DEC vector aliases は未実装。metric だけでは決まらない
-  de Rham map / reconstruction / interpolation policy を先に設計する。
+- `flat` / `sharp` は直交計量の rank-1 musical map として実装済みで、GridPolicy を保ち、
+  補間・積分を行わない。metric だけでは決まらない de Rham map / reconstruction と
+  DEC vector aliases は引き続き設計対象である。
 
 このメモは、Formurae の数学演算子を `use vector-calculus` /
 `use exterior-calculus` で個別に有効化する方針から、ファイル全体の離散化方針を
@@ -100,7 +101,7 @@ step:
 
 `collocated` は既存の Euclidean/cartesian な簡潔表記を保つ。
 
-自動ロードする基本演算子:
+現在自動ロードする基本演算子:
 
 ```text
 coordinate derivative:
@@ -116,21 +117,21 @@ vector calculus:
   curl
 
 scalar Laplacian aliases:
-  Δ / lap は必要なら prelude def として提供するか、従来どおり user def に残す。
+  lap とその alias Δ
 ```
 
 意味:
 
 - `field u : scalar` は格子点に置く。
 - `field X_i` は各成分を同じ格子点に置く。
-- `field X_i @ staggered` は既存の配置規則に従う。
+- `field X_i @ primal` / `@ dual` は component-index parity による配置規則に従う。
 - `∂_x` は collocated field では中心差分へ下りる。
-- `@ staggered` field に対する `∂_x` は target/source placement を見て `dYee` へ下りる。
+- `@ primal` / `@ dual` field に対する微分は target/source placement を見て `dYee` へ下りる。
 - pointwise product は現在どおり同じ評価点での積とする。
 - metric は内部的には存在するが、collocated vector calculus は当面
   Euclidean/cartesian を基本意味とする。
 
-標準 `curl` は、軸や成分を列挙せず、prelude def として次のように定義する。
+標準 `curl` の数学的意味は、概念的には次の添字式である。
 
 ```formurae
 def curl X =
@@ -138,9 +139,13 @@ def curl X =
     (epsilon_i~j~k . ∂_j X_k)
 ```
 
-標準 `divg` は、名前捕獲できない内部 Cartesian identity metric を使って定義する。
-`collocated` prelude は Euclidean/cartesian 演算子なので、別途宣言された
-`metric scale` / `embedding` をこの metric と混同しない。
+実装はこれを Haskell で成分化せず、`FE.curl feTensorDerivative feAxisIds X` として
+whole tensor のまま評価する。`FE.grad` / `FE.dGrad` / `FE.divg` / `FE.lap` /
+`FE.hessian` も同じである。`feTensorDerivative` が target/source policy、component basis、
+微分軸列を `FE.gridDerivativeChain` に渡し、`dC` / `dC2` / `dYee` を選ぶ。
+
+`collocated` の標準 `divg` / `lap` は Euclidean/cartesian 演算子なので、別途宣言された
+`metric scale` / `embedding` と混同しない。
 
 ```formurae
 def divg X =
@@ -148,7 +153,7 @@ def divg X =
     (cartesianMetric~i~j . ∂_i X_j)
 ```
 
-`grad` / `dGrad` も同じ prelude def として扱う。
+次の式は表層で同名 operator を上書きするときにも使える概念定義である。
 
 ```formurae
 def grad u = withSymbols [i] ∂_i u
@@ -157,8 +162,8 @@ def lap u = withSymbols [i, j] (cartesianMetric~i~j . ∂_i ∂_j u)
 def Δ u = lap u
 ```
 
-ここで `cartesianMetric` は説明用の名前であり、実装ではユーザーが参照・捕獲できない
-`FormuraeInternalCartesianMetric` AST name を使う。
+ここで `cartesianMetric` は説明用の名前である。native 標準演算子自体は
+`FormuraeInternalCartesianMetric` AST を生成しない。
 
 ## 4. `dec` モードの意味
 
@@ -178,7 +183,7 @@ metric bridge:
   flat
   sharp
 
-derived vector calculus:
+将来の derived vector aliases:
   grad
   curl
   divg
@@ -201,7 +206,7 @@ field 配置:
 - `hodge` は metric を使って primal/dual complex を移す。
 - `δ` / `codiff` は Hodge star と `d` から定義する。
 - `flat` / `sharp` は metric による vector/form 変換とする。
-- `grad` / `curl` / `divg` は `d` / `hodge` / `flat` / `sharp` から派生させる。
+- 将来の `grad` / `curl` / `divg` は `d` / `hodge` / `flat` / `sharp` から派生させる。
 
 3D での概念定義:
 
@@ -296,52 +301,56 @@ standardDefs m =
 - `codiff`
 - `hodge`
 
-将来の reconstruction policy 導入後に `flat` / `sharp` / vector aliases を追加する。
+`flat` / `sharp` は補間を含まない pure musical map として `dec` に登録する。
+reconstruction policy 導入後に vector aliases を追加する。
 
 `mode` が演算子の意味を決めるため、`missingUse` は廃止または mode 検査へ置き換える。
 
-### Phase 3 (implemented): collocated mode を現行挙動として固定する
+### Phase 3 (implemented): collocated operator を native Egison path へ固定する
 
 - 現在の `∂_x` / `∂_i` lowering を `collocated` mode の実装として固定する。
-- `@ staggered` field への座標微分は、既存の target/source placement つき `dYee` lowering を使う。
-- 標準演算子を mode ごとの prelude def 展開に一本化する。
-- `curl` / `divg` / `dGrad` は prelude def 展開に一本化する。
+- `@ primal` / `@ dual` field への微分は、target/source placement つき `dYee` lowering を使う。
+- 標準 operator marker を mode ごとに登録し、whole-tensor `FE.*` 呼び出しへ lower する。
+- `FE.gridDerivativeChain` が complete derivative axes から `dC` / `dC2` / `dYee` を選ぶ。
 - regression:
   - `field B_i` に対する `curl B_i` が中心差分になる。
-  - `field X_i @ staggered` に対する `curl X_i` が `dYee` になる。
-  - vector field / `E' = curl B` も component 展開される。
+  - `field X_i @ primal` に対する `curl X_i` が `dYee` になる。
+  - vector/rank-2 field の `E' = curl B` / `H' = hessian u` が native Tensor のまま残る。
 
 ### Phase 4 (implemented): dec mode の基本 context を自動ロードする
 
 - `mode dec` では form context を無条件に生成する。
-- `dForm` / `codiff` / `hodge` / `sigmaC` / `formBasis` を `use` なしで使えるようにする。
+- shared `FE.dForm` / `FE.codiffForm` / `FE.hodgeForm` / `FE.formBasis` を `use` なしで使えるようにする。
+- 旧 `sigmaC` と model 固有 form operator を削除し、`FE.componentPlacement` と generated
+  `feFormDerivative` / `feHodgeCoefficient` callback へ置き換える。
 - `field E : 1-form` / `field B : 2-form` の既存 `maxwell_dec` を
   `mode dec` に移行する。
 - `assert-dd-zero` は `mode dec` 専用機能として扱う。
 
-### Phase 5 (pending): musical map と離散写像を分離する
+### Phase 5 (partially implemented): musical map と離散写像を分離する
 
-最初は 3D Euclidean identity metric で型と配置を固定し、次に metric scale /
-embedding へ広げる。
+pure musical map は 1D/2D/3D の Euclidean identity と直交 `metric scale` / `embedding`
+について実装済みである。離散 cochain 写像は未実装のまま明示的に分離する。
 
 実装単位:
 
 - `flat`:
   - vector expression -> covector/form field expression
-  - component lowering は `g_i_j . X~j`
+  - `FE.flat feH` が `X^i -> h_i^2 X^i` を評価する
 - `sharp`:
   - covector/form field expression -> vector expression
-  - component lowering は `g~i~j . α_j`
+  - `FE.sharp feH` が `alpha_i -> alpha_i / h_i^2` を評価する
 - `deRham`: form field -> integral cochain
 - `reconstruct`: cochain -> form field/vector
-- form tuple `(complex, degree, representation, components)` と vector/tensor expression の
-  橋渡しを AST または lowering helper で表す。
+
+前2項は実装済み、後2項は pending である。form は旧 tuple ではなく
+`(GridPolicy, Tensor MathValue)` を使う。
 
 初期制限:
 
 - `flat` / `sharp` は vector/covector の間だけ対応し、配置を暗黙変更しない。
 - cochain との変換は必ず `deRham` / `reconstruct` を通す。
-- 2-form と pseudovector の同一視は `curl` 実装に必要な範囲で扱う。
+- 現実装は明示的 contravariant rank-1 vector と 1-form の間だけを扱う。
 - 一般の tensor field への flat/sharp は後回し。
 
 ### Phase 6 (pending): dec mode の grad / curl / divg を定義する
@@ -405,8 +414,8 @@ end-to-end:
 - `make elastic3d`
 - `make metric_torus metric_sphere`
 
-生成 `.egi` のバイト一致は要件とせず、standard operator の prelude def 展開と
-新しい mode 必須仕様を基準に検証する。
+生成 `.egi` のバイト一致は要件とせず、standard operator の native `FE.*` lowering、
+descriptor-driven projection、新しい mode 必須仕様を基準に検証する。
 
 ## 9. 注意点
 

@@ -43,13 +43,13 @@
 --                                   hodge factors sqrt(g)/h_a^2 become
 --                                   coefficient FIELDS evaluated by the
 --                                   CAS at the half-cell placements.
---   def NAME ARG... = EXPR          user-defined operator.  Its tensor
---                                    semantics are expanded on the TensorExpr
---                                    AST; use
+--   def NAME ARG... = EXPR          user-defined operator.  Surface
+--                                    substitution uses the TensorExpr AST;
+--                                    standard coordinate operators retain
+--                                    native FE.* identity.  Use
 --                                    withSymbols for newly introduced free
 --                                    indices and contractWith / `.` for
---                                    contraction.  Tensor primitives left
---                                    after component specialization are
+--                                    contraction.  Tensor primitives are
 --                                    evaluated by Egison.
 --                                    Fixed indexed parameters such as A_i_j and
 --                                    the rank-polymorphic marker X... are also
@@ -93,8 +93,8 @@
 -- when i is not a declared axis.  A bare small delta is the
 -- codifferential, indexed delta is Kronecker's delta, and the minus sign is
 -- '-'.  Higher mathematical
--- operators such as Δ use ordinary prelude definitions over these derivative
--- primitives and may be shadowed by user definitions; Δ4 is user-defined.
+-- operators such as Δ use native shared tensor definitions and may be
+-- shadowed by user definitions; Δ4 is user-defined.
 -- In index equations superscripts (~i) and subscripts (_i) are kept
 -- distinct.  Kronecker's delta is the mixed identity (delta~i_j, or with
 -- the small delta sign), while the metric tensor name declared by
@@ -106,6 +106,7 @@
 
 import Data.Char (isAlpha, isAlphaNum, isDigit, isSpace)
 import Data.List (dropWhileEnd, intercalate, sort, nub, stripPrefix, isInfixOf, isPrefixOf, isSuffixOf)
+import Data.Maybe (fromMaybe)
 import System.Environment (getArgs)
 import System.IO (hPutStrLn, stderr)
 
@@ -116,7 +117,10 @@ import Formurae.Syntax
 import Formurae.TensorExpr
   ( TensorExpr
   , pattern TEIdent
+  , pattern TENumber
   , pattern TEApply
+  , pattern TECall
+  , pattern TEIf
   , pattern TEUnary
   , pattern TEBinary
   , pattern TEGroup
@@ -127,6 +131,7 @@ import Formurae.TensorExpr
   , preprocessTensorExpr
   , renderTensorExpr
   , strictEinstein
+  , transformTensorExprM
   , validateFieldRefParts
   )
 
@@ -147,15 +152,14 @@ scalarIntrinsics =
 
 -- Tensor algebra is an Egison concern.  The generated .egi loads
 -- lib/formurae-tensor.egi, which defines the algebraic operators in terms of
--- Egison's Tensor primitives.  Coordinate operators, on the other hand, are
--- ordinary Formurae definitions: registering them before user definitions
--- lets the normal TensorExpr expansion specialize them to the model's axes
--- and placements.  A user definition is subsequently pushed in front of
--- these definitions and therefore shadows the corresponding prelude entry.
+-- Egison's Tensor primitives.  Standard coordinate operators are registered
+-- as hygienic native markers.  User definitions are subsequently pushed in
+-- front of those entries and therefore shadow the corresponding FE.* entry.
 standardNames :: [String]
 standardNames =
   [ ".", "wedge", "trace", "sym", "antisym"
   , "norm2", "hessian", "grad", "dGrad", "divg", "curl", "lap", "Δ"
+  , "flat", "sharp"
   ]
 
 -- A bare generated binding must not reuse an Egison keyword or an
@@ -181,8 +185,37 @@ generatedEgisonDependencies =
   , "sqrt", "contractWith"
   ]
 
-coordinatePreludeDefs :: Model -> [Def]
-coordinatePreludeDefs m =
+nativeGradName, nativeDGradName, nativeDivgName, nativeCurlName,
+  nativeLapName, nativeHessianName :: String
+nativeGradName = reservedInternalPrefix ++ "NativeGrad"
+nativeDGradName = reservedInternalPrefix ++ "NativeDGrad"
+nativeDivgName = reservedInternalPrefix ++ "NativeDivg"
+nativeCurlName = reservedInternalPrefix ++ "NativeCurl"
+nativeLapName = reservedInternalPrefix ++ "NativeLap"
+nativeHessianName = reservedInternalPrefix ++ "NativeHessian"
+
+-- Standard coordinate operators retain their identity after user-definition
+-- expansion.  The marker heads are lowered to the shared Egison tensor
+-- kernel at emission time.  User definitions still shadow these entries
+-- because they are inserted before the prelude in the definition lookup.
+nativeOperatorDefs :: Model -> [Def]
+nativeOperatorDefs m =
+  [ Def "grad" ["u"] (nativeGradName ++ " u")
+  , Def "dGrad" ["X"] (nativeDGradName ++ " X")
+  , Def "divg" ["X"] (nativeDivgName ++ " X")
+  ]
+  ++ [ Def "curl" ["X"] (nativeCurlName ++ " X")
+     | mDim m == 3
+     ]
+  ++ [ Def "lap" ["u"] (nativeLapName ++ " u")
+     , Def "Δ" ["u"] (nativeLapName ++ " u")
+     , Def "hessian" ["u"] (nativeHessianName ++ " u")
+     ]
+
+-- The component lowering remains a temporary validation oracle while the
+-- native path is rolled out.  It is never emitted for a native expression.
+legacyNativeValidationDefs :: Model -> [Def]
+legacyNativeValidationDefs m =
   [ Def "grad" ["u"] "withSymbols [i] ∂_i u"
   , Def "dGrad" ["X"] "withSymbols [i, j] ∂_i X_j"
   , Def "divg" ["X"] "contractWith (+) (∂_i X~i)"
@@ -294,20 +327,24 @@ validateValueBindingNames m =
           fatal ("value name '" ++ name
                  ++ "' is reserved for generated Egison code (" ++ kind ++ ")")
     isGeneratedValueName name =
-      name `elem` generatedValueNames || "feq" `isPrefixOf` name
+      name `elem` generatedValueNames
+      || any (`isPrefixOf` name) ["feq", "feLb"]
     generatedValueNames =
       internalCoordNames m
       ++ internalHstepNames m
       ++ [ "feDim", "feAxes", "feAxisIds", "feCoords", "feHsteps"
          , "shift", "dC", "dC2", "dTaylor", "axisId", "∂"
          , "yeeRef", "unit3", "dYee"
+         , "feTensorDerivative"
          , "feFormDerivative"
+         , "feHodgeCoefficient"
+         , "feMusicalScale"
          , "feLbGradient", "feLbDivergence", "feLbCoefficient", "feLbFlux"
          , "feLbCellPlacement", "feLbFluxPlacement"
          , "feLbStoredFlux", lbResultBindingName
          , "hodge", "dForm", "codiff"
-         , "feSymbolNames", "feFieldNames", "feFieldPolicies", "feIndexNames", "fePrinterContext"
-         , "fmrEq", "fmrInit", "componentEqs", "tensorEqs", "formEqs", "scalarEq"
+         , "feSymbolNames", "feFieldDescriptors", "feFieldNames", "feFieldPolicies", "feIndexNames", "fePrinterContext"
+         , "fmrEq", "fmrInit", "componentEqs", "fieldEqs", "scalarEq"
          , "feX", "feG", "feH", "feSqrtG", "feDD"
          , "feParams", "feHelpers", "feComps", "feInits", "feSteps", "main"
          , "ca", "cb", "cc", "sg", "f1", "f2", "f3"
@@ -556,10 +593,12 @@ unavailableOperator m s = go (tokenize s)
     check (TId "\916" _) _
       | not (userDefined "\916") && selectedMode m /= CollocatedMode =
       Just "Δ is currently available only in mode collocated"
-    check (TId "flat" _) _ | not (userDefined "flat") =
-      Just "flat is not implemented yet; discrete vector/form conversion needs an explicit reconstruction policy"
-    check (TId "sharp" _) _ | not (userDefined "sharp") =
-      Just "sharp is not implemented yet; discrete vector/form conversion needs an explicit reconstruction policy"
+    check (TId "flat" _) _
+      | not (userDefined "flat") && selectedMode m /= DecMode =
+      Just "flat requires mode dec"
+    check (TId "sharp" _) _
+      | not (userDefined "sharp") && selectedMode m /= DecMode =
+      Just "sharp requires mode dec"
     check _ _ = Nothing
     indexedAfter rest =
       case dropWhile isSpTok rest of
@@ -569,12 +608,13 @@ unavailableOperator m s = go (tokenize s)
     orElse (Just x) _ = Just x
     orElse Nothing y = y
 
-parseFe :: String -> String -> IO Model
-parseFe name txt = go STop initialModel
+parseFe :: FilePath -> String -> String -> IO Model
+parseFe sourcePath name txt = go STop initialModel
                       (zip [1 :: Int ..] (lines txt))
   where
     initialModel = Model
       { mName = name
+      , mSourcePath = sourcePath
       , mDim = 0
       , mAxes = []
       , mMode = Nothing
@@ -618,14 +658,15 @@ parseFe name txt = go STop initialModel
           -- in source order.  lookupDef chooses the first match, so user
           -- definitions shadow prelude definitions while retaining the same
           -- definition-order rule among themselves.
-          preludeDefs <- resolveDefs mUse [] (coordinatePreludeDefs mUse)
+          preludeDefs <- resolveDefs mUse [] (nativeOperatorDefs mUse)
           let userDefs0 = reverse (mDefs mUse)
           allDefs <- resolveDefs mUse preludeDefs userDefs0
           let defs = take (length userDefs0) allDefs
           let mDef = mUse { mDefs = defs }
           steps' <- mapM (\st -> do ex0 <- preprocessTensorExpr mUse (sEx st)
                                     ex <- expandDefs allDefs ex0
-                                    return st { sEx = ex })
+                                    return st { sEx = ex
+                                              , sSourceMapped = ex == ex0 })
                          (reverse (mSteps mUse))
           inits' <- mapM (expandInit mUse allDefs) (reverse (mInits mUse))
           mapM_ (\df ->
@@ -658,7 +699,7 @@ parseFe name txt = go STop initialModel
                 let (more, rest') = grab (bal s) rest
                 in ini ln (s ++ " " ++ more) m >>= \m' -> go SInit m' rest'
               SInit -> ini ln s m >>= \m' -> go SInit m' rest
-              SStep -> stp ln s m >>= \m' -> go SStep m' rest
+              SStep -> stp ln code m >>= \m' -> go SStep m' rest
 
     bal t = sum [1 :: Int | c <- t, c `elem` "(["] - sum [1 | c <- t, c `elem` ")]"]
 
@@ -1019,17 +1060,24 @@ parseFe name txt = go STop initialModel
           fatal (bad ++ " (line " ++ show ln ++ ")")
       | Just (nm, ix, ex) <- eqForm "let" s = do
           rejectReservedName ln nm
-          return m { mSteps = Step KLet nm ix ex : mSteps m }
+          return m { mSteps = Step KLet nm ix ex ln expressionColumn ex True : mSteps m }
       | Just (nm, _, ex) <- eqForm "local" s = do
           rejectReservedName ln nm
-          return m { mSteps = Step KLocal nm [] ex : mSteps m }
+          return m { mSteps = Step KLocal nm [] ex ln expressionColumn ex True : mSteps m }
       | Just (nm, ixs, ex) <- primeEqForm s = do
           rejectReservedName ln nm
-          return m { mSteps = Step KEq nm ixs ex : mSteps m }
+          return m { mSteps = Step KEq nm ixs ex ln expressionColumn ex True : mSteps m }
       | otherwise = fatal ("bad step eq: " ++ s ++ " (line " ++ show ln ++ ")")
       where
-        s = s0
+        s = strip s0
         banned = surfaceBanned m [] s
+        expressionColumn = rhsStartColumn s0
+
+    rhsStartColumn line =
+      case break (== '=') line of
+        (_, []) -> 1
+        (prefix, _ : rhs) ->
+          length prefix + 2 + length (takeWhile isSpace rhs)
 
 surfaceBanned :: Model -> [String] -> String -> Maybe String
 surfaceBanned m locals s =
@@ -1054,6 +1102,7 @@ surfaceBanned m locals s =
     isTensorOperator (TId nm _) =
       nm == "tensorMap" || nm == "subrefs" || nm == "transpose"
       || nm `elem` standardNames
+      || nm `elem` map fst nativeMarkerMap
       || any ((== nm) . defName) (mDefs m)
     isTensorOperator _ = False
 
@@ -1109,6 +1158,367 @@ lowerBackendText m source = do
                Left msg -> fatal msg
   return (renderTensorExpr lowered)
 
+-- ---------------------------------------------------------------- native tensor operators
+
+data NativeValue = NativeValue
+  { nativeText     :: String
+  , nativeRank     :: Int
+  , nativePolicy   :: Maybe GridPolicy
+  , nativeOperator :: Bool
+  }
+
+nativeMarkerMap :: [(String, String)]
+nativeMarkerMap =
+  [ (nativeGradName, "grad")
+  , (nativeDGradName, "dGrad")
+  , (nativeDivgName, "divg")
+  , (nativeCurlName, "curl")
+  , (nativeLapName, "lap")
+  , (nativeHessianName, "hessian")
+  ]
+
+-- Reconstruct the former component expression only for validation and for
+-- surface constructs that are not yet representable by the native emitter.
+-- Native equations themselves never contain this expansion.
+nativeLegacyExpression :: Model -> String -> IO String
+nativeLegacyExpression m source =
+  expandDefs (legacyNativeValidationDefs m) (untok (map replace (tokenize source)))
+  where
+    replace (TId name primes) =
+      case lookup name nativeMarkerMap of
+        Just legacyName -> TId legacyName primes
+        Nothing -> TId name primes
+    replace token = token
+
+-- `sharp` changes representation from a form tuple to a rank-1 tensor.  The
+-- legacy signature oracle has no form tuple node, so use the actual target
+-- field reference as a signature/placement placeholder while validating the
+-- complete surrounding expression.  This does not affect emitted code.
+nativeSignatureExpression :: String -> [IxPart] -> String -> IO String
+nativeSignatureExpression target targetIndices source =
+  case parseTensorExprEither source of
+    Left message -> fatal ("bad native signature expression: " ++ message)
+    Right expression -> do
+      replaced <- transformTensorExprM replaceSharp expression
+      return (renderTensorExpr replaced)
+  where
+    replaceSharp expression =
+      case expression of
+        TEApply (TEIdent "sharp" []) [_] ->
+          return (Just (TEIdent target targetIndices))
+        _ -> return Nothing
+
+flipPolicy :: GridPolicy -> GridPolicy
+flipPolicy Collocated = Collocated
+flipPolicy Primal = Dual
+flipPolicy Dual = Primal
+
+nativeBases :: Model -> Int -> [[Int]]
+nativeBases _ 0 = [[]]
+nativeBases m rank =
+  [axis : rest | axis <- axisRange m, rest <- nativeBases m (rank - 1)]
+
+-- GridPolicy is metadata; compatibility is decided by the concrete physical
+-- placement of every result component.  This matters for rank-0 values,
+-- where Collocated and Primal both denote the cell centre, and for scalar ×
+-- tensor expressions, where equal policy names can still denote different
+-- component locations.
+mergeNativePlacements
+  :: Model -> GridPolicy -> String -> Int -> [NativeValue]
+  -> IO (Maybe GridPolicy)
+mergeNativePlacements m targetPolicy context resultRank values =
+  case located of
+    [] -> return Nothing
+    _ ->
+      if all compatibleAt bases
+        then case [candidate | candidate <- candidates,
+                             all (candidateMatches candidate) bases] of
+               candidate : _ -> return (Just candidate)
+               [] -> placementError
+        else placementError
+  where
+    located = [(policy, nativeRank value)
+              | value <- values, Just policy <- [nativePolicy value]]
+    bases = nativeBases m resultRank
+    candidates = nub (targetPolicy : map fst located)
+    operandPlacement basis (policy, rank)
+      | rank == 0 = componentPlacement m policy []
+      | rank == resultRank = componentPlacement m policy basis
+      | otherwise = error "mergeNativePlacements: incompatible operand rank"
+    compatibleAt basis =
+      case map (operandPlacement basis) located of
+        [] -> True
+        placement : rest -> all (== placement) rest
+    candidateMatches candidate basis =
+      case map (operandPlacement basis) located of
+        [] -> True
+        placement : _ -> componentPlacement m candidate basis == placement
+    placementError =
+      fatal ("grid placement mismatch between operands in native expression: "
+             ++ context)
+
+nativeValuesAt
+  :: GridPolicy -> Model -> [String] -> [TensorExpr] -> IO (Maybe [NativeValue])
+nativeValuesAt _ _ _ [] = return (Just [])
+nativeValuesAt targetPolicy m lets (expr : rest) = do
+  value <- nativeValueAt targetPolicy m lets expr
+  case value of
+    Nothing -> return Nothing
+    Just value' -> do
+      values <- nativeValuesAt targetPolicy m lets rest
+      return ((value' :) <$> values)
+
+-- Render the deliberately small whole-tensor subset needed by the standard
+-- coordinate operators.  Returning Nothing selects the legacy lowering; this
+-- keeps arbitrary user tensor definitions working during the migration.
+nativeValueAt
+  :: GridPolicy -> Model -> [String] -> TensorExpr -> IO (Maybe NativeValue)
+nativeValueAt targetPolicy m lets expr =
+  case expr of
+    TENumber number -> return (scalar number Nothing False)
+    TEIdent base0 parts -> nativeIdent base0 parts
+    TEUnary op operand -> do
+      value <- nativeValueAt targetPolicy m lets operand
+      return (fmap (\v -> v { nativeText = "(" ++ op ++ nativeText v ++ ")" }) value)
+    TECall fn args -> nativeScalarApplication True fn args
+    TEApply (TEIdent "sharp" []) [operand] -> nativeSharp operand
+    TEApply (TEIdent marker []) [operand]
+      | marker `elem` map fst nativeMarkerMap -> nativeCoordinate marker operand
+    TEApply fn args -> nativeScalarApplication False fn args
+    TEIf condition yes no -> do
+      values <- nativeValuesAt targetPolicy m lets [condition, yes, no]
+      case values of
+        Just [conditionValue, yesValue, noValue]
+          | nativeRank conditionValue == 0
+          , nativeRank yesValue == nativeRank noValue -> do
+              policy <- mergeNativePlacements m targetPolicy
+                          (renderTensorExpr expr) (nativeRank yesValue)
+                          [conditionValue, yesValue, noValue]
+              return (Just NativeValue
+                { nativeText = "if " ++ nativeText conditionValue
+                               ++ " then " ++ nativeText yesValue
+                               ++ " else " ++ nativeText noValue
+                , nativeRank = nativeRank yesValue
+                , nativePolicy = policy
+                , nativeOperator = any nativeOperator
+                    [conditionValue, yesValue, noValue]
+                })
+        _ -> return Nothing
+    TEBinary op lhs rhs -> nativeBinary op lhs rhs
+    TEGroup operand -> do
+      value <- nativeValueAt targetPolicy m lets operand
+      return (fmap (\v -> v { nativeText = "(" ++ nativeText v ++ ")" }) value)
+    _ -> return Nothing
+  where
+    scalar text policy isNative =
+      Just NativeValue
+        { nativeText = text
+        , nativeRank = 0
+        , nativePolicy = policy
+        , nativeOperator = isNative
+        }
+
+    nativeIdent base0 parts =
+      let (fieldName, _) = fieldBaseOf base0
+          symbolicParts = all (not . all isDigit . ixName) parts
+          localScalars = [sNm step | step <- mSteps m, sk step == KLocal]
+      in case kindOf m fieldName of
+           Just (Form _) -> return Nothing
+           Just kind
+             | null parts ->
+                 return (Just (fieldValue base0 kind))
+             | symbolicParts && length parts == componentRank kind ->
+                 return (Just (fieldValue base0 kind))
+             | all (all isDigit . ixName) parts
+             , length parts == componentRank kind ->
+                 -- A fixed component carries a concrete basis that the
+                 -- compact NativeValue policy/rank summary cannot represent.
+                 -- Preserve exact placement semantics through legacy
+                 -- component lowering instead of guessing from basis [].
+                 return Nothing
+             | otherwise -> return Nothing
+           Nothing
+             | isLbResultBindingName fieldName && null parts ->
+                 return (scalar base0 (Just Collocated) False)
+             | fieldName `elem` lets && (null parts || length parts == 1) ->
+                 return (Just NativeValue
+                   { nativeText = base0
+                   , nativeRank = 1
+                   , nativePolicy = Just Collocated
+                   , nativeOperator = False
+                   })
+             | fieldName `elem` localScalars && null parts ->
+                 return (scalar base0 (Just Collocated) False)
+             | null parts -> return (scalar base0 Nothing False)
+             | otherwise -> return Nothing
+      where
+        fieldValue text kind = NativeValue
+          { nativeText = text
+          , nativeRank = componentRank kind
+          , nativePolicy = Just (fieldPolicyOf m (fst (fieldBaseOf text)))
+          , nativeOperator = False
+          }
+
+    nativeScalarApplication callSyntax fn args = do
+      fnValue <- nativeValueAt targetPolicy m lets fn
+      argValues <- nativeValuesAt targetPolicy m lets args
+      case (fnValue, argValues) of
+        (Just functionValue, Just values)
+          | nativeRank functionValue == 0
+          , all ((== 0) . nativeRank) values -> do
+              policy <- mergeNativePlacements m targetPolicy
+                          (renderTensorExpr expr) 0 (functionValue : values)
+              let renderedArgs = map nativeText values
+                  rendered = if callSyntax
+                    then nativeText functionValue ++ "("
+                         ++ intercalate ", " renderedArgs ++ ")"
+                    else unwords (nativeText functionValue :
+                                  map parenthesizeNative renderedArgs)
+              return (Just NativeValue
+                { nativeText = rendered
+                , nativeRank = 0
+                , nativePolicy = policy
+                , nativeOperator = nativeOperator functionValue
+                                   || any nativeOperator values
+                })
+        _ -> return Nothing
+
+    nativeBinary op lhs rhs = do
+      values <- nativeValuesAt targetPolicy m lets [lhs, rhs]
+      case values of
+        Just [lhsValue, rhsValue] ->
+          case op of
+            "+" -> sameRankBinary lhsValue rhsValue
+            "-" -> sameRankBinary lhsValue rhsValue
+            "*" -> scalarTensorBinary lhsValue rhsValue
+            "/" | nativeRank rhsValue == 0 ->
+                    scalarTensorBinary lhsValue rhsValue
+            "^" | nativeRank lhsValue == 0 && nativeRank rhsValue == 0 ->
+                    sameRankBinary lhsValue rhsValue
+            _ | op `elem` ["<", ">", "<=", ">=", "==", "!=", "&&", "||"]
+              , nativeRank lhsValue == 0 && nativeRank rhsValue == 0 -> do
+                  policy <- mergeNativePlacements m targetPolicy
+                              (renderTensorExpr expr) 0 [lhsValue, rhsValue]
+                  return (binaryResult 0 policy lhsValue rhsValue)
+            _ -> return Nothing
+        _ -> return Nothing
+      where
+        sameRankBinary lhsValue rhsValue
+          | nativeRank lhsValue /= nativeRank rhsValue =
+              fatal ("native tensor rank mismatch in: " ++ renderTensorExpr expr)
+          | otherwise = do
+              policy <- mergeNativePlacements m targetPolicy
+                          (renderTensorExpr expr) (nativeRank lhsValue)
+                          [lhsValue, rhsValue]
+              return (binaryResult (nativeRank lhsValue) policy lhsValue rhsValue)
+        scalarTensorBinary lhsValue rhsValue
+          | nativeRank lhsValue > 0 && nativeRank rhsValue > 0 = return Nothing
+          | otherwise = do
+              let resultRank = max (nativeRank lhsValue) (nativeRank rhsValue)
+              policy <- mergeNativePlacements m targetPolicy
+                          (renderTensorExpr expr) resultRank [lhsValue, rhsValue]
+              return (binaryResult resultRank
+                                    policy lhsValue rhsValue)
+        binaryResult rank policy lhsValue rhsValue =
+          Just NativeValue
+            { nativeText = "(" ++ nativeText lhsValue ++ " " ++ op ++ " "
+                           ++ nativeText rhsValue ++ ")"
+            , nativeRank = rank
+            , nativePolicy = policy
+            , nativeOperator = nativeOperator lhsValue || nativeOperator rhsValue
+            }
+
+    nativeCoordinate marker operand = do
+      operandValue <- nativeValueAt targetPolicy m lets operand
+      case operandValue of
+        Nothing -> return Nothing
+        Just value -> do
+          let sourcePolicy = fromMaybe targetPolicy (nativePolicy value)
+              (operatorName, inputRank, resultRank, resultPolicy) =
+                case marker of
+                  _ | marker == nativeGradName ->
+                        ("FE.grad", 0, 1, sourcePolicy)
+                    | marker == nativeDGradName ->
+                        ("FE.dGrad", 1, 2, sourcePolicy)
+                    | marker == nativeDivgName ->
+                        ("FE.divg", 1, 0, sourcePolicy)
+                    | marker == nativeCurlName ->
+                        ("FE.curl", 1, 1, flipPolicy sourcePolicy)
+                    | marker == nativeLapName ->
+                        ("FE.lap", 0, 0, sourcePolicy)
+                    | otherwise ->
+                        ("FE.hessian", 0, 2, sourcePolicy)
+          if nativeRank value /= inputRank
+            then fatal (operatorName ++ " expects a rank-" ++ show inputRank
+                        ++ " operand in: " ++ renderTensorExpr expr)
+            else return (Just NativeValue
+              { nativeText = operatorName ++ " (feTensorDerivative "
+                             ++ show resultPolicy ++ " " ++ show sourcePolicy
+                             ++ ") feAxisIds " ++ parenthesizeNative (nativeText value)
+              , nativeRank = resultRank
+              , nativePolicy = Just resultPolicy
+              , nativeOperator = True
+              })
+
+    nativeSharp operand =
+      case stripNativeGroup operand of
+        TEIdent base0 parts ->
+          let (fieldName, primes) = fieldBaseOf base0
+          in case kindOf m fieldName of
+               Just (Form 1)
+                 | null parts ->
+                     let policy = fieldPolicyOf m fieldName
+                         wrapper = fieldName ++ if primes == 0 then "f" else "fN"
+                     in return (Just NativeValue
+                          { nativeText = "snd (FE.sharp feMusicalScale " ++ wrapper ++ ")"
+                          , nativeRank = 1
+                          , nativePolicy = Just policy
+                          , nativeOperator = True
+                          })
+               Just (Form degree) ->
+                 fatal ("sharp expects a 1-form, but " ++ fieldName
+                        ++ " is a " ++ show degree ++ "-form")
+               _ -> fatal ("sharp expects an unindexed 1-form operand in: "
+                           ++ renderTensorExpr expr)
+        _ -> fatal ("sharp expects an unindexed 1-form operand in: "
+                    ++ renderTensorExpr expr)
+
+    stripNativeGroup (TEGroup value) = stripNativeGroup value
+    stripNativeGroup value = value
+
+parenthesizeNative :: String -> String
+parenthesizeNative value
+  | all (\c -> isAlphaNum c || c == '_' || c == '\'') value = value
+  | otherwise = "(" ++ value ++ ")"
+
+nativeExpressionAt
+  :: GridPolicy -> Model -> [String] -> String -> IO (Maybe NativeValue)
+nativeExpressionAt targetPolicy m lets source =
+  case parseTensorExprEither source of
+    Left message -> fatal ("bad native tensor expression: " ++ message)
+    Right expr -> do
+      value <- nativeValueAt targetPolicy m lets expr
+      return $ case value of
+        Just native | nativeOperator native -> Just native
+        _ -> Nothing
+
+validateNativeResult :: Model -> GridPolicy -> Kind -> String -> NativeValue -> IO ()
+validateNativeResult m targetPolicy targetKind source value = do
+  let targetRank = componentRank targetKind
+  if nativeRank value == targetRank
+    then return ()
+    else fatal ("native tensor result has rank " ++ show (nativeRank value)
+                ++ " but target has rank " ++ show targetRank ++ " in: " ++ source)
+  case nativePolicy value of
+    Just policy
+      | any (\indices -> componentPlacement m policy indices
+                         /= componentPlacement m targetPolicy indices)
+            (componentIndices (mDim m) targetKind) ->
+      fatal ("grid placement mismatch in indexed equation (native policies): target is "
+             ++ gridPolicySurfaceName targetPolicy ++ " but RHS is "
+             ++ gridPolicySurfaceName policy ++ " in: " ++ source)
+    _ -> return ()
+
 
 -- ------------------------------------ tensor index equations
 --
@@ -1118,51 +1528,137 @@ indexDefs m lets st = do
   validateFieldRefParts m lets (sNm st ++ concatMap ixSuffix (sIdx st))
   pre <- preprocessTensorExpr m (sEx st)
   ex <- lowerBackendText m pre
-  strictEinstein m lets (sIdx st) ex
-  case (kindOf m (sNm st), sIdx st) of
-    (Just Vector, [fi]) -> do
-      es <- mapM (\a -> ixExpand m lets [(ixName fi, a)]
-                            (componentPlacement m (fieldPolicyOf m (sNm st)) [a]) ex)
-                 (axisRange m)
-      return ["def " ++ base ++ " := [| " ++ intercalate ", " es ++ " |]"]
-    (Just SymM, [fi, fj]) ->
-      mapM (\(a, b) -> comp ex [(ixName fi, a), (ixName fj, b)]
-                         (componentPlacement m (fieldPolicyOf m (sNm st)) [a, b])
-                         (base ++ show a ++ show b))
-           (rank2Pairs (symComponentIndices (mDim m)))
-    (Just AntiM, [fi, fj]) ->
-      mapM (\(a, b) -> comp ex [(ixName fi, a), (ixName fj, b)]
-                         (componentPlacement m (fieldPolicyOf m (sNm st)) [a, b])
-                         (base ++ show a ++ show b))
-           (rank2Pairs (antiComponentIndices (mDim m)))
-    (Just Tensor2, [fi, fj]) ->
-      mapM (\(a, b) -> comp ex [(ixName fi, a), (ixName fj, b)]
-                              (componentPlacement m (fieldPolicyOf m (sNm st)) [a, b])
-                              (base ++ show a ++ show b))
-           (rank2Pairs (componentIndices (mDim m) Tensor2))
-    _ -> fatal ("index equation has wrong indices for its field kind: " ++ sNm st)
+  signature <- nativeSignatureExpression (sNm st) (sIdx st) ex
+  legacy <- nativeLegacyExpression m signature
+  strictEinstein m lets (sIdx st) legacy
+  native <- nativeExpressionAt (fieldPolicyOf m (sNm st)) m lets ex
+  case (kindOf m (sNm st), native) of
+    (Just kind, Just value) -> do
+      if "FE.sharp " `isInfixOf` nativeText value
+        then validateSharpTarget
+        else return ()
+      validateNativeResult m (fieldPolicyOf m (sNm st)) kind ex value
+      validateComponents kind legacy
+      return ["def " ++ base ++ " := " ++ nativeText value]
+    _ -> legacyDefs legacy
   where
     base = "feq" ++ sNm st
-    comp ex' env anchor defnm = do
-      e <- ixExpand m lets env anchor ex'
+    legacyDefs ex =
+      case (kindOf m (sNm st), sIdx st) of
+        (Just Vector, [fi]) -> do
+          es <- mapM (\a -> ixExpand m lets [(ixName fi, a)]
+                                (componentPlacement m (fieldPolicyOf m (sNm st)) [a]) ex)
+                     (axisRange m)
+          return ["def " ++ base ++ " := [| " ++ intercalate ", " es ++ " |]"]
+        (Just SymM, [fi, fj]) ->
+          fmap (++ rank2TensorDef SymM)
+            (mapM (\(a, b) -> comp ex [(ixName fi, a), (ixName fj, b)]
+                               (componentPlacement m (fieldPolicyOf m (sNm st)) [a, b])
+                               (base ++ show a ++ show b))
+                  (rank2Pairs (symComponentIndices (mDim m))))
+        (Just AntiM, [fi, fj]) ->
+          fmap (++ rank2TensorDef AntiM)
+            (mapM (\(a, b) -> comp ex [(ixName fi, a), (ixName fj, b)]
+                               (componentPlacement m (fieldPolicyOf m (sNm st)) [a, b])
+                               (base ++ show a ++ show b))
+                  (rank2Pairs (antiComponentIndices (mDim m))))
+        (Just Tensor2, [fi, fj]) ->
+          fmap (++ rank2TensorDef Tensor2)
+            (mapM (\(a, b) -> comp ex [(ixName fi, a), (ixName fj, b)]
+                                    (componentPlacement m (fieldPolicyOf m (sNm st)) [a, b])
+                                    (base ++ show a ++ show b))
+                  (rank2Pairs (componentIndices (mDim m) Tensor2)))
+        _ -> fatal ("index equation has wrong indices for its field kind: " ++ sNm st)
+
+    validateComponents kind ex =
+      case (kind, sIdx st) of
+        (Vector, [fi]) ->
+          mapM_ (\a -> ixExpand m lets [(ixName fi, a)]
+                           (componentPlacement m (fieldPolicyOf m (sNm st)) [a]) ex
+                         >> return ())
+                (axisRange m)
+        (SymM, [fi, fj]) -> validateRank2 fi fj (symComponentIndices (mDim m)) ex
+        (AntiM, [fi, fj]) -> validateRank2 fi fj (antiComponentIndices (mDim m)) ex
+        (Tensor2, [fi, fj]) -> validateRank2 fi fj (componentIndices (mDim m) Tensor2) ex
+        _ -> fatal ("index equation has wrong indices for its field kind: " ++ sNm st)
+
+    validateRank2 fi fj indices ex =
+      mapM_ (\(a, b) -> ixExpand m lets [(ixName fi, a), (ixName fj, b)]
+                            (componentPlacement m (fieldPolicyOf m (sNm st)) [a, b]) ex
+                          >> return ())
+            (rank2Pairs indices)
+
+    comp ex env anchor defnm = do
+      e <- ixExpand m lets env anchor ex
       return ("def " ++ defnm ++ " := " ++ e)
+
+    validateSharpTarget =
+      case fieldDeclOf m (sNm st) >>= fieldIndexParts of
+        Just [IxPart VUp _] -> return ()
+        _ -> fatal ("sharp target must be an explicitly contravariant rank-1 vector: "
+                    ++ sNm st ++ concatMap ixSuffix (sIdx st))
+
+    rank2TensorDef kind =
+      ["def " ++ base ++ " := [| "
+       ++ intercalate ", "
+            ["[| " ++ intercalate ", "
+                [rank2Component kind a b | b <- axisRange m]
+             ++ " |]"
+            | a <- axisRange m]
+       ++ " |]"]
+
+    rank2Component SymM a b =
+      base ++ show (min a b) ++ show (max a b)
+    rank2Component AntiM a b
+      | a == b = "0"
+      | a < b = base ++ show a ++ show b
+      | otherwise = "0 - " ++ base ++ show b ++ show a
+    rank2Component Tensor2 a b = base ++ show a ++ show b
+    rank2Component _ _ _ = error "rank2TensorDef: non-rank-2 field"
 
 implicitVectorDefs :: Model -> [String] -> Step -> IO [String]
 implicitVectorDefs m lets st = do
   pre <- preprocessTensorExpr m (sEx st)
   ex <- lowerBackendText m pre
-  if hasIndexSyntax m ex
-    then do
-      strictEinstein m lets [lhsIx] ex
-      mapM (comp ex) (axisRange m)
-    else do
-      mapM scalarComp (axisRange m)
+  signature <- nativeSignatureExpression (sNm st) [lhsIx] ex
+  legacy <- nativeLegacyExpression m signature
+  native <- nativeExpressionAt (fieldPolicyOf m (sNm st)) m lets ex
+  case native of
+    Just value -> do
+      if "FE.sharp " `isInfixOf` nativeText value
+        then validateSharpTarget
+        else return ()
+      strictEinstein m lets [lhsIx] legacy
+      validateNativeResult m (fieldPolicyOf m (sNm st)) Vector ex value
+      mapM_ (validateComp legacy) (axisRange m)
+      return ["def feq" ++ sNm st ++ " := " ++ nativeText value]
+    Nothing ->
+      if hasIndexSyntax m legacy
+        then do
+          strictEinstein m lets [lhsIx] legacy
+          defs <- mapM (comp legacy) (axisRange m)
+          return (defs ++ [vectorTensorDef])
+        else do
+          defs <- mapM scalarComp (axisRange m)
+          return (defs ++ [vectorTensorDef])
   where
     lhsIx = IxPart VDown "i"
     comp ex' a = do
       let anchor = componentPlacement m (fieldPolicyOf m (sNm st)) [a]
       e <- ixExpand m lets [(ixName lhsIx, a)] anchor ex'
       return ("def feq" ++ sNm st ++ show a ++ " := " ++ e)
+    validateComp ex' a = do
+      let anchor = componentPlacement m (fieldPolicyOf m (sNm st)) [a]
+      ixExpand m lets [(ixName lhsIx, a)] anchor ex' >> return ()
+    vectorTensorDef =
+      "def feq" ++ sNm st ++ " := [| "
+      ++ intercalate ", " ["feq" ++ sNm st ++ show a | a <- axisRange m]
+      ++ " |]"
+    validateSharpTarget =
+      case fieldDeclOf m (sNm st) >>= fieldIndexParts of
+        Just [IxPart VUp _] -> return ()
+        _ -> fatal ("sharp target must be an explicitly contravariant rank-1 vector: "
+                    ++ sNm st)
     scalarComp a = do
       e <- rewrite m lets (Just (show a)) (sEx st)
       return ("def feq" ++ sNm st ++ show a ++ " := " ++ e)
@@ -1171,25 +1667,6 @@ implicitVectorDefs m lets st = do
 primedRefs :: Model -> [String]
 primedRefs m = sort (nub [nm | st <- mSteps m, TId nm True <- tokenize (sEx st)
                              , kindOf m nm /= Nothing])
-
--- Whole-tensor vector equations use the generated primed field family as the
--- structured source of their Formura left-hand-side component names.
-tensorEqTargets :: Model -> [String]
-tensorEqTargets m =
-  [ sNm st
-  | st <- mSteps m
-  , sk st == KEq
-  , not (null (sIdx st))
-  , kindOf m (sNm st) == Just Vector
-  ]
-
-formEqTargets :: Model -> [String]
-formEqTargets m =
-  [ sNm st
-  | st <- mSteps m
-  , sk st == KEq
-  , Just (Form _) <- [kindOf m (sNm st)]
-  ]
 
 -- rename user axis names to the internal coordinates x,y,z as needed
 renameAxes :: Model -> String -> String
@@ -1274,6 +1751,8 @@ rewriteFormValue m lets expr = do
                Just (Form _) ->
                  return (Just (fieldName ++ (if primes == 0 then "f" else "fN")))
                _ -> return Nothing
+        TEApply (TEIdent "flat" []) [operand] ->
+          flatValue operand
         TEApply (TEIdent op []) [operand]
           | op `elem` formOps -> do
               value <- requireForm operand
@@ -1325,16 +1804,99 @@ rewriteFormValue m lets expr = do
         Just form -> return form
         Nothing -> fatal ("form operator needs a differential-form operand: " ++ expr)
 
+    flatValue operand =
+      case stripFormGroup operand of
+        TEIdent base0 parts -> do
+          validateFieldRefParts m lets (renderTensorExpr (TEIdent base0 parts))
+          let (fieldName, _) = fieldBaseOf base0
+          case (kindOf m fieldName,
+                fieldDeclOf m fieldName >>= fieldIndexParts) of
+               (Just Vector, Just [IxPart VUp _])
+                 | [IxPart VUp _] <- parts ->
+                     return (Just ("FE.flat feMusicalScale ("
+                                   ++ show (fieldPolicyOf m fieldName) ++ ", "
+                                   ++ base0 ++ ")"))
+               (Just Vector, _) ->
+                 fatal ("flat expects an explicitly contravariant rank-1 vector: "
+                        ++ renderTensorExpr operand)
+               _ -> fatal ("flat expects a rank-1 vector operand: "
+                           ++ renderTensorExpr operand)
+        _ -> fatal ("flat expects a field vector operand: "
+                    ++ renderTensorExpr operand)
+
+    stripFormGroup (TEGroup value) = stripFormGroup value
+    stripFormGroup value = value
+
     scalarValue = rewrite m lets Nothing . renderTensorExpr
 
     formOperator op
-      | op `elem` deltaOps = "FE.codiffForm feDim feFormDerivative"
-      | op == "hodge" = "FE.hodgeForm feDim"
+      | op `elem` deltaOps =
+          "FE.codiffForm feDim feFormDerivative feHodgeCoefficient"
+      | op == "hodge" = "FE.hodgeForm feDim feHodgeCoefficient"
       | otherwise = "FE.dForm feDim feFormDerivative"
 
     parenthesize value
       | all isAlphaNum value = value
       | otherwise = "(" ++ value ++ ")"
+
+formExpressionDegree :: Model -> String -> IO (Maybe Int)
+formExpressionDegree m source = do
+  pre <- preprocessTensorExpr m source
+  expression <- case parseTensorExprEither pre of
+    Right parsed -> return parsed
+    Left message -> fatal ("bad differential-form expression: " ++ message)
+  infer expression
+  where
+    infer expression =
+      case expression of
+        TEIdent base [] ->
+          let (fieldName, _) = fieldBaseOf base
+          in case kindOf m fieldName of
+               Just (Form degree) -> return (Just degree)
+               _ -> return Nothing
+        TEApply (TEIdent "flat" []) [_] -> return (Just 1)
+        TEApply (TEIdent operator []) [operand]
+          | operator == "d" || operator == "dForm" -> do
+              degree <- requireDegree operator operand
+              if degree < mDim m
+                then return (Just (degree + 1))
+                else fatal ("d cannot raise a " ++ show degree ++ "-form in dimension "
+                            ++ show (mDim m))
+          | operator == "hodge" -> do
+              degree <- requireDegree operator operand
+              return (Just (mDim m - degree))
+          | operator `elem` deltaOps -> do
+              degree <- requireDegree operator operand
+              if degree > 0
+                then return (Just (degree - 1))
+                else fatal (operator ++ " cannot lower a 0-form")
+        TEUnary _ operand -> infer operand
+        TEBinary operator lhs rhs
+          | operator == "+" || operator == "-" -> do
+              lhsDegree <- infer lhs
+              rhsDegree <- infer rhs
+              case (lhsDegree, rhsDegree) of
+                (Just lhsValue, Just rhsValue)
+                  | lhsValue == rhsValue -> return (Just lhsValue)
+                  | otherwise -> fatal "cannot add differential forms of different degrees"
+                (Nothing, Nothing) -> return Nothing
+                _ -> fatal "cannot add a scalar and a differential form"
+          | operator == "*" -> do
+              lhsDegree <- infer lhs
+              rhsDegree <- infer rhs
+              case (lhsDegree, rhsDegree) of
+                (Just degree, Nothing) -> return (Just degree)
+                (Nothing, Just degree) -> return (Just degree)
+                (Nothing, Nothing) -> return Nothing
+                _ -> fatal "multiplication of two differential forms needs an explicit wedge"
+          | operator == "/" -> infer lhs
+        TEGroup operand -> infer operand
+        _ -> return Nothing
+    requireDegree operator operand = do
+      degree <- infer operand
+      case degree of
+        Just value -> return value
+        Nothing -> fatal (operator ++ " expects a differential-form operand")
 
 rewriteScalar :: Model -> [String] -> String -> IO String
 rewriteScalar = rewriteScalarAt Collocated
@@ -1342,16 +1904,28 @@ rewriteScalar = rewriteScalarAt Collocated
 rewriteScalarAt :: GridPolicy -> Model -> [String] -> String -> IO String
 rewriteScalarAt targetPolicy m lets expr = do
   pre <- preprocessTensorExpr m expr
-  parsed <- case parseTensorExprEither pre of
+  lowered <- lowerBackendText m pre
+  parsed <- case parseTensorExprEither lowered of
               Right ast -> return ast
               Left msg -> fatal ("bad scalar expression: " ++ msg)
-  if hasIndexSyntax m pre
-    then strictEinstein m lets [] pre
-         >> ixExpand m lets [] (componentPlacement m targetPolicy []) pre
-    else do
+  legacy <- nativeLegacyExpression m lowered
+  native <- nativeExpressionAt targetPolicy m lets lowered
+  case native of
+    Just value -> do
+      if hasIndexSyntax m legacy
+        then strictEinstein m lets [] legacy
+        else return ()
+      validateNativeResult m targetPolicy Scalar lowered value
+      ixExpand m lets [] (componentPlacement m targetPolicy []) legacy >> return ()
+      return (nativeText value)
+    Nothing ->
+      if hasIndexSyntax m legacy
+        then strictEinstein m lets [] legacy
+             >> ixExpand m lets [] (componentPlacement m targetPolicy []) legacy
+        else do
       let sourcePolicies = nub
             [fieldPolicyOf m fieldName
-            | TId tokenName _ <- tokenize pre
+            | TId tokenName _ <- tokenize lowered
             , let (fieldName, _) = fieldBaseOf tokenName
             , kindOf m fieldName == Just Scalar]
       case [policy | policy <- sourcePolicies, policy /= targetPolicy] of
@@ -1362,15 +1936,27 @@ rewriteScalarAt targetPolicy m lets expr = do
         [] -> return ()
       if targetPolicy /= Collocated && hasLbRequest parsed
         then fatal ("lb currently requires a collocated scalar target: " ++ expr)
-        else rewrite m lets Nothing expr
+        else rewrite m lets Nothing lowered
 
 rewriteScalarInitializerAt :: GridPolicy -> Model -> [String] -> String -> IO String
 rewriteScalarInitializerAt targetPolicy m lets expr = do
   pre <- preprocessTensorExpr m expr
-  if hasIndexSyntax m pre
-    then strictEinstein m lets [] pre
-         >> ixExpandInitializer m lets [] (componentPlacement m targetPolicy []) pre
-    else rewrite m lets Nothing expr
+  lowered <- lowerBackendText m pre
+  legacy <- nativeLegacyExpression m lowered
+  native <- nativeExpressionAt targetPolicy m lets lowered
+  case native of
+    Just value -> do
+      if hasIndexSyntax m legacy
+        then strictEinstein m lets [] legacy
+        else return ()
+      validateNativeResult m targetPolicy Scalar lowered value
+      ixExpandInitializer m lets [] (componentPlacement m targetPolicy []) legacy
+        >> return (nativeText value)
+    Nothing ->
+      if hasIndexSyntax m legacy
+        then strictEinstein m lets [] legacy
+             >> ixExpandInitializer m lets [] (componentPlacement m targetPolicy []) legacy
+        else rewrite m lets Nothing lowered
 
 hasIndexSyntax :: Model -> String -> Bool
 hasIndexSyntax m = any indexedTok . itok
@@ -1407,12 +1993,52 @@ egiStringPairs pairs =
     | (source, target) <- pairs]
   ++ "]"
 
-egiFieldPolicyPairs :: [(String, GridPolicy)] -> String
-egiFieldPolicyPairs pairs =
-  "[" ++ intercalate ", "
-    ["(" ++ show fieldName ++ ", " ++ show policy ++ ")"
-    | (fieldName, policy) <- pairs]
-  ++ "]"
+egiFieldDescriptor :: Model -> FieldDecl -> String
+egiFieldDescriptor m field =
+  "(" ++ intercalate ", "
+    [ show name
+    , show (fdPolicy field)
+    , egiIntList shape
+    , egiStringList variances
+    , show layout
+    , egiIntLists projection
+    , "[" ++ intercalate ", "
+        ["(" ++ egiIntList indices ++ ", " ++ show storage ++ ")"
+        | (indices, storage) <- zip projection storageNames]
+      ++ "]"
+    ]
+  ++ ")"
+  where
+    name = fdName field
+    kind = fdKind field
+    shape = replicate (componentRank kind) (mDim m)
+    variances =
+      case fieldIndexParts field of
+        Just parts | length parts == componentRank kind ->
+          map (varianceName . ixVariance) parts
+        _ -> replicate (componentRank kind) "down"
+    varianceName VUp = "up"
+    varianceName VDown = "down"
+    layout = case kind of
+      Scalar -> "scalar"
+      Vector -> "vector"
+      SymM -> "symmetric"
+      AntiM -> "antisymmetric"
+      Tensor2 -> "full"
+      Form _ -> "form"
+    projection = componentIndices (mDim m) kind
+    storageNames = componentStorageNames m name kind
+
+fieldDescriptorIndex :: Model -> String -> Int
+fieldDescriptorIndex m name =
+  case [index | (index, field) <- zip [1 ..] (mFieldDecls m),
+                fdName field == name] of
+    index : _ -> index
+    [] -> error ("missing field descriptor for " ++ name)
+
+fieldDescriptorRef :: Model -> String -> String
+fieldDescriptorRef m name =
+  "nth " ++ show (fieldDescriptorIndex m name) ++ " feFieldDescriptors"
 
 egiListDef :: String -> String -> [String] -> [String]
 egiListDef name emptyTypeAnnotation elems
@@ -1435,13 +2061,16 @@ emit m = do
                 ++ ") does not match dimension (" ++ show (mDim m) ++ ")")
     else return ()
   let lets = [sNm st | st <- mSteps m, sk st == KLet, isIndexI (sIdx st)]
-      prims = sort (nub (primedRefs m ++ tensorEqTargets m ++ formEqTargets m))
+      -- A primed tensor family is needed only when a later RHS reads it.
+      -- Descriptor-driven equation printing no longer needs a synthetic
+      -- primed target tensor merely to recover storage names.
+      prims = sort (nub (primedRefs m))
   if mMetric m /= Nothing && mEmbed m /= Nothing
     then fatal "declare either 'metric scale' or 'embedding', not both"
     else return ()
   backendPlan <- backendPlanFor m
-  let lbPlan = bpLbPlan backendPlan
-      metricTarget = lpSource <$> lbPlan
+  let lbPlans = bpLbPlans backendPlan
+      usesLb = not (null lbPlans)
       internalCoords = internalCoordNames m
       internalHsteps = internalHstepNames m
       internalGridSteps = map ("d" ++) (mAxes m)
@@ -1508,6 +2137,15 @@ emit m = do
             , "  dYee axis (FE.componentPlacement feDim policy targetBasis)"
             , "             (value, FE.componentPlacement feDim policy sourceBasis)"
             ]
+      tensorDerivativeContextDecls =
+            [ "def feTensorDerivative"
+            , "      (targetPolicy: GridPolicy) (sourcePolicy: GridPolicy)"
+            , "      (targetBasis: [Integer]) (derivativeAxes: [Integer])"
+            , "      (sourceBasis: [Integer]) (value: MathValue) : MathValue :="
+            , "  FE.gridDerivativeChain dC dC2 dYee derivativeAxes"
+            , "    (FE.componentPlacement feDim targetPolicy targetBasis)"
+            , "    (FE.componentPlacement feDim sourcePolicy sourceBasis) value"
+            ]
       metricContextDecls =
             case (mMetricName m, mMetric m, mEmbed m) of
               (Nothing, Nothing, Nothing) -> []
@@ -1528,27 +2166,20 @@ emit m = do
                    , gen (metricInternalBase VUp VDown) identity
                    , gen (metricInternalBase VDown VUp) identity
                    ]
-      fieldNames =
-        [ (egisonName, storageName)
-        | (egisonName, storageName) <- concatMap (fieldStorageMapEntries m) (mFlds m)
-        , egisonName /= storageName
-        ]
-      fieldPolicies =
-        [(fdName fd, fdPolicy fd) | fd <- mFieldDecls m]
+      fieldDescriptorDecls =
+        egiListDef "feFieldDescriptors" "" (map (egiFieldDescriptor m) (mFieldDecls m))
       printerContextDecls =
-            [ "def feSymbolNames : [(String, String)] := " ++ egiStringPairs symbolNames
-            , "def feFieldNames : [(String, String)] := " ++ egiStringPairs fieldNames
-            , "def feFieldPolicies : [(String, GridPolicy)] := " ++ egiFieldPolicyPairs fieldPolicies
+            fieldDescriptorDecls
+            ++ [ "def feSymbolNames : [(String, String)] := " ++ egiStringPairs symbolNames
+            , "def feFieldNames : [(String, String)] := concat (map FMR.fieldNameMappings feFieldDescriptors)"
+            , "def feFieldPolicies : [(String, GridPolicy)] := map (\\(name, policy, _, _, _, _, _) -> (name, policy)) feFieldDescriptors"
             , "def feIndexNames : [String] := " ++ egiStringList internalIndexVars
             , "def fePrinterContext := (feSymbolNames, feFieldNames, feIndexNames, feCoords, feHsteps, feAxisIds)"
             , "def fmrEq : String -> MathValue -> String := FMR.eq fePrinterContext"
             , "def fmrInit : String -> MathValue -> String := FMR.init fePrinterContext"
             , "def componentEqs : [String] -> [MathValue] -> [String] := FMR.componentEqs fePrinterContext"
+            , "def fieldEqs descriptor value := FMR.fieldEqs fePrinterContext descriptor value"
             ]
-            ++ [ "def tensorEqs : Tensor MathValue -> Tensor MathValue -> [String] := FMR.tensorEqs fePrinterContext"
-               | not (null (tensorEqTargets m)) ]
-            ++ [ "def formEqs : (GridPolicy, Tensor MathValue) -> (GridPolicy, Tensor MathValue) -> [String] := FMR.formEqs fePrinterContext"
-               | needsFormContext ]
             ++ ["def scalarEq : String -> MathValue -> [String] := FMR.scalarEq fePrinterContext"]
       embeddingDefs = case mEmbed m of
         Nothing -> []
@@ -1568,7 +2199,7 @@ emit m = do
   body <- mapM (stepDefs lets) (mSteps m)
   items <- mapM (stepItem lets) (mSteps m)
   inits <- mapM (initLine lets) (mInits m)
-  let metricAuxFields = maybe [] lpAuxFields lbPlan
+  let metricAuxFields = bpMetricAuxFields backendPlan ++ concatMap lpAuxFields lbPlans
       metricStateFields =
         [field | field <- metricAuxFields, afLifetime field == PersistentState]
       metricStepFields =
@@ -1576,21 +2207,17 @@ emit m = do
       metricCoeffFields =
         [(axis, field) | field <- metricAuxFields,
                          LbCoefficient axis <- [afRole field]]
-      metricFluxFields =
-        [(axis, field) | field <- metricAuxFields,
-                         LbFlux axis <- [afRole field]]
       metricVolumeField =
         case [field | field <- metricAuxFields, afRole field == LbVolume] of
           field:_ -> Just field
           [] -> Nothing
       metricCoeffNames = [afName field | (_, field) <- metricCoeffFields]
-      metricFluxNames = [afName field | (_, field) <- metricFluxFields]
       metricVolumeName = maybe "sg" afName metricVolumeField
       metricCellPlacement =
         maybe (placeText (componentPlacement m Collocated []))
               (placeText . afPlacement) metricVolumeField
       metricFluxPlacements =
-        [placeText (afPlacement field) | (_, field) <- metricFluxFields]
+        [placeText (afPlacement field) | (_, field) <- metricCoeffFields]
       sampleAt field value =
         case [ "(feCoords_" ++ show axis ++ ", feCoords_" ++ show axis
                ++ " + feHsteps_" ++ show axis ++ " / 2)"
@@ -1611,18 +2238,21 @@ emit m = do
                     ++ show axis ++ "]")
               ++ ")" ]
           LbVolume -> ["fmrInit \"" ++ afName field ++ "\" feSqrtG"]
-          LbFlux _ -> []
-      mtDecls = case lbPlan of
-        Nothing -> []
-        Just _ -> [ "def " ++ n ++ " := function (" ++ coordArgs ++ ")"
-                  | n <- map afName metricAuxFields ]
+          LbFlux _ _ -> []
+      lbFluxFunctionName requestId =
+        "feLbFlux" ++ if requestId == 1 then "" else show requestId
+      lbStoredFluxName requestId =
+        "feLbStoredFlux" ++ if requestId == 1 then "" else show requestId
+      mtDecls = [ "def " ++ n ++ " := function (" ++ coordArgs ++ ")"
+                | n <- map afName metricAuxFields ]
       mtInits = concatMap renderAuxInit metricAuxFields
       mtFlds = [(afName field, Scalar) | field <- metricStateFields]
       mtFlux =
-        [ "[fmrEq \"" ++ afName field ++ "\" (feLbFlux "
+        [ "[fmrEq \"" ++ afName field ++ "\" ("
+          ++ lbFluxFunctionName requestId ++ " "
           ++ show axis ++ ")]"
         | field <- metricStepFields
-        , LbFlux axis <- [afRole field]
+        , LbFlux requestId axis <- [afRole field]
         ]
       mtPass = [ "scalarEq \"" ++ afName field ++ "\" ("
                  ++ afName field ++ ")"
@@ -1645,15 +2275,20 @@ emit m = do
       residualNames = [name | TId name _ <- tokenize residualText]
       operationalNames = [name | TId name _ <- tokenize operationalResidualText]
       usesOperationalName names = any (`elem` operationalNames) names
+      needsTensorDerivativeContext =
+        usesOperationalName ["feTensorDerivative"]
       needsScalarContext =
         "∂ " `isInfixOf` operationalResidualText
+        || needsTensorDerivativeContext
         || usesOperationalName ["shift", "dC", "dC2", "dTaylor", "axisId"]
       needsResidualYeeContext =
-        metricTarget /= Nothing
+        usesLb
+        || needsTensorDerivativeContext
         || usesOperationalName ["dYee", "yeeRef", "unit3"]
       contextMathDecls =
         (if needsScalarContext then scalarContextDecls else [])
         ++ (if needsFormContext || needsResidualYeeContext then yeeContextDecls else [])
+        ++ (if needsTensorDerivativeContext then tensorDerivativeContextDecls else [])
         ++ (if needsFormContext then formContextDecls else [])
       usesResidualFamily name =
         any (\residualName -> residualName == name
@@ -1664,8 +2299,13 @@ emit m = do
       liveMetricContextDecls = map snd liveMetricContext
       scaleMetricFamilies =
         [metricInternalBase VDown VDown, metricInternalBase VUp VUp]
+      needsMusical =
+        "FE.flat " `isInfixOf` operationalResidualText
+        || "FE.sharp " `isInfixOf` operationalResidualText
       needsScaleFactors =
-        metricTarget /= Nothing
+        usesLb
+        || needsMetricHodge
+        || needsMusical
         || (mMetric m /= Nothing
             && any (\(name, _) -> name `elem` scaleMetricFamilies) liveMetricContext)
       scaleFactorDefs = case (mMetric m, mEmbed m) of
@@ -1674,15 +2314,39 @@ emit m = do
               [ "def feH (a: Integer) : MathValue := nth a ["
                   ++ intercalate ", " (map (renameAxes m) hs) ++ "]" ]
         (Nothing, Just _)
-          | metricTarget /= Nothing ->
+          | usesLb || needsMetricHodge || needsMusical ->
               [ "def feH (a: Integer) : MathValue := sqrt (feG a a)" ]
+        (Nothing, Nothing)
+          | needsMusical ->
+              [ "def feH (_: Integer) : MathValue := 1" ]
         _ -> []
-      volumeDefs = case metricTarget of
-        Nothing -> []
-        Just _ -> ["def feSqrtG : MathValue := FE.orthogonalVolume feAxisIds feH"]
-      lbOperatorDefs = case lbPlan of
-        Nothing -> []
-        Just plan ->
+      needsMetricHodge =
+        needsFormContext && (mMetric m /= Nothing || mEmbed m /= Nothing)
+      hodgeCoefficientDefs
+        | not needsFormContext = []
+        | not needsMetricHodge =
+            [ "def feHodgeCoefficient (_: GridPolicy) (_: [Integer]) : MathValue := 1" ]
+        | otherwise =
+            [ "def feHodgeCoefficient (policy: GridPolicy) (basis: [Integer]) : MathValue :="
+            , "  let placement := FE.componentPlacement feDim policy basis"
+            , "   in substitute"
+            , "        (map (\\axis -> (feCoords_axis, feCoords_axis + nth axis placement * feHsteps_axis)) feAxisIds)"
+            , "        (FE.orthogonalHodgeCoefficient feAxisIds feH basis)"
+            ]
+      musicalScaleDefs
+        | not needsMusical = []
+        | otherwise =
+            [ "def feMusicalScale (policy: GridPolicy) (axis: Integer) : MathValue :="
+            , "  let placement := FE.componentPlacement feDim policy [axis]"
+            , "   in substitute"
+            , "        (map (\\a -> (feCoords_a, feCoords_a + nth a placement * feHsteps_a)) feAxisIds)"
+            , "        (feH axis)"
+            ]
+      volumeDefs =
+        ["def feSqrtG : MathValue := FE.orthogonalVolume feAxisIds feH" | usesLb]
+      lbOperatorDefs
+        | not usesLb = []
+        | otherwise =
           [ "def feLbCellPlacement : [MathValue] := " ++ metricCellPlacement
           , "def feLbFluxPlacement (axis: Integer) : [MathValue] :="
           , "  nth axis " ++ egiMathList metricFluxPlacements
@@ -1694,15 +2358,25 @@ emit m = do
           , "             (value, feLbFluxPlacement axis)"
           , "def feLbCoefficient (axis: Integer) : MathValue :="
           , "  nth axis " ++ egiMathList metricCoeffNames
-          , "def feLbFlux (axis: Integer) : MathValue :="
-          , "  FE.lbFlux feLbGradient feLbCoefficient axis " ++ lpSource plan
-          , "def feLbStoredFlux (axis: Integer) : MathValue :="
-          , "  nth axis " ++ egiMathList metricFluxNames
-          , "def " ++ lpResultName plan ++ " : MathValue :="
-          , "  FE.lbFromFluxes feAxisIds feLbDivergence feLbStoredFlux "
-              ++ metricVolumeName
           ]
-      metricDefs = embeddingDefs ++ scaleFactorDefs ++ volumeDefs
+          ++ concatMap renderLbPlan lbPlans
+      renderLbPlan plan =
+        let requestId = lpRequestId plan
+            fluxFunction = lbFluxFunctionName requestId
+            storedFlux = lbStoredFluxName requestId
+            fluxNames =
+              [afName field | field <- lpAuxFields plan,
+                              LbFlux _ _ <- [afRole field]]
+        in [ "def " ++ fluxFunction ++ " (axis: Integer) : MathValue :="
+           , "  FE.lbFlux feLbGradient feLbCoefficient axis " ++ lpSource plan
+           , "def " ++ storedFlux ++ " (axis: Integer) : MathValue :="
+           , "  nth axis " ++ egiMathList fluxNames
+           , "def " ++ lpResultName plan ++ " : MathValue :="
+           , "  FE.lbFromFluxes feAxisIds feLbDivergence " ++ storedFlux
+               ++ " " ++ metricVolumeName
+           ]
+      metricDefs = embeddingDefs ++ scaleFactorDefs ++ hodgeCoefficientDefs
+                   ++ musicalScaleDefs ++ volumeDefs
       header =
         [ "--"
         , "-- GENERATED by fec (the Formurae compiler) from " ++ mName m
@@ -1721,8 +2395,8 @@ emit m = do
       feParams = "def feParams := ["
                  ++ intercalate ", " [ "(\"" ++ n ++ "\", \"" ++ v ++ "\")"
                                      | (n, v) <- mParams m ] ++ "]"
-      generatedHelps = case (mEmbed m, metricTarget) of
-        (Just _, Just _)
+      generatedHelps = case (mEmbed m, usesLb || needsMetricHodge) of
+        (Just _, True)
           | "sqrt" `notElem` declaredExterns (mHelp m) ->
               ["extern function :: sqrt"]
         _ -> []
@@ -1758,10 +2432,8 @@ emit m = do
     fdecl (nm, Scalar) = ["def " ++ nm ++ " := function (" ++ fieldCoordArgs ++ ")"]
     fdecl (nm, Vector) =
       ["def " ++ nm ++ " := generateTensor (\\[i] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape1]
-    fdecl (nm, SymM) =
-      ["def " ++ nm ++ " := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2]
-    fdecl (nm, AntiM) =
-      ["def " ++ nm ++ " := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2]
+    fdecl (nm, SymM) = canonicalRank2Family nm "" SymM
+    fdecl (nm, AntiM) = canonicalRank2Family nm "" AntiM
     fdecl (nm, Tensor2) =
       ["def " ++ nm ++ " := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2]
     fdecl (nm, Form k) =
@@ -1772,10 +2444,8 @@ emit m = do
       Just Scalar -> ["def " ++ nm ++ "' := function (" ++ fieldCoordArgs ++ ")"]
       Just Vector ->
         ["def " ++ nm ++ "' := generateTensor (\\[i] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape1]
-      Just SymM ->
-        ["def " ++ nm ++ "' := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2]
-      Just AntiM ->
-        ["def " ++ nm ++ "' := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2]
+      Just SymM -> canonicalRank2Family nm "'" SymM
+      Just AntiM -> canonicalRank2Family nm "'" AntiM
       Just Tensor2 ->
         ["def " ++ nm ++ "' := generateTensor (\\[i, j] -> function (" ++ fieldCoordArgs ++ ")) " ++ shape2]
       Just (Form k) ->
@@ -1783,6 +2453,21 @@ emit m = do
         ++ [ "def " ++ nm ++ "fN : (GridPolicy, Tensor MathValue) := ("
              ++ show (fieldPolicyOf m nm) ++ ", " ++ formTensorValue nm "'" k ++ ")" ]
       Nothing -> []
+    canonicalRank2Family nm primes kind =
+      [ "def " ++ raw ++ " := generateTensor (\\[i, j] -> function ("
+        ++ fieldCoordArgs ++ ")) " ++ shape2
+      , "def " ++ nm ++ primes ++ " := generateTensor (\\[i, j] -> "
+        ++ component ++ ") " ++ shape2
+      ]
+      where
+        raw = reservedInternalPrefix ++ "Field" ++ nm
+              ++ if null primes then "" else "Next"
+        at a b = "FE.tensorComponentAt " ++ raw ++ " [" ++ a ++ ", " ++ b ++ "]"
+        component = case kind of
+          SymM -> "if i <= j then " ++ at "i" "j" ++ " else " ++ at "j" "i"
+          AntiM -> "if i = j then 0 else if i < j then " ++ at "i" "j"
+                   ++ " else 0 - " ++ at "j" "i"
+          _ -> error "canonicalRank2Family: non-canonical layout"
     formFamilyDecl nm primes k
       | k == 0 =
           ["def " ++ nm ++ primes ++ " := function (" ++ fieldCoordArgs ++ ")"]
@@ -1801,9 +2486,30 @@ emit m = do
           ++ ") feDim " ++ show k
     stepDefs lets st = case sk st of
       KLet | isIndexI (sIdx st) -> do
-               e <- rewrite m lets Nothing (sEx st)
+               pre <- preprocessTensorExpr m (sEx st)
+               lowered <- lowerBackendText m pre
+               signature <- nativeSignatureExpression (sNm st) (sIdx st) lowered
+               legacy <- nativeLegacyExpression m signature
+               strictEinstein m lets (sIdx st) legacy
+               native <- nativeExpressionAt Collocated m lets lowered
                let nm = sNm st
-               return ["def " ++ nm ++ " := withSymbols [i] " ++ e]
+               case native of
+                 Just value -> do
+                   if "FE.sharp " `isInfixOf` nativeText value
+                     then fatal "sharp in an indexed let needs an explicitly contravariant field target"
+                     else return ()
+                   validateNativeResult m Collocated Vector lowered value
+                   case sIdx st of
+                     [lhsIx] ->
+                       mapM_ (\a -> ixExpand m lets [(ixName lhsIx, a)]
+                                          (componentPlacement m Collocated [a]) legacy
+                                        >> return ())
+                             (axisRange m)
+                     _ -> fatal "internal error: indexed let lost its single index"
+                   return ["def " ++ nm ++ " := " ++ nativeText value]
+                 Nothing -> do
+                   e <- rewrite m lets Nothing legacy
+                   return ["def " ++ nm ++ " := withSymbols [i] " ++ e]
            | otherwise -> do
                e <- rewriteScalar m lets (sEx st)
                return ["def " ++ sNm st ++ " := " ++ e]
@@ -1824,25 +2530,20 @@ emit m = do
         | Just Vector <- kindOf m (sNm st)
         , not (null (sIdx st)) ->
             let nm = sNm st
-            in return (Just ("tensorEqs " ++ nm ++ "' feq" ++ nm))
+            in return (Just ("fieldEqs (" ++ fieldDescriptorRef m nm ++ ") ("
+                             ++ show (fieldPolicyOf m nm) ++ ", feq" ++ nm ++ ")"))
         | Just SymM <- kindOf m (sNm st) ->
               let nm = sNm st
-                  names = egiStringList (componentStorageNamesOf m nm)
-              in return (Just ("componentEqs " ++ names ++ " "
-                               ++ egiMathList ["feq" ++ nm ++ show a ++ show b
-                                              | (a, b) <- rank2Pairs (symComponentIndices (mDim m))]))
+              in return (Just ("fieldEqs (" ++ fieldDescriptorRef m nm ++ ") ("
+                               ++ show (fieldPolicyOf m nm) ++ ", feq" ++ nm ++ ")"))
         | Just AntiM <- kindOf m (sNm st) ->
             let nm = sNm st
-                names = egiStringList (componentStorageNamesOf m nm)
-            in return (Just ("componentEqs " ++ names ++ " "
-                             ++ egiMathList ["feq" ++ nm ++ show a ++ show b
-                                            | (a, b) <- rank2Pairs (antiComponentIndices (mDim m))]))
+            in return (Just ("fieldEqs (" ++ fieldDescriptorRef m nm ++ ") ("
+                             ++ show (fieldPolicyOf m nm) ++ ", feq" ++ nm ++ ")"))
         | Just Tensor2 <- kindOf m (sNm st) ->
             let nm = sNm st
-                names = egiStringList (componentStorageNamesOf m nm)
-            in return (Just ("componentEqs " ++ names ++ " "
-                             ++ egiMathList ["feq" ++ nm ++ show a ++ show b
-                                            | (a, b) <- rank2Pairs (componentIndices (mDim m) Tensor2)]))
+            in return (Just ("fieldEqs (" ++ fieldDescriptorRef m nm ++ ") ("
+                             ++ show (fieldPolicyOf m nm) ++ ", feq" ++ nm ++ ")"))
         | not (null (sIdx st)) ->
             let nm = sNm st
                 names = egiStringList (componentStorageNamesOf m nm)
@@ -1851,14 +2552,19 @@ emit m = do
                                             | a <- axisRange m]))
         | kindOf m (sNm st) == Just Vector ->
             let nm = sNm st
-                names = egiStringList (componentStorageNamesOf m nm)
-            in return (Just ("componentEqs " ++ names ++ " "
-                             ++ egiMathList ["feq" ++ nm ++ show a
-                                            | a <- axisRange m]))
+            in return (Just ("fieldEqs (" ++ fieldDescriptorRef m nm ++ ") ("
+                             ++ show (fieldPolicyOf m nm) ++ ", feq" ++ nm ++ ")"))
         | Just (Form _) <- kindOf m (sNm st) -> do
+            inferredDegree <- formExpressionDegree m (sEx st)
             rhs <- rewriteFormValue m lets (sEx st)
-            let target = sNm st ++ "fN"
-            return (Just ("formEqs " ++ target ++ " (" ++ rhs ++ ")"))
+            let nm = sNm st
+            case (kindOf m nm, inferredDegree) of
+              (Just (Form targetDegree), Just rhsDegree)
+                | targetDegree /= rhsDegree ->
+                    fatal ("form degree mismatch for " ++ nm ++ ": target is "
+                           ++ show targetDegree ++ " but RHS is " ++ show rhsDegree)
+              _ -> return ()
+            return (Just ("fieldEqs (" ++ fieldDescriptorRef m nm ++ ") (" ++ rhs ++ ")"))
         | otherwise -> do
             e <- rewriteScalarAt (fieldPolicyOf m (sNm st)) m lets (sEx st)
             return (Just ("scalarEq \"" ++ sNm st ++ "\" (" ++ e ++ ")"))
@@ -1883,22 +2589,23 @@ emit m = do
 
     indexedInitLines lets nm lhsIx ex = do
       pre <- preprocessTensorExpr m ex
-      strictEinstein m lets lhsIx pre
+      legacy <- nativeLegacyExpression m pre
+      strictEinstein m lets lhsIx legacy
       case (kindOf m nm, lhsIx) of
         (Just Vector, [fi]) ->
-          mapM (\a -> comp pre [a] [(ixName fi, a)]
+          mapM (\a -> comp legacy [a] [(ixName fi, a)]
                        (componentPlacement m (fieldPolicyOf m nm) [a]))
                (axisRange m)
         (Just SymM, [fi, fj]) ->
-          mapM (\(a, b) -> comp pre [a, b] [(ixName fi, a), (ixName fj, b)]
+          mapM (\(a, b) -> comp legacy [a, b] [(ixName fi, a), (ixName fj, b)]
                          (componentPlacement m (fieldPolicyOf m nm) [a, b]))
                (rank2Pairs (symComponentIndices (mDim m)))
         (Just AntiM, [fi, fj]) ->
-          mapM (\(a, b) -> comp pre [a, b] [(ixName fi, a), (ixName fj, b)]
+          mapM (\(a, b) -> comp legacy [a, b] [(ixName fi, a), (ixName fj, b)]
                          (componentPlacement m (fieldPolicyOf m nm) [a, b]))
                (rank2Pairs (antiComponentIndices (mDim m)))
         (Just Tensor2, [fi, fj]) ->
-          mapM (\(a, b) -> comp pre [a, b] [(ixName fi, a), (ixName fj, b)]
+          mapM (\(a, b) -> comp legacy [a, b] [(ixName fi, a), (ixName fj, b)]
                        (componentPlacement m (fieldPolicyOf m nm) [a, b]))
                (rank2Pairs (componentIndices (mDim m) Tensor2))
         _ -> fatal ("indexed CAS initializer has wrong indices for its field kind: " ++ nm)
@@ -2015,7 +2722,7 @@ main = do
     [path] -> do
       txt <- fmap transliterate (readFile path)
       let name = takeWhile (/= '.') (reverse (takeWhile (/= '/') (reverse path)))
-      m <- parseFe name txt
+      m <- parseFe path name txt
       out <- emit m
       putStr out
     _ -> fatal "usage: fec model.fme > model.egi"

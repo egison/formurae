@@ -69,3 +69,53 @@ assertEqual "component index above dimension is invalid"
 assertEqual "negative dimension is invalid"
   (FE.validComponentIndices (-1) [])
   False
+
+def testFirstDerivative (axis: Integer) (value: MathValue) : MathValue :=
+  10 * axis + value
+
+def testSecondDerivative (axis: Integer) (value: MathValue) : MathValue :=
+  100 * axis + value
+
+def testYeeDerivative
+      (axis: Integer) (target: [MathValue])
+      (field: (MathValue, [MathValue])) : MathValue :=
+  let (value, source) := field
+   in 1000 * axis + 100 * sum target + 10 * sum source + value
+
+assertEqual "derivative placement follows axis parity"
+  (FE.naturalDerivativePlacement [1, 2] [0, 0])
+  [1 / 2, 1 / 2]
+
+assertEqual "repeated derivative placement returns to its source"
+  (FE.naturalDerivativePlacement [1, 1] [0, 1 / 2])
+  [0, 1 / 2]
+
+assertEqual "collocated single derivative uses first derivative"
+  (FE.gridDerivativeChain
+     testFirstDerivative testSecondDerivative testYeeDerivative
+     [1] [0, 0] [0, 0] 3)
+  13
+
+assertEqual "collocated repeated axis uses second derivative"
+  (FE.gridDerivativeChain
+     testFirstDerivative testSecondDerivative testYeeDerivative
+     [1, 1] [0, 0] [0, 0] 3)
+  103
+
+assertEqual "collocated mixed axes compose first derivatives"
+  (FE.gridDerivativeChain
+     testFirstDerivative testSecondDerivative testYeeDerivative
+     [1, 2] [0, 0] [0, 0] 3)
+  33
+
+assertEqual "staggered single derivative uses Yee lowering"
+  (FE.gridDerivativeChain
+     testFirstDerivative testSecondDerivative testYeeDerivative
+     [1] [1 / 2, 0] [0, 0] 3)
+  1053
+
+assertEqual "staggered derivative chain infers its intermediate placement"
+  (FE.gridDerivativeChain
+     testFirstDerivative testSecondDerivative testYeeDerivative
+     [1, 2] [1 / 2, 1 / 2] [0, 0] 3)
+  3158

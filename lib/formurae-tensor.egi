@@ -113,54 +113,85 @@ def FE.formComponents (t: Tensor MathValue) : [MathValue] :=
         else []
 
 -- Coordinate operators take the discrete derivative as an explicit
--- dependency.  `axisIds` determines the spatial dimension and maps tensor
--- positions to the axis identifier expected by `partial`.  Keeping the
--- derivative abstract lets generated models provide collocated, primal, or dual
--- lowering without reimplementing the tensor algebra of each operator.
-def FE.axisTensor (axisIds: [Integer]) : Tensor Integer :=
-  generateTensor (\[i] -> nth i axisIds) [length axisIds]
-
+-- dependency.  The derivative receives the complete semantic description of
+-- one tensor component:
+--
+--   target component basis, derivative axes, source component basis, value
+--
+-- The generated model closes over the source/target GridPolicy before passing
+-- this callback to the operator.  `axisIds` maps tensor positions to the axis
+-- identifiers expected by the concrete derivative implementation.
 def FE.grad
-      (partial: Integer -> MathValue -> MathValue)
+      (derivative:
+         [Integer] -> [Integer] -> [Integer] -> MathValue -> MathValue)
       (axisIds: [Integer])
       (u: MathValue) : Tensor MathValue :=
-  let axes := FE.axisTensor axisIds
-   in withSymbols [i] partial axes_i u
+  generateTensor
+    (\[i] -> derivative [i] [nth i axisIds] [] u)
+    [length axisIds]
 
 def FE.dGrad
-      (partial: Integer -> MathValue -> MathValue)
+      (derivative:
+         [Integer] -> [Integer] -> [Integer] -> MathValue -> MathValue)
       (axisIds: [Integer])
       (x: Tensor MathValue) : Tensor MathValue :=
-  match assert "dGrad expects a rank-1 tensor"
-               (length (tensorShape x) = 1) as bool with
+  match assert "dGrad axis and vector dimensions differ"
+               (tensorShape x = [length axisIds]) as bool with
     | #True ->
-        let axes := FE.axisTensor axisIds
-         in withSymbols [i, j] partial axes_i x_j
+        let dim := length axisIds
+         in generateTensor
+              (\[i, j] ->
+                derivative [i, j] [nth i axisIds] [j]
+                  (FE.tensorComponentAt x [j]))
+              [dim, dim]
 
 def FE.divg
-      (partial: Integer -> MathValue -> MathValue)
+      (derivative:
+         [Integer] -> [Integer] -> [Integer] -> MathValue -> MathValue)
       (axisIds: [Integer])
       (x: Tensor MathValue) : MathValue :=
   match assert "divg axis and vector dimensions differ"
                (tensorShape x = [length axisIds]) as bool with
     | #True ->
-        let axes := FE.axisTensor axisIds
-         in withSymbols [i] sum (contract (partial axes_i x~i))
+        sum (map
+               (\i -> derivative [] [nth i axisIds] [i]
+                        (FE.tensorComponentAt x [i]))
+               (between 1 (length axisIds)))
 
 def FE.curl
-      (partial: Integer -> MathValue -> MathValue)
+      (derivative:
+         [Integer] -> [Integer] -> [Integer] -> MathValue -> MathValue)
       (axisIds: [Integer])
       (x: Tensor MathValue) : Tensor MathValue :=
   match assert "curl requires three axes and a three-component vector"
                (length axisIds = 3 && tensorShape x = [3]) as bool with
     | #True ->
-        let axes := FE.axisTensor axisIds
-         in withSymbols [i, j, k]
-              ((ε 3)_i~j~k . partial axes_j x_k)
+        let pairs := concat (map (\j -> map (\k -> (j, k)) (between 1 3))
+                                  (between 1 3))
+         in generateTensor
+              (\[i] ->
+                sum (map (\(j, k) ->
+                       FE.tensorComponentAt (ε 3) [i, j, k]
+                       * (derivative [i] [nth j axisIds] [k]
+                            (FE.tensorComponentAt x [k]))) pairs))
+              [3]
 
 def FE.hessian
-      (partial: Integer -> MathValue -> MathValue)
+      (derivative:
+         [Integer] -> [Integer] -> [Integer] -> MathValue -> MathValue)
       (axisIds: [Integer])
       (u: MathValue) : Tensor MathValue :=
-  let axes := FE.axisTensor axisIds
-   in withSymbols [i, j] partial axes_i (partial axes_j u)
+  let dim := length axisIds
+   in generateTensor
+        (\[i, j] ->
+          derivative [i, j] [nth i axisIds, nth j axisIds] [] u)
+        [dim, dim]
+
+def FE.lap
+      (derivative:
+         [Integer] -> [Integer] -> [Integer] -> MathValue -> MathValue)
+      (axisIds: [Integer])
+      (u: MathValue) : MathValue :=
+  sum (map
+         (\i -> derivative [] [nth i axisIds, nth i axisIds] [] u)
+         (between 1 (length axisIds)))

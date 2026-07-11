@@ -35,15 +35,18 @@ step:
   B'_i = B_i - dt * curl E'_i    -- E' は更新済み配列への参照(symplectic・袖幅1)
 ```
 
-`fec` は `.fme` の `def` と標準座標演算子を同じ TensorExpr AST 上で展開し、
-自由添字・縮約を解決し、格子配置は `GridPolicy` と成分添字 parity として残余 `.egi` へ渡します。
-`grad` / `curl` / `hessian` も通常の prelude `Def` であり、ユーザーの同名 `def` で
-shadow できます。残余式に `sym` / `wedge` などの純テンソル演算が残る場合は
-`lib/formurae-tensor.egi` の Egison Tensor primitive を使い、数式の正規化は Egison CAS、
-Formura への文字列化は `lib/formurae-runtime.egi` が担当します。
+`fec` は `.fme` の `def` と標準座標演算子を同じ TensorExpr AST 上で解決しますが、
+通常の whole-tensor 方程式に現れる `grad` / `dGrad` / `divg` / `curl` / `lap` /
+`hessian` はそこで成分式へ展開しません。
+標準演算子の identity を marker として保ち、whole-tensor の `FE.grad` / `FE.curl` 等へ
+lower します。離散微分は generated `feTensorDerivative` callback が target/source policy、
+component basis、微分軸列を共有 Egison grid kernel に渡して選びます。ユーザーの同名 `def` は
+標準定義を shadow できます。数式の正規化は Egison CAS、Formura への文字列化と field
+projection は `lib/formurae-runtime.egi` が担当します。native emitter がまだ扱えない複合
+TensorExpr だけは、strict 診断を保つため従来の成分 lowering に fallback します。
 
-標準 `curl` 自体も特別な Haskell lowering ではなく、概念的には次の prelude 定義である。
-同名のユーザー `def` を書けば置き換えられる。
+標準 `curl` のテンソル意味は共有 `FE.curl` にあり、概念的には次の Egison 添字式に
+対応します。同名のユーザー `def` を書けば標準演算子を置き換えられます。
 
 ```formurae
 def curl X =
@@ -94,16 +97,18 @@ Formura storage へ展開される。形式の storage 名は昇順の軸組で
 `B_1_2`、`B_1_3`、`B_2_3` のように決まる。`curl` と `epsilon~i~j~k` は
 3D 専用として検査する。
 
-Maxwell 方程式の場合、`mode collocated` の標準 `curl` prelude は現在まだ `fec` で
-成分特殊化されるが、生成 Egison では成分別 binding を作らず whole-tensor RHS に束ねる:
+Maxwell 方程式の場合、`mode collocated` の標準 `curl` は生成 Egison に native tensor
+operator のまま残り、descriptor-driven printer が最後に物理成分だけを射影します:
 
 ```egison
 def E := generateTensor (\[i] -> function (x, y, z)) [3]   -- E_1, E_2, E_3 を自動命名
 def B := generateTensor (\[i] -> function (x, y, z)) [3]
 
-def feqE := [| E_1 + ..., E_2 + dt * (0 - ∂ 1 1 x B_3 + ∂ 1 1 z B_1), E_3 + ... |]
-def feqB := [| B_1 - ..., B_2 - dt * (0 - ∂ 1 1 x E'_3 + ∂ 1 1 z E'_1), B_3 - ... |]
-def feSteps := tensorEqs E' feqE ++ tensorEqs B' feqB
+def feqE := E + dt * FE.curl (feTensorDerivative Collocated Collocated) feAxisIds B
+def feqB := B - dt * FE.curl (feTensorDerivative Collocated Collocated) feAxisIds E'
+def feSteps :=
+  fieldEqs (nth 1 feFieldDescriptors) (Collocated, feqE)
+  ++ fieldEqs (nth 2 feFieldDescriptors) (Collocated, feqB)
 ```
 
 ここから6本の更新式が全自動で展開される(生成物の1本):
@@ -142,10 +147,10 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
 
 | パス | 内容 |
 |---|---|
-| `fec/` + `fec.cabal` | **Formurae コンパイラ**: 表層言語 Formurae(.fme;`field E_i`・`def curl X = ...`・`E'_i = E_i + dt * curl B_i`・`B' = B - dt * d E'`)を埋め込み形 .egi に変換。Haskell(base のみ)、リポジトリ直下で `cabal build` / `cabal run -v0 fec -- model.fme`。TensorExpr 上で `def`、添字、縮約、配置を成分特殊化する |
-| `lib/formurae-tensor.egi` | Formurae 用 Egison テンソル bridge。Egison primitive を使って `contractWith`、`.`、`.'`、`wedge`、`trace`、`sym`、`antisym`、`norm2` を定義する。`tensorMap`、`subrefs`、`transpose`、`!.` は primitive を直接使う |
+| `fec/` + `fec.cabal` | **Formurae コンパイラ**: 表層言語 Formurae(.fme;`field E_i`・`def curl X = ...`・`E'_i = E_i + dt * curl B_i`・`B' = B - dt * d E'`)を埋め込み形 .egi に変換。Haskell(base のみ)、リポジトリ直下で `cabal build` / `cabal run -v0 fec -- model.fme`。TensorExpr は parser・def 解決・strict diagnostics・未移行式の fallback と backend planning を担当し、標準座標演算子は whole-tensor Egison 呼び出しとして emit する |
+| `lib/formurae-tensor.egi` | Formurae 用 Egison テンソル kernel。Egison primitive による `contractWith`、`.`、`wedge`、`trace`、`sym` 等に加え、native `grad` / `dGrad` / `divg` / `curl` / `lap` / `hessian` を定義する |
 | `lib/fmrgen.egi` | stencil 数学コア: Taylor 条件から差分係数を導出する **`taylorStencil`** |
-| `lib/formurae-runtime.egi` | 共有 Formura プリンタ。生成 `.egi` から座標名・storage名・座標ベクトルを明示 context として受け取り、正規化済み `MathValue` を `.fmr` へ変換する |
+| `lib/formurae-runtime.egi` | 共有 Formura プリンタ。生成 `.egi` から座標 context と完全 field descriptor を受け取り、policy/shape 検査、独立成分 projection、storage mapping、正規化済み `MathValue` の `.fmr` 化を行う |
 | `lib/fmrlegacy3d.egi` | まだ `.fme` 化していない手書き `.egi` 例のための 3D 互換文脈。`.fme` 由来の生成物では使わない |
 | `examples/diffusion1d/` | 1D 拡散方程式。`def Δ u = ∂^2_x u` と書き、check driver が質量保存とピーク減衰を検査 |
 | `examples/diffusion2d/` | 2D 拡散方程式。`dimension 2` と `axes x, y` に応じて Formura/C の配列・Navi・Laplacian が2次元化される |
@@ -194,6 +199,11 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
 - **プリンタ**: `lib/formurae-runtime.egi` の共有実装が、生成 `.egi` の明示 context を受け取る。正規化された数式を `mathValue` マッチャ(`poly`/`term`/`func`/`symbol`)で分解し、
   適用引数から `(引数 − 座標)/h` でオフセットを有理数として逆算して `u[i+1,j,k]` に写す。
   半整数オフセット(`1/2`)も扱える。
+- **field descriptor**: 各 field は生成 `.egi` で
+  `(name, policy, shape, variances, layout, projection, storageMapping)` として一度だけ記述する。
+  `FMR.fieldEqs` は descriptor と `(policy, Tensor MathValue)` の policy/shape を検査し、
+  scalar/vector/symmetric/antisymmetric/full/form の独立成分を canonical order で射影する。
+  field-name map と policy table も同じ descriptor から導出する。
 - **格子 policy**: field は任意の offset vector ではなく
   `Collocated` / `Primal` / `Dual` だけを持つ。`FE.componentPlacement` が補完後の
   component indices の軸別 parity から concrete offset を導出する。参照時は
@@ -204,9 +214,11 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
   `feDim`・`feAxes`・`feAxisIds`・`feCoords`・`feHsteps` と、その文脈を参照する
   必要な場合だけ `shift`/`dC`/`dC2`/`dTaylor` と表向きの
   `∂ order radius axis expr` と、残余式が使う場合だけ Yee context を出す。
-  `mode dec` では grid 固有 callback `feFormDerivative` だけを生成する。collocated の
-  `grad`/`dGrad`/`divg`/`curl`/`lap`/`Δ` は現在の TensorExpr prelude lowering を使うが、
-  tensor-valued な共有実装は `lib/formurae-tensor.egi` にある。DEC の
+  `mode dec` では grid 固有 callback `feFormDerivative` を生成する。標準の
+  `grad`/`dGrad`/`divg`/`curl`/`lap`/`hessian` は `lib/formurae-tensor.egi` の native
+  tensor operator であり、generated `feTensorDerivative` が完全な微分軸列と
+  target/source component basis を `FE.gridDerivativeChain` へ渡す。同一軸の二階微分は
+  `dC2`、mixed derivative は一階微分の合成、配置が異なる微分は `dYee` になる。DEC の
   `d`/`δ`/`codiff`/`hodge` は `lib/formurae-geometry.egi` で評価する。
   `extern` は Formura/C 側のスカラー関数である。
 - **計量と `lb` の現在の境界**: `embedding` からの induced metric、直交計量と逆計量、
@@ -215,27 +227,37 @@ make maxwell3d    # 同上(エネルギー保存・伝播を検査)
   `FE.inducedMetric` / `FE.orthogonalHodgeCoefficient` / `FE.lbFlux` /
   `FE.lbFromFluxes` が評価する。生成 `.egi` は格子固有の gradient・divergence・
   coefficient callback を渡すだけである。表層の `lb u` は token 置換ではなく
-  `BackendRequest` として構造的に収集され、backend の `LbPlan` / `AuxFieldPlan` が補助場
-  `ca` / `cb` / `cc` / `sg`・`f1` / `f2` / `f3` の role・placement・lifetime metadata を作る。
-  専用 emitter はその plan から固定 Laplace--Beltrami scheme を materialize する。
-  現在は1モデル1個の unindexed collocated scalar source に限定する。複数 request、
-  metric-aware form Hodge、`flat` / `sharp` は未実装である。
+  `BackendRequest` として構造的に収集され、backend の `LbPlan` / `AuxFieldPlan` が shared
+  coefficient/volume fields と request ごとの flux/result bundle の role・placement・lifetime
+  metadata を作る。複数の distinct scalar source を1モデルで扱い、全 flux を user field
+  update より先に materialize する。同じ source の request は共有する。operand は現在も
+  unindexed collocated scalar field に限り、compound/primed source と initializer 内の `lb` は拒否する。
 - **離散微分形式(構造格子 Yee/DEC)**: 現実装の form 値は積分 cochain ではなく
   primal/dual 格子上の微分形式成分であり、`FE.dForm` は格子幅で割る `dYee` callback を使う。
   形式は `(GridPolicy, Tensor MathValue)` で、degree は `dfOrder`、配置は policy と
   concrete component indices の parity から決まる。`dimension n` の `k-form` は
   full antisymmetric Tensor として評価され、backend は昇順の k 個の軸組
   (2D なら `B_1_2`、3D なら `B_1_2,B_1_3,B_2_3`)を成分に持ち、primal k-cell と
-  dual (n-k)-cell の補複体を `FE.hodgeForm` が対応させる。演算は Egison 本体の連続版サンプル
+  dual (n-k)-cell の補複体を `FE.hodgeForm` が対応させる。直交計量がある場合は
+  `FE.orthogonalHodgeCoefficient` を source basis の配置で sample するため、Hodge と
+  それから合成される `codiff` も metric-aware になる。演算は Egison 本体の連続版サンプル
   (`sample/math/geometry/yang-mills-…`: d・hodge・δ)と**同じ構造・同じ名前**:
   `FE.dForm`(離散外微分 = k-form → (k+1)-form)、`FE.hodgeForm`(補基底への符号つき policy swap)、
   そして余微分 `FE.codiffForm`(表層名 `δ`)は教科書どおりの合成
   **δ = (−1)^{n(k+1)+1} ⋆d⋆** で定義する。
   **d∘d=0 は CAS が文字どおり 0 に簡約**することで成立が確認でき、これが生成された
   Yee スキームの div B 厳密保存の構造的理由になる。
+- **musical map**: `mode dec` の `flat` / `sharp` は、直交計量
+  `g_ii = h_i²` による rank-1 vector/covector の純粋な musical map である。
+  `flat` は成分を `h_i²` 倍、`sharp` は `h_i²` で割り、GridPolicy は保つ。
+  `feMusicalScale` は policy と component basis から求めた同じ物理位置で `h_i` を sample する。
+  補間・積分・de Rham map・reconstruction は暗黙に含めない。一般の非対角計量、
+  rank-2 以上、cochain との変換、DEC vector aliases は今後の範囲である。
 - **テンソル**: `Vector MathValue` 等の型注釈でテンソルごと受け取り(λ⊗ のスカラー/テンソルパラメタ)、
   `ε`・`generateTensor`・`withSymbols`・`contractWith`・`.` を Egison と同じ考え方で扱い、
-  Formurae の TensorExpr lowering が Formura へ出せる成分式まで展開する。
+  native 標準演算子と whole-field equation は対応可能な式では Tensor のまま Egison が評価する。
+  TensorExpr は任意のユーザー定義、native subset 外の複合式、indexed initializer、strict
+  diagnostics の validation/fallback にまだ残る。
   field の格子 policy は `@ collocated` / `@ primal` / `@ dual` の3種で、属性なしの
   scalar/vector/tensor は collocated、属性なしの k-form は primal が既定。
   concrete 成分添字に各軸が現れる回数の parity を χ とすると、primal は χ、dual は

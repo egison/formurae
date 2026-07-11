@@ -33,14 +33,20 @@ def ∂ (m: Integer) (r: Integer) (axis: MathValue) (u: MathValue) : MathValue :
    in if m = 1 && r = 1 then dC a u
       else if m = 2 && r = 1 then dC2 a u
       else dTaylor m (between (0 - r) r) a u
+def feFieldDescriptors :=
+  [ ("rho", Collocated, [], [], "scalar", [[]], [([], "rho")])
+  , ("mx", Collocated, [], [], "scalar", [[]], [([], "mx")])
+  , ("en", Collocated, [], [], "scalar", [[]], [([], "en")])
+  ]
 def feSymbolNames : [(String, String)] := [("hx", "dx"), ("hy", "dy"), ("hz", "dz"), ("x", "(i*dx)"), ("y", "(j*dy)"), ("z", "(k*dz)")]
-def feFieldNames : [(String, String)] := []
-def feFieldPolicies : [(String, GridPolicy)] := [("rho", Collocated), ("mx", Collocated), ("en", Collocated)]
+def feFieldNames : [(String, String)] := concat (map FMR.fieldNameMappings feFieldDescriptors)
+def feFieldPolicies : [(String, GridPolicy)] := map (\(name, policy, _, _, _, _, _) -> (name, policy)) feFieldDescriptors
 def feIndexNames : [String] := ["i", "j", "k"]
 def fePrinterContext := (feSymbolNames, feFieldNames, feIndexNames, feCoords, feHsteps, feAxisIds)
 def fmrEq : String -> MathValue -> String := FMR.eq fePrinterContext
 def fmrInit : String -> MathValue -> String := FMR.init fePrinterContext
 def componentEqs : [String] -> [MathValue] -> [String] := FMR.componentEqs fePrinterContext
+def fieldEqs descriptor value := FMR.fieldEqs fePrinterContext descriptor value
 def scalarEq : String -> MathValue -> [String] := FMR.scalarEq fePrinterContext
 
 def rho := function (x, y, z)

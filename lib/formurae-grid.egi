@@ -43,3 +43,48 @@ def FE.togglePlacement (axis: Integer) (placement: [MathValue]) : [MathValue] :=
     then map (\(current, bit) -> if current = axis then 1 / 2 - bit else bit)
              (zip (between 1 (length placement)) placement)
     else []
+
+-- Placement reached after differentiating along every axis in `axes`.
+-- This is independent of the field's storage layout: differentiating once
+-- toggles the corresponding parity bit, and differentiating twice restores it.
+def FE.naturalDerivativePlacement
+      (axes: [Integer]) (source: [MathValue]) : [MathValue] :=
+  foldl (\placement axis -> FE.togglePlacement axis placement) source axes
+
+-- Shared lowering for native tensor operators.  The caller supplies the
+-- collocated first/second derivatives and the staggered Yee derivative; this
+-- function decides which one is semantically appropriate from the complete
+-- derivative chain and the source/target component placements.
+--
+-- Keeping the complete chain is important for Hessians and Laplacians:
+-- a repeated collocated axis is one second derivative, whereas mixed axes are
+-- a composition of first derivatives.  For staggered components, intermediate
+-- placements are inferred from the remaining derivative axes.
+def FE.gridDerivativeChain
+      (first: Integer -> MathValue -> MathValue)
+      (second: Integer -> MathValue -> MathValue)
+      (yee: Integer -> [MathValue] -> (MathValue, [MathValue]) -> MathValue)
+      (axes: [Integer])
+      (target: [MathValue]) (source: [MathValue])
+      (value: MathValue) : MathValue :=
+  if assert
+       "FE.gridDerivativeChain: derivative axes must be nonempty, placements must have equal dimensions, and axes must be valid"
+       (0 < length axes
+        && length target = length source
+        && all (\axis -> 1 <= axis && axis <= length source) axes)
+    then if target = source
+      then match axes as list integer with
+             | $axis1 :: $axis2 :: [] ->
+                 if axis1 = axis2
+                   then second axis1 value
+                   else first axis1 (first axis2 value)
+             | _ -> foldr first value axes
+      else match axes as list integer with
+             | $axis :: [] -> yee axis target (value, source)
+             | $axis :: $rest ->
+                 let intermediate := FE.naturalDerivativePlacement rest source
+                  in yee axis target
+                       (FE.gridDerivativeChain first second yee rest
+                          intermediate source value,
+                        intermediate)
+    else value

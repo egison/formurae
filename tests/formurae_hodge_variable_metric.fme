@@ -1,0 +1,15 @@
+mode dec
+dimension 2
+axes x, y
+
+metric scale [1 + x, 1]
+
+field A : 1-form @ primal
+field H : 1-form @ dual
+
+init:
+  A = [| 0, 0 |]
+  H = [| 0, 0 |]
+
+step:
+  H' = hodge A

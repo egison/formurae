@@ -21,14 +21,18 @@ def unit3 (a: Integer) (c: MathValue) : [MathValue] :=
   map (\b -> if a = b then c else 0) feAxisIds
 def dYee (a: Integer) (sT: [MathValue]) (fld: (MathValue, [MathValue])) : MathValue :=
   (yeeRef sT fld (unit3 a (1 / 2)) - yeeRef sT fld (unit3 a (-1 / 2))) / feHsteps_a
+def feFieldDescriptors :=
+  [ ("u", Collocated, [], [], "scalar", [[]], [([], "u")])
+  ]
 def feSymbolNames : [(String, String)] := [("hx", "dr"), ("hy", "dtheta"), ("hz", "dphi"), ("x", "(i*dr)"), ("y", "(j*dtheta)"), ("z", "(k*dphi)")]
-def feFieldNames : [(String, String)] := []
-def feFieldPolicies : [(String, GridPolicy)] := [("u", Collocated)]
+def feFieldNames : [(String, String)] := concat (map FMR.fieldNameMappings feFieldDescriptors)
+def feFieldPolicies : [(String, GridPolicy)] := map (\(name, policy, _, _, _, _, _) -> (name, policy)) feFieldDescriptors
 def feIndexNames : [String] := ["i", "j", "k"]
 def fePrinterContext := (feSymbolNames, feFieldNames, feIndexNames, feCoords, feHsteps, feAxisIds)
 def fmrEq : String -> MathValue -> String := FMR.eq fePrinterContext
 def fmrInit : String -> MathValue -> String := FMR.init fePrinterContext
 def componentEqs : [String] -> [MathValue] -> [String] := FMR.componentEqs fePrinterContext
+def fieldEqs descriptor value := FMR.fieldEqs fePrinterContext descriptor value
 def scalarEq : String -> MathValue -> [String] := FMR.scalarEq fePrinterContext
 
 def u := function (x, y, z)

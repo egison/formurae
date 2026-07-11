@@ -14,8 +14,19 @@
 --
 -- `symbolNames` and `fieldNames` are [(sourceName, outputName)] lookup tables.
 -- Missing names are preserved.  The generated file owns these policies and
--- passes the tuple to FMR.eq/FMR.init/FMR.componentEqs/FMR.tensorEqs/FMR.formEqs/
--- FMR.scalarEq.
+-- passes the tuple to FMR.eq/FMR.init/FMR.componentEqs/FMR.fieldEqs/
+-- FMR.fieldInits/FMR.scalarEq.
+--
+-- Whole-field output uses a data-only descriptor with the following shape:
+--
+--   (source name, grid policy, tensor shape, index variances, layout,
+--    independent component indices, component-to-storage mapping)
+--
+-- Variances and layouts are strings because they are backend metadata rather
+-- than Egison tensor indices.  The canonical layout names are `scalar`,
+-- `vector`, `symmetric`, `antisymmetric`, `full`, and `form`.  Storage names
+-- are unprimed; FMR.fieldEqs appends the step prime while FMR.fieldInits uses
+-- the same descriptor unchanged.
 --
 
 def FMR.lookupOr (key: String) (names: [(String, String)]) : String :=
@@ -141,54 +152,187 @@ def FMR.componentEqs
       (names: [String]) (values: [MathValue]) : [String] :=
   map (\(name, value) -> FMR.eq ctx (S.append name "'") value) (zip names values)
 
--- Emit one equation for every component of a tensor-valued update.  The
--- target tensor consists of generated field function symbols (E'_1, E'_2,
--- ...), so its leaves are the single source of truth for the left-hand side.
--- FEC still owns the source-to-storage mapping in `fieldNames`.
-def FMR.tensorTargetName
-      (ctx: ([(String, String)], [(String, String)], [String],
-             Vector MathValue, Vector MathValue, [Integer]))
-      (target: MathValue) : String :=
-  let (_, fieldNames, _, _, _, _) := ctx
-   in match target as mathValue with
-        | func $g _ -> FMR.lookupOr (show g) fieldNames
+-- Canonical component projections shared by field descriptors and the
+-- backend printer.  In particular, symmetric tensors keep the Formurae
+-- storage order: diagonal components first, followed by the strict upper
+-- triangle.  Full tensors use row-major tensor order, and forms use the
+-- strictly increasing canonical basis supplied by the tensor bridge.
+def FMR.fullFieldProjection (shape: [Integer]) : [[Integer]] :=
+  match shape as list integer with
+    | [] -> [[]]
+    | $size :: $rest ->
+        concat
+          (map
+            (\index ->
+               map (\indices -> index :: indices)
+                   (FMR.fullFieldProjection rest))
+            (between 1 size))
 
-def FMR.tensorEqs
-      (ctx: ([(String, String)], [(String, String)], [String],
-             Vector MathValue, Vector MathValue, [Integer]))
-      (targets: Tensor MathValue) (values: Tensor MathValue) : [String] :=
-  if tensorShape targets = tensorShape values
-    then map (\(target, value) -> FMR.eq ctx (FMR.tensorTargetName ctx target) value)
-             (zip (tensorToList targets) (tensorToList values))
-    else if assert
-              (S.concat ["tensor equation shape mismatch: ",
-                         show (tensorShape targets), " /= ", show (tensorShape values)])
-              False
-           then []
-           else []
+def FMR.symmetricFieldProjection (dim: Integer) : [[Integer]] :=
+  let axes := between 1 dim
+   in map (\axis -> [axis, axis]) axes
+      ++ concat
+           (map
+             (\axis -> map (\other -> [axis, other])
+                            (between (axis + 1) dim))
+             axes)
 
--- Differential forms are stored as full canonical antisymmetric tensors, but
--- Formura owns only the strictly increasing independent components.
-def FMR.formEqs
+def FMR.antisymmetricFieldProjection (dim: Integer) : [[Integer]] :=
+  concat
+    (map
+      (\axis -> map (\other -> [axis, other])
+                     (between (axis + 1) dim))
+      (between 1 dim))
+
+def FMR.equalAxisShape (shape: [Integer]) : Bool :=
+  shape = [] || all (\size -> size = head shape) shape
+
+def FMR.validFieldLayoutShape (layout: String) (shape: [Integer]) : Bool :=
+  all (\size -> 0 < size) shape
+  && if layout = "scalar"
+       then shape = []
+       else if layout = "vector"
+         then length shape = 1
+         else if layout = "symmetric" || layout = "antisymmetric"
+           then length shape = 2 && FMR.equalAxisShape shape
+           else if layout = "full"
+             then length shape = 2
+             else if layout = "form"
+               then FMR.equalAxisShape shape
+                    && (shape = [] || length shape <= head shape)
+               else False
+
+def FMR.canonicalFieldProjection
+      (layout: String) (shape: [Integer]) : [[Integer]] :=
+  if assert
+       (S.concat ["invalid field layout/shape: ", layout, " ", show shape])
+       (FMR.validFieldLayoutShape layout shape)
+    then if layout = "scalar"
+           then [[]]
+           else if layout = "vector" || layout = "full"
+             then FMR.fullFieldProjection shape
+             else if layout = "symmetric"
+               then FMR.symmetricFieldProjection (head shape)
+               else if layout = "antisymmetric"
+                 then FMR.antisymmetricFieldProjection (head shape)
+                 else if shape = []
+                   then [[]]
+                   else FE.formBasis (head shape) (length shape)
+    else []
+
+def FMR.storageMappingIsComplete
+      (projection: [[Integer]])
+      (storage: [([Integer], String)]) : Bool :=
+  length storage = length projection
+  && all
+       (\indices ->
+          length (filter (\(candidate, _) -> candidate = indices) storage) = 1)
+       projection
+
+def FMR.validFieldDescriptor
+      (descriptor:
+         (String, GridPolicy, [Integer], [String], String,
+          [[Integer]], [([Integer], String)])) : Bool :=
+  let (_, _, shape, variances, layout, projection, storage) := descriptor
+   in length variances = length shape
+      && FMR.validFieldLayoutShape layout shape
+      && projection = FMR.canonicalFieldProjection layout shape
+      && FMR.storageMappingIsComplete projection storage
+
+def FMR.fieldStorageName
+      (fieldName: String)
+      (storage: [([Integer], String)])
+      (indices: [Integer]) : String :=
+  let found := filter (\(candidate, _) -> candidate = indices) storage
+   in if assert
+           (S.concat ["field descriptor storage mapping is incomplete for ",
+                      fieldName, show indices])
+           (length found = 1)
+        then snd (head found)
+        else ""
+
+def FMR.fieldComponents
+      (descriptor:
+         (String, GridPolicy, [Integer], [String], String,
+          [[Integer]], [([Integer], String)]))
+      (value: (GridPolicy, Tensor MathValue))
+      : [(String, MathValue)] :=
+  let (fieldName, expectedPolicy, shape, _, _, projection, storage) := descriptor
+   in let (actualPolicy, valueTensor) := value
+   in if (assert
+            (S.concat ["invalid field descriptor: ", fieldName])
+            (FMR.validFieldDescriptor descriptor))
+      && (assert
+            (S.concat ["field equation policy/shape mismatch for ", fieldName,
+                       ": ", show expectedPolicy, " ", show shape,
+                       " /= ", show actualPolicy, " ", show (tensorShape valueTensor)])
+            (expectedPolicy = actualPolicy && shape = tensorShape valueTensor))
+        then map
+               (\indices ->
+                  (FMR.fieldStorageName fieldName storage indices,
+                   FE.tensorComponentAt valueTensor indices))
+               projection
+        else []
+
+-- Build the MathValue function-symbol to Formura storage map from the same
+-- descriptor that drives projection.  Generated code therefore does not
+-- carry a second component-name table assembled in Haskell.
+def FMR.fieldComponentSymbolName
+      (fieldName: String) (primed: Bool) (indices: [Integer]) : String :=
+  S.concat
+    ([fieldName, if primed then "'" else ""]
+     ++ map (\index -> S.concat ["_", show index]) indices)
+
+def FMR.fieldNameMappings
+      (descriptor:
+         (String, GridPolicy, [Integer], [String], String,
+          [[Integer]], [([Integer], String)])) : [(String, String)] :=
+  let (fieldName, _, _, _, layout, _, storage) := descriptor
+   in concat
+        (map
+          (\(indices, storageName) ->
+             [ (FMR.fieldComponentSymbolName fieldName False indices,
+                storageName)
+             , (FMR.fieldComponentSymbolName fieldName True indices,
+                S.append storageName "'")
+             ]
+             ++ if layout = "symmetric" || layout = "antisymmetric"
+                  then
+                    [ (FMR.fieldComponentSymbolName
+                         (S.append "FormuraeInternalField" fieldName)
+                         False indices,
+                       storageName)
+                    , (FMR.fieldComponentSymbolName
+                         (S.concat ["FormuraeInternalField", fieldName, "Next"])
+                         False indices,
+                       S.append storageName "'")
+                    ]
+                  else [])
+          storage)
+
+-- Emit a whole tensor/form update from one field descriptor.  Projection and
+-- storage order are descriptor data, so the compiler no longer needs a
+-- layout-specific equation-printer branch for vectors, symmetric tensors,
+-- antisymmetric tensors, full rank-2 tensors, or differential forms.
+def FMR.fieldEqs
       (ctx: ([(String, String)], [(String, String)], [String],
              Vector MathValue, Vector MathValue, [Integer]))
-      (targets: (GridPolicy, Tensor MathValue))
-      (values: (GridPolicy, Tensor MathValue)) : [String] :=
-  let (targetPolicy, targetTensor) := targets
-   in let (valuePolicy, valueTensor) := values
-   in if targetPolicy = valuePolicy
-         && tensorShape targetTensor = tensorShape valueTensor
-        then map (\(target, value) ->
-                    FMR.eq ctx (FMR.tensorTargetName ctx target) value)
-                 (zip (FE.formComponents targetTensor)
-                      (FE.formComponents valueTensor))
-        else if assert
-                  (S.concat ["form equation policy/shape mismatch: ",
-                             show targetPolicy, " ", show (tensorShape targetTensor),
-                             " /= ", show valuePolicy, " ", show (tensorShape valueTensor)])
-                  False
-               then []
-               else []
+      (descriptor:
+         (String, GridPolicy, [Integer], [String], String,
+          [[Integer]], [([Integer], String)]))
+      (value: (GridPolicy, Tensor MathValue)) : [String] :=
+  map (\(storage, component) -> FMR.eq ctx (S.append storage "'") component)
+      (FMR.fieldComponents descriptor value)
+
+def FMR.fieldInits
+      (ctx: ([(String, String)], [(String, String)], [String],
+             Vector MathValue, Vector MathValue, [Integer]))
+      (descriptor:
+         (String, GridPolicy, [Integer], [String], String,
+          [[Integer]], [([Integer], String)]))
+      (value: (GridPolicy, Tensor MathValue)) : [String] :=
+  map (\(storage, component) -> FMR.init ctx storage component)
+      (FMR.fieldComponents descriptor value)
 
 def FMR.scalarEq
       (ctx: ([(String, String)], [(String, String)], [String],

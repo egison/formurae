@@ -1,0 +1,16 @@
+mode dec
+dimension 2
+axes x, y
+
+metric scale [1 + x, 1]
+
+field X~i @ primal
+field A : 1-form @ primal
+
+init:
+  X~i = [| 0, 0 |]~i
+  A = [| 0, 0 |]
+
+step:
+  A' = flat X~i
+  X'~i = sharp A

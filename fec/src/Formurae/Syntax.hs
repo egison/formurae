@@ -1,6 +1,6 @@
 module Formurae.Syntax where
 
-import Data.Char (isAlpha, isAlphaNum, isSpace)
+import Data.Char (isAlpha, isAlphaNum, isDigit, isSpace)
 
 data Mode = CollocatedMode | DecMode
   deriving (Eq, Show)
@@ -48,7 +48,16 @@ data Init = IRaw String String | IVec String [String]
 
 data SK = KLet | KLocal | KEq deriving Eq
 
-data Step = Step { sk :: SK, sNm :: String, sIdx :: [IxPart], sEx :: String }
+data Step = Step
+  { sk :: SK
+  , sNm :: String
+  , sIdx :: [IxPart]
+  , sEx :: String
+  , sLine :: Int
+  , sExprColumn :: Int
+  , sOriginalEx :: String
+  , sSourceMapped :: Bool
+  }
 
 data Def = Def
   { defName   :: String
@@ -58,6 +67,7 @@ data Def = Def
 
 data Model = Model
   { mName   :: String
+  , mSourcePath :: FilePath
   , mDim    :: Int
   , mAxes   :: [String]
   , mMode   :: Maybe Mode
@@ -94,6 +104,13 @@ gridPolicySurfaceName Dual = "dual"
 -- inference and emission share the same reserved identity.
 lbResultBindingName :: String
 lbResultBindingName = "feLbResult"
+
+isLbResultBindingName :: String -> Bool
+isLbResultBindingName name =
+  case splitAt (length lbResultBindingName) name of
+    (prefix, suffix) ->
+      prefix == lbResultBindingName
+      && (null suffix || all isDigit suffix)
 
 data Tok = TId String Bool | TC Char
 

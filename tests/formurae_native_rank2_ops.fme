@@ -1,0 +1,25 @@
+mode collocated
+dimension 2
+axes x, y
+
+field u : scalar
+field q_i
+field H{_i_j}
+field G_i_j
+field S{_i_j}
+field A[_i_j]
+field K_i_j
+
+init:
+  u = 0
+  q_i = [| 0, 0 |]_i
+  H_i_j = [| [| 0, 0 |], [| 0 |] |]_i_j
+  G_i_j = [| [| 0, 0 |], [| 0, 0 |] |]_i_j
+  S_i_j = [| [| 1, 2 |], [| 3 |] |]_i_j
+  A_i_j = [| [| 5 |] |]_i_j
+  K_i_j = [| [| 0, 0 |], [| 0, 0 |] |]_i_j
+
+step:
+  H'_i_j = hessian u
+  G'_i_j = dGrad q_j + S_i_j
+  K'_i_j = hessian u + A_i_j

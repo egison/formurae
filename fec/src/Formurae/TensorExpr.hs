@@ -40,7 +40,7 @@ module Formurae.TensorExpr
   ) where
 
 import Data.Char (isAlphaNum, isDigit, isSpace)
-import Data.List (intercalate, isPrefixOf, isSuffixOf, nub, stripPrefix)
+import Data.List (intercalate, isSuffixOf, nub, stripPrefix)
 import Control.Monad (foldM)
 
 import Formurae.Common (fatal, strip, validSurfaceName)
@@ -343,10 +343,11 @@ tensorOccurrenceAlternatives m lets lhs aliases expr =
       occ <- fmap concat (mapM (wholeExpressionOccurrences m lets lhs aliases) (f : args))
       return [occ]
     TEIf c t e -> do
-      cAlts <- tensorOccurrenceAlternatives m lets lhs aliases c
+      cTerms <- tensorTermOccurrences m lets [] aliases c
+      mapM_ requireScalarCondition cTerms
       tAlts <- tensorOccurrenceAlternatives m lets lhs aliases t
       eAlts <- tensorOccurrenceAlternatives m lets lhs aliases e
-      return (cartesianConcat [cAlts, tAlts, eAlts])
+      return (tAlts ++ eAlts)
     TEAppendIndexed (TEIdent base existing) parts -> do
       tensorOccurrenceAlternatives m lets lhs aliases
         (TEIdent base (existing ++ map (renameIxPart aliases) parts))
@@ -385,6 +386,12 @@ tensorOccurrenceAlternatives m lets lhs aliases expr =
           rAlts <- tensorOccurrenceAlternatives m lets lhs aliases r
           return [lo ++ ro | lo <- lAlts, ro <- rAlts]
     TEGroup e -> tensorTermOccurrences m lets lhs aliases e
+  where
+    requireScalarCondition occurrences =
+      let info = tensorInfoFromOccurrences occurrences
+      in if tiRank info == 0
+           then return ()
+           else fatal ("if condition must be scalar: " ++ renderTensorExpr expr)
 
 cartesianConcat :: [[[IxPart]]] -> [[IxPart]]
 cartesianConcat [] = [[]]
@@ -640,13 +647,16 @@ transformTensorExprM transform expr = do
         TEGroup body -> TEGroup <$> walk body
 
 sourceSpanOf :: String -> [ITok] -> SourceSpan
-sourceSpanOf src ts =
-  let frag = renderIToks (trimTensorIToks ts)
-  in case sourceColumn src frag of
-       Just start ->
-         let len = max 1 (length frag)
-         in SourceSpan start (start + len - 1)
-       Nothing -> noSourceSpan
+sourceSpanOf _ ts =
+  case trimTensorIToks ts of
+    [] -> noSourceSpan
+    tokens@(firstToken:_)
+      | start > 0 && finish > 0 -> SourceSpan start finish
+      | otherwise -> noSourceSpan
+      where
+        start = itokOffset firstToken
+        finalToken = foldl (\_ token -> token) firstToken tokens
+        finish = itokOffset finalToken + itokWidth finalToken - 1
 
 parseTensorAtomE :: String -> [ITok] -> Either String TensorExpr
 parseTensorAtomE src ts =
@@ -799,12 +809,12 @@ parseDerivativeExprE src ts =
       | (base, [p]) <- parseIndexedIdent w
       , base == "d" || base == "∂" =
           collectDerivatives (acc ++ [p]) (dropWhile isSpaceITok rest)
-    collectDerivatives acc (IC '∂' : IC mark : II nm : rest)
+    collectDerivatives acc (partial@(IC '∂') : marker@(IC mark) : name@(II nm) : rest)
       | mark == '~' || mark == '_' =
           case parseMarkedPrefix (mark : nm) of
             Just ([p], "") ->
               collectDerivatives (acc ++ [p]) (dropWhile isSpaceITok rest)
-            _ -> Just (acc, IC '∂' : IC mark : II nm : rest)
+            _ -> Just (acc, partial : marker : name : rest)
     collectDerivatives acc rest = Just (acc, rest)
 
 parseAppendExprE :: String -> [ITok] -> Maybe (Either String TensorExpr)
@@ -869,19 +879,15 @@ parseError src ts msg =
       | frag == strip src = ""
       | otherwise = " near: " ++ frag
     column =
-      case sourceColumn src frag of
+      case sourceColumnOfTokens src (trimTensorIToks ts) of
         Just n -> " at column " ++ show n
         Nothing -> ""
 
-sourceColumn :: String -> String -> Maybe Int
-sourceColumn src frag
-  | null frag = Just (length src + 1)
-  | otherwise = go (1 :: Int) src
-  where
-    go _ [] = Nothing
-    go n s@(_:rest)
-      | frag `isPrefixOf` s = Just n
-      | otherwise = go (n + 1) rest
+sourceColumnOfTokens :: String -> [ITok] -> Maybe Int
+sourceColumnOfTokens src [] = Just (length src + 1)
+sourceColumnOfTokens _ (token:_)
+  | itokOffset token > 0 = Just (itokOffset token)
+  | otherwise = Nothing
 
 renderReducer :: String -> String
 renderReducer "+" = "(+)"
@@ -944,16 +950,16 @@ splitTopBinaryOpsI ops rejectUnary = go (0 :: Int) [] Nothing
     ops' = sortOps ops
 
     go _ _ found [] = found
-    go d acc found toks@(IC c : rest)
-      | c `elem` "([" = go (d + 1) (IC c : acc) found rest
-      | c `elem` ")]" = go (d - 1) (IC c : acc) found rest
+    go d acc found toks@(token@(IC c) : rest)
+      | c `elem` "([" = go (d + 1) (token : acc) found rest
+      | c `elem` ")]" = go (d - 1) (token : acc) found rest
       | d == 0
       , Just (op, after) <- matchAnyOp ops' toks
       , not (isPowerStar op acc after)
       , not rejectUnary || binaryOpAllowed acc =
           let lhs = trimTensorIToks (reverse acc)
               rhs = trimTensorIToks after
-              opToks = map IC op
+              opToks = take (length op) toks
           in go d (reverse opToks ++ acc) (Just (lhs, op, rhs)) after
     go d acc found (t : rest) = go d (t : acc) found rest
 
@@ -963,9 +969,9 @@ splitTopBinaryOpsRightI ops rejectUnary = go (0 :: Int) []
     ops' = sortOps ops
 
     go _ _ [] = Nothing
-    go d acc toks@(IC c : rest)
-      | c `elem` "([" = go (d + 1) (IC c : acc) rest
-      | c `elem` ")]" = go (d - 1) (IC c : acc) rest
+    go d acc toks@(token@(IC c) : rest)
+      | c `elem` "([" = go (d + 1) (token : acc) rest
+      | c `elem` ")]" = go (d - 1) (token : acc) rest
       | d == 0
       , Just (op, after) <- matchAnyOp ops' toks
       , not (isPowerStar op acc after)
@@ -1082,10 +1088,11 @@ trailingParenCallI ts0 =
        _ -> Nothing
   where
     findTrailingOpen _ _ [] = Nothing
-    findTrailingOpen d acc (IC ')' : rest) = findTrailingOpen (d + 1) (IC ')' : acc) rest
-    findTrailingOpen d acc (IC '(' : rest)
+    findTrailingOpen d acc (token@(IC ')') : rest) =
+      findTrailingOpen (d + 1) (token : acc) rest
+    findTrailingOpen d acc (token@(IC '(') : rest)
       | d == 0 = Just (trimTensorIToks acc, rest)
-      | otherwise = findTrailingOpen (d - 1) (IC '(' : acc) rest
+      | otherwise = findTrailingOpen (d - 1) (token : acc) rest
     findTrailingOpen d acc (t : rest) = findTrailingOpen d (t : acc) rest
 
     lastIsSpaceI toks =
@@ -1131,9 +1138,9 @@ breakTopEllipsis :: [ITok] -> Maybe ([ITok], [ITok])
 breakTopEllipsis = go (0 :: Int) []
   where
     go _ _ [] = Nothing
-    go d acc (IC c : rest)
-      | c `elem` "([" = go (d + 1) (IC c : acc) rest
-      | c `elem` ")]" = go (d - 1) (IC c : acc) rest
+    go d acc (token@(IC c) : rest)
+      | c `elem` "([" = go (d + 1) (token : acc) rest
+      | c `elem` ")]" = go (d - 1) (token : acc) rest
     go 0 acc (IC '.' : IC '.' : IC '.' : rest) =
       Just (trimTensorIToks (reverse acc), rest)
     go d acc (t : rest) = go d (t : acc) rest
@@ -1151,11 +1158,11 @@ closeGroupI :: Char -> [ITok] -> [ITok] -> Maybe ([ITok], [ITok])
 closeGroupI close toks acc0 = go (0 :: Int) acc0 toks
   where
     go _ _ [] = Nothing
-    go d acc (IC c : rest)
+    go d acc (token@(IC c) : rest)
       | c == close && d == 0 = Just (reverse acc, rest)
-      | c == close = go (d - 1) (IC c : acc) rest
+      | c == close = go (d - 1) (token : acc) rest
       | (close == ')' && c == '(') || (close == ']' && c == '[') =
-          go (d + 1) (IC c : acc) rest
+          go (d + 1) (token : acc) rest
     go d acc (t : rest) = go d (t : acc) rest
 
 parseReducerI :: [ITok] -> Maybe (String, [ITok])
@@ -1179,11 +1186,11 @@ parseSymbolListTx _ = Nothing
 
 breakSymbolListTx :: Int -> [ITok] -> [ITok] -> Maybe ([ITok], [ITok])
 breakSymbolListTx _ _ [] = Nothing
-breakSymbolListTx d acc (IC ']' : rest)
+breakSymbolListTx d acc (token@(IC ']') : rest)
   | d == 0 = Just (reverse acc, rest)
-  | otherwise = breakSymbolListTx (d - 1) (IC ']' : acc) rest
-breakSymbolListTx d acc (IC '[' : rest) =
-  breakSymbolListTx (d + 1) (IC '[' : acc) rest
+  | otherwise = breakSymbolListTx (d - 1) (token : acc) rest
+breakSymbolListTx d acc (token@(IC '[') : rest) =
+  breakSymbolListTx (d + 1) (token : acc) rest
 breakSymbolListTx d acc (t : rest) = breakSymbolListTx d (t : acc) rest
 
 symbolNamesTx :: [ITok] -> [String]
@@ -1199,13 +1206,13 @@ indexedSuffixOnlyI ts =
   in if null (trimTensorIToks rest) then Just parts else Nothing
 
 indexedSuffixTx :: [ITok] -> ([IxPart], [ITok])
-indexedSuffixTx (IC m : II nm : rest)
+indexedSuffixTx (marker@(IC m) : name@(II nm) : rest)
   | m == '~' || m == '_' =
       case parseMarkedPrefix (m : nm) of
         Just (parts, suffixRest) | null suffixRest ->
           let (more, rest') = indexedSuffixTx rest
           in (parts ++ more, rest')
-        _ -> ([], IC m : II nm : rest)
+        _ -> ([], marker : name : rest)
 indexedSuffixTx ts = ([], ts)
 
 trimTensorIToks :: [ITok] -> [ITok]
@@ -1641,10 +1648,12 @@ ixExpandWithPlacementCheck checkPlacement m lets env anchor expr = do
                                   (if isCoord then anchor else derivativePlacement [n] src))
                         Nothing -> return PlacementUnknown
                 _ -> inferPlacementList (map (inferPlacementAst env') args)
-            TEIf _ yes no -> do
+            TEIf condition yes no -> do
+              conditionPlacement <- inferPlacementAst env' condition
               lhs <- inferPlacementAst env' yes
               rhs <- inferPlacementAst env' no
-              combinePlacements lhs rhs
+              branchPlacement <- combinePlacements lhs rhs
+              combinePlacements conditionPlacement branchPlacement
             TEAppendIndexed body parts ->
               case stripGroupAst body of
                 TEIdent base existing ->
@@ -1712,7 +1721,7 @@ ixExpandWithPlacementCheck checkPlacement m lets env anchor expr = do
     inferIdentPlacement env' base parts =
       let (fname, _) = fieldBaseOf base
       in case kindOf m fname of
-           _ | fname == lbResultBindingName && null parts ->
+           _ | isLbResultBindingName fname && null parts ->
              return (PlacementLocated (componentPlacement m Collocated []))
            Just Scalar | null parts ->
              return (PlacementLocated

@@ -73,6 +73,12 @@ write_case() {
   done
 }
 
+span_output=$(
+  cd "$ROOT"
+  cabal exec -v0 runghc -- -ifec/src tests/fec_source_spans.hs
+)
+assert_contains "$span_output" 'fec source span tests: ok' 'offset-preserving tensor AST spans'
+
 f=$(tmp_fme)
 write_case "$f" \
   'mode collocated' \
@@ -263,6 +269,48 @@ assert_contains "$out" 'def feSteps := []' 'empty step list is valid Egison'
 f=$(tmp_fme)
 write_case "$f" \
   'mode collocated' \
+  'dimension 1' \
+  'axes x' \
+  'field u : scalar' \
+  'step:' \
+  "  u' = 1 + lb u"
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+if [ "$status" -eq 0 ]; then
+  rm -f "$f"
+  printf 'lb without metric unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_contains "$out" "$f:6:12-15" 'direct backend request maps to the original fme line and columns'
+rm -f "$f"
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 1' \
+  'axes x' \
+  'def twice x = x + x' \
+  'field u : scalar' \
+  'step:' \
+  "  u' = twice 123456789 + lb u"
+set +e
+out=$(compile_fme "$f" 2>&1)
+status=$?
+set -e
+if [ "$status" -eq 0 ]; then
+  rm -f "$f"
+  printf 'expanded lb without metric unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_contains "$out" 'expanded-expression columns' 'definition expansion is honestly labelled until expansion traces are available'
+assert_not_contains "$out" "$f:7:" 'expanded expression columns are not misreported as original source columns'
+rm -f "$f"
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
   'dimension 2' \
   'axes x,y' \
   'def Δ q = lb q' \
@@ -272,16 +320,40 @@ write_case "$f" \
   'step:' \
   "  u' = Δ u" \
   "  v' = Δ v"
+out=$(compile_fme "$f")
+rm -f "$f"
+typecheck_generated "$out"
+fmr=$(run_generated "$out")
+assert_contains "$out" 'def feLbResult : MathValue :=' 'first lb request result'
+assert_contains "$out" 'def feLbResult2 : MathValue :=' 'second lb request result'
+assert_contains "$out" 'def feLbFlux2 (axis: Integer)' 'second lb request flux function'
+assert_contains "$out" 'FormuraeInternalLb2Flux1' 'second lb request owns a distinct flux bundle'
+assert_contains "$fmr" 'f1 =' 'first lb flux is materialized'
+assert_contains "$fmr" 'FormuraeInternalLb2Flux1 =' 'second lb flux is materialized'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 1' \
+  'axes x' \
+  'metric scale [1]' \
+  'field u : scalar' \
+  'field v : scalar' \
+  'field V_i @ primal' \
+  'step:' \
+  "  u' = lb u" \
+  "  v' = lb v" \
+  "  V'_i = (lb v) * V_i"
 set +e
 out=$(compile_fme "$f" 2>&1)
 status=$?
 set -e
 rm -f "$f"
 if [ "$status" -eq 0 ]; then
-  printf 'multiple lb targets unexpectedly succeeded\n' >&2
+  printf 'second collocated lb result unexpectedly mixed with a primal component\n' >&2
   exit 1
 fi
-assert_contains "$out" 'lb currently supports one scalar field per model; found: u, v' 'multiple lb target rejection'
+assert_contains "$out" 'grid placement mismatch between operands' 'second lb result keeps collocated placement after lowering'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -788,14 +860,16 @@ write_case "$f" \
   "  B'_i = curl E'_i"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" '∂ 1 1 y B_3 - ∂ 1 1 z B_2' 'standard curl component expansion'
+assert_contains "$out" 'FE.curl (feTensorDerivative Collocated Collocated) feAxisIds B' 'standard curl remains a native Egison tensor operator'
+assert_not_contains "$out" '∂ 1 1 y B_3 - ∂ 1 1 z B_2' 'native curl is not component-expanded by fec'
 assert_contains "$out" "def E' := generateTensor" 'primed component family uses a bare tensor binding'
 assert_not_contains "$out" "def E'_i := generateTensor" 'indexed primed binding is not generated'
 assert_not_contains "$out" "def E' := E'_#" 'primed tensor alias is unnecessary'
-assert_contains "$out" 'def feqE := [|' 'collocated vector update is one tensor RHS'
+assert_contains "$out" 'def feqE := FE.curl ' 'collocated vector update is one native tensor RHS'
 assert_not_contains "$out" 'def feqE1 :=' 'collocated vector update has no scalar helper definitions'
-assert_contains "$out" "tensorEqs E' feqE" 'tensor equation printer receives the primed target tensor'
-assert_contains "$out" 'def feFieldPolicies : [(String, GridPolicy)] := [("E", Collocated), ("B", Collocated)]' 'ordinary fields default to collocated policy'
+assert_contains "$out" 'fieldEqs (nth 1 feFieldDescriptors) (Collocated, feqE)' 'descriptor equation printer receives the whole tensor RHS'
+assert_contains "$out" '("E", Collocated, [3], ["down"], "vector"' 'ordinary fields default to a collocated descriptor'
+assert_contains "$out" 'def feFieldPolicies : [(String, GridPolicy)] := map' 'policy table is derived from field descriptors'
 assert_not_contains "$out" 'def curl ' 'standard curl is not emitted'
 typecheck_generated "$out"
 fmr=$(run_generated "$out")
@@ -813,8 +887,55 @@ write_case "$f" \
   "  q'_i = grad u"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'def feqq := [| ∂ 1 1 x u, ∂ 1 1 y u |]' 'standard grad tensor RHS'
+assert_contains "$out" 'def feqq := FE.grad (feTensorDerivative Collocated Collocated) feAxisIds u' 'standard grad tensor RHS remains native'
 assert_not_contains "$out" 'def grad ' 'standard grad is not emitted'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field u : scalar' \
+  'field q_i' \
+  'init:' \
+  '  u = x' \
+  '  q_i := grad u'
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" 'fmrInit "q_down1" (' 'standard grad is valid in an indexed CAS initializer'
+assert_not_contains "$out" 'FormuraeInternalNativeGrad' 'indexed initializer emits no native marker'
+typecheck_generated "$out"
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field u : scalar' \
+  'field q_i' \
+  'step:' \
+  '  let T_i = grad u' \
+  "  q'_i = T_i"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" 'def T := FE.grad (feTensorDerivative Collocated Collocated) feAxisIds u' 'indexed let keeps the standard operator native'
+assert_not_contains "$out" 'FormuraeInternalNativeGrad' 'indexed let emits no native marker'
+typecheck_generated "$out"
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'param a = 1' \
+  'field u : scalar' \
+  'field q_i' \
+  'step:' \
+  "  q'_i = if a > 0 then grad u else q_i"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" 'if (a > 0) then FE.grad ' 'native if validates branch signatures independently'
+typecheck_generated "$out"
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -827,7 +948,8 @@ write_case "$f" \
   "  G'_i_j = dGrad X"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'def feqG12 := ∂ 1 1 x X_2' 'standard dGrad component expansion'
+assert_contains "$out" 'def feqG := FE.dGrad (feTensorDerivative Collocated Collocated) feAxisIds X' 'standard dGrad remains a native rank-2 tensor'
+assert_not_contains "$out" 'def feqG12 :=' 'native dGrad has no component helper definitions'
 assert_not_contains "$out" 'def dGrad ' 'standard dGrad is not emitted'
 
 f=$(tmp_fme)
@@ -841,7 +963,8 @@ write_case "$f" \
   "  G'_i_j = dGrad X"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'dYee 1 (FE.componentPlacement feDim Primal [1,2]) (X_2, (FE.componentPlacement feDim Primal [2]))' 'full rank-2 target placement uses both component indices'
+assert_contains "$out" 'FE.dGrad (feTensorDerivative Primal Primal) feAxisIds X' 'full rank-2 native derivative closes over target and source policies'
+assert_contains "$out" '(targetBasis: [Integer]) (derivativeAxes: [Integer])' 'native derivative callback receives the concrete target basis and derivative axes'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -854,9 +977,11 @@ write_case "$f" \
   "  C'_i = curl X_i"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'dYee 2 (FE.componentPlacement feDim Dual [1]) (X_3, (FE.componentPlacement feDim Primal [3]))' 'curl derives dual target placement from index parity'
-assert_contains "$out" 'dYee 3 (FE.componentPlacement feDim Dual [1]) (X_2, (FE.componentPlacement feDim Primal [2]))' 'curl retains primal source placement'
-assert_contains "$out" '[("X", Primal), ("C", Dual)]' 'generated field policy metadata'
+assert_contains "$out" 'FE.curl (feTensorDerivative Dual Primal) feAxisIds X' 'curl closes over dual target and primal source policies'
+assert_contains "$out" '(FE.componentPlacement feDim targetPolicy targetBasis)' 'curl target placement is inferred from its runtime component basis'
+assert_contains "$out" '(FE.componentPlacement feDim sourcePolicy sourceBasis)' 'curl source placement is inferred from its runtime component basis'
+assert_contains "$out" '("X", Primal, [3]' 'primal policy is stored in the X descriptor'
+assert_contains "$out" '("C", Dual, [3]' 'dual policy is stored in the C descriptor'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -922,6 +1047,52 @@ write_case "$f" \
   'mode collocated' \
   'dimension 2' \
   'axes x,y' \
+  'field u : scalar @ primal' \
+  'field v : scalar @ collocated' \
+  'step:' \
+  "  u' = lap u + v"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" 'FE.lap (feTensorDerivative Primal Primal) feAxisIds u' 'native policy merge accepts equal physical scalar placements'
+typecheck_generated "$out"
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 1' \
+  'axes x' \
+  'field u : scalar @ dual' \
+  'field X_i @ primal' \
+  'step:' \
+  "  u' = lap u + X_1"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" '∂ 2 1 x u + X_1' 'fixed component basis uses exact legacy placement lowering'
+assert_not_contains "$out" 'FE.lap ' 'fixed component basis does not enter the compact native policy summary'
+typecheck_generated "$out"
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field c : scalar @ dual' \
+  'field u : scalar @ primal' \
+  'step:' \
+  "  u' = if c > 0 then lap u else u"
+if out=$(compile_fme "$f" 2>&1); then
+  rm -f "$f"
+  printf 'native if unexpectedly read a condition at a different placement\n' >&2
+  exit 1
+fi
+rm -f "$f"
+assert_contains "$out" 'grid placement mismatch between operands in native expression' 'native if condition placement rejection'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
   'field V~i @ primal' \
   'field q : scalar' \
   'step:' \
@@ -929,8 +1100,8 @@ write_case "$f" \
   "  q' = divg V~i"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'dYee 1 (FE.componentPlacement feDim Collocated []) (V_1, (FE.componentPlacement feDim Primal [1]))' 'standard divg uses primal coordinate derivative x'
-assert_contains "$out" 'dYee 2 (FE.componentPlacement feDim Collocated []) (V_2, (FE.componentPlacement feDim Primal [2]))' 'standard divg uses primal coordinate derivative y'
+assert_contains "$out" 'FE.divg (feTensorDerivative Primal Primal) feAxisIds V' 'standard divg preserves the primal operator policy'
+assert_contains "$out" '(FE.componentPlacement feDim targetPolicy targetBasis)' 'native divg lowers each target component placement in Egison'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -968,7 +1139,9 @@ write_case "$f" \
   'field S : symmetric @ primal'
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" '[("u", Dual), ("V", Collocated), ("S", Primal)]' 'legacy field forms accept all grid policies'
+assert_contains "$out" '("u", Dual, [], [], "scalar"' 'legacy scalar form stores dual policy in its descriptor'
+assert_contains "$out" '("V", Collocated, [2], ["down"], "vector"' 'legacy vector form stores collocated policy in its descriptor'
+assert_contains "$out" '("S", Primal, [2, 2], ["down", "down"], "symmetric"' 'legacy symmetric form stores primal policy in its descriptor'
 
 f=$(tmp_fme)
 write_case "$f" \
@@ -1045,8 +1218,8 @@ write_case "$f" \
 out=$(compile_fme "$f")
 rm -f "$f"
 assert_contains "$out" '-- mode collocated' 'explicit collocated mode metadata'
-assert_contains "$out" 'def feqH11 := ∂ 2 1 x u' 'standard hessian diagonal is second derivative'
-assert_contains "$out" 'def feqH12 := ∂ 1 1 x (∂ 1 1 y u)' 'standard hessian mixed derivative'
+assert_contains "$out" 'def feqH := FE.hessian (feTensorDerivative Collocated Collocated) feAxisIds u' 'standard hessian remains native and delegates fused derivative axes'
+assert_not_contains "$out" 'def feqH11 :=' 'native hessian has no component helper definitions'
 assert_not_contains "$out" 'fePartial2' 'obsolete hessian helper is not emitted'
 
 f=$(tmp_fme)
@@ -1059,7 +1232,7 @@ write_case "$f" \
   "  u' = lap u"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" '∂ 2 1 x u + ∂ 2 1 y u' 'standard lap expansion'
+assert_contains "$out" 'FE.lap (feTensorDerivative Collocated Collocated) feAxisIds u' 'standard lap remains native'
 assert_not_contains "$out" 'def lap ' 'standard lap is not emitted'
 assert_not_contains "$out" 'def feGrad ' 'obsolete coordinate operator helpers are not emitted'
 assert_not_contains "$out" 'def dF ' 'unused forward derivative helper is not emitted'
@@ -1076,7 +1249,7 @@ write_case "$f" \
   "  u' = apply lap u"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" '∂ 2 1 x u + ∂ 2 1 y u' 'higher-order standard operator is re-expanded after substitution'
+assert_contains "$out" 'FE.lap (feTensorDerivative Collocated Collocated) feAxisIds u' 'higher-order standard operator retains native identity after substitution'
 assert_not_contains "$out" 'lap u' 'higher-order expansion leaves no runtime-only coordinate operator'
 
 f=$(tmp_fme)
@@ -1090,7 +1263,7 @@ write_case "$f" \
   "  u' = pass lap u"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" '∂ 2 1 x u + ∂ 2 1 y u' 'higher-order returned operator consumes remaining arguments'
+assert_contains "$out" 'FE.lap (feTensorDerivative Collocated Collocated) feAxisIds u' 'higher-order returned operator consumes remaining arguments natively'
 assert_not_contains "$out" 'lap u' 'remaining arguments are re-expanded through the returned operator'
 
 f=$(tmp_fme)
@@ -1104,7 +1277,7 @@ write_case "$f" \
   "  u' = (pass lap) u"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" '∂ 2 1 x u + ∂ 2 1 y u' 'parenthesized partial application is redispatched after head expansion'
+assert_contains "$out" 'FE.lap (feTensorDerivative Collocated Collocated) feAxisIds u' 'parenthesized partial application is redispatched to the native operator'
 assert_not_contains "$out" '(lap) u' 'parenthesized higher-order head leaves no runtime-only operator'
 
 f=$(tmp_fme)
@@ -1118,7 +1291,7 @@ write_case "$f" \
   "  u' = apply apply lap u"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" '∂ 2 1 x u + ∂ 2 1 y u' 'finite higher-order application spine is flattened before expansion'
+assert_contains "$out" 'FE.lap (feTensorDerivative Collocated Collocated) feAxisIds u' 'finite higher-order application spine reaches the native operator'
 assert_not_contains "$out" 'apply lap' 'partial higher-order application does not fail or survive'
 
 f=$(tmp_fme)
@@ -1149,7 +1322,7 @@ write_case "$f" \
   "  u' = lap . u"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" '∂ 2 1 x u + ∂ 2 1 y u' 'higher-order dot result is re-expanded'
+assert_contains "$out" 'FE.lap (feTensorDerivative Collocated Collocated) feAxisIds u' 'higher-order dot result is re-expanded to the native operator'
 assert_not_contains "$out" 'lap u' 'dot expansion leaves no runtime-only coordinate operator'
 
 f=$(tmp_fme)
@@ -1167,7 +1340,9 @@ write_case "$f" \
 out=$(compile_fme "$f")
 rm -f "$f"
 assert_contains "$out" '-- mode dec' 'explicit dec mode metadata'
-assert_contains "$out" '[("E", Primal), ("B", Primal), ("H", Dual)]' 'form policy defaults and explicit dual policy'
+assert_contains "$out" '("E", Primal, [3], ["down"], "form"' 'default E form policy is stored in its descriptor'
+assert_contains "$out" '("B", Primal, [3, 3], ["down", "down"], "form"' 'default B form policy is stored in its descriptor'
+assert_contains "$out" '("H", Dual, [3], ["down"], "form"' 'explicit dual form policy is stored in its descriptor'
 assert_contains "$out" 'def Ef : (GridPolicy, Tensor MathValue) := (Primal,' 'default form value carries primal policy and a tensor'
 assert_contains "$out" 'def Hf : (GridPolicy, Tensor MathValue) := (Dual,' 'explicit dual form value carries dual policy and a tensor'
 assert_contains "$out" 'FE.canonicalFormTensor' 'form fields use canonical antisymmetric tensors'
@@ -1175,7 +1350,7 @@ assert_contains "$out" 'FE.componentPlacement feDim policy targetBasis' 'form de
 assert_not_contains "$out" 'def sigmaC ' 'complex-bit placement helper is removed'
 assert_not_contains "$out" '(Integer, Integer, [MathValue])' 'form tuples no longer encode policy as an integer'
 assert_not_contains "$out" 'def dForm ' 'exterior derivative semantics live in the shared geometry library'
-assert_contains "$out" 'formEqs EfN (FE.addForm Ef (FE.scaleForm (dt) (FE.codiffForm feDim feFormDerivative Bf)))' 'dec codifferential stays tensor-valued through the equation printer'
+assert_contains "$out" 'fieldEqs (nth 1 feFieldDescriptors) (FE.addForm Ef (FE.scaleForm (dt) (FE.codiffForm feDim feFormDerivative feHodgeCoefficient Bf)))' 'dec codifferential stays tensor-valued through the descriptor equation printer'
 assert_not_contains "$out" 'formComps' 'form component-list bridge is removed'
 typecheck_generated "$out"
 
@@ -1190,7 +1365,7 @@ write_case "$f" \
   "  H' = hodge A"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'formEqs HfN (FE.hodgeForm feDim Af)' 'whole-form hodge flips dual input to primal target'
+assert_contains "$out" 'fieldEqs (nth 2 feFieldDescriptors) (FE.hodgeForm feDim feHodgeCoefficient Af)' 'whole-form hodge flips dual input to primal target through its descriptor'
 typecheck_generated "$out"
 
 f=$(tmp_fme)
@@ -1205,7 +1380,123 @@ write_case "$f" \
   "  q' = lapForm u"
 out=$(compile_fme "$f")
 rm -f "$f"
-assert_contains "$out" 'formEqs qfN (FE.codiffForm feDim feFormDerivative (FE.dForm feDim feFormDerivative uf))' 'composed dec operators stay tensor-valued'
+assert_contains "$out" 'fieldEqs (nth 2 feFieldDescriptors) (FE.codiffForm feDim feFormDerivative feHodgeCoefficient (FE.dForm feDim feFormDerivative uf))' 'composed dec operators stay tensor-valued through their descriptor'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode dec' \
+  'dimension 2' \
+  'axes x,y' \
+  'field X_i @ primal' \
+  'field A : 1-form @ primal' \
+  'step:' \
+  "  A' = flat X_i"
+if out=$(compile_fme "$f" 2>&1); then
+  rm -f "$f"
+  printf 'flat unexpectedly accepted a covariant vector\n' >&2
+  exit 1
+fi
+rm -f "$f"
+assert_contains "$out" 'flat expects an explicitly contravariant rank-1 vector' 'flat variance rejection'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode dec' \
+  'dimension 2' \
+  'axes x,y' \
+  'field X~i @ primal' \
+  'field A : 1-form @ primal' \
+  'step:' \
+  "  A' = flat X_i"
+if out=$(compile_fme "$f" 2>&1); then
+  rm -f "$f"
+  printf 'flat unexpectedly accepted a reference with wrong variance\n' >&2
+  exit 1
+fi
+rm -f "$f"
+assert_contains "$out" 'referenced with incompatible index variance' 'flat validates operand reference variance'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode dec' \
+  'dimension 2' \
+  'axes x,y' \
+  'field X_i @ primal' \
+  'field A : 1-form @ primal' \
+  'step:' \
+  "  X'_i = sharp A"
+if out=$(compile_fme "$f" 2>&1); then
+  rm -f "$f"
+  printf 'sharp unexpectedly wrote a covariant vector\n' >&2
+  exit 1
+fi
+rm -f "$f"
+assert_contains "$out" 'sharp target must be an explicitly contravariant rank-1 vector' 'sharp target variance rejection'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode dec' \
+  'dimension 2' \
+  'axes x,y' \
+  'field X~i @ primal' \
+  'field A : 2-form @ primal' \
+  'step:' \
+  "  X'~i = sharp A"
+if out=$(compile_fme "$f" 2>&1); then
+  rm -f "$f"
+  printf 'sharp unexpectedly accepted a non-1-form\n' >&2
+  exit 1
+fi
+rm -f "$f"
+assert_contains "$out" 'sharp expects a 1-form' 'sharp degree rejection'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode dec' \
+  'dimension 2' \
+  'axes x,y' \
+  'field X~i @ primal' \
+  'field B : 2-form @ primal' \
+  'step:' \
+  "  B' = flat X~i"
+if out=$(compile_fme "$f" 2>&1); then
+  rm -f "$f"
+  printf 'flat unexpectedly wrote a non-1-form target\n' >&2
+  exit 1
+fi
+rm -f "$f"
+assert_contains "$out" 'form degree mismatch' 'flat target degree rejection'
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode dec' \
+  'dimension 2' \
+  'axes x,y' \
+  'field X~i @ primal' \
+  'field B : 2-form @ primal' \
+  'step:' \
+  "  B' = d (flat X~i)"
+out=$(compile_fme "$f")
+rm -f "$f"
+assert_contains "$out" 'FE.dForm feDim feFormDerivative (FE.flat feMusicalScale (Primal, X))' 'form degree inference accepts d composed with flat'
+typecheck_generated "$out"
+
+f=$(tmp_fme)
+write_case "$f" \
+  'mode collocated' \
+  'dimension 2' \
+  'axes x,y' \
+  'field X~i' \
+  'field A_i' \
+  'step:' \
+  "  A'_i = flat X~i"
+if out=$(compile_fme "$f" 2>&1); then
+  rm -f "$f"
+  printf 'flat unexpectedly succeeded outside mode dec\n' >&2
+  exit 1
+fi
+rm -f "$f"
+assert_contains "$out" 'flat requires mode dec' 'musical maps are restricted to differential-form mode'
 
 f=$(tmp_fme)
 write_case "$f" \

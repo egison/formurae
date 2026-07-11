@@ -33,24 +33,43 @@ def ∂ (m: Integer) (r: Integer) (axis: MathValue) (u: MathValue) : MathValue :
    in if m = 1 && r = 1 then dC a u
       else if m = 2 && r = 1 then dC2 a u
       else dTaylor m (between (0 - r) r) a u
+def yeeRef (sT: [MathValue]) (fld: (MathValue, [MathValue])) (disp: [MathValue]) : MathValue :=
+  let (fF, sF) := fld
+   in substitute
+        (map (\a -> (feCoords_a, feCoords_a + (nth a disp + nth a sT - nth a sF) * feHsteps_a)) feAxisIds)
+        fF
+def unit3 (a: Integer) (c: MathValue) : [MathValue] :=
+  map (\b -> if a = b then c else 0) feAxisIds
+def dYee (a: Integer) (sT: [MathValue]) (fld: (MathValue, [MathValue])) : MathValue :=
+  (yeeRef sT fld (unit3 a (1 / 2)) - yeeRef sT fld (unit3 a (-1 / 2))) / feHsteps_a
+def feTensorDerivative
+      (targetPolicy: GridPolicy) (sourcePolicy: GridPolicy)
+      (targetBasis: [Integer]) (derivativeAxes: [Integer])
+      (sourceBasis: [Integer]) (value: MathValue) : MathValue :=
+  FE.gridDerivativeChain dC dC2 dYee derivativeAxes
+    (FE.componentPlacement feDim targetPolicy targetBasis)
+    (FE.componentPlacement feDim sourcePolicy sourceBasis) value
+def feFieldDescriptors :=
+  [ ("E", Collocated, [3], ["down"], "vector", [[1], [2], [3]], [([1], "E_down1"), ([2], "E_down2"), ([3], "E_down3")])
+  , ("B", Collocated, [3], ["down"], "vector", [[1], [2], [3]], [([1], "B_down1"), ([2], "B_down2"), ([3], "B_down3")])
+  ]
 def feSymbolNames : [(String, String)] := [("hx", "dx"), ("hy", "dy"), ("hz", "dz"), ("x", "(i*dx)"), ("y", "(j*dy)"), ("z", "(k*dz)")]
-def feFieldNames : [(String, String)] := [("E_1", "E_down1"), ("E'_1", "E_down1'"), ("E_2", "E_down2"), ("E'_2", "E_down2'"), ("E_3", "E_down3"), ("E'_3", "E_down3'"), ("B_1", "B_down1"), ("B'_1", "B_down1'"), ("B_2", "B_down2"), ("B'_2", "B_down2'"), ("B_3", "B_down3"), ("B'_3", "B_down3'")]
-def feFieldPolicies : [(String, GridPolicy)] := [("E", Collocated), ("B", Collocated)]
+def feFieldNames : [(String, String)] := concat (map FMR.fieldNameMappings feFieldDescriptors)
+def feFieldPolicies : [(String, GridPolicy)] := map (\(name, policy, _, _, _, _, _) -> (name, policy)) feFieldDescriptors
 def feIndexNames : [String] := ["i", "j", "k"]
 def fePrinterContext := (feSymbolNames, feFieldNames, feIndexNames, feCoords, feHsteps, feAxisIds)
 def fmrEq : String -> MathValue -> String := FMR.eq fePrinterContext
 def fmrInit : String -> MathValue -> String := FMR.init fePrinterContext
 def componentEqs : [String] -> [MathValue] -> [String] := FMR.componentEqs fePrinterContext
-def tensorEqs : Tensor MathValue -> Tensor MathValue -> [String] := FMR.tensorEqs fePrinterContext
+def fieldEqs descriptor value := FMR.fieldEqs fePrinterContext descriptor value
 def scalarEq : String -> MathValue -> [String] := FMR.scalarEq fePrinterContext
 
 def E := generateTensor (\[i] -> function (x, y, z)) [3]
 def B := generateTensor (\[i] -> function (x, y, z)) [3]
-def B' := generateTensor (\[i] -> function (x, y, z)) [3]
 def E' := generateTensor (\[i] -> function (x, y, z)) [3]
 
-def feqE := [| E_1 + (dt * ((∂ 1 1 y B_3 - ∂ 1 1 z B_2))), E_2 + (dt * ((0 - ∂ 1 1 x B_3 + ∂ 1 1 z B_1))), E_3 + (dt * ((∂ 1 1 x B_2 - ∂ 1 1 y B_1))) |]
-def feqB := [| B_1 - (dt * ((∂ 1 1 y E'_3 - ∂ 1 1 z E'_2))), B_2 - (dt * ((0 - ∂ 1 1 x E'_3 + ∂ 1 1 z E'_1))), B_3 - (dt * ((∂ 1 1 x E'_2 - ∂ 1 1 y E'_1))) |]
+def feqE := (E + ((dt * FE.curl (feTensorDerivative Collocated Collocated) feAxisIds B)))
+def feqB := (B - ((dt * FE.curl (feTensorDerivative Collocated Collocated) feAxisIds E')))
 
 def feParams := [("dt", "0.1*dx")]
 def feHelpers :=
@@ -66,6 +85,6 @@ def feInits :=
   , "  B_down2[i,j,k] = 0"
   , "  B_down3[i,j,k] = gauss1(i*dx)"
   ]
-def feSteps := tensorEqs E' feqE ++ tensorEqs B' feqB
+def feSteps := fieldEqs (nth 1 feFieldDescriptors) (Collocated, feqE) ++ fieldEqs (nth 2 feFieldDescriptors) (Collocated, feqB)
 
 def main (args: [String]) : IO () := print (FMR.emitModelOn feDim feAxes feParams feHelpers feComps feInits feSteps)

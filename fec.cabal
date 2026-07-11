@@ -10,9 +10,9 @@ synopsis:           The Formurae (.fme) compiler: mathematical stencil language 
 description:
     Translates Formurae, the .fme surface language (field declarations plus
     index-notation and differential-form equations), into a compact embedded
-    Egison program.  fec expands user definitions and the coordinate-operator
-    prelude through one TensorExpr path, resolves indices and field placement,
-    and emits only the residual model-specific context.  Generated programs
+    Egison program.  fec preserves native coordinate-operator identity,
+    validates indices and field placement, and emits field descriptors plus
+    only the residual model-specific grid context.  Generated programs
     run with lib/formurae-tensor.egi, lib/fmrgen.egi, and
     lib/formurae-runtime.egi; Egison evaluates the residual expressions,
     normalizes the CAS result, and emits .fmr through the shared runtime.

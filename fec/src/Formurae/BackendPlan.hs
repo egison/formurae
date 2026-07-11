@@ -13,8 +13,9 @@ module Formurae.BackendPlan
   , hasLbRequest
   ) where
 
-import Data.List (intercalate, nubBy)
+import Data.List (nubBy)
 
+import Formurae.Common (reservedInternalPrefix)
 import Formurae.Index (Placement, axisRange, componentPlacement, fieldBaseOf)
 import Formurae.Syntax
 import Formurae.TensorExpr
@@ -22,6 +23,9 @@ import Formurae.TensorExpr
 data BackendRequest = LbRequest
   { brSource :: String
   , brSpan   :: SourceSpan
+  , brPath   :: FilePath
+  , brLine   :: Int
+  , brExprColumn :: Int
   } deriving (Eq, Show)
 
 data AuxLifetime = PersistentState | StepLocal
@@ -30,7 +34,7 @@ data AuxLifetime = PersistentState | StepLocal
 data AuxRole
   = LbCoefficient Int
   | LbVolume
-  | LbFlux Int
+  | LbFlux Int Int
   deriving (Eq, Show)
 
 data AuxFieldPlan = AuxFieldPlan
@@ -41,37 +45,41 @@ data AuxFieldPlan = AuxFieldPlan
   }
 
 data LbPlan = LbPlan
-  { lpSource     :: String
+  { lpRequestId  :: Int
+  , lpSource     :: String
   , lpResultName :: String
   , lpAuxFields  :: [AuxFieldPlan]
   }
 
 data BackendPlan = BackendPlan
-  { bpLbPlan :: Maybe LbPlan
+  { bpMetricAuxFields :: [AuxFieldPlan]
+  , bpLbPlans         :: [LbPlan]
   }
 
 collectBackendRequests :: Model -> Either String [BackendRequest]
 collectBackendRequests model = do
   rejectInitializerRequests model
-  requests <- concat <$> mapM (requestsInText model . sEx) (mSteps model)
+  requests <- concat <$> mapM requestsInStep (mSteps model)
   return (nubBy sameSource requests)
   where
+    requestsInStep step =
+      if sSourceMapped step
+        then requestsInText model (sLine step) (sExprColumn step)
+               (sOriginalEx step)
+        else requestsInText model 0 0 (sEx step)
     sameSource lhs rhs = brSource lhs == brSource rhs
 
 planBackend :: Model -> [BackendRequest] -> Either String BackendPlan
 planBackend model requests =
   case requests of
-    [] -> Right (BackendPlan Nothing)
-    [request]
+    [] -> Right (BackendPlan [] [])
+    request:_
       | mMetric model == Nothing && mEmbed model == Nothing ->
           Left ("lb needs a 'metric scale [...]' or 'embedding [...]' declaration"
                 ++ expandedSpanText request)
-      | otherwise -> Right (BackendPlan (Just (makeLbPlan model request)))
-    _ ->
-      Left ("lb currently supports one scalar field per model; found: "
-            ++ intercalate ", " (map brSource requests)
-            ++ "; expanded-expression spans: "
-            ++ intercalate ", " (map requestSpanText requests))
+      | otherwise ->
+          Right (BackendPlan (makeMetricAuxFields model)
+                  (zipWith (makeLbPlan model) [1 ..] requests))
 
 lowerBackendRequests :: BackendPlan -> TensorExpr -> Either String TensorExpr
 lowerBackendRequests plan = transformTensorExprM lower
@@ -79,14 +87,12 @@ lowerBackendRequests plan = transformTensorExprM lower
     lower expr =
       case lbApplication expr of
         Just operand ->
-          case bpLbPlan plan of
-            Nothing -> Left "internal error: lb request has no backend plan"
-            Just lbPlan -> do
-              source <- simpleLbSource operand
-              if source == lpSource lbPlan
-                then Right (Just (TEIdent (lpResultName lbPlan) []))
-                else Left ("internal error: lb request for " ++ source
-                           ++ " does not match its backend plan")
+          do source <- simpleLbSource operand
+             case [lbPlan | lbPlan <- bpLbPlans plan,
+                            lpSource lbPlan == source] of
+               lbPlan:_ -> Right (Just (TEIdent (lpResultName lbPlan) []))
+               [] -> Left ("internal error: lb request for " ++ source
+                           ++ " has no backend plan")
         Nothing
           | invalidLbHead expr ->
               Left "lb expects exactly one unindexed collocated scalar field"
@@ -99,8 +105,8 @@ hasLbRequest expr =
     TECall (TEIdent "lb" []) _ -> True
     _ -> any hasLbRequest (children expr)
 
-makeLbPlan :: Model -> BackendRequest -> LbPlan
-makeLbPlan model request =
+makeMetricAuxFields :: Model -> [AuxFieldPlan]
+makeMetricAuxFields model =
   let axes = axisRange model
       coefficientNames = take (length axes) ["ca", "cb", "cc"]
       coefficient axis name =
@@ -108,15 +114,27 @@ makeLbPlan model request =
           (componentPlacement model Primal [axis])
       volume = AuxFieldPlan "sg" PersistentState LbVolume
                  (componentPlacement model Collocated [])
-      flux axis = AuxFieldPlan ("f" ++ show axis) StepLocal (LbFlux axis)
-                    (componentPlacement model Primal [axis])
+  in [coefficient axis name | (axis, name) <- zip axes coefficientNames]
+     ++ [volume]
+
+makeLbPlan :: Model -> Int -> BackendRequest -> LbPlan
+makeLbPlan model requestId request =
+  let axes = axisRange model
+      fluxName axis
+        | requestId == 1 = "f" ++ show axis
+        | otherwise = reservedInternalPrefix ++ "Lb" ++ show requestId
+                      ++ "Flux" ++ show axis
+      flux axis =
+        AuxFieldPlan (fluxName axis) StepLocal (LbFlux requestId axis)
+          (componentPlacement model Primal [axis])
+      resultName
+        | requestId == 1 = lbResultBindingName
+        | otherwise = lbResultBindingName ++ show requestId
   in LbPlan
-       { lpSource = brSource request
-       , lpResultName = lbResultBindingName
-       , lpAuxFields =
-           [coefficient axis name | (axis, name) <- zip axes coefficientNames]
-           ++ [volume]
-           ++ map flux axes
+       { lpRequestId = requestId
+       , lpSource = brSource request
+       , lpResultName = resultName
+       , lpAuxFields = map flux axes
        }
 
 rejectInitializerRequests :: Model -> Either String ()
@@ -128,29 +146,40 @@ rejectInitializerRequests model =
       Left ("lb is not supported in an initializer because its auxiliary "
             ++ "flux fields are materialized during the step: " ++ expr)
 
-requestsInText :: Model -> String -> Either String [BackendRequest]
-requestsInText model source = do
+requestsInText :: Model -> Int -> Int -> String -> Either String [BackendRequest]
+requestsInText model line exprColumn source = do
   expr <- case parseTensorExprEither source of
             Right parsed -> Right parsed
             Left msg -> Left ("bad backend request expression: " ++ msg)
-  requestsInExpr model expr
+  requestsInExpr model line exprColumn expr
 
-requestsInExpr :: Model -> TensorExpr -> Either String [BackendRequest]
-requestsInExpr model expr =
+requestsInExpr :: Model -> Int -> Int -> TensorExpr -> Either String [BackendRequest]
+requestsInExpr model line exprColumn expr =
   case lbApplication expr of
     Just operand -> do
-      source <- simpleLbSource operand
+      source <- withExpressionSpan model line exprColumn expr (simpleLbSource operand)
       case kindOf model source of
         Just Scalar
           | fieldPolicyOf model source == Collocated ->
-              Right [LbRequest source (tensorExprSpan expr)]
+              Right [LbRequest source (tensorExprSpan expr) (mSourcePath model)
+                       line exprColumn]
           | otherwise ->
-              Left ("lb currently requires a collocated scalar source: " ++ source)
-        _ -> Left ("lb expects a scalar field argument: " ++ source)
+              Left ("lb currently requires a collocated scalar source: " ++ source
+                    ++ sourceExprSpanText model line exprColumn expr)
+        _ -> Left ("lb expects a scalar field argument: " ++ source
+                   ++ sourceExprSpanText model line exprColumn expr)
     Nothing
       | invalidLbHead expr ->
-          Left "lb expects exactly one unindexed collocated scalar field"
-      | otherwise -> concat <$> mapM (requestsInExpr model) (children expr)
+          Left ("lb expects exactly one unindexed collocated scalar field"
+                ++ sourceExprSpanText model line exprColumn expr)
+      | otherwise -> concat <$> mapM (requestsInExpr model line exprColumn) (children expr)
+
+withExpressionSpan
+  :: Model -> Int -> Int -> TensorExpr -> Either String a -> Either String a
+withExpressionSpan model line exprColumn expr result =
+  case result of
+    Left message -> Left (message ++ sourceExprSpanText model line exprColumn expr)
+    Right value -> Right value
 
 lbApplication :: TensorExpr -> Maybe TensorExpr
 lbApplication expr =
@@ -235,8 +264,31 @@ containsLbApplication source =
 
 expandedSpanText :: BackendRequest -> String
 expandedSpanText request =
-  " (expanded-expression columns " ++ requestSpanText request ++ ")"
+  sourceLocationText (brPath request) (brLine request) (brExprColumn request)
+    (brSpan request)
 
-requestSpanText :: BackendRequest -> String
-requestSpanText request =
-  show (sourceStart (brSpan request)) ++ "-" ++ show (sourceEnd (brSpan request))
+sourceExprSpanText :: Model -> Int -> Int -> TensorExpr -> String
+sourceExprSpanText model line exprColumn expr =
+  sourceLocationText (mSourcePath model) line exprColumn (tensorExprSpan expr)
+
+sourceLocationText :: FilePath -> Int -> Int -> SourceSpan -> String
+sourceLocationText path line exprColumn spanValue
+  | line <= 0 || sourceStart spanValue <= 0 = expandedSourceSpanText spanValue
+  | otherwise =
+      let startColumn = exprColumn + sourceStart spanValue - 1
+          endColumn = exprColumn + sourceEnd spanValue - 1
+          columnText = if startColumn == endColumn
+                         then show startColumn
+                         else show startColumn ++ "-" ++ show endColumn
+      in " (" ++ path ++ ":" ++ show line ++ ":" ++ columnText ++ ")"
+
+expandedSourceSpanText :: SourceSpan -> String
+expandedSourceSpanText spanValue
+  | sourceStart spanValue <= 0 = ""
+  | otherwise =
+      " (expanded-expression columns " ++ sourceSpanText spanValue ++ ")"
+
+sourceSpanText :: SourceSpan -> String
+sourceSpanText spanValue
+  | sourceStart spanValue == sourceEnd spanValue = show (sourceStart spanValue)
+  | otherwise = show (sourceStart spanValue) ++ "-" ++ show (sourceEnd spanValue)

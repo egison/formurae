@@ -1,3 +1,5 @@
+{-# LANGUAGE PatternSynonyms #-}
+
 module Formurae.Index where
 
 import Data.Char (isAlpha, isAlphaNum, isDigit, isSpace)
@@ -6,15 +8,42 @@ import Data.List (sort, stripPrefix)
 import Formurae.Common (fatal, reservedInternalPrefix, validSurfaceName)
 import Formurae.Syntax
 
-data ITok = II String | IC Char deriving Eq
+-- Keep the source column on each token.  Most of the tensor parser was
+-- written against the small II/IC token algebra, so expose those names as
+-- bidirectional patterns while the lexer uses the offset-bearing
+-- representation underneath.  Tokens synthesized by transformations have
+-- column 0; parsed source tokens always use one-based columns.
+data ITok = ITokAt Int ITokValue deriving (Eq, Show)
+
+data ITokValue = IIdent String | IChar Char deriving (Eq, Show)
+
+pattern II :: String -> ITok
+pattern II word <- ITokAt _ (IIdent word)
+  where II word = ITokAt 0 (IIdent word)
+
+pattern IC :: Char -> ITok
+pattern IC char <- ITokAt _ (IChar char)
+  where IC char = ITokAt 0 (IChar char)
+
+{-# COMPLETE II, IC #-}
+
+itokOffset :: ITok -> Int
+itokOffset (ITokAt offset _) = offset
+
+itokWidth :: ITok -> Int
+itokWidth (II word) = length word
+itokWidth (IC _) = 1
 
 itok :: String -> [ITok]
-itok [] = []
-itok (c:cs)
-  | isAlpha c =
-      let (a, b) = span (\ch -> isAlphaNum ch || ch == '_' || ch == '~' || ch == '\'') cs
-      in II (c : a) : itok b
-  | otherwise = IC c : itok cs
+itok = go 1
+  where
+    go _ [] = []
+    go column (c:cs)
+      | isAlpha c =
+          let (a, b) = span (\ch -> isAlphaNum ch || ch == '_' || ch == '~' || ch == '\'') cs
+              word = c : a
+          in ITokAt column (IIdent word) : go (column + length word) b
+      | otherwise = ITokAt column (IChar c) : go (column + 1) cs
 
 ixName :: IxPart -> String
 ixName (IxPart _ nm) = nm
