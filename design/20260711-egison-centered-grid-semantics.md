@@ -4,6 +4,11 @@ Date: 2026-07-11
 
 Status: Accepted; Phases 1-7 implemented
 
+> Follow-up: `20260711-pre-post-fec-pipeline.md` は、実装済みの本設計を
+> `pre-fec -> Egison -> FEIR -> post-fec` へ発展させる次期pipelineを定める。
+> そのproduction cutoverまでは本文書が現在の実装状態を記録し、cutover後はfollow-upの
+> pipelineと責務境界を正とする。
+
 この文書は、`.fme` の数式を `fec` が標準演算子ごとに成分特殊化していた構成を改め、
 テンソル・添字・微分形式・格子配置の意味論を Egison に集約するための設計と
 移行手順を定める。標準座標演算子だけでなく、任意の添字 equation、indexed `let`、
