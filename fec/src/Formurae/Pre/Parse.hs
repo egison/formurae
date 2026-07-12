@@ -221,6 +221,73 @@ validateMetricName m =
              ++ "; bare " ++ nm ++ " keeps that meaning, two-index "
              ++ nm ++ "_i_j/" ++ nm ++ "~i~j is treated as the metric")
 
+-- The indices on an Egison-style binding LHS are implicit withSymbols
+-- binders for its RHS.  Reject names that would shadow an existing value;
+-- the generated i/j/k/... symbol pool is intentionally omitted because
+-- those are precisely the names an indexed binding is expected to bind.
+validateIndexedStepTargets :: Model -> IO ()
+validateIndexedStepTargets model = mapM_ validateStep (mSteps model)
+  where
+    validateStep step = do
+      either (fatal . renderIndexedTargetError line targetName)
+             return
+             (validateBindingIndices forbidden (sIdx step))
+      case sk step of
+        KEq ->
+          case fieldDeclOf model targetName of
+            Nothing -> fatal ("unknown step target '" ++ targetName
+                              ++ "' (line " ++ show line ++ ")")
+            Just field ->
+              either (fatal . renderIndexedTargetError line targetName)
+                     return
+                     (validateFieldTarget field (sTarget step))
+        _ -> return ()
+      where
+        targetName = sNm step
+        line = sourceLine (sSourceText step)
+
+    forbidden = nub $
+      mAxes model
+      ++ internalCoordNames model
+      ++ map fst (mParams model)
+      ++ map fdName (mFieldDecls model)
+      ++ [sNm step | step <- mSteps model, sk step `elem` [KLet, KLocal]]
+      ++ map defName (mDefs model)
+      ++ maybe [] (: []) (mMetricName model)
+      ++ generatedNormalizationNames
+      ++ standardNames
+      ++ scalarIntrinsics
+      ++ egisonReservedWords
+      ++ normalizationDependencies
+
+renderIndexedTargetError :: Int -> String -> IndexedTargetError -> String
+renderIndexedTargetError line targetName problem =
+  case problem of
+    IndexedTargetNameMismatch expected actual ->
+      "indexed target name '" ++ actual ++ "' does not match field '"
+      ++ expected ++ "' (line " ++ show line ++ ")"
+    InvalidTargetIndex name ->
+      "invalid index name '" ++ name ++ "' on target '" ++ targetName
+      ++ "' (line " ++ show line ++ ")"
+    DuplicateTargetIndex name ->
+      "index '" ++ name ++ "' occurs more than once on target '"
+      ++ targetName ++ "' (line " ++ show line ++ ")"
+    TargetIndexNameConflict name ->
+      "index '" ++ name ++ "' on target '" ++ targetName
+      ++ "' conflicts with a coordinate or value binding (line "
+      ++ show line ++ ")"
+    IndexedTargetRankMismatch expected actual ->
+      "indexed target '" ++ targetName ++ "' has rank " ++ show actual
+      ++ ", but the field declaration has rank " ++ show expected
+      ++ " (line " ++ show line ++ ")"
+    IndexedTargetVarianceMismatch position expected actual ->
+      "index " ++ show position ++ " on target '" ++ targetName ++ "' is "
+      ++ varianceLabel actual ++ ", but the field declaration requires "
+      ++ varianceLabel expected ++ " (line " ++ show line ++ ")"
+  where
+    varianceLabel VUp = "a superscript"
+    varianceLabel VDown = "a subscript"
+
 parseFieldDecl :: Int -> String -> IO FieldDecl
 parseFieldDecl ln r =
   case break (== ':') r of
@@ -256,6 +323,12 @@ parseFieldDecl ln r =
         Nothing -> fatal ("bad field spec: " ++ spec ++ " (line " ++ show ln ++ ")")
         Just (nm, mix) -> do
           rejectReservedName ln nm
+          case mix of
+            Just (FieldIndex group) ->
+              either (fatal . renderIndexedTargetError ln nm)
+                     return
+                     (validateDistinctIndices (groupParts group))
+            Nothing -> return ()
           kind <- inferFieldKind ln spec mix
           return (FieldDecl nm mix policy kind ln)
     parsePolicyAttrs defaultPolicy [] = return defaultPolicy
@@ -271,28 +344,19 @@ parseFieldDecl ln r =
       case fmap reverse (stripPrefix (reverse "-form") (reverse t)) of
         Just ds | all isDigit ds && not (null ds) -> Just (read ds)
         _ -> Nothing
+    groupParts (Plain parts) = parts
+    groupParts (Symmetric parts) = parts
+    groupParts (Antisymmetric parts) = parts
 
 -- NAME(~i|_i)? = EXPR   with NAME = [A-Za-z][A-Za-z0-9]*
-eqForm :: String -> String -> Maybe (String, [IxPart], String)
+eqForm :: String -> String -> Maybe (IndexedTarget, String)
 eqForm marker s = do
   rest0 <- if null marker then Just s else stripPrefix (marker ++ " ") s
   let rest = dropWhile isSpace rest0
-  (nm, r1) <- ident rest
-  let (ix, r2) = idxs r1
+  (target, r2) <- parseIndexedTargetPrefix rest
   r3 <- stripPrefix "=" (dropWhile isSpace r2)
   let ex = strip r3
-  if null ex then Nothing else Just (nm, ix, ex)
-  where
-    ident (c:cs) | isAlpha c = let (a, b) = span isAlphaNum cs in Just (c : a, b)
-    ident _ = Nothing
-    idxs (mark:c:rest)
-      | mark `elem` "_~", isAlpha c, not (isAlphaNum (headDef ' ' rest)) =
-          let (more, r) = idxs rest
-              v = if mark == '~' then VUp else VDown
-          in (IxPart v [c] : more, r)
-    idxs r = ([], r)
-    headDef d [] = d
-    headDef _ (c:_) = c
+  if null ex then Nothing else Just (target, ex)
 
 -- def NAME PARAM... = BODY
 -- def (.) A B = BODY
@@ -338,26 +402,13 @@ stripPatternEllipsis p
 isPatternEllipsis :: String -> Bool
 isPatternEllipsis = ("..." `isSuffixOf`)
 
--- NAME'(~a|_a)(~b|_b)? = EXPR   (a, b single index letters)
-primeEqForm :: String -> Maybe (String, [IxPart], String)
+-- NAME'(~index|_index)* = EXPR
+primeEqForm :: String -> Maybe (IndexedTarget, String)
 primeEqForm s = do
-  (nm, r1) <- ident s
-  r2 <- stripPrefix "'" r1
-  let (ixs, r3) = idxs r2
+  (target, r3) <- parsePrimedIndexedTargetPrefix s
   r4 <- stripPrefix "=" (dropWhile isSpace r3)
   let ex = strip r4
-  if null ex then Nothing else Just (nm, ixs, ex)
-  where
-    ident (c:cs) | isAlpha c = let (a, b) = span isAlphaNum cs in Just (c : a, b)
-    ident _ = Nothing
-    idxs (mark:c:rest)
-      | mark `elem` "_~", isAlpha c, not (isAlphaNum (headDef ' ' rest)) =
-          let (more, r) = idxs rest
-              v = if mark == '~' then VUp else VDown
-          in (IxPart v [c] : more, r)
-    idxs r = ([], r)
-    headDef d [] = d
-    headDef _ (c:_) = c
+  if null ex then Nothing else Just (target, ex)
 
 -- ---------------------------------------------------------------- parser
 
@@ -503,6 +554,7 @@ parseModel sourceFile name txt = go STop initialModel
           validateValueBindingNames mUse
           validateMetricName mUse
           validateDimensionFeatures mUse
+          validateIndexedStepTargets mUse
           mapM_ (\df ->
                     checkUserSurface mUse (map defParamBase (defParams df))
                       ("in def " ++ defName df) (defBody df))
@@ -942,18 +994,24 @@ parseModel sourceFile name txt = go STop initialModel
     stp ln originalLine s0 m
       | Just bad <- banned =
           fatal (bad ++ " (line " ++ show ln ++ ")")
-      | Just (nm, ix, ex) <- eqForm "let" s = do
-          rejectReservedName ln nm
+      | Just (target, ex) <- eqForm "let" s = do
+          rejectReservedName ln (indexedTargetName target)
           source <- sourceTextForRhs ln originalLine ex
-          return m { mSteps = Step KLet nm ix ex source : mSteps m }
-      | Just (nm, _, ex) <- eqForm "local" s = do
-          rejectReservedName ln nm
+          return m { mSteps = Step KLet target ex source : mSteps m }
+      | Just (target, ex) <- eqForm "local" s = do
+          rejectReservedName ln (indexedTargetName target)
+          if null (indexedTargetIndices target)
+            then return ()
+            else fatal ("local materialization target cannot have indices: "
+                        ++ indexedTargetName target
+                        ++ showIxParts (indexedTargetIndices target)
+                        ++ " (line " ++ show ln ++ ")")
           source <- sourceTextForRhs ln originalLine ex
-          return m { mSteps = Step KLocal nm [] ex source : mSteps m }
-      | Just (nm, ixs, ex) <- primeEqForm s = do
-          rejectReservedName ln nm
+          return m { mSteps = Step KLocal target ex source : mSteps m }
+      | Just (target, ex) <- primeEqForm s = do
+          rejectReservedName ln (indexedTargetName target)
           source <- sourceTextForRhs ln originalLine ex
-          return m { mSteps = Step KEq nm ixs ex source : mSteps m }
+          return m { mSteps = Step KEq target ex source : mSteps m }
       | otherwise = fatal ("bad step eq: " ++ s ++ " (line " ++ show ln ++ ")")
       where
         s = strip s0

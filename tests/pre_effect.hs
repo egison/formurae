@@ -193,7 +193,8 @@ definition :: String -> [String] -> String -> Def
 definition name parameters body = Def name parameters body Nothing
 
 step :: String -> String -> Step
-step name expression = Step KEq name [] expression sourceText
+step name expression =
+  Step KEq (IndexedTarget name []) expression sourceText
   where
     sourceText = SourceText "effect.fme" 1 1 expression expression
       [SourcePosition 1 column | column <- [1 .. length expression]]

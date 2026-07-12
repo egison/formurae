@@ -4,4 +4,4 @@ axes x
 field X~i @ primal
 field Y_i @ primal
 step:
-  X'~i = Y_i
+  X' = Y

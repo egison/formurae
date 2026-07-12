@@ -44,10 +44,39 @@ main = do
     Primitives.primitiveManifestV1Id genericModel
   assertContains "generic materialization definition has no static metadata"
     "Formurae.materialized FormuraeInternalContext X" genericUnit
-  assertContains "one generic definition accepts an upper vector"
-    "def FormuraeInternalValue1 := stored X" genericUnit
+  assertContains "upper-vector equation uses the indexed definition sugar"
+    "def FormuraeInternalValue1~i : Tensor MathValue := stored X" genericUnit
+  assertContains "indexed result is read back with its declared variance"
+    "FormuraeInternalValue1~formuraeTensorIndex1" genericUnit
   assertContains "the same generic definition accepts a differential form"
     "def FormuraeInternalValue2 := stored A" genericUnit
+
+  indexedModel <- parseModel "indexed-targets.fme" "indexed-targets"
+    indexedTargetSource
+  indexedUnit <- requireRight =<< emitNormalizationUnit
+    Primitives.primitiveManifestV1Id indexedModel
+  assertContains "indexed let scopes its LHS index over the RHS"
+    "def FormuraeInternalValue1_i : Tensor MathValue := B_i" indexedUnit
+  assertContains "indexed let alias keeps the same indexed contract"
+    "def T_i := FormuraeInternalValue1_i" indexedUnit
+  assertContains "indexed field equation scopes its LHS index over the RHS"
+    "def FormuraeInternalValue2~i : Tensor MathValue := withSymbols [j] (g~i~j . T_j)"
+    indexedUnit
+  assertContains "field boundary reads the indexed equation as a whole tensor"
+    "FormuraeInternalValue2~formuraeTensorIndex1" indexedUnit
+  assertNotContains "equation boundary no longer mutates omitted indices"
+    "Formurae.attachExplicitVariances variances value" indexedUnit
+
+  completionModel <- parseModel "indexed-let-completion.fme"
+    "indexed-let-completion" indexedLetCompletionSource
+  completionUnit <- requireRight =<< emitNormalizationUnit
+    Primitives.primitiveManifestV1Id completionModel
+  assertContains "bare lower indexed let gets an anonymous lower use-site"
+    "def FormuraeInternalValue3_i : Tensor MathValue := T_#" completionUnit
+  assertContains "bare mixed indexed let preserves every declared variance"
+    "def FormuraeInternalValue4~i_j : Tensor MathValue := U~#_#" completionUnit
+  assertContains "explicit indexed let reference remains explicit"
+    "def FormuraeInternalValue5_i : Tensor MathValue := T_i" completionUnit
 
   badBitsModel <- parseModel "bad-resample.fme" "bad-resample"
     badBitsSource
@@ -82,6 +111,37 @@ genericSource = unlines
   , "  A' = stored A"
   ]
 
+indexedTargetSource :: String
+indexedTargetSource = unlines
+  [ "mode collocated"
+  , "dimension 2"
+  , "axes x, y"
+  , "metric g"
+  , "field B_i"
+  , "field X~i"
+  , "step:"
+  , "  let T_i = B_i"
+  , "  X'~i = withSymbols [j] (g~i~j . T_j)"
+  ]
+
+indexedLetCompletionSource :: String
+indexedLetCompletionSource = unlines
+  [ "mode collocated"
+  , "dimension 2"
+  , "axes x, y"
+  , "field B_i"
+  , "field M~i_j"
+  , "field C_i"
+  , "field N~i_j"
+  , "field D_i"
+  , "step:"
+  , "  let T_i = B_i"
+  , "  let U~i_j = M~i_j"
+  , "  C'_i = T"
+  , "  N'~i_j = U"
+  , "  D'_i = T_i"
+  ]
+
 badBitsSource :: String
 badBitsSource = unlines
   [ "mode collocated"
@@ -107,6 +167,12 @@ assertContains :: String -> String -> String -> IO ()
 assertContains label needle haystack
   | needle `isInfixOf` haystack = pure ()
   | otherwise = fail (label ++ ": missing " ++ show needle)
+
+assertNotContains :: String -> String -> String -> IO ()
+assertNotContains label needle haystack
+  | needle `isInfixOf` haystack =
+      fail (label ++ ": unexpected " ++ show needle)
+  | otherwise = pure ()
 
 assertLeft
     :: Show value

@@ -59,7 +59,20 @@ data Init = IRaw String String | IVec String [String]
 data HelperKind = ExternalHelper | RawHelper
   deriving (Eq, Show)
 
-data SK = KLet | KLocal | KEq deriving Eq
+data SK = KLet | KLocal | KEq deriving (Eq, Show)
+
+-- | A value-binding target with the free indices written on its left-hand
+-- side.  This is the surface counterpart of Egison's @VarWithIndices@:
+--
+-- > X'~i = rhs
+--
+-- binds the whole tensor @X'@ while @~i@ scopes over @rhs@.  Keeping the
+-- name and its indices in one node prevents later passes from accidentally
+-- treating the variance annotation as an unrelated expression suffix.
+data IndexedTarget = IndexedTarget
+  { indexedTargetName    :: String
+  , indexedTargetIndices :: [IxPart]
+  } deriving (Eq, Show)
 
 data SourcePosition = SourcePosition
   { positionLine   :: Int
@@ -82,11 +95,19 @@ data SourceText = SourceText
 
 data Step = Step
   { sk :: SK
-  , sNm :: String
-  , sIdx :: [IxPart]
+  , sTarget :: IndexedTarget
   , sEx :: String
   , sSourceText :: SourceText
-  }
+  } deriving (Eq, Show)
+
+-- Compatibility accessors for consumers that only need one projection of
+-- the indexed target.  New surface transformations should retain 'sTarget'
+-- as a unit, just as Egison retains a VarWithIndices node until desugaring.
+sNm :: Step -> String
+sNm = indexedTargetName . sTarget
+
+sIdx :: Step -> [IxPart]
+sIdx = indexedTargetIndices . sTarget
 
 data Def = Def
   { defName   :: String

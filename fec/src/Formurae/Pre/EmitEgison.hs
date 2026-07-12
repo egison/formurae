@@ -48,6 +48,7 @@ data DynamicValue = DynamicValue
   , dynamicName     :: String
   , dynamicSource   :: String
   , dynamicEncoding :: DynamicEncoding
+  , dynamicResultIndices :: [Surface.IxPart]
   , dynamicBinding  :: Maybe String
   , dynamicAtGeometryBoundary :: Bool
   , dynamicOrigin   :: Maybe FEIR.OriginId
@@ -178,7 +179,7 @@ prepareGeometry model registry state0 =
       [FEIR.VarianceUp, FEIR.VarianceUp] 0
 
     geometryDynamic source encoding state =
-      addDynamic source encoding Nothing True
+      addDynamic source encoding [] Nothing True
         (FEIR.geometryDeclOrigin declaration) Nothing state
 
     addScaleDynamics axes state = addMany
@@ -220,18 +221,18 @@ prepareInitializers model registry state0 =
       field <- fieldNamed registry name
       let tensorType = FEIR.logicalFieldTensorType field
           (dynamic, nextState) = addDynamic source (EncodeTensor tensorType)
-            Nothing False (Just origin) (Just sourceText) state
+            [] Nothing False (Just origin) (Just sourceText) state
           equation = FEIR.FEEquation
             (FEIR.EquationId (buildNextEquation state))
             (FEIR.WholeFieldTarget (FEIR.logicalFieldId field) FEIR.CurrentTime)
             (tensorMarker tensorType (dynamicId dynamic)) origin
       Right ([FEIR.AnalyticInitializer equation], nextState
         { buildNextEquation = buildNextEquation state + 1 })
-    prepareInitializer (Surface.ICasIndex name _ source) origin sourceText state = do
+    prepareInitializer (Surface.ICasIndex name indices source) origin sourceText state = do
       field <- fieldNamed registry name
       let tensorType = FEIR.logicalFieldTensorType field
           (dynamic, nextState) = addDynamic source (EncodeTensor tensorType)
-            Nothing False (Just origin) (Just sourceText) state
+            indices Nothing False (Just origin) (Just sourceText) state
           equation = FEIR.FEEquation
             (FEIR.EquationId (buildNextEquation state))
             (FEIR.WholeFieldTarget (FEIR.logicalFieldId field) FEIR.CurrentTime)
@@ -291,7 +292,8 @@ prepareActions model registry state0 =
                 [] -> EncodeScalar
                 indices -> EncodeTensor (indexedTensorType model indices)
               (dynamic, nextState) = addDynamic
-                (Surface.sEx step) encoding (Just (Surface.sNm step)) False
+                (Surface.sEx step) encoding (Surface.sIdx step)
+                (Just (Surface.sNm step)) False
                 (Just origin) (Just (Surface.sSourceText step)) state
               node = FEIR.NodeId (buildNextNode state)
               value = markerValue encoding (dynamicId dynamic)
@@ -300,7 +302,7 @@ prepareActions model registry state0 =
         Surface.KLocal -> do
           field <- fieldNamed registry (Surface.sNm step)
           let (dynamic, nextState) = addDynamic
-                (Surface.sEx step) EncodeScalar Nothing False
+                (Surface.sEx step) EncodeScalar [] Nothing False
                 (Just origin) (Just (Surface.sSourceText step)) state
           Right
             ( FEIR.Materialize (FEIR.logicalFieldId field)
@@ -311,7 +313,8 @@ prepareActions model registry state0 =
           field <- fieldNamed registry (Surface.sNm step)
           let tensorType = FEIR.logicalFieldTensorType field
               (dynamic, nextState) = addDynamic
-                (Surface.sEx step) (EncodeTensor tensorType) Nothing False
+                (Surface.sEx step) (EncodeTensor tensorType)
+                (Surface.sIdx step) Nothing False
                 (Just origin) (Just (Surface.sSourceText step)) state
               equation = FEIR.FEEquation
                 (FEIR.EquationId (buildNextEquation state))
@@ -321,18 +324,18 @@ prepareActions model registry state0 =
             { buildNextEquation = buildNextEquation state + 1 })
 
 addDynamic
-  :: String -> DynamicEncoding -> Maybe String -> Bool -> Maybe FEIR.OriginId
-  -> Maybe Surface.SourceText
+  :: String -> DynamicEncoding -> [Surface.IxPart] -> Maybe String -> Bool
+  -> Maybe FEIR.OriginId -> Maybe Surface.SourceText
   -> BuildState
   -> (DynamicValue, BuildState)
-addDynamic source encoding binding geometryBoundary origin sourceText state = (dynamic, state
+addDynamic source encoding resultIndices binding geometryBoundary origin sourceText state = (dynamic, state
   { buildNextDynamic = identifier + 1
   , buildDynamics = dynamic : buildDynamics state
   })
   where
     identifier = buildNextDynamic state
     dynamic = DynamicValue identifier
-      ("FormuraeInternalValue" ++ show identifier) source encoding binding
+      ("FormuraeInternalValue" ++ show identifier) source encoding resultIndices binding
       geometryBoundary origin sourceText
 
 markerValue :: DynamicEncoding -> Int -> FEIR.FEValue
@@ -513,6 +516,10 @@ contextualize model contextName userDefinitions shadowedNames boundNames express
       | null parts
       , Just qualified <- contextFunction name ->
           Right (TEGroup (TEApply (TEIdent qualified []) [context]))
+      | null parts
+      , not (isLexicallyShadowed name)
+      , Just completedParts <- indexedLetCompletion name ->
+          Right (TEIdent name completedParts)
       | otherwise -> Right (TEIdent name parts)
     TEUnary "!" body ->
       TEApply (TEIdent "Formurae.predicateNot" []) . (: []) <$> walk body
@@ -605,6 +612,17 @@ contextualize model contextName userDefinitions shadowedNames boundNames express
       name `elem` boundNames
       || name `elem` shadowedNames
       || any ((== name) . fst) userDefinitions
+    indexedLetCompletion name =
+      case [ map anonymousPart (Surface.sIdx step)
+           | step <- Surface.mSteps model
+           , Surface.sk step == Surface.KLet
+           , Surface.sNm step == name
+           , not (null (Surface.sIdx step))
+           ] of
+        [parts] -> Just parts
+        _ -> Nothing
+    anonymousPart (Surface.IxPart variance _) =
+      Surface.IxPart variance "#"
     indexedDerivativePart part value =
       TEAppendIndexed
         (TEGroup (TEApply (TEIdent "Formurae.diff" []) [context, value]))
@@ -854,19 +872,14 @@ renderUnit model registry geometryDeclarations definitions dynamics program = un
       , "def FormuraeInternalEncodeTensor expectedShape variances degree value :="
       , "  let actualVariances := Formurae.logicalTensorVariances value"
       , "      actualDegree := dfOrder value"
-      , "      completedValue := if degree = 0"
-      , "                            && actualDegree > 0"
-      , "                            && tensorShape value = expectedShape"
-      , "                            && actualVariances = variances"
-      , "                         then Formurae.attachExplicitVariances variances value"
-      , "                         else value"
-      , "      completedVariances := Formurae.logicalTensorVariances completedValue"
-      , "      completedDegree := dfOrder completedValue"
+      , "      exactMetadata := actualVariances = variances && actualDegree = degree"
+      , "      completesOmittedDownIndices := degree = 0"
+      , "                                      && actualDegree > 0"
+      , "                                      && actualVariances = variances"
       , "   in match assert \"normalized equation tensor metadata mismatch\""
-      , "                   (tensorShape completedValue = expectedShape"
-      , "                    && completedVariances = variances"
-      , "                    && completedDegree = degree) as bool with"
-      , "        | #True -> FEIR.encodeTensorWithMetadata feParameters feCoordinatesRegistry feFields feIntrinsics feAnalytics completedVariances completedDegree completedValue"
+      , "                   (tensorShape value = expectedShape"
+      , "                    && (exactMetadata || completesOmittedDownIndices)) as bool with"
+      , "        | #True -> FEIR.encodeTensorWithMetadata feParameters feCoordinatesRegistry feFields feIntrinsics feAnalytics variances degree value"
       , ""
       ]
 
@@ -1007,9 +1020,6 @@ attachTensorVariances variances expression =
     [ varianceMarker variance ++ name
     | (variance, name) <- zip variances metadataIndexNames
     ]
-  where
-    varianceMarker Surface.VUp = "~"
-    varianceMarker Surface.VDown = "_"
 
 fieldRawName :: Surface.FieldDecl -> String -> String
 fieldRawName field slot =
@@ -1133,10 +1143,45 @@ dynamicDeclarations :: [DynamicValue] -> [String]
 dynamicDeclarations dynamics = concatMap declarations dynamics ++ [""]
   where
     declarations dynamic =
-      ["def " ++ dynamicName dynamic ++ " := "
+      ["def " ++ dynamicDefinitionHead dynamic
+        ++ dynamicDefinitionType dynamic ++ " := "
         ++ dynamicSource dynamic]
-      ++ ["def " ++ binding ++ " := " ++ dynamicName dynamic
+      ++ ["def " ++ binding ++ renderIndexParts (dynamicResultIndices dynamic)
+            ++ " := " ++ dynamicName dynamic
+            ++ renderIndexParts (dynamicResultIndices dynamic)
          | Just binding <- [dynamicBinding dynamic]]
+
+dynamicDefinitionHead :: DynamicValue -> String
+dynamicDefinitionHead dynamic =
+  dynamicName dynamic ++ renderIndexParts (dynamicResultIndices dynamic)
+
+-- Indexed top-level definitions must be monomorphic here.  Otherwise an
+-- overloaded tensor operator leaves an implicit type-class dictionary lambda
+-- behind the indexed Var, and a later whole-tensor reference observes that
+-- lambda instead of the normalized tensor value.
+dynamicDefinitionType :: DynamicValue -> String
+dynamicDefinitionType dynamic =
+  case (dynamicEncoding dynamic, dynamicResultIndices dynamic) of
+    (EncodeTensor _, _ : _) -> " : Tensor MathValue"
+    _ -> ""
+
+dynamicBoundaryReference :: DynamicValue -> String
+dynamicBoundaryReference dynamic =
+  dynamicName dynamic ++ concat
+    [ varianceMarker variance ++ name
+    | (Surface.IxPart variance _, name) <-
+        zip (dynamicResultIndices dynamic) metadataIndexNames
+    ]
+
+renderIndexParts :: [Surface.IxPart] -> String
+renderIndexParts = concatMap renderPart
+  where
+    renderPart (Surface.IxPart variance name) =
+      varianceMarker variance ++ name
+
+varianceMarker :: Surface.Variance -> String
+varianceMarker Surface.VUp = "~"
+varianceMarker Surface.VDown = "_"
 
 withIndexSymbols :: String -> String
 withIndexSymbols source =
@@ -1175,12 +1220,12 @@ renderWire dynamics expression
           ++ " (\\_ -> " ++ value ++ ")"
     scalarBoundaryValue dynamic
       | dynamicAtGeometryBoundary dynamic =
-          "(FEIR.unquoteAll " ++ dynamicName dynamic ++ ")"
-      | otherwise = dynamicName dynamic
+          "(FEIR.unquoteAll " ++ dynamicBoundaryReference dynamic ++ ")"
+      | otherwise = dynamicBoundaryReference dynamic
     tensorBoundaryValue dynamic
       | dynamicAtGeometryBoundary dynamic =
-          "(FEIR.unquoteTensor " ++ dynamicName dynamic ++ ")"
-      | otherwise = dynamicName dynamic
+          "(FEIR.unquoteTensor " ++ dynamicBoundaryReference dynamic ++ ")"
+      | otherwise = dynamicBoundaryReference dynamic
 
 isTensorRecord :: SExpr -> Bool
 isTensorRecord (List (Atom "tensor" : _)) = True

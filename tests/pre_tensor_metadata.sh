@@ -17,7 +17,7 @@ cabal run -v0 pre-fec -- tests/fixtures/pre_fec_materialized_metadata.fme \
   > "$WORK/materialized.egi"
 grep -F 'Formurae.materialized FormuraeInternalContext value' \
   "$WORK/materialized.egi" >/dev/null
-grep -F 'def FormuraeInternalValue1 := stored X' \
+grep -F 'def FormuraeInternalValue1~i : Tensor MathValue := stored X' \
   "$WORK/materialized.egi" >/dev/null
 grep -F 'def FormuraeInternalValue2 := stored A' \
   "$WORK/materialized.egi" >/dev/null
@@ -45,7 +45,7 @@ expect_metadata_failure() {
     "$WORK/$kind.err" >/dev/null
 }
 
-expect_metadata_failure variance 7:10
+expect_metadata_failure variance 7:8
 expect_metadata_failure degree 7:8
 
 printf 'pre-fec structural tensor metadata tests: ok\n'

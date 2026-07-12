@@ -18,6 +18,7 @@ for test in \
   feir_primitive_bindings \
   feir_registry_fingerprint \
   tensor_expr_parser \
+  surface_indexed_lhs \
   pre_parse_profile \
   pre_registry \
   pre_effect \

@@ -13,4 +13,4 @@ init:
   B~i = [| 0, 0 |]~i
 
 step:
-  B'~i = g~i~j . A_j
+  B'~i = withSymbols [j] (g~i~j . A_j)

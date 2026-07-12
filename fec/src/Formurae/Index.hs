@@ -3,7 +3,7 @@
 module Formurae.Index where
 
 import Data.Char (isAlpha, isAlphaNum, isDigit)
-import Data.List (stripPrefix)
+import Data.List (find, group, sort, stripPrefix)
 
 import Formurae.Common (fatal, validSurfaceName)
 import Formurae.Syntax
@@ -47,6 +47,35 @@ itok = go 1
 
 ixName :: IxPart -> String
 ixName (IxPart _ nm) = nm
+
+-- | Parse the identifier and marked indices at the start of a binding
+-- target.  Unlike 'parseIndexedIdent', this also returns the unconsumed
+-- suffix, so the equation parser can distinguish the left-hand-side indices
+-- from the following @=@.  Index names follow Egison identifiers rather than
+-- being restricted to one letter.
+parseIndexedTargetPrefix :: String -> Maybe (IndexedTarget, String)
+parseIndexedTargetPrefix source = do
+  (name, rest) <- identifierPrefix source
+  (indices, suffix) <- parseMarkedPrefix rest
+  Just (IndexedTarget name indices, suffix)
+
+-- | Parse an indexed next-time target such as @X'~i@.  The prime is part of
+-- the time-slot syntax, not part of the bound field name.
+parsePrimedIndexedTargetPrefix :: String -> Maybe (IndexedTarget, String)
+parsePrimedIndexedTargetPrefix source = do
+  (name, rest) <- identifierPrefix source
+  suffix <- stripPrefix "'" rest
+  (indices, trailing) <- parseMarkedPrefix suffix
+  Just (IndexedTarget name indices, trailing)
+
+identifierPrefix :: String -> Maybe (String, String)
+identifierPrefix source =
+  case source of
+    c : rest | isAlpha c ->
+      let (tailName, suffix) = span isAlphaNum rest
+          name = c : tailName
+      in if validSurfaceName name then Just (name, suffix) else Nothing
+    _ -> Nothing
 
 parseIndexedIdent :: String -> (String, [IxPart])
 parseIndexedIdent w =
@@ -127,6 +156,84 @@ fieldDeclAcceptsParts fd parts =
       sameVarianceList decl parts || sameVarianceList (reverse decl) parts
     Just (FieldIndex (Antisymmetric decl)) ->
       sameVarianceList decl parts || sameVarianceList (reverse decl) parts
+
+-- | Static failures for an Egison-style indexed binding target.  Field
+-- declaration index names are placeholders, so compatibility compares rank
+-- and variance but deliberately does not require the same spelling (for
+-- example @field X~i@ may be updated as @X'~k = ...@).
+data IndexedTargetError
+  = IndexedTargetNameMismatch String String
+  | InvalidTargetIndex String
+  | DuplicateTargetIndex String
+  | TargetIndexNameConflict String
+  | IndexedTargetRankMismatch Int Int
+  | IndexedTargetVarianceMismatch Int Variance Variance
+  deriving (Eq, Show)
+
+-- | Validate a field update target against the field's declared tensor
+-- contract.  An unindexed target remains a valid whole-tensor assignment.
+-- Once any LHS index is written, however, its rank and variance must agree
+-- with the field declaration; this is the same contract established by an
+-- indexed Egison definition.
+validateFieldTarget
+  :: FieldDecl -> IndexedTarget -> Either IndexedTargetError ()
+validateFieldTarget field target
+  | fdName field /= indexedTargetName target =
+      Left (IndexedTargetNameMismatch
+        (fdName field) (indexedTargetName target))
+  | Left problem <- validateBindingIndices [] actualParts = Left problem
+  | null actualParts = Right ()
+  | length expectedVariances /= length actualVariances =
+      Left (IndexedTargetRankMismatch
+        (length expectedVariances) (length actualVariances))
+  | Just (position, expected, actual) <- firstVarianceMismatch =
+      Left (IndexedTargetVarianceMismatch position expected actual)
+  | otherwise = Right ()
+  where
+    actualParts = indexedTargetIndices target
+    actualVariances = map ixVariance actualParts
+    expectedVariances =
+      case fieldIndexParts field of
+        Just parts -> map ixVariance parts
+        Nothing -> replicate (componentRank (fdKind field)) VDown
+    firstVarianceMismatch = find mismatch
+      (zip3 [1 :: Int ..] expectedVariances actualVariances)
+    mismatch (_, expected, actual) = expected /= actual
+
+-- | Field declarations and binding targets both introduce free index names.
+-- Repeating one on the same LHS would describe a diagonal/trace rather than
+-- a whole tensor binding, which Egison's indexed-definition sugar is not
+-- intended to hide.
+validateDistinctIndices :: [IxPart] -> Either IndexedTargetError ()
+validateDistinctIndices = validateBindingIndices []
+
+-- | Check the names introduced by an indexed-definition LHS.  Names in the
+-- forbidden set denote values in the RHS environment (coordinates,
+-- generated registries, fields, and so on); allowing one here would make the
+-- implicit @withSymbols@ silently shadow that value.
+validateBindingIndices
+  :: [String] -> [IxPart] -> Either IndexedTargetError ()
+validateBindingIndices forbidden parts =
+  case [name | name <- names, not (validSurfaceName name)] of
+    invalid : _ -> Left (InvalidTargetIndex invalid)
+    [] -> case firstDuplicate names of
+      Just duplicate -> Left (DuplicateTargetIndex duplicate)
+      Nothing -> case find (`elem` forbidden) names of
+        Just conflict -> Left (TargetIndexNameConflict conflict)
+        Nothing -> Right ()
+  where
+    names = map ixName parts
+
+{-
+  Keep duplicate detection deterministic so diagnostics and focused tests do
+  not depend on declaration order.
+-}
+firstDuplicate :: Ord a => [a] -> Maybe a
+firstDuplicate values =
+  case [member | members@(member : _) <- group (sort values),
+                 length members > 1] of
+    duplicate : _ -> Just duplicate
+    [] -> Nothing
 
 fieldDeclIndexSuffix :: FieldDecl -> String
 fieldDeclIndexSuffix fd =

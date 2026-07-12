@@ -197,6 +197,10 @@ grep -F "S_down1_down2'[i,j] = (1 / 2) * C_down1_down2[i,j] + (1 / 2) * C_down2_
 # suite as well as the larger example-level numerical checks.
 cabal run -v0 pre-fec -- "$ROOT/tests/formurae_metric_tensor_ops.fme" \
   > "$WORK/metric-tensor-ops.egi"
+grep -E 'def FormuraeInternalValue[0-9]+~i : Tensor MathValue := withSymbols \[j\] \(g~i~j \. A_j\)' \
+  "$WORK/metric-tensor-ops.egi" >/dev/null
+grep -E 'FormuraeInternalValue[0-9]+~formuraeTensorIndex1' \
+  "$WORK/metric-tensor-ops.egi" >/dev/null
 run_machine "$WORK/metric-tensor-ops.egi" "$WORK/metric-tensor-ops.feir"
 cabal run -v0 post-fec -- "$WORK/metric-tensor-ops.feir" \
   > "$WORK/metric-tensor-ops.fmr"
@@ -415,7 +419,7 @@ cabal run -v0 pre-fec -- \
   > "$WORK/materialized-metadata.egi"
 grep -F 'Formurae.materialized FormuraeInternalContext value' \
   "$WORK/materialized-metadata.egi" >/dev/null
-grep -F 'def FormuraeInternalValue1 := stored X' \
+grep -F 'def FormuraeInternalValue1~i : Tensor MathValue := stored X' \
   "$WORK/materialized-metadata.egi" >/dev/null
 grep -F 'def FormuraeInternalValue2 := stored A' \
   "$WORK/materialized-metadata.egi" >/dev/null
