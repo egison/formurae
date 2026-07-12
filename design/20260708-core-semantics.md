@@ -78,6 +78,13 @@ X_i   -- 共変成分
 これにより、将来の計量、上げ下げ、接続係数へ進める。
 
 計量テンソルは標準的には `metric g` のように表層名を宣言する。
+
+> **v2.1で置換済み:** 現行仕様は
+> [20260711-pre-post-fec-pipeline.md](20260711-pre-post-fec-pipeline.md) §3.5を正とする。
+> `metric g`は`g_i_j` / `g~i~j`だけを定義し、whole tensorは`g_#_#` / `g~#~#`で参照する。
+> mixed varianceは暗黙生成せず、同じ`g`をFormurae model bindingへ再利用する旧warning規則は
+> hard errorへ変更した。以下は旧loweringの設計履歴である。
+
 `metric g` は表層では添字なし宣言だが、式中では実質的に添字付きテンソルとして
 扱う。裸の `g` は metric 参照ではなく、metric は常に `g_i_j`、`g~i~j`、
 `g~i_j`、`g_i~j` のように添字付きで参照する。

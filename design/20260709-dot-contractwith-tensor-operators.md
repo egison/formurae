@@ -190,6 +190,11 @@ A        -- error
 metric は表層では `metric g` と宣言されるが、式中では実質的に添字付きテンソル
 として扱う。
 
+> **v2.1で置換済み:** 現行仕様ではcovariant `g_i_j`とcontravariant `g~i~j`だけを
+> indexed definitionとして生成し、whole tensorは`g_#_#` / `g~#~#`で参照する。
+> mixed metricと同名scalar/fieldのwarning共存は廃止した。詳細は
+> [20260711-pre-post-fec-pipeline.md](20260711-pre-post-fec-pipeline.md) §3.5を参照する。
+
 ```formurae
 metric g
 

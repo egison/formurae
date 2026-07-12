@@ -1,0 +1,8 @@
+mode collocated
+dimension 2
+axes dimension, y
+
+field u : scalar
+
+step:
+  u' = u

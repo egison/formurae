@@ -14,7 +14,7 @@ main = do
 
   assertEqual "normalization unit is deterministic" first second
   assertContains "ambient coordinates specialize each used shared operator"
-    "def FormuraeInternalLap u := Formurae.lap feCoordinates u" first
+    "def FormuraeInternalLap u := Formurae.lap coordinates u" first
   assertAbsent first "def FormuraeInternalGrad u :="
   assertAbsent first "Formurae.operatorContext"
   assertAbsent first "feOperatorContext"
@@ -55,7 +55,19 @@ main = do
   epsilonModel <- parseModel "pre-epsilon.fme" "pre-epsilon" epsilonSource
   epsilonUnit <- requireRight =<< emitNormalizationUnit manifestId epsilonModel
   assertContains "an indexed epsilon use requests the ambient Levi-Civita tensor"
-    "def epsilon : Tensor Integer := ε feDimension" epsilonUnit
+    "def epsilon : Tensor Integer := ε dimension" epsilonUnit
+
+  operatorModel <- parseModel "pre-user-operator.fme" "pre-user-operator"
+    userOperatorSource
+  operatorUnit <- requireRight =<< emitNormalizationUnit manifestId operatorModel
+  assertContains "free covariant result index is canonicalized structurally"
+    "def FormuraeInternalDefinition1 X := Formurae.attachExplicitVariances [\"down\"]"
+    operatorUnit
+  assertContains "free contravariant result index is canonicalized structurally"
+    "def FormuraeInternalDefinition2 A := Formurae.attachExplicitVariances [\"up\"]"
+    operatorUnit
+  assertAbsent aliasUnit
+    "def FormuraeInternalDefinition1 X := Formurae.attachExplicitVariances"
 
   mapM_ (assertAbsent first)
     [ "def dC "
@@ -122,7 +134,7 @@ main = do
     "indexed parameter X_i metadata mismatch in fixedIdentity"
     parameterUnit
   assertContains "body append-index syntax is preserved"
-    "def FormuraeInternalDefinition2 X := withSymbols [i, j, k, l, m, n] (X..._i)"
+    "def FormuraeInternalDefinition2 X := Formurae.attachExplicitVariances [\"down\"] (withSymbols [i, j, k, l, m, n] (X..._i))"
     parameterUnit
   assertAbsent parameterUnit "FormuraeInternalDefinition2 X..."
   assertAbsent parameterUnit "FormuraeInternalDefinition3 X_i"
@@ -197,6 +209,22 @@ epsilonSource = unlines
   , "field Y_i"
   , "step:"
   , "  Y'_i = withSymbols [j, k] (epsilon_i~j~k . ∂_j X_k)"
+  ]
+
+userOperatorSource :: String
+userOperatorSource = unlines
+  [ "mode collocated"
+  , "dimension 3"
+  , "axes x, y, z"
+  , "metric g"
+  , "metric scale [1, 2, 3]"
+  , "field X_i"
+  , "field A_i"
+  , "field Y_i"
+  , "def curl X = withSymbols [i, j, k] (epsilon_i~j~k . ∂_j X_k)"
+  , "def raise A = withSymbols [i, j] (g~i~j . A_j)"
+  , "step:"
+  , "  Y' = curl X"
   ]
 
 shadowSource :: String

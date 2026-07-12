@@ -347,6 +347,11 @@ error にする。
 
 ### 6. metric と scalar 名の衝突
 
+> **v2.1で決着済み:** 同名をwarningで共存させる下記案は撤回した。metric宣言名と
+> Formurae model bindingの衝突はhard errorであり、raw Egison body内の局所binderだけは通常の
+> lexical shadowを許す。詳細は
+> [20260711-pre-post-fec-pipeline.md](20260711-pre-post-fec-pipeline.md) §3.5を参照する。
+
 `metric g` と `param g` または `field g` が同居したとき、表層の `g` と
 添字付き `g~i~j` を区別するか。
 

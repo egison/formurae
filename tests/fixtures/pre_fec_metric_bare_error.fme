@@ -1,0 +1,11 @@
+mode collocated
+dimension 2
+axes x, y
+metric g
+
+field u : scalar
+
+def badMetric unused = g
+
+step:
+  u' = badMetric 0

@@ -9,7 +9,7 @@ module Formurae.Pre.EmitEgison
   ) where
 
 import Control.Monad (foldM)
-import Data.Char (isAlphaNum, isDigit)
+import Data.Char (isAlpha, isAlphaNum, isDigit)
 import Data.List (find, intercalate, nub, sort)
 import Text.Read (readMaybe)
 
@@ -53,6 +53,14 @@ data DynamicValue = DynamicValue
   , dynamicAtGeometryBoundary :: Bool
   , dynamicOrigin   :: Maybe FEIR.OriginId
   , dynamicSourceText :: Maybe Surface.SourceText
+  } deriving (Eq, Show)
+
+data PreparedDefinition = PreparedDefinition
+  { preparedDefinitionId :: Int
+  , preparedDefinitionSurface :: Surface.Def
+  , preparedDefinitionBody :: String
+  , preparedDefinitionIsRawEgison :: Bool
+  , preparedDefinitionResultVariances :: Maybe [Surface.Variance]
   } deriving (Eq, Show)
 
 data BuildState = BuildState
@@ -384,7 +392,7 @@ prepareGeometryDeclarations
   :: Surface.Model -> IO (Either EmitError [String])
 prepareGeometryDeclarations model =
   case (Surface.mMetric model, Surface.mEmbed model) of
-    (Nothing, Nothing) -> pure (Right [])
+    (Nothing, Nothing) -> pure (Right euclideanGeometryLines)
     (Just scaleFactors, Nothing) -> do
       prepared <- mapM prepare scaleFactors
       pure $ geometryLines GeometryFromScale <$> sequence prepared
@@ -425,6 +433,18 @@ prepareGeometryDeclarations model =
          , ""
          ]
 
+    euclideanGeometryLines =
+      [ "def feGeometryScale axis := 1"
+      , "def feGeometryMetric := "
+          ++ attachTensorVariances [Surface.VDown, Surface.VDown]
+               "FE.diagonalMetricTensor feDimension (\\axis -> 1)"
+      , "def feGeometryInverseMetric := "
+          ++ attachTensorVariances [Surface.VUp, Surface.VUp]
+               "FE.inverseDiagonalMetricTensor feDimension (\\axis -> 1)"
+      , "def feGeometryVolume := 1"
+      , ""
+      ]
+
     sourceDefinitions GeometryFromScale values =
       [ "def feGeometryScaleRaw axis := nth axis " ++ renderList values
       , "def feGeometryMetricRaw := "
@@ -454,22 +474,152 @@ renameGeometryCoordinates model =
 
 prepareDefinitions
   :: Surface.Model
-  -> IO (Either EmitError [(Int, Surface.Def, String)])
+  -> IO (Either EmitError [PreparedDefinition])
 prepareDefinitions model = go [] [] (zip [1 ..] (Surface.mDefs model))
   where
     go _ prepared [] = pure (Right (reverse prepared))
     go prior prepared ((index, definition) : rest) = do
-      result <- prepareExpression model prior
-        (Surface.defName definition : map fst prior)
-        (map definitionParameterBase (Surface.defParams definition))
-        (Surface.defBody definition)
+      let source = Surface.defBody definition
+          parsedSource = parseTensorExprEither source
+          rawEgison = case parsedSource of
+            Left _ -> True
+            Right _ -> False
+          resultVariances = case parsedSource of
+            Left _ -> Nothing
+            Right expression -> inferExplicitResultVariances expression
+      result <- if rawEgison
+        then pure (Right (renameRawCoordinates model source))
+        else prepareExpression model prior
+          (Surface.defName definition : map fst prior)
+          (map definitionParameterBase (Surface.defParams definition))
+          source
       case result of
         Left err -> pure (Left (maybe err (`EmitAtSource` err)
           (Surface.defSourceText definition)))
         Right body ->
           go ((Surface.defName definition,
                 "FormuraeInternalDefinition" ++ show index) : prior)
-             ((index, definition, body) : prepared) rest
+             (PreparedDefinition index definition body rawEgison
+                resultVariances : prepared) rest
+
+-- An explicit free tensor index in a user definition denotes an ordinary
+-- tensor result.  Egison intentionally turns indices local to `withSymbols`
+-- into anonymous differential-form axes when they leave the scope.  That is
+-- correct for d/hodge results, but an expression such as
+--
+--   withSymbols [i,j,k] (epsilon_i~j~k . d_j X_k)
+--
+-- has one visibly free covariant index and must line up with an ordinary
+-- vector field.  Infer only structurally evident cases and leave function
+-- calls/raw Egison bodies alone; uncertain results keep Egison's native form
+-- metadata.
+inferExplicitResultVariances :: TensorExpr -> Maybe [Surface.Variance]
+inferExplicitResultVariances expression = do
+  indices <- inferFreeIndices expression
+  let names = [name | Surface.IxPart _ name <- indices]
+  case indices of
+    [] -> Nothing
+    _ | length names == length (nub names) ->
+          Just [variance | Surface.IxPart variance _ <- indices]
+      | otherwise -> Nothing
+
+inferFreeIndices :: TensorExpr -> Maybe [Surface.IxPart]
+inferFreeIndices expression =
+  case expression of
+    TENumber _ -> Just []
+    TEIdent _ parts -> Just (symbolicParts parts)
+    TEUnary _ body -> inferFreeIndices body
+    TECall _ _ -> Nothing
+    TEApply _ _ -> Nothing
+    TEIf _ yes no -> sameIndices yes no
+    TEAppendIndexed body parts ->
+      appendIndices <$> inferFreeIndices body <*> pure (symbolicParts parts)
+    TEWithSymbols _ body -> inferFreeIndices body
+    TEContractWith _ body ->
+      contractFreeIndices =<< inferFreeIndices body
+    TETensorMap _ body -> inferFreeIndices body
+    TESubrefs _ parts -> Just (symbolicParts parts)
+    TETranspose _ _ -> Nothing
+    TEDisjoint parts ->
+      concat <$> mapM inferFreeIndices parts
+    TEDerivative parts body ->
+      appendIndices <$> inferFreeIndices body <*> pure (symbolicParts parts)
+    TEDot parts -> do
+      indices <- concat <$> mapM inferFreeIndices parts
+      contractFreeIndices indices
+    TEBinary operator lhs rhs
+      | operator `elem` ["+", "-"] -> sameIndices lhs rhs
+      | operator == "*" -> scalarTensorProduct lhs rhs
+      | operator `elem` ["/", "^", "**"] -> do
+          lhsIndices <- inferFreeIndices lhs
+          rhsIndices <- inferFreeIndices rhs
+          if null rhsIndices then Just lhsIndices else Nothing
+      | otherwise -> Just []
+    TEGroup body -> inferFreeIndices body
+  where
+    sameIndices lhs rhs = do
+      lhsIndices <- inferFreeIndices lhs
+      rhsIndices <- inferFreeIndices rhs
+      if lhsIndices == rhsIndices then Just lhsIndices else Nothing
+
+    scalarTensorProduct lhs rhs = do
+      lhsIndices <- inferFreeIndices lhs
+      rhsIndices <- inferFreeIndices rhs
+      case (lhsIndices, rhsIndices) of
+        ([], _) -> Just rhsIndices
+        (_, []) -> Just lhsIndices
+        _ -> Nothing
+
+    appendIndices lhs rhs = lhs ++ rhs
+
+symbolicParts :: [Surface.IxPart] -> [Surface.IxPart]
+symbolicParts = filter isSymbolic
+  where
+    isSymbolic (Surface.IxPart _ name) =
+      not (null name) && all isAlphaNum name && not (all isDigit name)
+
+contractFreeIndices
+  :: [Surface.IxPart] -> Maybe [Surface.IxPart]
+contractFreeIndices [] = Just []
+contractFreeIndices (part : rest) =
+  case removeOpposite part rest of
+    Just rest' -> contractFreeIndices rest'
+    Nothing
+      | any (sameName part) rest -> Nothing
+      | otherwise -> (part :) <$> contractFreeIndices rest
+  where
+    sameName (Surface.IxPart _ lhs) (Surface.IxPart _ rhs) = lhs == rhs
+
+removeOpposite
+  :: Surface.IxPart -> [Surface.IxPart] -> Maybe [Surface.IxPart]
+removeOpposite _ [] = Nothing
+removeOpposite part (candidate : rest)
+  | opposite part candidate = Just rest
+  | otherwise = (candidate :) <$> removeOpposite part rest
+  where
+    opposite (Surface.IxPart lhsVariance lhsName)
+             (Surface.IxPart rhsVariance rhsName) =
+      lhsName == rhsName && lhsVariance /= rhsVariance
+
+renameRawCoordinates :: Surface.Model -> String -> String
+renameRawCoordinates model = outsideString
+  where
+    coordinateNames = zip (Surface.mAxes model) (internalCoordNames model)
+    outsideString [] = []
+    outsideString ('"' : rest) = '"' : insideString rest
+    outsideString (first : rest)
+      | isAlpha first =
+          let (suffix, remaining) = span isIdentifierCharacter rest
+              name = first : suffix
+              renamed = maybe name id (lookup name coordinateNames)
+          in renamed ++ outsideString remaining
+      | otherwise = first : outsideString rest
+    insideString [] = []
+    insideString ('\\' : escaped : rest) =
+      '\\' : escaped : insideString rest
+    insideString ('"' : rest) = '"' : outsideString rest
+    insideString (char : rest) = char : insideString rest
+    isIdentifierCharacter char = isAlphaNum char || char == '_'
 
 prepareDynamic
   :: Surface.Model -> DynamicValue -> IO (Either EmitError DynamicValue)
@@ -782,7 +932,7 @@ renderUnit
   :: Surface.Model
   -> PreRegistry
   -> [String]
-  -> [(Int, Surface.Def, String)]
+  -> [PreparedDefinition]
   -> [DynamicValue]
   -> FEIR.FEProgram
   -> String
@@ -827,11 +977,9 @@ renderUnit model registry geometryDeclarations definitions dynamics program = un
       [ "def feDimension : Integer := " ++ show (Surface.mDim model)
       , "def feCoordinates : Vector MathValue := [| "
           ++ intercalate ", " coordinateNames ++ " |]"
+      , "def dimension : Integer := feDimension"
+      , "def coordinates : Vector MathValue := feCoordinates"
       ]
-      ++ [ "def " ++ metricName
-             ++ " := FE.metricTensor feDimension (\\i j -> if i = j then 1 else 0)"
-         | Just metricName <- [Surface.mMetricName model]
-         ]
       ++ [""]
     ambientOperatorDeclarations =
       [ "def feGeometryScales : Vector MathValue := [| "
@@ -839,80 +987,96 @@ renderUnit model registry geometryDeclarations definitions dynamics program = un
       , "def feGeometryId : Integer := 1"
       , "def fePrimitiveManifestId : String := "
           ++ show (primitiveManifestText (FEIR.feProgramPrimitiveManifestId program))
+      , "def metric_i_j := feGeometryMetric_i_j"
+      , "def inverseMetric~i~j := feGeometryInverseMetric~i~j"
+      , "def volume := feGeometryVolume"
+      , "def epsilon : Tensor Integer := ε dimension"
       ]
+      ++ concat
+        [ [ "def " ++ metricName ++ "_i_j := metric_i_j"
+          , "def " ++ metricName ++ "~i~j := inverseMetric~i~j"
+          ]
+        | metricName <- maybe [] (: []) (Surface.mMetricName model)
+        ]
       ++ operatorDeclarations
       ++ [ ""
          ]
-    operatorDeclarations = epsilonDeclarations ++ concat
+    operatorDeclarations = concat
       [ whenUsed "FormuraeInternalDiff"
-          ["def FormuraeInternalDiff value := Formurae.diff feCoordinates value"]
+          ["def FormuraeInternalDiff value := Formurae.diff coordinates value"]
       , whenUsed "FormuraeInternalGrad"
-          ["def FormuraeInternalGrad u := Formurae.grad feCoordinates u"]
+          ["def FormuraeInternalGrad u := Formurae.grad coordinates u"]
       , whenUsed "FormuraeInternalDGrad"
-          ["def FormuraeInternalDGrad X := Formurae.dGrad feCoordinates X"]
+          ["def FormuraeInternalDGrad X := Formurae.dGrad coordinates X"]
       , whenUsed "FormuraeInternalDivg"
-          ["def FormuraeInternalDivg X := Formurae.divg feCoordinates X"]
+          ["def FormuraeInternalDivg X := Formurae.divg coordinates X"]
       , whenUsed "FormuraeInternalCurl"
           [ "def FormuraeInternalCurl (X : Vector MathValue) : Vector MathValue :="
           , "  match assert \"curl requires three dimensions\""
-          , "               (feDimension = 3 && tensorShape X = [3]) as bool with"
+          , "               (dimension = 3 && tensorShape X = [3]) as bool with"
           , "    | #True -> (withSymbols [i, j, k]"
-          , "        (epsilon_i~j~k . strict∂/∂ X_k feCoordinates~j))_formuraeTensorIndex1"
+          , "        (epsilon_i~j~k . strict∂/∂ X_k coordinates~j))_formuraeTensorIndex1"
           ]
       , whenUsed "FormuraeInternalHessian"
-          ["def FormuraeInternalHessian u := Formurae.hessian feCoordinates u"]
+          ["def FormuraeInternalHessian u := Formurae.hessian coordinates u"]
       , whenUsed "FormuraeInternalLap"
-          ["def FormuraeInternalLap u := Formurae.lap feCoordinates u"]
+          ["def FormuraeInternalLap u := Formurae.lap coordinates u"]
       , whenUsed "FormuraeInternalFlat"
-          ["def FormuraeInternalFlat X := Formurae.flat feDimension feGeometryScales X"]
+          ["def FormuraeInternalFlat X := Formurae.flat dimension feGeometryScales X"]
       , whenUsed "FormuraeInternalSharp"
-          ["def FormuraeInternalSharp A := Formurae.sharp feDimension feGeometryScales A"]
+          ["def FormuraeInternalSharp A := Formurae.sharp dimension feGeometryScales A"]
       , whenUsed "FormuraeInternalD"
-          ["def FormuraeInternalD A := Formurae.d feCoordinates A"]
+          ["def FormuraeInternalD A := Formurae.d coordinates A"]
       , whenUsed "FormuraeInternalHodge"
-          ["def FormuraeInternalHodge A := Formurae.hodge feDimension feGeometryScales A"]
+          ["def FormuraeInternalHodge A := Formurae.hodge dimension feGeometryScales A"]
       , whenUsed "FormuraeInternalCodiff" codiffDeclarations
       , whenUsed "FormuraeInternalFormLaplacian" formLaplacianDeclarations
       , whenUsed "FormuraeInternalLb"
           ["def FormuraeInternalLb value := Formurae.lbOrthogonal feGeometryId fePrimitiveManifestId value"]
       , whenUsed "FormuraeInternalCoordinateWideDerivative"
-          ["def FormuraeInternalCoordinateWideDerivative axis order radius value := Formurae.coordinateWideDerivative feDimension fePrimitiveManifestId axis order radius value"]
+          ["def FormuraeInternalCoordinateWideDerivative axis order radius value := Formurae.coordinateWideDerivative dimension fePrimitiveManifestId axis order radius value"]
       , whenUsed "FormuraeInternalGridWholeDerivative"
-          ["def FormuraeInternalGridWholeDerivative axis value := Formurae.gridWholeDerivative feDimension fePrimitiveManifestId axis value"]
+          ["def FormuraeInternalGridWholeDerivative axis value := Formurae.gridWholeDerivative dimension fePrimitiveManifestId axis value"]
       , whenUsed "FormuraeInternalOrderedDerivative"
-          ["def FormuraeInternalOrderedDerivative axes value := Formurae.orderedDerivative feDimension fePrimitiveManifestId axes value"]
+          ["def FormuraeInternalOrderedDerivative axes value := Formurae.orderedDerivative dimension fePrimitiveManifestId axes value"]
       , whenUsed "FormuraeInternalResampleExplicit"
-          ["def FormuraeInternalResampleExplicit bits value := Formurae.resampleExplicit feDimension fePrimitiveManifestId bits value"]
+          ["def FormuraeInternalResampleExplicit bits value := Formurae.resampleExplicit dimension fePrimitiveManifestId bits value"]
       , whenUsed "FormuraeInternalFluxConservativeDivergence"
-          ["def FormuraeInternalFluxConservativeDivergence flux := Formurae.fluxConservativeDivergence feDimension fePrimitiveManifestId flux"]
+          ["def FormuraeInternalFluxConservativeDivergence flux := Formurae.fluxConservativeDivergence dimension fePrimitiveManifestId flux"]
       , whenUsed "FormuraeInternalMaterialized"
           ["def FormuraeInternalMaterialized value := Formurae.materialized fePrimitiveManifestId value"]
       ]
-    epsilonDeclarations
-      | "epsilon" `elem` preparedIdentifiers
-        || "FormuraeInternalCurl" `elem` preparedIdentifiers =
-          ["def epsilon : Tensor Integer := ε feDimension"]
-      | otherwise = []
     whenUsed name declarations
-      | name `elem` preparedIdentifiers = declarations
+      | name `elem` requiredOperatorIdentifiers = declarations
       | name == "FormuraeInternalD", Surface.mDd model /= Nothing = declarations
       | otherwise = []
     preparedIdentifiers = nub
       [ fst (parseIndexedIdent name)
-      | source <- [body | (_, _, body) <- definitions]
+      | source <- map preparedDefinitionBody definitions
                   ++ map dynamicSource dynamics
       , Surface.TId name _ <- Surface.tokenize source
       ]
+    requiredOperatorIdentifiers = nub
+      (preparedIdentifiers
+       ++ [ internalName
+          | definition <- definitions
+          , preparedDefinitionIsRawEgison definition
+          , surfaceName <- identifiersIn (preparedDefinitionBody definition)
+          , Just internalName <- [lookup surfaceName continuumOperators]
+          ])
+    identifiersIn source =
+      [fst (parseIndexedIdent name)
+      | Surface.TId name _ <- Surface.tokenize source]
     codiffDeclarations
       | hasVariableGeometry =
-          ["def FormuraeInternalCodiff A := Formurae.metricCodiff feDimension feGeometryId fePrimitiveManifestId A"]
+          ["def FormuraeInternalCodiff A := Formurae.metricCodiff dimension feGeometryId fePrimitiveManifestId A"]
       | otherwise =
-          ["def FormuraeInternalCodiff A := Formurae.codiff feCoordinates feDimension feGeometryScales A"]
+          ["def FormuraeInternalCodiff A := Formurae.codiff coordinates dimension feGeometryScales A"]
     formLaplacianDeclarations
       | hasVariableGeometry =
-          ["def FormuraeInternalFormLaplacian u := Formurae.metricFormLaplacian feCoordinates feDimension feGeometryId fePrimitiveManifestId u"]
+          ["def FormuraeInternalFormLaplacian u := Formurae.metricFormLaplacian coordinates dimension feGeometryId fePrimitiveManifestId u"]
       | otherwise =
-          ["def FormuraeInternalFormLaplacian u := Formurae.formLaplacian feCoordinates feDimension feGeometryScales u"]
+          ["def FormuraeInternalFormLaplacian u := Formurae.formLaplacian coordinates dimension feGeometryScales u"]
     hasVariableGeometry = case (Surface.mMetric model, Surface.mEmbed model) of
       (Nothing, Nothing) -> False
       _ -> True
@@ -1156,20 +1320,83 @@ fieldComponentExpression field slot timeSlot basis =
     rawComponent = "FE.tensorComponentAt " ++ fieldRawName field slot
       ++ " " ++ show basis
 
-definitionDeclarations :: Int -> [(Int, Surface.Def, String)] -> [String]
-definitionDeclarations dimension definitions = concatMap renderDefinition definitions
+definitionDeclarations :: Int -> [PreparedDefinition] -> [String]
+definitionDeclarations dimension = renderAll []
   where
-    renderDefinition (index, definition, body) =
+    renderAll _ [] = []
+    renderAll prior (prepared : rest) =
+      renderDefinition prior prepared
+      ++ renderAll ((definitionName, internalName) : prior) rest
+      where
+        definitionName = Surface.defName (preparedDefinitionSurface prepared)
+        internalName = internalDefinitionName (preparedDefinitionId prepared)
+
+    renderDefinition prior prepared =
       [ "def FormuraeInternalDefinition" ++ show index
           ++ concatMap (\parameter -> " " ++ definitionParameterBase parameter)
                (Surface.defParams definition)
-          ++ " := " ++ withIndexSymbols (checkedBody definition body)
+          ++ " := " ++ explicitizeResult prepared
+               (wrapBody
+                 (checkedBody rawEgison definition (scopedBody prior prepared)))
       , "def " ++ publicDefinitionName (Surface.defName definition)
           ++ " := FormuraeInternalDefinition" ++ show index
       , ""
       ]
+      where
+        index = preparedDefinitionId prepared
+        definition = preparedDefinitionSurface prepared
+        rawEgison = preparedDefinitionIsRawEgison prepared
+        wrapBody
+          | rawEgison = withIndexSymbolsMultiline
+          | otherwise = withIndexSymbols
 
-    checkedBody definition body = foldr check body
+    explicitizeResult prepared body =
+      case preparedDefinitionResultVariances prepared of
+        Just variances@(_ : _) ->
+          "Formurae.attachExplicitVariances "
+          ++ show (map surfaceVarianceName variances)
+          ++ " (" ++ body ++ ")"
+        _ -> body
+
+    surfaceVarianceName Surface.VUp = "up"
+    surfaceVarianceName Surface.VDown = "down"
+
+    scopedBody prior prepared
+      | not (preparedDefinitionIsRawEgison prepared) = body
+      | null aliases = body
+      | otherwise = renderAliasBindings aliases body
+      where
+        definition = preparedDefinitionSurface prepared
+        body = preparedDefinitionBody prepared
+        formalNames = map definitionParameterBase (Surface.defParams definition)
+        currentName = Surface.defName definition
+        usedNames = nub
+          [fst (parseIndexedIdent name)
+          | Surface.TId name _ <- Surface.tokenize body]
+        aliases =
+          [ (name, target)
+          | name <- usedNames
+          , name /= currentName
+          , name `notElem` formalNames
+          , name /= "."
+          , Just target <- [lookup name prior `orElse` lookup name continuumOperators]
+          ]
+
+    renderAliasBindings [] body = body
+    renderAliasBindings (firstAlias : restAliases) body =
+      "let " ++ renderAlias firstAlias
+      ++ concat ["\n    " ++ renderAlias alias | alias <- restAliases]
+      ++ "\n in (\n" ++ indentLines 2 body ++ "\n)"
+
+    renderAlias (name, target) = name ++ " := " ++ target
+
+    orElse (Just value) _ = Just value
+    orElse Nothing fallback = fallback
+
+    internalDefinitionName index =
+      "FormuraeInternalDefinition" ++ show index
+
+    checkedBody rawEgison definition body = foldr check body
       [ (parameter, parts)
       | parameter <- Surface.defParams definition
       , not (isPatternEllipsis parameter)
@@ -1178,15 +1405,27 @@ definitionDeclarations dimension definitions = concatMap renderDefinition defini
       ]
       where
         check (parameter, parts) inner =
-          "match assert " ++ show
-            ("indexed parameter " ++ parameter ++ " metadata mismatch in "
-              ++ Surface.defName definition)
-          ++ " (tensorShape " ++ definitionParameterBase parameter
-          ++ " = " ++ show (replicate (length parts) dimension)
-          ++ " && Formurae.logicalTensorVariances "
-          ++ definitionParameterBase parameter ++ " = "
-          ++ show (map (varianceName . mapParameterVariance) parts)
-          ++ ") as bool with | #True -> " ++ inner
+          let prefix =
+                "match assert " ++ show
+                  ("indexed parameter " ++ parameter
+                    ++ " metadata mismatch in " ++ Surface.defName definition)
+                ++ " (tensorShape " ++ definitionParameterBase parameter
+                ++ " = " ++ show (replicate (length parts) dimension)
+                ++ " && Formurae.logicalTensorVariances "
+                ++ definitionParameterBase parameter ++ " = "
+                ++ show (map (varianceName . mapParameterVariance) parts)
+                ++ ") as bool with"
+          in if rawEgison
+               then prefix ++ "\n  | #True -> (\n"
+                    ++ indentLines 4 inner ++ "\n  )"
+               else prefix ++ " | #True -> " ++ inner
+
+    withIndexSymbolsMultiline source =
+      "withSymbols [" ++ intercalate ", " indexNames ++ "] (\n"
+      ++ indentLines 2 source ++ "\n)"
+
+    indentLines count source = intercalate "\n"
+      [replicate count ' ' ++ line | line <- lines source]
 
     isPatternEllipsis parameter =
       length parameter >= 3 && drop (length parameter - 3) parameter == "..."

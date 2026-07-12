@@ -1,0 +1,10 @@
+mode collocated
+dimension 1
+axes x
+
+def identity inverseMetric = inverseMetric
+
+field u : scalar
+
+step:
+  u' = identity u

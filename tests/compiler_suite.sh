@@ -23,7 +23,9 @@ for test in \
   pre_registry \
   pre_effect \
   pre_provenance \
+  pre_raw_egison_fallback \
   pre_emit_egison \
+  pre_ambient_metric \
   pre_emit_remaining_primitives \
   pre_geometry_emit \
   post_stencil \

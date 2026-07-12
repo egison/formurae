@@ -9,7 +9,6 @@ module Formurae.Pre.Parse
 
 import Data.Char (isAlpha, isAlphaNum, isDigit, isSpace)
 import Data.List (dropWhileEnd, intercalate, nub, sort, stripPrefix, isSuffixOf)
-import System.IO (hPutStrLn, stderr)
 
 import Formurae.Common
 import Formurae.Index
@@ -49,8 +48,12 @@ egisonReservedWords =
   , "function", "infixl", "infixr", "infix", "simplify", "using"
   ]
 
+ambientNames :: [String]
+ambientNames =
+  [ "dimension", "coordinates", "volume", "metric", "inverseMetric", "epsilon" ]
+
 generatedNormalizationNames :: [String]
-generatedNormalizationNames =
+generatedNormalizationNames = ambientNames ++
   [ "feDimension", "feCoordinates", "feGeometryId", "fePrimitiveManifestId"
   , "feParameters", "feCoordinatesRegistry", "feFields"
   , "feIntrinsics", "feAnalytics", "feProgram"
@@ -79,6 +82,16 @@ metricNameConflicts :: Model -> [(String, String)]
 metricNameConflicts m =
   [("param", nm) | (nm, _) <- mParams m]
   ++ [("field", fdName field) | field <- mFieldDecls m]
+  ++ [("definition", defName definition) | definition <- mDefs m]
+  ++ [("definition parameter", defParamBase parameter)
+     | definition <- mDefs m, parameter <- defParams definition]
+  ++ [(stepKind step, sNm step)
+     | step <- mSteps m, sk step `elem` [KLet, KLocal]]
+  where
+    stepKind step = case sk step of
+      KLet -> "let"
+      KLocal -> "local"
+      _ -> "step"
 
 validateValueBindingNames :: Model -> IO ()
 validateValueBindingNames m =
@@ -215,12 +228,9 @@ validateMetricName m =
       let conflicts = nub [kind | (kind, x) <- metricNameConflicts m, x == nm]
       case conflicts of
         [] -> return ()
-        _ ->
-          hPutStrLn stderr
-            ("pre-fec: warning: metric name '" ++ nm ++ "' also appears as "
-             ++ intercalate "/" conflicts
-             ++ "; bare " ++ nm ++ " keeps that meaning, two-index "
-             ++ nm ++ "_i_j/" ++ nm ++ "~i~j is treated as the metric")
+        _ -> fatal
+          ("metric name '" ++ nm ++ "' conflicts with "
+           ++ intercalate "/" conflicts ++ " binding")
 
 -- The indices on an Egison-style binding LHS are implicit withSymbols
 -- binders for its RHS.  Reject names that would shadow an existing value;
@@ -546,6 +556,10 @@ parseModel sourceFile name txt = go STop initialModel
       | any (`elem` generatedIndexNames) (mAxes m) =
           fatal ("axes coordinate names conflict with generated index symbols (line "
                  ++ show (maybe 0 id (mAxesSourceLine m)) ++ ")")
+      | Just ambient <- firstAmbientName (mAxes m) =
+          fatal ("coordinate name '" ++ ambient
+                 ++ "' is reserved for the ambient Egison environment (axes line "
+                 ++ show (maybe 0 id (mAxesSourceLine m)) ++ ")")
       | length (mAxes m) /= mDim m =
           fatal ("axes declares " ++ show (length (mAxes m))
                  ++ " names for dimension " ++ show (mDim m))
@@ -590,6 +604,25 @@ parseModel sourceFile name txt = go STop initialModel
           _ -> do
             let sec' = if take 1 code /= " " then STop else sec
             case sec' of
+              STop
+                | Just definitionHead <- stripPrefix "def " s
+                , definitionNeedsContinuation definitionHead ->
+                    let (bodyLines, rest') = takeDefinitionBody rest
+                    in case bodyLines of
+                         [] -> fatal ("bad def (line " ++ show ln
+                                      ++ "): a body must follow '='")
+                         _ ->
+                           let translatedBody = intercalate "\n" (deindentBlock
+                                 [rstrip (stripComment translatedLine)
+                                 | (_, translatedLine, _) <- bodyLines])
+                               originalBodyLines =
+                                 [(lineNumber, rstrip (stripComment originalLine'))
+                                 | (lineNumber, _, originalLine') <- bodyLines]
+                               combinedHead = definitionHead ++ " " ++ translatedBody
+                           in addDefinition ln
+                                (sourceTextForContinuationLines originalBodyLines)
+                                combinedHead m
+                              >>= \m' -> go STop m' rest'
               STop -> top ln originalCode s m >>= \m' -> go STop m' rest
               -- an init line may continue over following lines until its
               -- brackets balance (tensor initializers span rows)
@@ -602,6 +635,30 @@ parseModel sourceFile name txt = go STop initialModel
               SStep -> stp ln originalCode code m >>= \m' -> go SStep m' rest
 
     bal t = sum [1 :: Int | c <- t, c `elem` "(["] - sum [1 | c <- t, c `elem` ")]"]
+
+    definitionNeedsContinuation source =
+      case break (== '=') source of
+        (_, '=' : body) -> null (strip body)
+        _ -> False
+
+    takeDefinitionBody = collect []
+      where
+        collect accumulated [] = (reverse accumulated, [])
+        collect accumulated remaining@((lineNumber, translated, original):rest)
+          | null translatedCode = collect accumulated rest
+          | firstCharacter : _ <- translated
+          , isSpace firstCharacter =
+              collect ((lineNumber, translated, original) : accumulated) rest
+          | otherwise = (reverse accumulated, remaining)
+          where
+            translatedCode = strip (rstrip (stripComment translated))
+
+    deindentBlock lines' = map (drop commonIndent) lines'
+      where
+        commonIndent = case
+          [length (takeWhile isSpace line) | line <- lines', not (null (strip line))] of
+            [] -> 0
+            indents -> minimum indents
 
     checkUserSurface m' locals context body =
       case surfaceBanned m' locals body of
@@ -635,28 +692,7 @@ parseModel sourceFile name txt = go STop initialModel
       | Just r <- stripPrefix "discretization " s =
           parseDiscretizationDecl ln r >>= addDiscretizationDecl
       | Just r <- stripPrefix "def " s =
-          case defForm r of
-            Just df -> do
-              rejectReservedName ln (defName df)
-              case mMetricName m of
-                Just metricName | metricName == defName df ->
-                  fatal ("definition name '" ++ defName df
-                         ++ "' conflicts with generated metric value '"
-                         ++ metricName ++ "' (line " ++ show ln ++ ")")
-                _ -> return ()
-              mapM_ (rejectReservedName ln) (defParams df)
-              case [parameterName | parameter <- defParams df
-                         , let parameterName = defParamBase parameter
-                         , parameterName `elem` generatedIndexNames] of
-                [] -> return ()
-                parameterName : _ ->
-                  fatal ("definition parameter '" ++ parameterName
-                         ++ "' is reserved for generated index symbols (line "
-                         ++ show ln ++ ")")
-              source <- sourceTextForRhs ln originalLine (defBody df)
-              return m { mDefs = df { defSourceText = Just source } : mDefs m }
-            Nothing -> fatal ("bad def (line " ++ show ln
-                              ++ "): def NAME ARG... = EXPR")
+          addDefinition ln (sourceTextForRhs ln originalLine) r m
       | Just r <- stripPrefix "param " s =
           case break (== '=') r of
             (nm, '=':v) | not (null (strip nm)) && not (null (strip v)) -> do
@@ -708,11 +744,20 @@ parseModel sourceFile name txt = go STop initialModel
             _ -> fatal ("bad metric scale (line " ++ show ln ++ ")")
       | Just r <- stripPrefix "metric " s =
           let nm = strip r
-          in if not (validSurfaceName nm)
+          in if mMetricName m /= Nothing
+               then fatal ("metric name may be declared only once (line "
+                           ++ show ln ++ ")")
+               else if not (validSurfaceName nm)
                then fatal ("bad metric name: " ++ nm ++ " (line " ++ show ln ++ ")")
                else if nm `elem` mAxes m
                  then fatal ("metric name '" ++ nm
                              ++ "' conflicts with a coordinate axis (line "
+                             ++ show ln ++ ")")
+               else if nm == "delta"
+                 then fatal "metric δ is reserved for Kronecker delta; use metric g for the metric tensor"
+               else if nm `elem` generatedMetricNameConflicts
+                 then fatal ("metric name '" ++ nm
+                             ++ "' is reserved for the generated Egison environment (line "
                              ++ show ln ++ ")")
                else do
                  rejectReservedName ln nm
@@ -749,6 +794,40 @@ parseModel sourceFile name txt = go STop initialModel
                                 ++ show n ++ ")")
                     else return m { mDim = n }
               | otherwise = fatal ("bad dimension (line " ++ show ln ++ ")")
+
+    addDefinition ln sourceBuilder source m =
+      case defForm source of
+        Just df -> do
+          rejectReservedName ln (defName df)
+          case mMetricName m of
+            Just metricName | metricName == defName df ->
+              fatal ("definition name '" ++ defName df
+                     ++ "' conflicts with generated metric value '"
+                     ++ metricName ++ "' (line " ++ show ln ++ ")")
+            _ -> return ()
+          mapM_ (rejectReservedName ln) (defParams df)
+          case [parameterName | parameter <- defParams df
+                     , let parameterName = defParamBase parameter
+                     , parameterName `elem` ambientNames] of
+            [] -> return ()
+            parameterName : _ ->
+              fatal ("definition parameter '" ++ parameterName
+                     ++ "' is reserved for the ambient Egison environment (line "
+                     ++ show ln ++ ")")
+          case [parameterName | parameter <- defParams df
+                     , let parameterName = defParamBase parameter
+                     , parameterName `elem` generatedIndexNames] of
+            [] -> return ()
+            parameterName : _ ->
+              fatal ("definition parameter '" ++ parameterName
+                     ++ "' is reserved for generated index symbols (line "
+                     ++ show ln ++ ")")
+          definitionSource <- sourceBuilder (defBody df)
+          return m
+            { mDefs = df { defSourceText = Just definitionSource } : mDefs m }
+        Nothing -> fatal ("bad def (line " ++ show ln
+                          ++ "): def NAME ARG... = EXPR")
+
     ini [] _ _ = fatal "internal error: initializer has no source lines"
     ini sourceLines@((ln, _):_) s m
       | Just (nm, ix, ex) <- casForm s = do
@@ -1021,12 +1100,19 @@ parseModel sourceFile name txt = go STop initialModel
     sourceTextForRhs ln originalLine translatedExpression = do
       sourceTextForRhsLines [(ln, originalLine)] translatedExpression
 
-    sourceTextForRhsLines sourceLines translatedExpression = do
-      let pieces = sourcePieces sourceLines
-          originalExpression = intercalate "\n" [text | (_, _, text) <- pieces]
+    sourceTextForRhsLines sourceLines =
+      sourceTextForPieces "\n" " " (sourcePieces sourceLines)
+
+    sourceTextForContinuationLines sourceLines =
+      sourceTextForPieces "\n" "\n" (continuationPieces sourceLines)
+
+    sourceTextForPieces originalSeparator translatedSeparator pieces translatedExpression = do
+      let originalExpression = intercalate originalSeparator
+            [text | (_, _, text) <- pieces]
           translatedPieces = map translatePiece pieces
-          translated = intercalate " " [text | (text, _) <- translatedPieces]
-          positions = intercalatePositions pieces translatedPieces
+          translated = intercalate translatedSeparator
+            [text | (text, _) <- translatedPieces]
+          positions = intercalatePositions translatedSeparator pieces translatedPieces
           (firstLine, firstColumn) =
             case pieces of
               (lineNumber, column, _) : _ -> (lineNumber, column)
@@ -1043,31 +1129,46 @@ parseModel sourceFile name txt = go STop initialModel
         else fatal ("internal source-map transliteration mismatch on line "
                     ++ show firstLine ++ ": " ++ translated ++ " /= "
                     ++ translatedExpression)
+
+    sourcePieces [] = []
+    sourcePieces ((lineNumber, originalLine) : rest) =
+      (lineNumber, rhsStartColumn originalLine,
+       assignmentRhs originalLine)
+      : map continuationPiece rest
+
+    continuationPiece (lineNumber, originalLine) =
+      let text = strip originalLine
+          column = length (takeWhile isSpace originalLine) + 1
+      in (lineNumber, column, text)
+
+    continuationPieces sourceLines =
+      [ (lineNumber, commonIndent + 1, drop commonIndent originalLine)
+      | (lineNumber, originalLine) <- sourceLines
+      ]
       where
-        sourcePieces [] = []
-        sourcePieces ((lineNumber, originalLine) : rest) =
-          (lineNumber, rhsStartColumn originalLine,
-           assignmentRhs originalLine)
-          : map continuationPiece rest
-        continuationPiece (lineNumber, originalLine) =
-          let text = strip originalLine
-              column = length (takeWhile isSpace originalLine) + 1
-          in (lineNumber, column, text)
-        translatePiece (lineNumber, column, original) =
-          let (translated, offsets) = transliterateWithMap original
-          in (translated,
-              [SourcePosition lineNumber (column + offset - 1)
-              | offset <- offsets])
-        intercalatePositions _ [] = []
-        intercalatePositions _ [(_, positions)] = positions
-        intercalatePositions (_ : nextPiece : restPieces)
-                             ((_, positions) : restTranslated) =
-          positions ++ [separatorPosition nextPiece]
-          ++ intercalatePositions (nextPiece : restPieces) restTranslated
-        intercalatePositions _ translatedPieces =
-          concatMap snd translatedPieces
-        separatorPosition (lineNumber, column, _) =
-          SourcePosition lineNumber (max 1 (column - 1))
+        commonIndent = case
+          [length (takeWhile isSpace line)
+          | (_, line) <- sourceLines, not (null (strip line))] of
+            [] -> 0
+            indents -> minimum indents
+
+    translatePiece (lineNumber, column, original) =
+      let (translated, offsets) = transliterateWithMap original
+      in (translated,
+          [SourcePosition lineNumber (column + offset - 1)
+          | offset <- offsets])
+
+    intercalatePositions _ _ [] = []
+    intercalatePositions _ _ [(_, positions)] = positions
+    intercalatePositions separator (_ : nextPiece : restPieces)
+                         ((_, positions) : restTranslated) =
+      positions ++ replicate (length separator) (separatorPosition nextPiece)
+      ++ intercalatePositions separator (nextPiece : restPieces) restTranslated
+    intercalatePositions _ _ translatedPieces =
+      concatMap snd translatedPieces
+
+    separatorPosition (lineNumber, column, _) =
+      SourcePosition lineNumber (max 1 (column - 1))
 
     assignmentRhs line =
       case break (== '=') line of
@@ -1100,13 +1201,29 @@ surfaceBanned m _ s =
           | not (length parts == 2 && all isAlphaNumIx parts) ->
               Just ("Kronecker delta takes two marked indices, e.g. delta~i_j or delta_i~1: " ++ nm)
         ("epsilon", parts@(_:_))
-          | not (length parts == 3 && all isSingleAlphaIx parts) ->
-              Just ("epsilon takes three single marked indices, e.g. epsilon~i~j~k: " ++ nm)
+          | not (length parts == mDim m && all isSingleAlphaIx parts) ->
+              Just ("epsilon takes " ++ show (mDim m)
+                    ++ " single marked indices in this model: " ++ nm)
         _ -> Nothing
     checkIndexTok _ = Nothing
     isAlphaNumIx (IxPart _ ix) = not (null ix) && all isAlphaNum ix
     orElse (Just x) _ = Just x
     orElse Nothing y = y
+
+firstAmbientName :: [String] -> Maybe String
+firstAmbientName [] = Nothing
+firstAmbientName (name : rest)
+  | name `elem` ambientNames = Just name
+  | otherwise = firstAmbientName rest
+
+generatedMetricNameConflicts :: [String]
+generatedMetricNameConflicts = nub
+  (generatedNormalizationNames
+   ++ generatedIndexNames
+   ++ standardNames
+   ++ scalarIntrinsics
+   ++ egisonReservedWords
+   ++ normalizationDependencies)
 
 invalidDerivativeOp :: Model -> String -> Maybe String
 invalidDerivativeOp _ nm =

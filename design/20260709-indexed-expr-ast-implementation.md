@@ -227,6 +227,11 @@ metric は表層では
 metric g
 ```
 
+> **v2.1で置換済み:** 現行仕様は`g_i_j` / `g~i~j`と、そのindex-completed whole tensor
+> `g_#_#` / `g~#~#`だけを提供する。mixed metricを暗黙生成せず、metric宣言名とFormurae
+> model bindingの衝突はwarningでなくhard errorにする。詳細は
+> [20260711-pre-post-fec-pipeline.md](20260711-pre-post-fec-pipeline.md) §3.5を参照する。
+
 と宣言するが、式中では添字付き tensor としてだけ metric 参照になる。
 
 ```formurae

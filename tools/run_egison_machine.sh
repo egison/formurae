@@ -24,7 +24,7 @@ strip_origin_markers() {
 }
 
 report_source_origin() {
-  if ! grep -E '^(Evaluation error|Error|Assertion failed):' \
+  if ! grep -E '^(Parse error|Parser error|Evaluation error|Error|Assertion failed):' \
       "$stdout_file" "$stderr_file" >/dev/null; then
     return
   fi
@@ -70,7 +70,7 @@ if [ "$status" -ne 0 ]; then
   exit "$status"
 fi
 
-if grep -E '^(Type error|Warning|Evaluation error|Parser error|Desugar error|Egison error|Error|Assertion failed):' \
+if grep -E '^(Type error|Warning|Parse error|Parser error|Evaluation error|Desugar error|Egison error|Error|Assertion failed):' \
     "$stdout_file" "$stderr_file" >/dev/null; then
   report_source_origin "$@"
   cat "$stderr_file" >&2

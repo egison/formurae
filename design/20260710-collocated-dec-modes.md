@@ -230,6 +230,11 @@ divg X = -codiff (deRham (flat X))
 
 ## 5. metric は常に存在する
 
+> **v2.1で置換済み:** metricが常に存在する方針は維持するが、公開ambient familyは
+> `metric_i_j` / `inverseMetric~i~j`である。`metric g`は`g_i_j` / `g~i~j`を追加し、
+> whole tensorを`g_#_#` / `g~#~#`で参照する。mixed metricは暗黙生成しない。詳細は
+> [20260711-pre-post-fec-pipeline.md](20260711-pre-post-fec-pipeline.md) §3.5を参照する。
+
 モードに関係なく、内部 metric は常に存在する。
 
 ```text

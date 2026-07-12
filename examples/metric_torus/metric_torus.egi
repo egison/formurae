@@ -22,6 +22,8 @@ declare symbol i, j, k, l, m, n
 
 def feDimension : Integer := 3
 def feCoordinates : Vector MathValue := [| x, y, z |]
+def dimension : Integer := feDimension
+def coordinates : Vector MathValue := feCoordinates
 
 def feGeometryEmbedding := [`(2 + cos x) * cos y, `(2 + cos x) * sin y, sin x, z]
 def feGeometryMetricRaw := (FE.metricTensor feDimension (FE.inducedMetric feCoordinates feGeometryEmbedding))_formuraeTensorIndex1_formuraeTensorIndex2
@@ -40,6 +42,10 @@ def feGeometryVolume := match feGeometryOrthogonalityVerified as bool with
 def feGeometryScales : Vector MathValue := [| FEIR.unquoteAll (feGeometryScale 1), FEIR.unquoteAll (feGeometryScale 2), FEIR.unquoteAll (feGeometryScale 3) |]
 def feGeometryId : Integer := 1
 def fePrimitiveManifestId : String := "sha256:f6294c222255af0cbc20d76a46e6eecb1858d3c4a370500f9c7c8b510a18010f"
+def metric_i_j := feGeometryMetric_i_j
+def inverseMetric~i~j := feGeometryInverseMetric~i~j
+def volume := feGeometryVolume
+def epsilon : Tensor Integer := ε dimension
 def FormuraeInternalLb value := Formurae.lbOrthogonal feGeometryId fePrimitiveManifestId value
 
 def u := function (x, y, z)

@@ -34,6 +34,35 @@ step:
   q' = gradLike u
 ```
 
+pure user operatorの本体は1行に限定されません。`=`の次をindentすると、Egisonの`let`、lambda、
+`match`、`withSymbols`、`generateTensor`を含む式blockをそのままnormalizationへ渡せます。
+
+```formurae
+def chooseByDimension X =
+  let apply := \f x -> f x
+      choose := match dimension = 3 as bool with
+        | #True -> \Y -> 2 * Y
+        | #False -> \Y -> Y
+   in apply choose X
+```
+
+`dimension`、`coordinates`、`volume`、`epsilon`、`metric`、`inverseMetric`はmodelのambient
+Egison環境にあり、ユーザがcontext引数を渡す必要はありません。`metric g`を宣言すると、同じ実計量を
+共変な`g_i_j` / `g_#_#`と反変な`g~i~j` / `g~#~#`の両方から参照できます。宣言名を使わない
+canonical viewは`metric_i_j` / `metric_#_#`と`inverseMetric~i~j` / `inverseMetric~#~#`です。
+
+```formurae
+metric scale [1, 1 + x]
+metric g
+
+def raise A = withSymbols [i, j] (g~i~j . A_j)
+def lower X = withSymbols [i, j] (g_i_j . X~j)
+```
+
+ambient名と`metric g`の宣言名はfield、parameter、user definition、definition parameter、
+step-level `let` / `local`では予約されます。Egison expression block内の局所`let`やlambdaだけは
+通常のlexical scopeに従います。
+
 ## 最小例
 
 ```formurae

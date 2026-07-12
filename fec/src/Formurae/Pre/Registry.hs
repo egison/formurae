@@ -89,7 +89,11 @@ data TraceDefinition = TraceDefinition
   , traceDefinitionName       :: String
   , traceDefinitionParameters :: [String]
   , traceDefinitionSource     :: Surface.SourceText
-  , traceDefinitionExpression :: TensorExpr
+  -- Definitions outside the small tensor-expression grammar are emitted as
+  -- pure Egison expressions.  We can still identify a call to such a
+  -- definition from a step/initializer, but deliberately stop the expansion
+  -- trace at that frame because pre-fec does not parse the raw Egison body.
+  , traceDefinitionExpression :: Maybe TensorExpr
   } deriving (Eq, Show)
 
 data LocatedDefinitionCall = LocatedDefinitionCall
@@ -283,8 +287,9 @@ buildTraceDefinitions model = mapM build
     build (index, definition) = do
       source <- maybe (Left (MissingDefinitionSourceText index)) Right
         (Surface.defSourceText definition)
-      expression <- parseTraceExpression
-        ("definition " ++ Surface.defName definition) source
+      let expression = either (const Nothing) Just
+            (parseTraceExpression
+              ("definition " ++ Surface.defName definition) source)
       Right TraceDefinition
         { traceDefinitionIndex = index
         , traceDefinitionName = Surface.defName definition
@@ -335,23 +340,31 @@ traceExpression definitions visibleThrough stack sourceIdentity source
       case resolveDefinition definitions visibleThrough (locatedCallName call) of
         Nothing -> Right []
         Just definition -> do
-          definitionLocation <- sourceLocationForSpan sourceIdentity
-            (traceDefinitionSource definition)
-            (tensorExprSpan (traceDefinitionExpression definition))
+          definitionLocation <- definitionSourceLocation definition
           callLocation <- sourceLocationForSpan sourceIdentity source
             (locatedCallSpan call)
           let frame = FEIR.ExpansionFrame
                 (traceDefinitionName definition)
                 definitionLocation callLocation
               identifier = traceDefinitionIndex definition
-          nested <- if identifier `elem` stack
-            then Right []
-            else traceExpression definitions (identifier - 1)
-              (identifier : stack) sourceIdentity
-              (traceDefinitionSource definition)
-              (traceDefinitionParameters definition)
-              (traceDefinitionExpression definition)
+          nested <- case traceDefinitionExpression definition of
+            Nothing -> Right []
+            Just nestedExpression
+              | identifier `elem` stack -> Right []
+              | otherwise -> traceExpression definitions (identifier - 1)
+                  (identifier : stack) sourceIdentity
+                  (traceDefinitionSource definition)
+                  (traceDefinitionParameters definition)
+                  nestedExpression
           Right (frame : nested)
+
+    definitionSourceLocation definition =
+      case traceDefinitionExpression definition of
+        Just definitionExpression -> sourceLocationForSpan sourceIdentity
+          (traceDefinitionSource definition)
+          (tensorExprSpan definitionExpression)
+        Nothing -> sourceLocationForWholeSource sourceIdentity
+          (traceDefinitionSource definition)
 
 resolveDefinition
   :: [TraceDefinition] -> Int -> String -> Maybe TraceDefinition
@@ -427,6 +440,31 @@ sourceLocationForSpan sourceIdentity source spanValue
   where
     SourceSpan start finish = spanValue
     positions = Surface.sourcePositionMap source
+
+sourceLocationForWholeSource
+  :: FEIR.SourceIdentity
+  -> Surface.SourceText
+  -> Either RegistryError FEIR.SourceLocation
+sourceLocationForWholeSource sourceIdentity source =
+  case Surface.sourcePositionMap source of
+    [] -> Right FEIR.SourceLocation
+      { FEIR.sourceLocationSource = FEIR.sourceIdentityId sourceIdentity
+      , FEIR.sourceLocationPath = FEIR.sourceIdentityPath sourceIdentity
+      , FEIR.sourceLocationLine = Surface.sourceLine source
+      , FEIR.sourceLocationEndLine = Surface.sourceLine source
+      , FEIR.sourceLocationStartColumn = Surface.sourceColumn source
+      , FEIR.sourceLocationEndColumn = Surface.sourceColumn source
+      }
+    positions@(firstPosition : _) ->
+      let lastPosition = last positions
+      in Right FEIR.SourceLocation
+          { FEIR.sourceLocationSource = FEIR.sourceIdentityId sourceIdentity
+          , FEIR.sourceLocationPath = FEIR.sourceIdentityPath sourceIdentity
+          , FEIR.sourceLocationLine = Surface.positionLine firstPosition
+          , FEIR.sourceLocationEndLine = Surface.positionLine lastPosition
+          , FEIR.sourceLocationStartColumn = Surface.positionColumn firstPosition
+          , FEIR.sourceLocationEndColumn = Surface.positionColumn lastPosition
+          }
 
 originFor :: OriginAssignments -> OriginKey -> Either RegistryError FEIR.OriginId
 originFor assignments key =

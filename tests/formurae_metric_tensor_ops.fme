@@ -7,10 +7,19 @@ metric scale [1, 2]
 
 field A_j
 field B~i
+field G_i_j
+field H~i~j
+
+def covariantMetric unused = g_#_#
+def contravariantMetric unused = g~#~#
 
 init:
   A_j = [| 1, 2 |]_j
   B~i = [| 0, 0 |]~i
+  G_i_j = [| [| 0, 0 |], [| 0, 0 |] |]_i_j
+  H~i~j = [| [| 0, 0 |], [| 0, 0 |] |]~i~j
 
 step:
   B'~i = withSymbols [j] (g~i~j . A_j)
+  G'_i_j = covariantMetric 0
+  H'~i~j = contravariantMetric 0

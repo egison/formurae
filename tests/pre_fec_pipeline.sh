@@ -82,6 +82,24 @@ grep -F '(axis-order (axis 1) (count 2))' "$WORK/derivative.feir" >/dev/null
 cabal run -v0 post-fec -- "$WORK/derivative.feir" > "$WORK/derivative.fmr"
 grep -F 'u[i-1] + u[i+1] + (-2) * u[i]' "$WORK/derivative.fmr" >/dev/null
 
+# A pure user operator may use Egison's full let/lambda/match expression
+# syntax across multiple indented lines.  pre-fec preserves the layout needed
+# by match clauses, while Egison remains responsible for normalization.
+cabal run -v0 pre-fec -- "$ROOT/tests/fixtures/pre_fec_raw_operator.fme" \
+  > "$WORK/raw-operator.egi"
+grep -F 'let lap := FormuraeInternalLap' "$WORK/raw-operator.egi" >/dev/null
+grep -F 'let apply := \f x -> f x' "$WORK/raw-operator.egi" >/dev/null
+grep -F '      metric := \value -> value' \
+  "$WORK/raw-operator.egi" >/dev/null
+grep -F '      choose := match 1 as integer with' \
+  "$WORK/raw-operator.egi" >/dev/null
+run_machine "$WORK/raw-operator.egi" "$WORK/raw-operator.feir"
+cabal run -v0 post-fec -- "$WORK/raw-operator.feir" \
+  > "$WORK/raw-operator.fmr"
+grep -F "u'[i] = 1 + u[i]" "$WORK/raw-operator.fmr" >/dev/null
+grep -F "q'[i] = (q[i-1] + q[i+1] + (-2) * q[i]) / dx**2" \
+  "$WORK/raw-operator.fmr" >/dev/null
+
 # Higher-order passage preserves the ambient operator closure and the tensor
 # metadata of standard operators.  `apply grad u` must therefore reach a
 # whole covector target, not an anonymous one-form axis.
@@ -205,7 +223,16 @@ run_machine "$WORK/metric-tensor-ops.egi" "$WORK/metric-tensor-ops.feir"
 cabal run -v0 post-fec -- "$WORK/metric-tensor-ops.feir" \
   > "$WORK/metric-tensor-ops.fmr"
 grep -F "B_up1'[i,j] = A_down1[i,j]" "$WORK/metric-tensor-ops.fmr" >/dev/null
-grep -F "B_up2'[i,j] = A_down2[i,j]" "$WORK/metric-tensor-ops.fmr" >/dev/null
+grep -F "B_up2'[i,j] = (1 / 4) * A_down2[i,j]" \
+  "$WORK/metric-tensor-ops.fmr" >/dev/null
+grep -F "G_down1_down1'[i,j] = 1" \
+  "$WORK/metric-tensor-ops.fmr" >/dev/null
+grep -F "G_down2_down2'[i,j] = 4" \
+  "$WORK/metric-tensor-ops.fmr" >/dev/null
+grep -F "H_up1_up1'[i,j] = 1" \
+  "$WORK/metric-tensor-ops.fmr" >/dev/null
+grep -F "H_up2_up2'[i,j] = (1 / 4)" \
+  "$WORK/metric-tensor-ops.fmr" >/dev/null
 
 cabal run -v0 pre-fec -- \
   "$ROOT/tests/formurae_musical_variable_metric.fme" \
@@ -266,12 +293,15 @@ run_machine "$WORK/grid-whole.egi" "$WORK/grid-whole.feir"
 cabal exec -- runghc -ifec/src tests/pre_grid_whole_feir.hs \
   < "$WORK/grid-whole.feir"
 
-# Standard tensor operators receive whole tensors directly.  pre-fec does
-# not infer a component-to-whole conversion from an operator name.
+# A short user-defined tensor operator receives whole tensors directly.
+# pre-fec preserves its indexed contraction instead of inferring a
+# component-to-whole conversion from the operator name.
 cabal run -v0 pre-fec -- "$ROOT/examples/maxwell3d/maxwell3d.fme" \
   > "$WORK/maxwell.egi"
-grep -F 'E + (dt * FormuraeInternalCurl B)' "$WORK/maxwell.egi" >/dev/null
-grep -F "B - (dt * FormuraeInternalCurl E')" "$WORK/maxwell.egi" >/dev/null
+grep -F 'epsilon_i~j~k . (FormuraeInternalDiff X_k)..._j' \
+  "$WORK/maxwell.egi" >/dev/null
+grep -F 'E + (dt * curl B)' "$WORK/maxwell.egi" >/dev/null
+grep -F "B - (dt * curl E')" "$WORK/maxwell.egi" >/dev/null
 run_machine "$WORK/maxwell.egi" "$WORK/maxwell.feir"
 grep -F '(shape (3))' "$WORK/maxwell.feir" >/dev/null
 cabal run -v0 post-fec -- "$WORK/maxwell.feir" > "$WORK/maxwell.fmr"

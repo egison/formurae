@@ -1,0 +1,10 @@
+mode collocated
+dimension 2
+axes x, y
+metric g
+
+field X~j
+field Y~i
+
+step:
+  Y'~i = withSymbols [j] (g~i_j . X~j)

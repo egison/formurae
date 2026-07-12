@@ -57,4 +57,21 @@ grep -F 'pre-fec: error: tests/fixtures/pre_fec_curl_dimension_error.fme:7:8: Eg
 grep -F 'Assertion failed: "curl requires three dimensions"' \
   "$WORK/curl-dimension.err" >/dev/null
 
+for metric_use in bare mixed; do
+  source="tests/fixtures/pre_fec_metric_${metric_use}_error.fme"
+  cabal run -v0 pre-fec -- "$source" > "$WORK/metric-$metric_use.egi"
+  if "$ROOT/tools/run_formurae_normalization.sh" "$EGISON_DIR" \
+       "$WORK/metric-$metric_use.egi" \
+       > "$WORK/metric-$metric_use.feir" \
+       2> "$WORK/metric-$metric_use.err"; then
+    printf 'Egison accepted unsupported %s metric access\n' "$metric_use" >&2
+    exit 1
+  fi
+  if [ -s "$WORK/metric-$metric_use.feir" ]; then
+    printf 'failed %s metric access leaked FEIR output\n' "$metric_use" >&2
+    exit 1
+  fi
+  grep -F 'Unbound variable: g' "$WORK/metric-$metric_use.err" >/dev/null
+done
+
 printf 'pre-fec Egison source-diagnostic tests: ok\n'

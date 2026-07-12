@@ -1,0 +1,22 @@
+mode collocated
+dimension 1
+axes x
+
+field u : scalar
+field q : scalar
+
+def viaLap u =
+  let apply := \f x -> f x
+   in apply lap u
+
+def rich u =
+  let apply := \f x -> f x
+      metric := \value -> value
+      choose := match 1 as integer with
+        | #1 -> \v -> v + 1
+        | _ -> \v -> v
+   in metric (apply choose u)
+
+step:
+  u' = rich u
+  q' = viaLap q

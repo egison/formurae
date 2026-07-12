@@ -290,6 +290,11 @@ A~i~j B~j
 
 ## 6. `metric g` と Kronecker delta
 
+> **v2.1で置換済み:** 現行の`metric g`は`g_i_j` / `g~i~j`を定義し、whole tensorを
+> `g_#_#` / `g~#~#`で参照する。mixed metricは暗黙生成せず、metric宣言名とFormurae model
+> bindingの同名利用はhard errorである。詳細は
+> [20260711-pre-post-fec-pipeline.md](20260711-pre-post-fec-pipeline.md) §3.5を参照する。
+
 metric は標準的には `g` という名前で宣言する。
 
 ```text

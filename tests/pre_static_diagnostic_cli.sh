@@ -73,5 +73,15 @@ expect_parse_failure pre_fec_definition_axis_parameter_collision \
   "definition parameter 'r' in 'identity' conflicts with a coordinate axis (line 5)"
 expect_parse_failure pre_fec_metric_axis_collision \
   "metric name 'r' conflicts with a coordinate axis (axes line 4)"
+expect_parse_failure pre_fec_ambient_axis_collision \
+  "coordinate name 'dimension' is reserved for the ambient Egison environment (axes line 3)"
+expect_parse_failure pre_fec_ambient_formal_collision \
+  "definition parameter 'inverseMetric' is reserved for the ambient Egison environment (line 5)"
+expect_parse_failure pre_fec_metric_field_collision \
+  "metric name 'g' conflicts with field binding"
+expect_parse_failure pre_fec_metric_reserved_collision \
+  "metric name 'metric' is reserved for the generated Egison environment (line 4)"
+expect_parse_failure pre_fec_duplicate_metric_name \
+  "metric name may be declared only once (line 5)"
 
 printf 'pre-fec static source-diagnostic tests: ok\n'

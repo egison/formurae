@@ -17,12 +17,16 @@ module Formurae.Pre.Effect
   ) where
 
 import Data.Char (isAlphaNum)
-import Data.List (nub, sort)
+import Data.List (find, intercalate, nub, sort)
 
 import qualified Formurae.FEIR.PrimitiveBindings as Primitives
 import Formurae.FEIR.PrimitiveManifest
 import Formurae.FEIR.Syntax (VersionedOpId(..))
-import Formurae.Index (derivativeOpParts, ixSuffix)
+import Formurae.Index
+  ( derivativeOpParts
+  , ixSuffix
+  , parseIndexedIdent
+  )
 import Formurae.Syntax
 import Formurae.TensorExpr
 
@@ -69,16 +73,20 @@ inferModelEffects manifest model = do
 
     inferDefinitions accumulated [] = pure accumulated
     inferDefinitions accumulated (definition : rest) = do
-      syntax <- parseIn ("definition " ++ defName definition) (defBody definition)
-      effect <- mapErrorContext ("definition " ++ defName definition)
-        (analyzeExpression EffectEnvironment
-          { environmentModel = model
-          , environmentManifest = manifest
-          , environmentAllDefinitions = allDefinitions
-          , environmentAvailableDefinitions = accumulated
-          , environmentBoundNames = map definitionParameterBase
-              (defParams definition)
-          } syntax)
+      let context = "definition " ++ defName definition
+          environment = EffectEnvironment
+            { environmentModel = model
+            , environmentManifest = manifest
+            , environmentAllDefinitions = allDefinitions
+            , environmentAvailableDefinitions = accumulated
+            , environmentBoundNames = map definitionParameterBase
+                (defParams definition)
+            }
+      effect <- mapErrorContext context $
+        case parseTensorExprEither (defBody definition) of
+          Right syntax -> analyzeExpression environment syntax
+          Left _ -> analyzeRawEgisonDefinition environment
+            (defBody definition)
       inferDefinitions
         (accumulated ++ [(defName definition, effect)]) rest
 
@@ -121,6 +129,129 @@ parseIn context source =
   case parseTensorExprEither source of
     Left message -> Left (EffectError context (InvalidEffectExpression message))
     Right expression -> Right expression
+
+-- A definition that uses Egison constructs outside TensorExpr is passed
+-- through to Egison instead of being partially reimplemented here.  The
+-- initial direct-Egison boundary is intentionally continuum-pure: a shallow
+-- identifier scan admits prior pure definitions, but rejects direct or
+-- transitive opaque operations.  Current/future definition names remain
+-- forward references just as in the structured TensorExpr path.
+--
+-- The scan only treats formal parameters as known shadowing binders.  Local
+-- Egison binders are therefore conservative: shadowing an opaque or future
+-- definition name in a raw body is rejected instead of risking an opaque
+-- request escaping static effect analysis.
+analyzeRawEgisonDefinition
+    :: EffectEnvironment -> String -> Either EffectError FunctionEffect
+analyzeRawEgisonDefinition environment source = do
+  case firstForwardReference of
+    Just name -> effectFailure (ForwardDefinitionUse name)
+    Nothing -> pure ()
+  referencedEffects <- mapM rawIdentifierEffect visibleIdentifiers
+  let rawEffect = mergeMany referencedEffects
+  case rawEffect of
+    PureFunction -> pure PureFunction
+    DiscreteFunction operations -> effectFailure (InvalidEffectExpression
+      ("direct Egison definition must be continuum-pure; it references "
+       ++ "discrete operation" ++ plural operations ++ ": "
+       ++ intercalate ", " (map operationText operations)))
+  where
+    identifiers = rawEgisonIdentifiers environment source
+    visibleIdentifiers =
+      [identifier | identifier@(name, _) <- identifiers
+                  , name `notElem` environmentBoundNames environment]
+    availableNames = map fst (environmentAvailableDefinitions environment)
+    firstForwardReference = fst <$> find isForward visibleIdentifiers
+    isForward (name, _) =
+      name `elem` environmentAllDefinitions environment
+      && name `notElem` availableNames
+
+    rawIdentifierEffect (name, parts) =
+      case lookup name (environmentAvailableDefinitions environment) of
+        Just effect -> pure effect
+        Nothing ->
+          case derivativeOpParts (name ++ concatMap ixSuffix parts) of
+            Just (_, radius, _)
+              | radius > 1 -> primitiveEffect environment
+                  Primitives.derivativeCoordinateWideV1OpId
+            _ -> case rawPrimitiveOperation
+                    (environmentModel environment) name of
+              Nothing -> pure PureFunction
+              Just operation -> primitiveEffect environment operation
+
+    plural [_] = ""
+    plural _ = "s"
+
+-- Extract identifier bases and their Egison tensor indices without trying
+-- to parse the surrounding raw expression.  Quoted strings are masked so a
+-- diagnostic message such as "materialize failed" does not acquire a
+-- discrete effect.  The optional dot token preserves the existing ability
+-- to define (.) as a user function.
+rawEgisonIdentifiers :: EffectEnvironment -> String -> [(String, [IxPart])]
+rawEgisonIdentifiers environment source = nub (identifiers ++ dotIdentifier)
+  where
+    tokens = tokenize (maskStrings source)
+    identifiers =
+      [parseIndexedIdent name | TId name _ <- tokens]
+    dotIdentifier
+      | "." `elem` environmentAllDefinitions environment
+      , any isDot tokens = [(".", [])]
+      | otherwise = []
+    isDot (TC '.') = True
+    isDot _ = False
+
+maskStrings :: String -> String
+maskStrings = normal
+  where
+    normal [] = []
+    normal ('"' : rest) = ' ' : quoted rest
+    normal (char : rest) = char : normal rest
+
+    quoted [] = []
+    quoted ('\\' : _ : rest) = ' ' : ' ' : quoted rest
+    quoted ('"' : rest) = ' ' : normal rest
+    quoted (_ : rest) = ' ' : quoted rest
+
+-- Raw Egison can spell a bridge call with its qualified library name.  The
+-- shallow scanner sees the final component after `Formurae.`, so include the
+-- bridge implementation names as well as the ordinary surface aliases.
+rawPrimitiveOperation :: Model -> String -> Maybe VersionedOpId
+rawPrimitiveOperation model name =
+  if hasVariableGeometry model
+     && name `elem`
+          ["FormuraeInternalCodiff", "FormuraeInternalFormLaplacian"]
+    then Just Primitives.codiffMetricV1OpId
+    else case lookup name directBridgeOperations of
+      Just operation -> Just operation
+      Nothing -> surfacePrimitiveOperation model name
+  where
+    directBridgeOperations =
+      [ ("lbOrthogonal", Primitives.lbOrthogonalV1OpId)
+      , ("FormuraeInternalLb", Primitives.lbOrthogonalV1OpId)
+      , ("coordinateWideDerivative",
+          Primitives.derivativeCoordinateWideV1OpId)
+      , ("FormuraeInternalCoordinateWideDerivative",
+          Primitives.derivativeCoordinateWideV1OpId)
+      , ("gridWholeDerivative", Primitives.derivativeGridWholeV1OpId)
+      , ("FormuraeInternalGridWholeDerivative",
+          Primitives.derivativeGridWholeV1OpId)
+      , ("orderedDerivative", Primitives.derivativeOrderedV1OpId)
+      , ("FormuraeInternalOrderedDerivative",
+          Primitives.derivativeOrderedV1OpId)
+      , ("resampleExplicit", Primitives.resampleExplicitV1OpId)
+      , ("FormuraeInternalResampleExplicit",
+          Primitives.resampleExplicitV1OpId)
+      , ("fluxConservativeDivergence",
+          Primitives.fluxConservativeDivergenceV1OpId)
+      , ("FormuraeInternalFluxConservativeDivergence",
+          Primitives.fluxConservativeDivergenceV1OpId)
+      , ("materialized", Primitives.operatorMaterializedV1OpId)
+      , ("FormuraeInternalMaterialized",
+          Primitives.operatorMaterializedV1OpId)
+      , ("metricCodiff", Primitives.codiffMetricV1OpId)
+      , ("metricDelta", Primitives.codiffMetricV1OpId)
+      , ("metricFormLaplacian", Primitives.codiffMetricV1OpId)
+      ]
 
 mapErrorContext :: String -> Either EffectError a -> Either EffectError a
 mapErrorContext context result =
@@ -239,6 +370,8 @@ surfacePrimitiveOperation model name
   | name == "materialize" = Just Primitives.operatorMaterializedV1OpId
   | name == "lb" = Just Primitives.lbOrthogonalV1OpId
   | elem name ["codiff", "delta", "\948"] && hasVariableGeometry model =
+      Just Primitives.codiffMetricV1OpId
+  | name == "formLaplacian" && hasVariableGeometry model =
       Just Primitives.codiffMetricV1OpId
   | otherwise = Nothing
 

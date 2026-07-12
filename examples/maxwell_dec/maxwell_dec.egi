@@ -18,12 +18,23 @@ declare symbol i, j, k, l, m, n
 
 def feDimension : Integer := 3
 def feCoordinates : Vector MathValue := [| x, y, z |]
+def dimension : Integer := feDimension
+def coordinates : Vector MathValue := feCoordinates
+
+def feGeometryScale axis := 1
+def feGeometryMetric := (FE.diagonalMetricTensor feDimension (\axis -> 1))_formuraeTensorIndex1_formuraeTensorIndex2
+def feGeometryInverseMetric := (FE.inverseDiagonalMetricTensor feDimension (\axis -> 1))~formuraeTensorIndex1~formuraeTensorIndex2
+def feGeometryVolume := 1
 
 def feGeometryScales : Vector MathValue := [| 1, 1, 1 |]
 def feGeometryId : Integer := 1
 def fePrimitiveManifestId : String := "sha256:f6294c222255af0cbc20d76a46e6eecb1858d3c4a370500f9c7c8b510a18010f"
-def FormuraeInternalD A := Formurae.d feCoordinates A
-def FormuraeInternalCodiff A := Formurae.codiff feCoordinates feDimension feGeometryScales A
+def metric_i_j := feGeometryMetric_i_j
+def inverseMetric~i~j := feGeometryInverseMetric~i~j
+def volume := feGeometryVolume
+def epsilon : Tensor Integer := ε dimension
+def FormuraeInternalD A := Formurae.d coordinates A
+def FormuraeInternalCodiff A := Formurae.codiff coordinates dimension feGeometryScales A
 
 def FormuraeInternalField16CurrentRaw := generateTensor (\[i] -> function (x, y, z)) [3]
 def E := FE.canonicalFormTensor (FE.tensorComponentAt FormuraeInternalField16CurrentRaw) feDimension 1
