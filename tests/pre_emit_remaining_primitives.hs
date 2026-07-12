@@ -14,17 +14,17 @@ main = do
   unit <- requireRight =<< emitNormalizationUnit
     Primitives.primitiveManifestV1Id model
   assertContains "ordered axes become stable IDs"
-    "Formurae.orderedDerivative feOperatorContext [| 1, 2 |] u" unit
+    "FormuraeInternalOrderedDerivative [| 1, 2 |] u" unit
   assertContains "absolute placement bits remain explicit"
-    "Formurae.resampleExplicit feOperatorContext [| 1, 1 |] u" unit
+    "FormuraeInternalResampleExplicit [| 1, 1 |] u" unit
   assertContains "same-typed tensor algebra supplies local metadata"
-    "Formurae.materialized feOperatorContext (F + G)"
+    "FormuraeInternalMaterialized (F + G)"
     unit
   assertContains "nested tensor materialization is parenthesized"
-    "Formurae.fluxConservativeDivergence feOperatorContext (Formurae.materialized feOperatorContext (F + G))"
+    "FormuraeInternalFluxConservativeDivergence (FormuraeInternalMaterialized (F + G))"
     unit
   assertContains "nested conservative divergence is parenthesized"
-    "Formurae.materialized feOperatorContext (Formurae.fluxConservativeDivergence feOperatorContext F)"
+    "FormuraeInternalMaterialized (FormuraeInternalFluxConservativeDivergence F)"
     unit
 
   aliasModel <- parseModel "remaining-aliases.fme" "remaining-aliases"
@@ -32,18 +32,20 @@ main = do
   aliasUnit <- requireRight =<< emitNormalizationUnit
     Primitives.primitiveManifestV1Id aliasModel
   assertContains "orderedDerivative alias"
-    "Formurae.orderedDerivative feOperatorContext [| 1 |] u" aliasUnit
+    "FormuraeInternalOrderedDerivative [| 1 |] u" aliasUnit
   assertContains "interpolate alias"
-    "Formurae.resampleExplicit feOperatorContext [| 1 |] u" aliasUnit
+    "FormuraeInternalResampleExplicit [| 1 |] u" aliasUnit
   assertContains "conservativeDiv alias"
-    "Formurae.fluxConservativeDivergence feOperatorContext F" aliasUnit
+    "FormuraeInternalFluxConservativeDivergence F" aliasUnit
 
   genericModel <- parseModel "generic-materialize.fme"
     "generic-materialize" genericSource
   genericUnit <- requireRight =<< emitNormalizationUnit
     Primitives.primitiveManifestV1Id genericModel
   assertContains "generic materialization definition has no static metadata"
-    "Formurae.materialized FormuraeInternalContext X" genericUnit
+    "FormuraeInternalMaterialized X" genericUnit
+  assertNotContains "ambient primitive calls have no hidden context"
+    "FormuraeInternalContext" genericUnit
   assertContains "upper-vector equation uses the indexed definition sugar"
     "def FormuraeInternalValue1~i : Tensor MathValue := stored X" genericUnit
   assertContains "indexed result is read back with its declared variance"

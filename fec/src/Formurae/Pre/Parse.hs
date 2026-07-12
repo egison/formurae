@@ -15,8 +15,8 @@ import Formurae.Common
 import Formurae.Index
 import Formurae.Syntax
 
--- Names provided by the continuum normalization libraries.  They are tensor
--- contexts for surface validation and cannot be reused by value bindings.
+-- Names provided by the continuum normalization libraries.  They are reserved
+-- tensor operators or values and cannot be reused by surface value bindings.
 standardNames :: [String]
 standardNames =
   [ ".", "wedge", "trace", "sym", "antisym", "norm2"
@@ -26,6 +26,7 @@ standardNames =
   , "gridD", "gridDerivative", "orderedD", "orderedDerivative"
   , "resample", "interpolate", "fluxDiv", "conservativeDiv"
   , "materialize"
+  , "epsilon"
   ]
 
 scalarIntrinsics :: [String]
@@ -50,7 +51,7 @@ egisonReservedWords =
 
 generatedNormalizationNames :: [String]
 generatedNormalizationNames =
-  [ "feDimension", "feCoordinates", "feOperatorContext"
+  [ "feDimension", "feCoordinates", "feGeometryId", "fePrimitiveManifestId"
   , "feParameters", "feCoordinatesRegistry", "feFields"
   , "feIntrinsics", "feAnalytics", "feProgram"
   , "feGeometryScaleRaw", "feGeometryMetricRaw", "feGeometryEmbedding"

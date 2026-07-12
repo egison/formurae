@@ -13,39 +13,49 @@ main = do
   second <- requireRight =<< emitNormalizationUnit manifestId model
 
   assertEqual "normalization unit is deterministic" first second
-  assertContains "shared operator context" "Formurae.operatorContext" first
-  assertContains "user definition receives hidden context"
-    "FormuraeInternalDefinition3 FormuraeInternalContext u" first
-  assertContains "prior higher-order user definition receives current context"
-    "FormuraeInternalDefinition1 FormuraeInternalContext (Formurae.lap FormuraeInternalContext) u"
+  assertContains "ambient coordinates specialize each used shared operator"
+    "def FormuraeInternalLap u := Formurae.lap feCoordinates u" first
+  assertAbsent first "def FormuraeInternalGrad u :="
+  assertAbsent first "Formurae.operatorContext"
+  assertAbsent first "feOperatorContext"
+  assertAbsent first "FormuraeInternalContext"
+  assertContains "user definition receives only its surface parameters"
+    "FormuraeInternalDefinition3 u" first
+  assertContains "prior higher-order user definition receives the ambient operator"
+    "FormuraeInternalDefinition1 FormuraeInternalLap u"
     first
   assertContains "indexed analytic derivative uses shared strict diff"
-    "(Formurae.diff FormuraeInternalContext X~i)..._i" first
+    "(FormuraeInternalDiff X~i)..._i" first
   assertContains "coordinate derivative uses strict analytic differentiation"
     "strict∂/∂ (strict∂/∂ u x) x" first
   assertContains "grid derivative preserves the whole nonlinear operand"
-    "Formurae.gridWholeDerivative FormuraeInternalContext 1 ((u * u) / 2)"
+    "FormuraeInternalGridWholeDerivative 1 ((u * u) / 2)"
     first
   assertContains "gridDerivative is an equivalent surface spelling"
-    "Formurae.gridWholeDerivative FormuraeInternalContext 1 u"
+    "FormuraeInternalGridWholeDerivative 1 u"
     first
   assertContains "wide derivative is a versioned opaque constructor"
-    "Formurae.coordinateWideDerivative FormuraeInternalContext 1 2 2 u"
+    "FormuraeInternalCoordinateWideDerivative 1 2 2 u"
     first
   assertContains "unicode Laplacian resolves to the shared pure Laplacian"
-    "Formurae.lap FormuraeInternalContext u" first
+    "FormuraeInternalLap u" first
   aliasModel <- parseModel "pre-dec-alias.fme" "pre-dec-alias" decAliasSource
   aliasUnit <- requireRight =<< emitNormalizationUnit manifestId aliasModel
   assertContains "dForm alias resolves to the shared exterior derivative"
-    "Formurae.d FormuraeInternalContext X" aliasUnit
+    "FormuraeInternalD X" aliasUnit
   assertContains "flat resolves to the shared metric contraction"
-    "Formurae.flat FormuraeInternalContext X" aliasUnit
+    "FormuraeInternalFlat X" aliasUnit
   assertContains "sharp resolves to the shared inverse metric contraction"
-    "Formurae.sharp FormuraeInternalContext X" aliasUnit
+    "FormuraeInternalSharp X" aliasUnit
   assertContains "stable registry fingerprint"
     "FEIR.atom \"registry-id\", FEIR.string \"sha256:" first
   assertContains "single canonical FEIR output"
     "print (FEIR.render feProgram)" first
+
+  epsilonModel <- parseModel "pre-epsilon.fme" "pre-epsilon" epsilonSource
+  epsilonUnit <- requireRight =<< emitNormalizationUnit manifestId epsilonModel
+  assertContains "an indexed epsilon use requests the ambient Levi-Civita tensor"
+    "def epsilon : Tensor Integer := ε feDimension" epsilonUnit
 
   mapM_ (assertAbsent first)
     [ "def dC "
@@ -60,17 +70,17 @@ main = do
   shadowModel <- parseModel "pre-shadow.fme" "pre-shadow" shadowSource
   shadowed <- requireRight =<< emitNormalizationUnit manifestId shadowModel
   assertContains "earlier user definition shadows the standard prelude"
-    "def FormuraeInternalDefinition2 FormuraeInternalContext u := withSymbols [i, j, k, l, m, n] (FormuraeInternalDefinition1 FormuraeInternalContext u)"
+    "def FormuraeInternalDefinition2 u := withSymbols [i, j, k, l, m, n] (FormuraeInternalDefinition1 u)"
     shadowed
-  assertAbsent shadowed "Formurae.lap FormuraeInternalContext u"
+  assertAbsent shadowed "withSymbols [i, j, k, l, m, n] (FormuraeInternalLap u)"
 
   dotShadowModel <- parseModel "pre-dot-shadow.fme" "pre-dot-shadow" dotShadowSource
   dotShadowed <- requireRight =<< emitNormalizationUnit manifestId dotShadowModel
   assertContains "user dot is published with Egison operator syntax"
-    "def (.) := FormuraeInternalDefinition1 feOperatorContext"
+    "def (.) := FormuraeInternalDefinition1"
     dotShadowed
-  assertContains "later definition resolves user dot through its hidden context"
-    "def FormuraeInternalDefinition2 FormuraeInternalContext a b := withSymbols [i, j, k, l, m, n] (FormuraeInternalDefinition1 FormuraeInternalContext a b)"
+  assertContains "later definition resolves user dot without a hidden argument"
+    "def FormuraeInternalDefinition2 a b := withSymbols [i, j, k, l, m, n] (FormuraeInternalDefinition1 a b)"
     dotShadowed
 
   conditionalSource <- readFile "tests/fixtures/pre_fec_conditional.fme"
@@ -89,33 +99,33 @@ main = do
   primitiveShadowed <- requireRight =<< emitNormalizationUnit manifestId
     primitiveShadowModel
   assertContains "explicit primitive name resolves an earlier user definition"
-    "def FormuraeInternalDefinition2 FormuraeInternalContext x := withSymbols [i, j, k, l, m, n] ((FormuraeInternalDefinition1 FormuraeInternalContext)(x))"
+    "def FormuraeInternalDefinition2 x := withSymbols [i, j, k, l, m, n] (FormuraeInternalDefinition1(x))"
     primitiveShadowed
   assertContains "bound parameter shadows an explicit primitive"
-    "def FormuraeInternalDefinition3 FormuraeInternalContext materialize x := withSymbols [i, j, k, l, m, n] (materialize(x))"
+    "def FormuraeInternalDefinition3 materialize x := withSymbols [i, j, k, l, m, n] (materialize(x))"
     primitiveShadowed
   assertContains "shadowed explicit primitive remains a higher-order value"
     "def FormuraeInternalValue1 := applyShadow useMaterialize u"
     primitiveShadowed
-  assertAbsent primitiveShadowed "Formurae.materialized"
+  assertAbsent primitiveShadowed "FormuraeInternalMaterialized x"
 
   parameterModel <- parseModel "pre-definition-parameters.fme"
     "pre-definition-parameters" parameterSource
   parameterUnit <- requireRight =<< emitNormalizationUnit manifestId parameterModel
   assertContains "rank-polymorphic marker emits one whole-value parameter"
-    "def FormuraeInternalDefinition1 FormuraeInternalContext X := withSymbols [i, j, k, l, m, n] (X)"
+    "def FormuraeInternalDefinition1 X := withSymbols [i, j, k, l, m, n] (X)"
     parameterUnit
   assertContains "fixed indexed parameter also binds the whole value"
-    "def FormuraeInternalDefinition3 FormuraeInternalContext X :="
+    "def FormuraeInternalDefinition3 X :="
     parameterUnit
   assertContains "fixed indexed parameter checks whole-value metadata"
     "indexed parameter X_i metadata mismatch in fixedIdentity"
     parameterUnit
   assertContains "body append-index syntax is preserved"
-    "def FormuraeInternalDefinition2 FormuraeInternalContext X := withSymbols [i, j, k, l, m, n] (X..._i)"
+    "def FormuraeInternalDefinition2 X := withSymbols [i, j, k, l, m, n] (X..._i)"
     parameterUnit
-  assertAbsent parameterUnit "FormuraeInternalContext X..."
-  assertAbsent parameterUnit "FormuraeInternalContext X_i"
+  assertAbsent parameterUnit "FormuraeInternalDefinition2 X..."
+  assertAbsent parameterUnit "FormuraeInternalDefinition3 X_i"
 
   invalidAxisModel <- parseModel "pre-invalid-grid-axis.fme"
     "pre-invalid-grid-axis" invalidAxisSource
@@ -139,7 +149,7 @@ main = do
   ksModel <- parseModel "examples/ks3d/ks3d.fme" "ks3d" ksSource
   ksUnit <- requireRight =<< emitNormalizationUnit manifestId ksModel
   assertContains "ks3d uses the whole-expression grid derivative boundary"
-    "Formurae.gridWholeDerivative feOperatorContext 1 ((u * u) / 2)"
+    "FormuraeInternalGridWholeDerivative 1 ((u * u) / 2)"
     ksUnit
   putStrLn "pre-fec Egison emitter tests: ok"
 
@@ -176,6 +186,17 @@ decAliasSource = unlines
   , "def musical X = flat X + sharp X"
   , "step:"
   , "  A' = A"
+  ]
+
+epsilonSource :: String
+epsilonSource = unlines
+  [ "mode collocated"
+  , "dimension 3"
+  , "axes x, y, z"
+  , "field X_i"
+  , "field Y_i"
+  , "step:"
+  , "  Y'_i = withSymbols [j, k] (epsilon_i~j~k . ∂_j X_k)"
   ]
 
 shadowSource :: String

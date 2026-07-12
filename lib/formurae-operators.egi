@@ -96,70 +96,23 @@ def Formurae.attachExplicitVariances
       then value
       else value
 
--- OperatorContext is represented by this constructor API rather than a
--- surface-visible record.  Geometry and manifest identifiers remain logical
--- metadata; no placement or storage data enters the continuum operators.
-def Formurae.operatorContext
-      (coordinates: Vector MathValue) (dimension: Integer)
-      (geometryId: Integer) (primitiveManifestId: String)
-      (geometryScales: Vector MathValue) (variableMetric: Bool)
-      : (Vector MathValue, Integer, Integer, String, Vector MathValue, Bool) :=
-  match assert "operator context coordinates and geometry scales must match its dimension"
-               (tensorShape coordinates = [dimension]
-                && tensorShape geometryScales = [dimension]
-                && i.> geometryId 0)
-        as bool with
-    | #True ->
-        (coordinates, dimension, geometryId, primitiveManifestId,
-         geometryScales, variableMetric)
-
-def Formurae.coordinates
-      (context:
-        (Vector MathValue, Integer, Integer, String, Vector MathValue, Bool))
-      : Vector MathValue :=
-  let (coordinates, _, _, _, _, _) := context in coordinates
-
-def Formurae.dimension
-      (context:
-        (Vector MathValue, Integer, Integer, String, Vector MathValue, Bool))
-      : Integer :=
-  let (_, dimension, _, _, _, _) := context in dimension
-
-def Formurae.geometryId
-      (context:
-        (Vector MathValue, Integer, Integer, String, Vector MathValue, Bool))
-      : Integer :=
-  let (_, _, geometryId, _, _, _) := context in geometryId
-
-def Formurae.primitiveManifestId
-      (context:
-        (Vector MathValue, Integer, Integer, String, Vector MathValue, Bool))
-      : String :=
-  let (_, _, _, primitiveManifestId, _, _) := context in primitiveManifestId
-
+-- Model-specific values live in the generated Egison environment.  Shared
+-- helpers therefore receive only the values they use instead of a bundled
+-- environment tuple.
 def Formurae.geometryScale
-      (context:
-        (Vector MathValue, Integer, Integer, String, Vector MathValue, Bool))
+      (dimension: Integer) (geometryScales: Vector MathValue)
       (axis: Integer) : MathValue :=
-  let (_, dimension, _, _, geometryScales, _) := context
-   in if assert "geometry scale axis must be inside the operator dimension"
-                (i.> axis 0 && i.<= axis dimension)
-        then FE.tensorComponentAt geometryScales [axis]
-        else 0
-
-def Formurae.hasVariableMetric
-      (context:
-        (Vector MathValue, Integer, Integer, String, Vector MathValue, Bool))
-      : Bool :=
-  let (_, _, _, _, _, variableMetric) := context in variableMetric
+  if assert "geometry scales must match the model dimension and axis"
+            (tensorShape geometryScales = [dimension]
+             && i.> axis 0 && i.<= axis dimension)
+    then FE.tensorComponentAt geometryScales [axis]
+    else 0
 
 def Formurae.requireOpaqueManifest
-      (context:
-        (Vector MathValue, Integer, Integer, String, Vector MathValue, Bool))
+      (primitiveManifestId: String)
       : Bool :=
-  assert "opaque operator context has an incompatible primitive manifest"
-    (Formurae.primitiveManifestId context
-     = Formurae.Primitives.primitiveManifestV1Id)
+  assert "opaque operator has an incompatible primitive manifest"
+    (primitiveManifestId = Formurae.Primitives.primitiveManifestV1Id)
 
 -- Surface conditionals stay symbolic across Egison normalization.  Predicate
 -- nodes and Select are ordinary FunctionData values with versioned reserved
@@ -207,37 +160,34 @@ def Formurae.select
 
 -- Orthogonal variable-metric Laplace--Beltrami is a conservative discrete
 -- boundary, not an analytic composition.  Its geometry ID comes from the
--- operator context and the v1 source policy is collocated; neither choice is
--- reconstructed by pre-fec or supplied by user syntax.
+-- generated model environment and the v1 source policy is collocated; neither
+-- choice is reconstructed by pre-fec or supplied by user syntax.
 def Formurae.lbOrthogonal
-      (context:
-        (Vector MathValue, Integer, Integer, String, Vector MathValue, Bool))
+      (geometryId: Integer) (primitiveManifestId: String)
       (value: MathValue) : MathValue :=
-  let geometryId := Formurae.geometryId context
-   in match assert "lb.orthogonal geometry ID must be positive"
+  match assert "lb.orthogonal geometry ID must be positive"
                (i.> geometryId 0)
-        && Formurae.requireOpaqueManifest context
+        && Formurae.requireOpaqueManifest primitiveManifestId
         as bool with
-      | #True ->
-          formuraeOpaqueBarrier
-            (functionSymbol Formurae.opaqueLbHead
-              [value, geometryId, 1])
+    | #True ->
+        formuraeOpaqueBarrier
+          (functionSymbol Formurae.opaqueLbHead
+            [value, geometryId, 1])
 
 -- An occurrence-level radius override bypasses the model discretization
 -- profile.  Its axis, derivative order, and radius stay atomic until
 -- post-fec selects the explicitly requested coordinate stencil.
 def Formurae.coordinateWideDerivative
-      (context:
-        (Vector MathValue, Integer, Integer, String, Vector MathValue, Bool))
+      (dimension: Integer) (primitiveManifestId: String)
       (axisId: Integer) (order: Integer) (radius: Integer)
       (value: MathValue) : MathValue :=
   match assert "coordinate-wide derivative needs a valid axis, positive order, radius greater than one, and enough stencil points"
                (i.> axisId 0
-                && i.<= axisId (Formurae.dimension context)
+                && i.<= axisId dimension
                 && i.> order 0
                 && i.> radius 1
                 && i.< order (i.+ (i.* 2 radius) 1))
-        && Formurae.requireOpaqueManifest context
+        && Formurae.requireOpaqueManifest primitiveManifestId
         as bool with
     | #True ->
         formuraeOpaqueBarrier
@@ -248,12 +198,11 @@ def Formurae.coordinateWideDerivative
 -- products and nonlinear calls inside one operand so post-fec applies one
 -- conservative/reference grid stencil to the complete expression.
 def Formurae.gridWholeDerivative
-      (context:
-        (Vector MathValue, Integer, Integer, String, Vector MathValue, Bool))
+      (dimension: Integer) (primitiveManifestId: String)
       (axisId: Integer) (value: MathValue) : MathValue :=
   match assert "whole-expression grid derivative needs a valid axis"
-               (i.> axisId 0 && i.<= axisId (Formurae.dimension context))
-        && Formurae.requireOpaqueManifest context
+               (i.> axisId 0 && i.<= axisId dimension)
+        && Formurae.requireOpaqueManifest primitiveManifestId
         as bool with
     | #True ->
         formuraeOpaqueBarrier
@@ -263,17 +212,16 @@ def Formurae.gridWholeDerivative
 -- request.  Axis order and repetition are data; the CAS never canonicalizes
 -- this sequence into a Schwarz multi-index.
 def Formurae.orderedDerivative
-      (context:
-        (Vector MathValue, Integer, Integer, String, Vector MathValue, Bool))
+      (dimension: Integer) (primitiveManifestId: String)
       (axes: Vector Integer) (value: MathValue) : MathValue :=
   let orderedAxes := tensorToList axes
    in match assert "ordered derivative needs one or more registered axes"
                    (not (orderedAxes = [])
                     && all
                          (\axis -> i.> axis 0
-                                   && i.<= axis (Formurae.dimension context))
+                                   && i.<= axis dimension)
                          orderedAxes)
-            && Formurae.requireOpaqueManifest context
+            && Formurae.requireOpaqueManifest primitiveManifestId
         as bool with
       | #True ->
           formuraeOpaqueBarrier
@@ -283,14 +231,13 @@ def Formurae.orderedDerivative
 -- Absolute placement bits are listed in model-axis order.  Zero denotes an
 -- integer point and one a half point; this is not a relative shift.
 def Formurae.resampleExplicit
-      (context:
-        (Vector MathValue, Integer, Integer, String, Vector MathValue, Bool))
+      (dimension: Integer) (primitiveManifestId: String)
       (placementBits: Vector Integer) (value: MathValue) : MathValue :=
   let bits := tensorToList placementBits
    in match assert "explicit resampling needs one 0/1 bit per model axis"
-                   (length bits = Formurae.dimension context
+                   (length bits = dimension
                     && all (\bit -> bit = 0 || bit = 1) bits)
-            && Formurae.requireOpaqueManifest context
+            && Formurae.requireOpaqueManifest primitiveManifestId
         as bool with
       | #True ->
           formuraeOpaqueBarrier
@@ -300,16 +247,14 @@ def Formurae.resampleExplicit
 -- that component a is already located on the corresponding Primal face;
 -- this constructor performs no implicit interpolation.
 def Formurae.fluxConservativeDivergence
-      (context:
-        (Vector MathValue, Integer, Integer, String, Vector MathValue, Bool))
+      (dimension: Integer) (primitiveManifestId: String)
       (flux: Tensor MathValue) : MathValue :=
-  let dimension := Formurae.dimension context
-      variances := tensorVariances flux
+  let variances := tensorVariances flux
    in match assert "conservative divergence needs a dimension-sized rank-one flux"
                    (tensorShape flux = [dimension]
                     && dfOrder flux = 0
                     && length variances = 1)
-            && Formurae.requireOpaqueManifest context
+            && Formurae.requireOpaqueManifest primitiveManifestId
         as bool with
       | #True ->
           let varianceCode := Formurae.varianceCode (head variances)
@@ -324,8 +269,7 @@ def Formurae.fluxConservativeDivergence
 -- the payload together with all source components; the enclosing checked
 -- FEIR tensor supplies the same metadata for the result.
 def Formurae.materialized
-      (context:
-        (Vector MathValue, Integer, Integer, String, Vector MathValue, Bool))
+      (primitiveManifestId: String)
       (value: Tensor MathValue) : Tensor MathValue :=
   let shape := tensorShape value
       explicitVariances := tensorVariances value
@@ -352,101 +296,93 @@ def Formurae.materialized
                     && differentialFormOrder >= 0
                     && differentialFormOrder <= rank
                     && not (sourceValues = []))
-            && Formurae.requireOpaqueManifest context
+            && Formurae.requireOpaqueManifest primitiveManifestId
         as bool with
       | #True ->
           Formurae.attachExplicitVariances explicitVariances result
 
 def Formurae.diff
-      (context:
-        (Vector MathValue, Integer, Integer, String, Vector MathValue, Bool))
+      (coordinates: Vector MathValue)
       (value: Tensor MathValue) : Tensor MathValue :=
-  strict∂/∂ value (Formurae.coordinates context)
+  strict∂/∂ value coordinates
 
 def Formurae.grad
-      (context:
-        (Vector MathValue, Integer, Integer, String, Vector MathValue, Bool))
+      (coordinates: Vector MathValue)
       (u: MathValue) : Tensor MathValue :=
-  Formurae.attachExplicitVariances ["down"] (Formurae.diff context u)
+  Formurae.attachExplicitVariances ["down"] (Formurae.diff coordinates u)
 
 def Formurae.dGrad
-      (context:
-        (Vector MathValue, Integer, Integer, String, Vector MathValue, Bool))
+      (coordinates: Vector MathValue)
       (X: Tensor MathValue) : Tensor MathValue :=
   Formurae.attachExplicitVariances
     ("down" :: Formurae.logicalTensorVariances X)
-    (!Formurae.diff context X)
+    (!Formurae.diff coordinates X)
 
 def Formurae.divg
-      (context:
-        (Vector MathValue, Integer, Integer, String, Vector MathValue, Bool))
+      (coordinates: Vector MathValue)
       (X: Tensor MathValue) : MathValue :=
-  trace (!Formurae.diff context X)
+  trace (!Formurae.diff coordinates X)
 
 def Formurae.curl
-      (context:
-        (Vector MathValue, Integer, Integer, String, Vector MathValue, Bool))
+      (dimension: Integer) (coordinates: Vector MathValue)
       (X: Vector MathValue) : Vector MathValue :=
-  match assert "curl requires a three-dimensional operator context"
-               (Formurae.dimension context = 3 && tensorShape X = [3])
+  match assert "curl requires three-dimensional coordinates and a vector"
+               (dimension = 3
+                && tensorShape coordinates = [dimension]
+                && tensorShape X = [dimension])
         as bool with
     | #True ->
-        Formurae.attachExplicitVariances ["down"]
-          (crossProductWithFun
-            (flip strictPartialDiffMV) (Formurae.coordinates context) X)
+        let epsilon := ε dimension
+         in (withSymbols [i, j, k]
+              (epsilon_i~j~k . strict∂/∂ X_k coordinates~j))_formuraeTensorIndex1
 
 def Formurae.hessian
-      (context:
-        (Vector MathValue, Integer, Integer, String, Vector MathValue, Bool))
+      (coordinates: Vector MathValue)
       (u: MathValue) : Tensor MathValue :=
   Formurae.attachExplicitVariances ["down", "down"]
-    (!Formurae.diff context (Formurae.grad context u))
+    (!Formurae.diff coordinates (Formurae.grad coordinates u))
 
 def Formurae.lap
-      (context:
-        (Vector MathValue, Integer, Integer, String, Vector MathValue, Bool))
+      (coordinates: Vector MathValue)
       (u: MathValue) : MathValue :=
-  Formurae.divg context (Formurae.grad context u)
+  Formurae.divg coordinates (Formurae.grad coordinates u)
 
 def Formurae.metric
-      (context:
-        (Vector MathValue, Integer, Integer, String, Vector MathValue, Bool))
+      (dimension: Integer) (geometryScales: Vector MathValue)
       : Tensor MathValue :=
   FE.diagonalMetricTensor
-    (Formurae.dimension context) (Formurae.geometryScale context)
+    dimension (Formurae.geometryScale dimension geometryScales)
 
 def Formurae.inverseMetric
-      (context:
-        (Vector MathValue, Integer, Integer, String, Vector MathValue, Bool))
+      (dimension: Integer) (geometryScales: Vector MathValue)
       : Tensor MathValue :=
   FE.inverseDiagonalMetricTensor
-    (Formurae.dimension context) (Formurae.geometryScale context)
+    dimension (Formurae.geometryScale dimension geometryScales)
 
 -- Orthogonal musical maps remain ordinary tensor contractions.  No
 -- placement callback or component enumeration is part of the public
 -- operator definition.
 def Formurae.flat
-      (context:
-        (Vector MathValue, Integer, Integer, String, Vector MathValue, Bool))
+      (dimension: Integer) (geometryScales: Vector MathValue)
       (X: Vector MathValue) : Vector MathValue :=
   Formurae.attachExplicitVariances ["down"]
-    (withSymbols [i, j] ((Formurae.metric context)_i_j . X~j))
+    (withSymbols [i, j]
+      ((Formurae.metric dimension geometryScales)_i_j . X~j))
 
 def Formurae.sharp
-      (context:
-        (Vector MathValue, Integer, Integer, String, Vector MathValue, Bool))
+      (dimension: Integer) (geometryScales: Vector MathValue)
       (A: Vector MathValue) : Vector MathValue :=
   Formurae.attachExplicitVariances ["up"]
-    (withSymbols [i, j] ((Formurae.inverseMetric context)~i~j . A_j))
+    (withSymbols [i, j]
+      ((Formurae.inverseMetric dimension geometryScales)~i~j . A_j))
 
 def Formurae.d
-      (context:
-        (Vector MathValue, Integer, Integer, String, Vector MathValue, Bool))
+      (coordinates: Vector MathValue)
       (A: Tensor MathValue) : Tensor MathValue :=
   let degree := dfOrder A + 1
    in degree
       * dfNormalize
-          (!(flip strict∂/∂) (Formurae.coordinates context) A)
+          (!(flip strict∂/∂) coordinates A)
 
 -- Orthogonal-metric Hodge star.  The scale vector is the same symbolic value
 -- serialized into GeometryNF; post-fec therefore samples each coefficient at
@@ -454,11 +390,9 @@ def Formurae.d
 -- Its component convention is
 --   (*A)_J = sign(I ++ J) (V / product(i in I, h_i^2)) A_I.
 def Formurae.hodge
-      (context:
-        (Vector MathValue, Integer, Integer, String, Vector MathValue, Bool))
+      (dimension: Integer) (geometryScales: Vector MathValue)
       (A: Tensor MathValue) : Tensor MathValue :=
-  let dimension := Formurae.dimension context
-      degree := dfOrder A
+  let degree := dfOrder A
    in match assert "Euclidean Hodge star needs a form degree in 0..dimension"
                    (0 <= degree && degree <= dimension)
             as bool with
@@ -470,7 +404,7 @@ def Formurae.hodge
                  in FE.formBasisSign (sourceBasis ++ targetBasis)
                     * FE.orthogonalHodgeCoefficient
                         (between 1 dimension)
-                        (Formurae.geometryScale context)
+                        (Formurae.geometryScale dimension geometryScales)
                         sourceBasis
                     * FE.tensorComponentAt A sourceBasis)
               dimension (dimension - degree)
@@ -480,23 +414,22 @@ def Formurae.hodge
 -- order so post-fec can apply the weighted whole-expression derivative
 -- without distributing it analytically through metric coefficients.
 def Formurae.metricCodiff
-      (context:
-        (Vector MathValue, Integer, Integer, String, Vector MathValue, Bool))
+      (dimension: Integer) (geometryId: Integer)
+      (primitiveManifestId: String)
       (A: Tensor MathValue) : Tensor MathValue :=
-  let dimension := Formurae.dimension context
-      degree := dfOrder A
+  let degree := dfOrder A
    in if degree = 0
         then 0
         else match assert "metric codifferential needs a form degree in 1..dimension"
-                          (degree <= dimension)
-                   && Formurae.requireOpaqueManifest context
+                          (degree <= dimension && i.> geometryId 0)
+                   && Formurae.requireOpaqueManifest primitiveManifestId
              as bool with
           | #True ->
               FE.canonicalFormTensor
                 (\targetBasis ->
                   formuraeOpaqueBarrier
                     (functionSymbol Formurae.opaqueMetricCodiffHead
-                      ([ Formurae.geometryId context
+                      ([ geometryId
                        , dimension
                        , degree
                        ] ++ tensorToList A ++ targetBasis)))
@@ -507,31 +440,44 @@ def Formurae.metricCodiff
 -- Degree-zero forms map to zero directly, avoiding an artificial (n+1)-form
 -- while retaining the same mathematical definition.
 def Formurae.codiff
-      (context:
-        (Vector MathValue, Integer, Integer, String, Vector MathValue, Bool))
+      (coordinates: Vector MathValue) (dimension: Integer)
+      (geometryScales: Vector MathValue)
       (A: Tensor MathValue) : Tensor MathValue :=
-  let dimension := Formurae.dimension context
-      degree := dfOrder A
-   in if Formurae.hasVariableMetric context
-        then Formurae.metricCodiff context A
-        else if degree = 0
+  let degree := dfOrder A
+   in if degree = 0
         then 0
         else (-1) ^ (dimension * (degree + 1) + 1)
-             * Formurae.hodge context
-                 (Formurae.d context (Formurae.hodge context A))
+             * Formurae.hodge dimension geometryScales
+                 (Formurae.d coordinates
+                   (Formurae.hodge dimension geometryScales A))
 
 def Formurae.delta
-      (context:
-        (Vector MathValue, Integer, Integer, String, Vector MathValue, Bool))
+      (coordinates: Vector MathValue) (dimension: Integer)
+      (geometryScales: Vector MathValue)
       (A: Tensor MathValue) : Tensor MathValue :=
-  Formurae.codiff context A
+  Formurae.codiff coordinates dimension geometryScales A
+
+def Formurae.metricDelta
+      (dimension: Integer) (geometryId: Integer)
+      (primitiveManifestId: String)
+      (A: Tensor MathValue) : Tensor MathValue :=
+  Formurae.metricCodiff dimension geometryId primitiveManifestId A
 
 -- Positive Cartesian scalar Laplacian under the selected codifferential
 -- convention.  This is a mathematical composition and contains no stencil
 -- or grid callback.
 def Formurae.formLaplacian
-      (context:
-        (Vector MathValue, Integer, Integer, String, Vector MathValue, Bool))
+      (coordinates: Vector MathValue) (dimension: Integer)
+      (geometryScales: Vector MathValue)
       (u: MathValue) : MathValue :=
   0 - FE.tensorComponentAt
-        (Formurae.codiff context (Formurae.d context u)) []
+        (Formurae.codiff coordinates dimension geometryScales
+          (Formurae.d coordinates u)) []
+
+def Formurae.metricFormLaplacian
+      (coordinates: Vector MathValue) (dimension: Integer)
+      (geometryId: Integer) (primitiveManifestId: String)
+      (u: MathValue) : MathValue :=
+  0 - FE.tensorComponentAt
+        (Formurae.metricCodiff dimension geometryId primitiveManifestId
+          (Formurae.d coordinates u)) []

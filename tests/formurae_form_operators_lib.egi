@@ -1,11 +1,11 @@
 declare symbol x, y, z
 
-def formContext3 :=
-  Formurae.operatorContext [|x, y, z|] 3 1 "test-manifest"
-    [|1, 1, 1|] False
-
-def formContext2 :=
-  Formurae.operatorContext [|x, y|] 2 1 "test-manifest" [|1, 1|] False
+def formCoordinates3 : Vector MathValue := [|x, y, z|]
+def formDimension3 : Integer := 3
+def formScales3 : Vector MathValue := [|1, 1, 1|]
+def formCoordinates2 : Vector MathValue := [|x, y|]
+def formDimension2 : Integer := 2
+def formScales2 : Vector MathValue := [|1, 1|]
 
 def formU := function (x, y, z)
 def formX1 := function (x, y, z)
@@ -25,21 +25,21 @@ def formB :=
     3 2
 
 assertEqual "d maps 0-forms to their strict gradient"
-  (FE.formComponents (Formurae.d formContext3 formU))
+  (FE.formComponents (Formurae.d formCoordinates3 formU))
   [ userRefs formU [1]
   , userRefs formU [2]
   , userRefs formU [3]
   ]
 
 assertEqual "d uses the normative one-form component signs"
-  (FE.formComponents (Formurae.d formContext3 formX))
+  (FE.formComponents (Formurae.d formCoordinates3 formX))
   [ userRefs formX2 [1] - userRefs formX1 [2]
   , userRefs formX3 [1] - userRefs formX1 [3]
   , userRefs formX3 [2] - userRefs formX2 [3]
   ]
 
 assertEqual "d uses the normative two-form component signs"
-  (FE.formComponents (Formurae.d formContext3 formB))
+  (FE.formComponents (Formurae.d formCoordinates3 formB))
   [ userRefs formB23 [1]
     - userRefs formB13 [2]
     + userRefs formB12 [3]
@@ -47,7 +47,8 @@ assertEqual "d uses the normative two-form component signs"
 
 assertEqual "d squares to zero on a one-form"
   (FE.formComponents
-    (Formurae.d formContext3 (Formurae.d formContext3 formX)))
+    (Formurae.d formCoordinates3
+      (Formurae.d formCoordinates3 formX)))
   [0]
 
 def formDx := [|1, 0, 0|]
@@ -65,32 +66,33 @@ def formVolume := FE.canonicalFormTensor (\_ -> 1) 3 3
 assertEqual "Euclidean Hodge maps degree k to 3-k"
   (map
     (\form ->
-      let starred := Formurae.hodge formContext3 form
+      let starred :=
+            Formurae.hodge formDimension3 formScales3 form
        in (dfOrder starred, FE.formComponents starred))
     [1, formDx, formDxy, formVolume])
   [(3, [1]), (2, [0, 0, 1]), (1, [0, 0, 1]), (0, [1])]
 
 assertEqual "Euclidean Hodge one-form basis signs"
   (map
-    (\form -> FE.formComponents (Formurae.hodge formContext3 form))
+    (\form -> FE.formComponents (Formurae.hodge formDimension3 formScales3 form))
     [formDx, formDy, formDz])
   [[0, 0, 1], [0, -1, 0], [1, 0, 0]]
 
 assertEqual "Euclidean Hodge two-form basis signs"
   (map
-    (\form -> FE.formComponents (Formurae.hodge formContext3 form))
+    (\form -> FE.formComponents (Formurae.hodge formDimension3 formScales3 form))
     [formDxy, formDxz, formDyz])
   [[0, 0, 1], [0, -1, 0], [1, 0, 0]]
 
 assertEqual "Hodge square has the Euclidean orientation sign"
   (FE.formComponents
-    (Formurae.hodge formContext3 (Formurae.hodge formContext3 formDx)))
+    (Formurae.hodge formDimension3 formScales3
+      (Formurae.hodge formDimension3 formScales3 formDx)))
   [1, 0, 0]
 
 def formDx2 := [|1, 0|]
 
-def variableFormContext2 :=
-  Formurae.operatorContext [|x, y|] 2 1 "test-manifest" [|2, 3|] True
+def variableFormScales2 : Vector MathValue := [|2, 3|]
 
 def formDy2 := [|0, 1|]
 
@@ -98,63 +100,71 @@ def formArea2 := FE.canonicalFormTensor (\_ -> 1) 2 2
 
 assertEqual "orthogonal Hodge uses volume over source scale squares"
   (map
-    (\form -> FE.formComponents (Formurae.hodge variableFormContext2 form))
+    (\form -> FE.formComponents (Formurae.hodge formDimension2 variableFormScales2 form))
     [1, formDx2, formDy2, formArea2])
   [[6], [0, 3 / 2], [0 - 2 / 3, 0], [1 / 6]]
 
 assertEqual "orthogonal Hodge square keeps the orientation sign"
   (FE.formComponents
-    (Formurae.hodge variableFormContext2
-      (Formurae.hodge variableFormContext2 formDx2)))
+    (Formurae.hodge formDimension2 variableFormScales2
+      (Formurae.hodge formDimension2 variableFormScales2 formDx2)))
   [-1, 0]
 
 assertEqual "orthogonal flat is one metric contraction"
-  (Formurae.flat variableFormContext2 [|x, y|])
+  (Formurae.flat formDimension2 variableFormScales2 [|x, y|])
   [|4 * x, 9 * y|]
 
 assertEqual "flat result carries covector metadata"
-  (tensorVariances (Formurae.flat variableFormContext2 [|x, y|]),
-   dfOrder (Formurae.flat variableFormContext2 [|x, y|]))
+  (tensorVariances
+      (Formurae.flat formDimension2 variableFormScales2 [|x, y|]),
+   dfOrder (Formurae.flat formDimension2 variableFormScales2 [|x, y|]))
   (["down"], 0)
 
 assertEqual "orthogonal sharp is one inverse-metric contraction"
-  (Formurae.sharp variableFormContext2 [|x, y|])
+  (Formurae.sharp formDimension2 variableFormScales2 [|x, y|])
   [|x / 4, y / 9|]
 
 assertEqual "sharp result carries contravariant vector metadata"
-  (tensorVariances (Formurae.sharp variableFormContext2 [|x, y|]),
-   dfOrder (Formurae.sharp variableFormContext2 [|x, y|]))
+  (tensorVariances
+      (Formurae.sharp formDimension2 variableFormScales2 [|x, y|]),
+   dfOrder (Formurae.sharp formDimension2 variableFormScales2 [|x, y|]))
   (["up"], 0)
 
 assertEqual "orthogonal musical maps are inverses"
-  (Formurae.sharp variableFormContext2
-    (Formurae.flat variableFormContext2 [|x, y|]))
+  (Formurae.sharp formDimension2 variableFormScales2
+    (Formurae.flat formDimension2 variableFormScales2 [|x, y|]))
   [|x, y|]
 
 assertEqual "two-dimensional Hodge square is negative on one-forms"
   (FE.formComponents
-    (Formurae.hodge formContext2 (Formurae.hodge formContext2 formDx2)))
+    (Formurae.hodge formDimension2 formScales2
+      (Formurae.hodge formDimension2 formScales2 formDx2)))
   [-1, 0]
 
 assertEqual "codifferential of a one-form is negative divergence"
-  (FE.tensorComponentAt (Formurae.codiff formContext3 formX) [])
+  (FE.tensorComponentAt
+    (Formurae.codiff formCoordinates3 formDimension3 formScales3 formX) [])
   (0 - userRefs formX1 [1]
      - userRefs formX2 [2]
      - userRefs formX3 [3])
 
 assertEqual "codifferential two-form components follow the fixed sign"
-  (FE.formComponents (Formurae.codiff formContext3 formB))
+  (FE.formComponents
+    (Formurae.codiff formCoordinates3 formDimension3 formScales3 formB))
   [ userRefs formB12 [2] + userRefs formB13 [3]
   , 0 - userRefs formB12 [1] + userRefs formB23 [3]
   , 0 - userRefs formB13 [1] - userRefs formB23 [2]
   ]
 
 assertEqual "delta is the public codifferential alias"
-  (Formurae.delta formContext3 formB)
-  (Formurae.codiff formContext3 formB)
+  (Formurae.delta formCoordinates3 formDimension3 formScales3 formB)
+  (Formurae.codiff formCoordinates3 formDimension3 formScales3 formB)
 
 assertEqual "positive scalar Laplacian is minus delta d"
-  ( Formurae.formLaplacian formContext3 formU
+  ( Formurae.formLaplacian
+      formCoordinates3 formDimension3 formScales3 formU
   , 0 - FE.tensorComponentAt
-          (Formurae.delta formContext3 (Formurae.d formContext3 formU)) [])
-  (Formurae.lap formContext3 formU, Formurae.lap formContext3 formU)
+          (Formurae.delta formCoordinates3 formDimension3 formScales3
+            (Formurae.d formCoordinates3 formU)) [])
+  (Formurae.lap formCoordinates3 formU,
+   Formurae.lap formCoordinates3 formU)

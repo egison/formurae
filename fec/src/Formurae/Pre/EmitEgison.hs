@@ -459,8 +459,8 @@ prepareDefinitions model = go [] [] (zip [1 ..] (Surface.mDefs model))
   where
     go _ prepared [] = pure (Right (reverse prepared))
     go prior prepared ((index, definition) : rest) = do
-      result <- prepareExpression model "FormuraeInternalContext"
-        prior (Surface.defName definition : map fst prior)
+      result <- prepareExpression model prior
+        (Surface.defName definition : map fst prior)
         (map definitionParameterBase (Surface.defParams definition))
         (Surface.defBody definition)
       case result of
@@ -474,8 +474,7 @@ prepareDefinitions model = go [] [] (zip [1 ..] (Surface.mDefs model))
 prepareDynamic
   :: Surface.Model -> DynamicValue -> IO (Either EmitError DynamicValue)
 prepareDynamic model dynamic = do
-  result <- prepareExpression model "feOperatorContext" []
-    (map Surface.defName (Surface.mDefs model)) []
+  result <- prepareExpression model [] (map Surface.defName (Surface.mDefs model)) []
     (dynamicSource dynamic)
   pure $ case result of
     Left err -> Left (maybe err (`EmitAtSource` err)
@@ -484,28 +483,26 @@ prepareDynamic model dynamic = do
 
 prepareExpression
   :: Surface.Model
-  -> String
   -> [(String, String)]
   -> [String]
   -> [String]
   -> String
   -> IO (Either EmitError String)
-prepareExpression model contextName userDefinitions shadowedNames boundNames source = do
+prepareExpression model userDefinitions shadowedNames boundNames source = do
   preprocessed <- preprocessTensorExpr model source
   pure $ case parseTensorExprEither preprocessed of
     Left message -> Left (EmitExpressionError message)
     Right expression -> renderTensorExpr
-      <$> contextualize model contextName userDefinitions shadowedNames boundNames expression
+      <$> contextualize model userDefinitions shadowedNames boundNames expression
 
 contextualize
   :: Surface.Model
-  -> String
   -> [(String, String)]
   -> [String]
   -> [String]
   -> TensorExpr
   -> Either EmitError TensorExpr
-contextualize model contextName userDefinitions shadowedNames boundNames expression =
+contextualize model userDefinitions shadowedNames boundNames expression =
   case expression of
     TENumber value -> Right (TENumber value)
     TEIdent name parts
@@ -514,8 +511,8 @@ contextualize model contextName userDefinitions shadowedNames boundNames express
       | null parts
       , name == "False" -> Right (TEIdent "Formurae.predicateFalse" [])
       | null parts
-      , Just qualified <- contextFunction name ->
-          Right (TEGroup (TEApply (TEIdent qualified []) [context]))
+      , Just qualified <- resolvedFunction name ->
+          Right (TEIdent qualified [])
       | null parts
       , not (isLexicallyShadowed name)
       , Just completedParts <- indexedLetCompletion name ->
@@ -531,8 +528,8 @@ contextualize model contextName userDefinitions shadowedNames boundNames express
     TECall function arguments ->
       TECall <$> walk function <*> mapM walk arguments
     TEApply (TEIdent name []) arguments
-      | Just qualified <- contextFunction name ->
-          contextualizeContinuumCall qualified arguments
+      | Just qualified <- resolvedFunction name ->
+          contextualizeResolvedCall qualified arguments
     TEApply (TEIdent name parts) arguments
       | isExplicitPrimitiveName name
       , not (isLexicallyShadowed name) ->
@@ -550,9 +547,8 @@ contextualize model contextName userDefinitions shadowedNames boundNames express
               | otherwise -> do
                   axisId <- gridAxisId derivative axis
                   Right (TEApply
-                    (TEIdent "Formurae.coordinateWideDerivative" [])
-                    [ context
-                    , TENumber (show axisId)
+                    (TEIdent "FormuraeInternalCoordinateWideDerivative" [])
+                    [ TENumber (show axisId)
                     , TENumber (show order)
                     , TENumber (show radius)
                     , argument
@@ -594,16 +590,15 @@ contextualize model contextName userDefinitions shadowedNames boundNames express
       | otherwise -> TEBinary operator <$> walk lhs <*> walk rhs
     TEGroup body -> TEGroup <$> walk body
   where
-    walk value = contextualize model contextName userDefinitions
+    walk value = contextualize model userDefinitions
       shadowedNames boundNames value
-    context = TEIdent contextName []
     applyUserDot internalName (first : rest) =
       foldl apply first rest
       where
         apply lhs rhs = TEApply (TEIdent internalName [])
-          [context, applicationArgument lhs, applicationArgument rhs]
+          [applicationArgument lhs, applicationArgument rhs]
     applyUserDot _ [] = TEDot []
-    contextFunction name
+    resolvedFunction name
       | name `elem` boundNames = Nothing
       | Just internalName <- lookup name userDefinitions = Just internalName
       | name `elem` shadowedNames = Nothing
@@ -625,18 +620,18 @@ contextualize model contextName userDefinitions shadowedNames boundNames express
       Surface.IxPart variance "#"
     indexedDerivativePart part value =
       TEAppendIndexed
-        (TEGroup (TEApply (TEIdent "Formurae.diff" []) [context, value]))
+        (TEGroup (TEApply (TEIdent "FormuraeInternalDiff" []) [value]))
         [part]
-    contextualizeContinuumCall qualified arguments = do
+    contextualizeResolvedCall qualified arguments = do
       arguments' <- mapM walk arguments
-      Right (TEApply (TEIdent qualified []) (context : arguments'))
+      Right (TEApply (TEIdent qualified []) arguments')
     contextualizeGridWholeCall name parts arguments =
       case (parts, arguments) of
         ([Surface.IxPart _ axis], [argument]) -> do
           axisId <- gridAxisId name axis
           argument' <- walk argument
-          Right (TEApply (TEIdent "Formurae.gridWholeDerivative" [])
-            [context, TENumber (show axisId), argument'])
+          Right (TEApply (TEIdent "FormuraeInternalGridWholeDerivative" [])
+            [TENumber (show axisId), argument'])
         ([_], _) -> Left (EmitExpressionError
           (name ++ " whole-expression grid derivative needs one operand"))
         _ -> Left (EmitExpressionError
@@ -656,8 +651,8 @@ contextualize model contextName userDefinitions shadowedNames boundNames express
             ([], value : axes@(_ : _)) -> do
               value' <- walk value
               axisIds <- mapM (explicitAxisId name) axes
-              Right (TEApply (TEIdent "Formurae.orderedDerivative" [])
-                [context, integerVector axisIds, applicationArgument value'])
+              Right (TEApply (TEIdent "FormuraeInternalOrderedDerivative" [])
+                [integerVector axisIds, applicationArgument value'])
             ([], _) -> Left (EmitExpressionError
               (name ++ " needs one scalar operand followed by one or more coordinate names"))
             _ -> Left (EmitExpressionError
@@ -668,8 +663,8 @@ contextualize model contextName userDefinitions shadowedNames boundNames express
               value' <- walk value
               bitValues <- mapM (explicitPlacementBit name) bits
               if length bitValues == Surface.mDim model
-                then Right (TEApply (TEIdent "Formurae.resampleExplicit" [])
-                  [context, integerVector bitValues,
+                then Right (TEApply (TEIdent "FormuraeInternalResampleExplicit" [])
+                  [integerVector bitValues,
                    applicationArgument value'])
                 else Left (EmitExpressionError
                   (name ++ " needs exactly " ++ show (Surface.mDim model)
@@ -681,19 +676,16 @@ contextualize model contextName userDefinitions shadowedNames boundNames express
             ([], [value]) -> do
               value' <- walk value
               Right (TEApply
-                (TEIdent "Formurae.fluxConservativeDivergence" [])
-                [ context
-                , applicationArgument value'])
+                (TEIdent "FormuraeInternalFluxConservativeDivergence" [])
+                [applicationArgument value'])
             _ -> Left (EmitExpressionError
               (name ++ " needs exactly one rank-1 tensor operand"))
       | name == "materialize" =
           case (parts, arguments) of
             ([], [value]) -> do
               value' <- walk value
-              Right (TEApply (TEIdent "Formurae.materialized" [])
-                [ context
-                , applicationArgument value'
-                ])
+              Right (TEApply (TEIdent "FormuraeInternalMaterialized" [])
+                [applicationArgument value'])
             _ -> Left (EmitExpressionError
               "materialize needs exactly one unindexed scalar or tensor operand")
       | otherwise = Left (EmitExpressionError
@@ -743,22 +735,22 @@ isExplicitPrimitiveName name = name `elem`
 
 continuumOperators :: [(String, String)]
 continuumOperators =
-  [ ("grad", "Formurae.grad")
-  , ("dGrad", "Formurae.dGrad")
-  , ("divg", "Formurae.divg")
-  , ("curl", "Formurae.curl")
-  , ("hessian", "Formurae.hessian")
-  , ("lap", "Formurae.lap")
-  , ("Δ", "Formurae.lap")
-  , ("flat", "Formurae.flat")
-  , ("sharp", "Formurae.sharp")
-  , ("d", "Formurae.d")
-  , ("dForm", "Formurae.d")
-  , ("hodge", "Formurae.hodge")
-  , ("codiff", "Formurae.codiff")
-  , ("delta", "Formurae.codiff")
-  , ("formLaplacian", "Formurae.formLaplacian")
-  , ("lb", "Formurae.lbOrthogonal")
+  [ ("grad", "FormuraeInternalGrad")
+  , ("dGrad", "FormuraeInternalDGrad")
+  , ("divg", "FormuraeInternalDivg")
+  , ("curl", "FormuraeInternalCurl")
+  , ("hessian", "FormuraeInternalHessian")
+  , ("lap", "FormuraeInternalLap")
+  , ("Δ", "FormuraeInternalLap")
+  , ("flat", "FormuraeInternalFlat")
+  , ("sharp", "FormuraeInternalSharp")
+  , ("d", "FormuraeInternalD")
+  , ("dForm", "FormuraeInternalD")
+  , ("hodge", "FormuraeInternalHodge")
+  , ("codiff", "FormuraeInternalCodiff")
+  , ("delta", "FormuraeInternalCodiff")
+  , ("formLaplacian", "FormuraeInternalFormLaplacian")
+  , ("lb", "FormuraeInternalLb")
   ]
 
 coordinateDerivativeName :: String -> Maybe (Int, Int)
@@ -798,9 +790,9 @@ renderUnit model registry geometryDeclarations definitions dynamics program = un
   header
   ++ diagnosticMetadata registry dynamics
   ++ symbolDeclarations
-  ++ contextDeclarations
+  ++ modelEnvironmentDeclarations
   ++ geometryDeclarations
-  ++ operatorContextDeclarations
+  ++ ambientOperatorDeclarations
   ++ concatMap (fieldDeclarations model) (Surface.mFieldDecls model)
   ++ localDeclarations
   ++ registryDeclarations model registry
@@ -831,7 +823,7 @@ renderUnit model registry geometryDeclarations definitions dynamics program = un
          | not (null parameterNames)]
       ++ ["declare symbol " ++ intercalate ", " indexNames]
       ++ [""]
-    contextDeclarations =
+    modelEnvironmentDeclarations =
       [ "def feDimension : Integer := " ++ show (Surface.mDim model)
       , "def feCoordinates : Vector MathValue := [| "
           ++ intercalate ", " coordinateNames ++ " |]"
@@ -841,15 +833,86 @@ renderUnit model registry geometryDeclarations definitions dynamics program = un
          | Just metricName <- [Surface.mMetricName model]
          ]
       ++ [""]
-    operatorContextDeclarations =
+    ambientOperatorDeclarations =
       [ "def feGeometryScales : Vector MathValue := [| "
           ++ intercalate ", " geometryScaleValues ++ " |]"
-      , "def feOperatorContext := Formurae.operatorContext feCoordinates"
-          ++ " feDimension 1 "
+      , "def feGeometryId : Integer := 1"
+      , "def fePrimitiveManifestId : String := "
           ++ show (primitiveManifestText (FEIR.feProgramPrimitiveManifestId program))
-          ++ " feGeometryScales " ++ if hasVariableGeometry then "True" else "False"
-      , ""
       ]
+      ++ operatorDeclarations
+      ++ [ ""
+         ]
+    operatorDeclarations = epsilonDeclarations ++ concat
+      [ whenUsed "FormuraeInternalDiff"
+          ["def FormuraeInternalDiff value := Formurae.diff feCoordinates value"]
+      , whenUsed "FormuraeInternalGrad"
+          ["def FormuraeInternalGrad u := Formurae.grad feCoordinates u"]
+      , whenUsed "FormuraeInternalDGrad"
+          ["def FormuraeInternalDGrad X := Formurae.dGrad feCoordinates X"]
+      , whenUsed "FormuraeInternalDivg"
+          ["def FormuraeInternalDivg X := Formurae.divg feCoordinates X"]
+      , whenUsed "FormuraeInternalCurl"
+          [ "def FormuraeInternalCurl (X : Vector MathValue) : Vector MathValue :="
+          , "  match assert \"curl requires three dimensions\""
+          , "               (feDimension = 3 && tensorShape X = [3]) as bool with"
+          , "    | #True -> (withSymbols [i, j, k]"
+          , "        (epsilon_i~j~k . strict∂/∂ X_k feCoordinates~j))_formuraeTensorIndex1"
+          ]
+      , whenUsed "FormuraeInternalHessian"
+          ["def FormuraeInternalHessian u := Formurae.hessian feCoordinates u"]
+      , whenUsed "FormuraeInternalLap"
+          ["def FormuraeInternalLap u := Formurae.lap feCoordinates u"]
+      , whenUsed "FormuraeInternalFlat"
+          ["def FormuraeInternalFlat X := Formurae.flat feDimension feGeometryScales X"]
+      , whenUsed "FormuraeInternalSharp"
+          ["def FormuraeInternalSharp A := Formurae.sharp feDimension feGeometryScales A"]
+      , whenUsed "FormuraeInternalD"
+          ["def FormuraeInternalD A := Formurae.d feCoordinates A"]
+      , whenUsed "FormuraeInternalHodge"
+          ["def FormuraeInternalHodge A := Formurae.hodge feDimension feGeometryScales A"]
+      , whenUsed "FormuraeInternalCodiff" codiffDeclarations
+      , whenUsed "FormuraeInternalFormLaplacian" formLaplacianDeclarations
+      , whenUsed "FormuraeInternalLb"
+          ["def FormuraeInternalLb value := Formurae.lbOrthogonal feGeometryId fePrimitiveManifestId value"]
+      , whenUsed "FormuraeInternalCoordinateWideDerivative"
+          ["def FormuraeInternalCoordinateWideDerivative axis order radius value := Formurae.coordinateWideDerivative feDimension fePrimitiveManifestId axis order radius value"]
+      , whenUsed "FormuraeInternalGridWholeDerivative"
+          ["def FormuraeInternalGridWholeDerivative axis value := Formurae.gridWholeDerivative feDimension fePrimitiveManifestId axis value"]
+      , whenUsed "FormuraeInternalOrderedDerivative"
+          ["def FormuraeInternalOrderedDerivative axes value := Formurae.orderedDerivative feDimension fePrimitiveManifestId axes value"]
+      , whenUsed "FormuraeInternalResampleExplicit"
+          ["def FormuraeInternalResampleExplicit bits value := Formurae.resampleExplicit feDimension fePrimitiveManifestId bits value"]
+      , whenUsed "FormuraeInternalFluxConservativeDivergence"
+          ["def FormuraeInternalFluxConservativeDivergence flux := Formurae.fluxConservativeDivergence feDimension fePrimitiveManifestId flux"]
+      , whenUsed "FormuraeInternalMaterialized"
+          ["def FormuraeInternalMaterialized value := Formurae.materialized fePrimitiveManifestId value"]
+      ]
+    epsilonDeclarations
+      | "epsilon" `elem` preparedIdentifiers
+        || "FormuraeInternalCurl" `elem` preparedIdentifiers =
+          ["def epsilon : Tensor Integer := ε feDimension"]
+      | otherwise = []
+    whenUsed name declarations
+      | name `elem` preparedIdentifiers = declarations
+      | name == "FormuraeInternalD", Surface.mDd model /= Nothing = declarations
+      | otherwise = []
+    preparedIdentifiers = nub
+      [ fst (parseIndexedIdent name)
+      | source <- [body | (_, _, body) <- definitions]
+                  ++ map dynamicSource dynamics
+      , Surface.TId name _ <- Surface.tokenize source
+      ]
+    codiffDeclarations
+      | hasVariableGeometry =
+          ["def FormuraeInternalCodiff A := Formurae.metricCodiff feDimension feGeometryId fePrimitiveManifestId A"]
+      | otherwise =
+          ["def FormuraeInternalCodiff A := Formurae.codiff feCoordinates feDimension feGeometryScales A"]
+    formLaplacianDeclarations
+      | hasVariableGeometry =
+          ["def FormuraeInternalFormLaplacian u := Formurae.metricFormLaplacian feCoordinates feDimension feGeometryId fePrimitiveManifestId u"]
+      | otherwise =
+          ["def FormuraeInternalFormLaplacian u := Formurae.formLaplacian feCoordinates feDimension feGeometryScales u"]
     hasVariableGeometry = case (Surface.mMetric model, Surface.mEmbed model) of
       (Nothing, Nothing) -> False
       _ -> True
@@ -931,7 +994,7 @@ continuumAssertionDeclarations model =
   case Surface.mDd model of
     Nothing -> []
     Just value ->
-      [ "def feContinuumDD := foldl (\\acc component -> acc + component ^ 2) 0 (tensorToList (Formurae.d feOperatorContext (Formurae.d feOperatorContext "
+      [ "def feContinuumDD := foldl (\\acc component -> acc + component ^ 2) 0 (tensorToList (FormuraeInternalD (FormuraeInternalD "
           ++ value ++ ")))"
       , "def feContinuumAssertions : Bool := assert \"continuum identity d(d A) = 0 failed\" (feContinuumDD = 0)"
       , ""
@@ -1098,13 +1161,11 @@ definitionDeclarations dimension definitions = concatMap renderDefinition defini
   where
     renderDefinition (index, definition, body) =
       [ "def FormuraeInternalDefinition" ++ show index
-          ++ " FormuraeInternalContext"
           ++ concatMap (\parameter -> " " ++ definitionParameterBase parameter)
                (Surface.defParams definition)
           ++ " := " ++ withIndexSymbols (checkedBody definition body)
       , "def " ++ publicDefinitionName (Surface.defName definition)
           ++ " := FormuraeInternalDefinition" ++ show index
-          ++ " feOperatorContext"
       , ""
       ]
 

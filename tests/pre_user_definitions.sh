@@ -20,14 +20,14 @@ compile_pipeline() {
 cd "$ROOT"
 
 compile_pipeline tests/fixtures/pre_fec_user_definitions.fme user-definitions
-grep -F 'FormuraeInternalDefinition2 FormuraeInternalContext materialize x' \
+grep -F 'FormuraeInternalDefinition2 materialize x' \
   "$WORK/user-definitions.egi" >/dev/null
-grep -F 'FormuraeInternalDefinition3 FormuraeInternalContext X :=' \
+grep -F 'FormuraeInternalDefinition3 X :=' \
   "$WORK/user-definitions.egi" >/dev/null
-grep -F 'FormuraeInternalDefinition4 FormuraeInternalContext X :=' \
+grep -F 'FormuraeInternalDefinition4 X :=' \
   "$WORK/user-definitions.egi" >/dev/null
-if grep -F 'Formurae.materialized' "$WORK/user-definitions.egi" >/dev/null \
-   || grep -E 'FormuraeInternalContext X(\.\.\.|_[[:alnum:]])' \
+if grep -F 'FormuraeInternalMaterialized x' "$WORK/user-definitions.egi" >/dev/null \
+   || grep -E 'FormuraeInternalDefinition[0-9]+ X(\.\.\.|_[[:alnum:]])' \
         "$WORK/user-definitions.egi" >/dev/null; then
   printf 'user definition lexical shadow or parameter lowering leaked generated syntax\n' >&2
   exit 1
@@ -40,9 +40,9 @@ grep -F "B_down1_down2'[i,j] = A_down1_down2[i,j]" \
 # The checked-in whole-tensor sample exercises standard operators through a
 # pure higher-order user function all the way across Egison and FEIR.
 compile_pipeline tests/formurae_standard_ops.fme higher-order
-grep -F 'apply (Formurae.lap feOperatorContext) u' \
+grep -F 'apply FormuraeInternalLap u' \
   "$WORK/higher-order.egi" >/dev/null
-grep -F 'apply (Formurae.grad feOperatorContext) u' \
+grep -F 'apply FormuraeInternalGrad u' \
   "$WORK/higher-order.egi" >/dev/null
 grep -F "u'[i,j] =" "$WORK/higher-order.fmr" >/dev/null
 grep -F "q_down1'[i,j] =" "$WORK/higher-order.fmr" >/dev/null

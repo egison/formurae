@@ -1,12 +1,10 @@
 declare symbol x, y
 
-def opaqueContext :=
-  Formurae.operatorContext [|x, y|] 2 1
-    Formurae.Primitives.primitiveManifestV1Id [|1, 1|] False
-
-def opaqueOtherGeometryContext :=
-  Formurae.operatorContext [|x, y|] 2 2
-    Formurae.Primitives.primitiveManifestV1Id [|1, 1|] False
+def opaqueDimension : Integer := 2
+def opaqueGeometryId : Integer := 1
+def opaqueOtherGeometryId : Integer := 2
+def opaqueManifestId : String :=
+  Formurae.Primitives.primitiveManifestV1Id
 
 def opaqueU := function (x, y)
 def opaqueCoordinates := [(x, 1), (y, 2)]
@@ -21,28 +19,28 @@ def opaqueMetricFields :=
   [ FEIR.fieldEntry 2 "current" [1] opaqueA1
   , FEIR.fieldEntry 2 "current" [2] opaqueA2
   ]
-def opaqueMetricContext :=
-  Formurae.operatorContext [|x, y|] 2 1
-    Formurae.Primitives.primitiveManifestV1Id [|1 + x, 1|] True
-
 def encodeOpaqueFixture value :=
   FEIR.encodeScalar [] opaqueCoordinates opaqueFields [] [] value
 
 def encodedOpaqueU := encodeOpaqueFixture opaqueU
 
 def lbRequest :=
-  Formurae.lbOrthogonal opaqueContext opaqueU
+  Formurae.lbOrthogonal opaqueGeometryId opaqueManifestId opaqueU
 
 def wideRequest :=
-  Formurae.coordinateWideDerivative opaqueContext 2 2 2 opaqueU
+  Formurae.coordinateWideDerivative
+    opaqueDimension opaqueManifestId 2 2 2 opaqueU
 
 def gridWholeOperand := opaqueU * opaqueU / 2
 
 def gridWholeRequest :=
-  Formurae.gridWholeDerivative opaqueContext 1 gridWholeOperand
+  Formurae.gridWholeDerivative
+    opaqueDimension opaqueManifestId 1 gridWholeOperand
 
 def metricCodiffRequest :=
-  FE.tensorComponentAt (Formurae.codiff opaqueMetricContext opaqueA) []
+  FE.tensorComponentAt
+    (Formurae.metricCodiff
+      opaqueDimension opaqueGeometryId opaqueManifestId opaqueA) []
 
 def expectedLb :=
   FEIR.opaqueNode "lb.orthogonal@1" []
@@ -107,7 +105,7 @@ assertEqual "grid-whole differs from analytic product-rule differentiation"
 
 assertEqual "opaque semantic key and request group are deterministic"
   (encodeOpaqueFixture
-    (Formurae.lbOrthogonal opaqueContext opaqueU))
+    (Formurae.lbOrthogonal opaqueGeometryId opaqueManifestId opaqueU))
   (encodeOpaqueFixture lbRequest)
 
 assertEqual "ordinary algebra retains opaque atoms"
@@ -118,14 +116,16 @@ assertEqual "ordinary algebra retains opaque atoms"
       , expectedWide
       ]))
 
-assertEqual "operator-context geometry is part of lb semantic identity"
+assertEqual "geometry ID is part of lb semantic identity"
   (encodeOpaqueFixture lbRequest
     = encodeOpaqueFixture
-        (Formurae.lbOrthogonal opaqueOtherGeometryContext opaqueU))
+        (Formurae.lbOrthogonal
+          opaqueOtherGeometryId opaqueManifestId opaqueU))
   False
 
 assertEqual "explicit radius is part of wide semantic identity"
   (encodeOpaqueFixture wideRequest
     = encodeOpaqueFixture
-        (Formurae.coordinateWideDerivative opaqueContext 2 2 3 opaqueU))
+        (Formurae.coordinateWideDerivative
+          opaqueDimension opaqueManifestId 2 2 3 opaqueU))
   False

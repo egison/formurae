@@ -1,9 +1,9 @@
 declare symbol x, y
 declare symbol remainingTensorIndex
 
-def remainingContext :=
-  Formurae.operatorContext [|x, y|] 2 1
-    Formurae.Primitives.primitiveManifestV1Id [|1, 1|] False
+def remainingDimension : Integer := 2
+def remainingManifestId : String :=
+  Formurae.Primitives.primitiveManifestV1Id
 
 def remainingU := function (x, y)
 def remainingF1 := function (x, y)
@@ -38,28 +38,32 @@ def encodedRemainingForm :=
     [] [] [2] [2] 1 (tensorToList remainingForm)
 
 def orderedRequest :=
-  Formurae.orderedDerivative remainingContext [|2, 1, 2|] remainingU
+  Formurae.orderedDerivative
+    remainingDimension remainingManifestId [|2, 1, 2|] remainingU
 
 def resampleRequest :=
-  Formurae.resampleExplicit remainingContext [|0, 1|] remainingU
+  Formurae.resampleExplicit
+    remainingDimension remainingManifestId [|0, 1|] remainingU
 
 def fluxRequest :=
-  Formurae.fluxConservativeDivergence remainingContext remainingF
+  Formurae.fluxConservativeDivergence
+    remainingDimension remainingManifestId remainingF
 
 def fluxUpRequest :=
-  Formurae.fluxConservativeDivergence remainingContext remainingFUp
+  Formurae.fluxConservativeDivergence
+    remainingDimension remainingManifestId remainingFUp
 
 def materializedScalarRequest :=
-  Formurae.materialized remainingContext remainingU
+  Formurae.materialized remainingManifestId remainingU
 
 def materializedTensor :=
-  Formurae.materialized remainingContext remainingF
+  Formurae.materialized remainingManifestId remainingF
 
 def materializedUpTensor :=
-  Formurae.materialized remainingContext remainingFUp
+  Formurae.materialized remainingManifestId remainingFUp
 
 def materializedFormTensor :=
-  Formurae.materialized remainingContext remainingForm
+  Formurae.materialized remainingManifestId remainingForm
 
 def expectedOrdered :=
   FEIR.opaqueNode "derivative.ordered@1" []

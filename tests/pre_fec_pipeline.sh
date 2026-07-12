@@ -75,19 +75,19 @@ grep -F 'registry ID mismatch' "$WORK/tampered.err" >/dev/null
 # normalizes it to one second-order FieldJet rather than nested stencils.
 cabal run -v0 pre-fec -- "$ROOT/examples/diffusion1d/diffusion1d.fme" \
   > "$WORK/derivative.egi"
-grep -F 'Formurae.divg FormuraeInternalContext (Formurae.grad FormuraeInternalContext u)' \
+grep -F 'FormuraeInternalDivg (FormuraeInternalGrad u)' \
   "$WORK/derivative.egi" >/dev/null
 run_machine "$WORK/derivative.egi" "$WORK/derivative.feir"
 grep -F '(axis-order (axis 1) (count 2))' "$WORK/derivative.feir" >/dev/null
 cabal run -v0 post-fec -- "$WORK/derivative.feir" > "$WORK/derivative.fmr"
 grep -F 'u[i-1] + u[i+1] + (-2) * u[i]' "$WORK/derivative.fmr" >/dev/null
 
-# Higher-order passage preserves the hidden OperatorContext and the tensor
+# Higher-order passage preserves the ambient operator closure and the tensor
 # metadata of standard operators.  `apply grad u` must therefore reach a
 # whole covector target, not an anonymous one-form axis.
 cabal run -v0 pre-fec -- "$ROOT/tests/formurae_standard_ops.fme" \
   > "$WORK/standard-ops.egi"
-grep -F 'apply (Formurae.grad feOperatorContext) u' \
+grep -F 'apply FormuraeInternalGrad u' \
   "$WORK/standard-ops.egi" >/dev/null
 run_machine "$WORK/standard-ops.egi" "$WORK/standard-ops.feir"
 grep -F '(shape (2)) (variances (down)) (df-order 0)' \
@@ -231,12 +231,12 @@ grep -F "H_2'[i,j] = A_1[i,j] / (1 + dx * ((1 / 2) + i))" \
 
 # A surface `def (.)` shadows the tensor bridge's default contraction.  The
 # generated operator alias is valid Egison syntax, and later user definitions
-# resolve it through the same hidden operator context as named functions.
+# resolve it directly as an ordinary context-free user function.
 cabal run -v0 pre-fec -- "$ROOT/tests/fixtures/pre_fec_dot_shadow.fme" \
   > "$WORK/dot-shadow.egi"
-grep -F 'def (.) := FormuraeInternalDefinition1 feOperatorContext' \
+grep -F 'def (.) := FormuraeInternalDefinition1' \
   "$WORK/dot-shadow.egi" >/dev/null
-grep -F 'FormuraeInternalDefinition1 FormuraeInternalContext a b' \
+grep -F 'FormuraeInternalDefinition1 a b' \
   "$WORK/dot-shadow.egi" >/dev/null
 run_machine "$WORK/dot-shadow.egi" "$WORK/dot-shadow.feir"
 cabal run -v0 post-fec -- "$WORK/dot-shadow.feir" > "$WORK/dot-shadow.fmr"
@@ -246,7 +246,7 @@ grep -F "u'[i] = 2 + u[i]" "$WORK/dot-shadow.fmr" >/dev/null
 # the model's compact accuracy-2 profile and keeps its exact radius-2 contract.
 cabal run -v0 pre-fec -- "$ROOT/tests/fixtures/pre_fec_wide.fme" \
   > "$WORK/wide.egi"
-grep -F 'Formurae.coordinateWideDerivative feOperatorContext 1 2 2 u' \
+grep -F 'FormuraeInternalCoordinateWideDerivative 1 2 2 u' \
   "$WORK/wide.egi" >/dev/null
 run_machine "$WORK/wide.egi" "$WORK/wide.feir"
 grep -F '(op-id "derivative.coordinate-wide@1")' "$WORK/wide.feir" >/dev/null
@@ -260,7 +260,7 @@ grep -F '(-1 / 12)' "$WORK/wide.fmr" >/dev/null
 # Egison must preserve the complete nonlinear flux as one opaque operand.
 cabal run -v0 pre-fec -- "$ROOT/examples/ks3d/ks3d.fme" \
   > "$WORK/grid-whole.egi"
-grep -F 'Formurae.gridWholeDerivative feOperatorContext 1 ((u * u) / 2)' \
+grep -F 'FormuraeInternalGridWholeDerivative 1 ((u * u) / 2)' \
   "$WORK/grid-whole.egi" >/dev/null
 run_machine "$WORK/grid-whole.egi" "$WORK/grid-whole.feir"
 cabal exec -- runghc -ifec/src tests/pre_grid_whole_feir.hs \
@@ -270,8 +270,8 @@ cabal exec -- runghc -ifec/src tests/pre_grid_whole_feir.hs \
 # not infer a component-to-whole conversion from an operator name.
 cabal run -v0 pre-fec -- "$ROOT/examples/maxwell3d/maxwell3d.fme" \
   > "$WORK/maxwell.egi"
-grep -F 'E + (dt * Formurae.curl feOperatorContext B)' "$WORK/maxwell.egi" >/dev/null
-grep -F "B - (dt * Formurae.curl feOperatorContext E')" "$WORK/maxwell.egi" >/dev/null
+grep -F 'E + (dt * FormuraeInternalCurl B)' "$WORK/maxwell.egi" >/dev/null
+grep -F "B - (dt * FormuraeInternalCurl E')" "$WORK/maxwell.egi" >/dev/null
 run_machine "$WORK/maxwell.egi" "$WORK/maxwell.feir"
 grep -F '(shape (3))' "$WORK/maxwell.feir" >/dev/null
 cabal run -v0 post-fec -- "$WORK/maxwell.feir" > "$WORK/maxwell.fmr"
@@ -286,7 +286,7 @@ grep -F '(B_down2[i,j,k] + (-1) * B_down2[i,j,k-1]) / dz' \
 
 cabal run -v0 pre-fec -- "$ROOT/examples/diffusion3d/diffusion3d.fme" \
   > "$WORK/indexed-derivative.egi"
-grep -F 'Formurae.divg FormuraeInternalContext (Formurae.grad FormuraeInternalContext u)' \
+grep -F 'FormuraeInternalDivg (FormuraeInternalGrad u)' \
   "$WORK/indexed-derivative.egi" >/dev/null
 run_machine "$WORK/indexed-derivative.egi" "$WORK/indexed-derivative.feir"
 cabal run -v0 post-fec -- "$WORK/indexed-derivative.feir" \
@@ -297,7 +297,7 @@ grep -F '/ dz**2' "$WORK/indexed-derivative.fmr" >/dev/null
 
 cabal run -v0 pre-fec -- "$ROOT/examples/elastic3d/elastic3d.fme" \
   > "$WORK/elastic.egi"
-grep -F '(Formurae.diff feOperatorContext sigma~i~j)..._j' \
+grep -F '(FormuraeInternalDiff sigma~i~j)..._j' \
   "$WORK/elastic.egi" >/dev/null
 run_machine "$WORK/elastic.egi" "$WORK/elastic.feir"
 cabal run -v0 post-fec -- "$WORK/elastic.feir" > "$WORK/elastic.fmr"
@@ -308,7 +308,7 @@ grep -F "sigma_up1_up2'[i,j,k] = sigma_up1_up2[i,j,k]" "$WORK/elastic.fmr" >/dev
 # and post-fec selects the compact five-point second derivative directly.
 cabal run -v0 pre-fec -- "$ROOT/examples/highorder4/highorder4.fme" \
   > "$WORK/highorder.egi"
-grep -F 'Formurae.divg FormuraeInternalContext (Formurae.grad FormuraeInternalContext u)' \
+grep -F 'FormuraeInternalDivg (FormuraeInternalGrad u)' \
   "$WORK/highorder.egi" >/dev/null
 run_machine "$WORK/highorder.egi" "$WORK/highorder.feir"
 grep -F '(order 2)' "$WORK/highorder.feir" >/dev/null
@@ -327,13 +327,13 @@ if grep -E 'i[-+]4|j[-+]4|k[-+]4' "$WORK/highorder.fmr" >/dev/null; then
 fi
 
 # Orthogonal Hodge remains pure Egison algebra.  The same unquoted scale
-# symbols feed GeometryNF and OperatorContext, while variable codiff stays one
+# symbols feed GeometryNF and the ambient operator definitions, while variable codiff stays one
 # versioned request and materializes coefficient/flux/result effects in order.
 cabal run -v0 pre-fec -- "$ROOT/tests/fixtures/pre_fec_metric_forms.fme" \
   > "$WORK/metric-forms.egi"
 grep -F 'FEIR.unquoteAll (feGeometryScale 1)' "$WORK/metric-forms.egi" >/dev/null
-grep -F 'Formurae.hodge feOperatorContext A' "$WORK/metric-forms.egi" >/dev/null
-grep -F 'Formurae.codiff feOperatorContext A' "$WORK/metric-forms.egi" >/dev/null
+grep -F 'FormuraeInternalHodge A' "$WORK/metric-forms.egi" >/dev/null
+grep -F 'FormuraeInternalCodiff A' "$WORK/metric-forms.egi" >/dev/null
 if grep -F 'expandAll' "$WORK/metric-forms.egi" >/dev/null; then
   printf 'metric form normalization contains forbidden expandAll\n' >&2
   exit 1
@@ -370,13 +370,13 @@ fi
 cabal run -v0 pre-fec -- \
   "$ROOT/tests/fixtures/pre_fec_remaining_primitives.fme" \
   > "$WORK/remaining-primitives.egi"
-grep -F 'Formurae.orderedDerivative feOperatorContext [| 1, 2 |] u' \
+grep -F 'FormuraeInternalOrderedDerivative [| 1, 2 |] u' \
   "$WORK/remaining-primitives.egi" >/dev/null
-grep -F 'Formurae.resampleExplicit feOperatorContext [| 1, 1 |] u' \
+grep -F 'FormuraeInternalResampleExplicit [| 1, 1 |] u' \
   "$WORK/remaining-primitives.egi" >/dev/null
-grep -F 'Formurae.fluxConservativeDivergence feOperatorContext (Formurae.materialized feOperatorContext (F + G))' \
+grep -F 'FormuraeInternalFluxConservativeDivergence (FormuraeInternalMaterialized (F + G))' \
   "$WORK/remaining-primitives.egi" >/dev/null
-grep -F 'Formurae.materialized feOperatorContext (Formurae.fluxConservativeDivergence feOperatorContext F)' \
+grep -F 'FormuraeInternalMaterialized (FormuraeInternalFluxConservativeDivergence F)' \
   "$WORK/remaining-primitives.egi" >/dev/null
 run_machine "$WORK/remaining-primitives.egi" \
   "$WORK/remaining-primitives.feir"
@@ -417,7 +417,7 @@ fi
 cabal run -v0 pre-fec -- \
   "$ROOT/tests/fixtures/pre_fec_materialized_metadata.fme" \
   > "$WORK/materialized-metadata.egi"
-grep -F 'Formurae.materialized FormuraeInternalContext value' \
+grep -F 'FormuraeInternalMaterialized value' \
   "$WORK/materialized-metadata.egi" >/dev/null
 grep -F 'def FormuraeInternalValue1~i : Tensor MathValue := stored X' \
   "$WORK/materialized-metadata.egi" >/dev/null
@@ -436,8 +436,8 @@ grep -F "A_1'[i,j] = FormuraeInternalMaterialized2B1[i,j]" \
 
 cabal run -v0 pre-fec -- "$ROOT/examples/maxwell_dec/maxwell_dec.fme" \
   > "$WORK/maxwell-dec.egi"
-grep -F 'Formurae.codiff feOperatorContext B' "$WORK/maxwell-dec.egi" >/dev/null
-grep -F 'Formurae.d feOperatorContext E' "$WORK/maxwell-dec.egi" >/dev/null
+grep -F 'FormuraeInternalCodiff B' "$WORK/maxwell-dec.egi" >/dev/null
+grep -F 'FormuraeInternalD E' "$WORK/maxwell-dec.egi" >/dev/null
 grep -F 'continuum identity d(d A) = 0 failed' "$WORK/maxwell-dec.egi" >/dev/null
 run_machine "$WORK/maxwell-dec.egi" "$WORK/maxwell-dec.feir"
 cabal run -v0 post-fec -- "$WORK/maxwell-dec.feir" > "$WORK/maxwell-dec.fmr"
@@ -447,7 +447,7 @@ compile_and_check maxwell_dec dec_check.c "$WORK/maxwell-dec.fmr"
 while read -r geometry check_source; do
   cabal run -v0 pre-fec -- "$ROOT/examples/$geometry/$geometry.fme" \
     > "$WORK/$geometry.egi"
-  grep -F 'Formurae.lbOrthogonal FormuraeInternalContext u' \
+  grep -F 'FormuraeInternalLb u' \
     "$WORK/$geometry.egi" >/dev/null
   grep -F 'embedding/metric must be symbolically orthogonal' \
     "$WORK/$geometry.egi" >/dev/null

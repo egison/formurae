@@ -35,8 +35,10 @@ main = do
   assertContains "quotes are removed only at FEIR scalar boundary"
     "FEIR.unquoteAll FormuraeInternalValue" embeddedUnit
   assertContains "lb remains a versioned opaque boundary"
-    "Formurae.lbOrthogonal FormuraeInternalContext u"
+    "FormuraeInternalLb u"
     embeddedUnit
+  assertAbsent "ambient operators do not construct a context"
+    "Formurae.operatorContext" embeddedUnit
   assertAbsent "no eager whole-expression expansion" "expandAll" embeddedUnit
   putStrLn "pre-fec geometry emitter tests: ok"
 

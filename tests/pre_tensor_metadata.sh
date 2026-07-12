@@ -15,7 +15,7 @@ run_machine() {
 cd "$ROOT"
 cabal run -v0 pre-fec -- tests/fixtures/pre_fec_materialized_metadata.fme \
   > "$WORK/materialized.egi"
-grep -F 'Formurae.materialized FormuraeInternalContext value' \
+grep -F 'FormuraeInternalMaterialized value' \
   "$WORK/materialized.egi" >/dev/null
 grep -F 'def FormuraeInternalValue1~i : Tensor MathValue := stored X' \
   "$WORK/materialized.egi" >/dev/null
