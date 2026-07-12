@@ -1,4 +1,4 @@
-declare symbol i, j, k, x, y, z
+declare symbol i, j, k, x, y, z, matrixTestIndex1, matrixTestIndex2
 def m := [|[|1, 2, 3|], [|4, 5, 6|], [|7, 8, 9|]|]
 def vi_i := [|1, 2, 3|]
 def vi := vi_i
@@ -6,7 +6,7 @@ assertEqual "bare-alias-component" vi_2 2
 assertEqual "trace" (trace m) 15
 assertEqual "sym" (sym m) [|[|1, 3, 5|], [|3, 5, 7|], [|5, 7, 9|]|]
 
-def ordinaryM := FE.attachOrdinaryRank2Variances ["down", "down"] m
+def ordinaryM := m_matrixTestIndex1_matrixTestIndex2
 assertEqual "sym preserves ordinary rank-two tensor metadata"
   (tensorShape (sym ordinaryM),
    tensorVariances (sym ordinaryM),
@@ -20,9 +20,10 @@ assertEqual "antisym preserves ordinary rank-two tensor metadata"
   ([3, 3], ["down", "down"], 0)
 
 def ordinaryVarianceMatrices :=
-  map (\variances -> FE.attachOrdinaryRank2Variances variances m)
-      [["down", "down"], ["down", "up"],
-       ["up", "down"], ["up", "up"]]
+  [m_matrixTestIndex1_matrixTestIndex2,
+   m_matrixTestIndex1~matrixTestIndex2,
+   m~matrixTestIndex1_matrixTestIndex2,
+   m~matrixTestIndex1~matrixTestIndex2]
 
 assertEqual "sym and antisym preserve every rank-two variance sequence"
   (map
@@ -55,11 +56,6 @@ def form3 := FE.canonicalFormTensor (FE.tensorComponentAt form3Basis) 3 3
 assertEqual "canonical form tensor shapes and inferred degrees"
   (map (\t -> (tensorShape t, dfOrder t)) [form0, form1, form2, form3])
   [([], 0), ([3], 1), ([3, 3], 2), ([3, 3, 3], 3)]
-
-assertEqual "ordinary metadata helpers leave canonical forms untouched"
-  (map (\t -> dfOrder (FE.preserveOrdinaryRank2Metadata t t))
-       [form1, form2, form3])
-  [1, 2, 3]
 
 assertEqual "independent component counts follow binomial coefficients"
   (map (\t -> length (FE.formComponents t)) [form0, form1, form2, form3])

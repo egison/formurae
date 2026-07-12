@@ -468,8 +468,8 @@ Formurae固有のcallback、axis loop、`generateTensor`はこれらの定義に
 数学上のvarianceを明示するmetadata helperである。これにより`apply grad u`のようにoperatorを
 higher-order closureとして渡しても、whole-tensor equation boundaryでshape、variance、`dfOrder`を
 名前依存のpre-fec推論なしに検査できる。外微分・Hodge等のform軸は匿名のまま`dfOrder`で表す。
-同様に`formurae-tensor.egi`の`sym`/`antisym`はordinary rank-2 inputの4種類のvariance列を結果へ
-再付与し、canonical form inputでは匿名form軸を変更しない。
+`sym`/`antisym`はEgisonの`algebra/matrix.egi`を唯一の定義元とする。そこでordinary rank-2 inputの
+4種類のvariance列を結果へ保存し、canonical form inputでは匿名form軸を変更しない。
 
 簡潔化できる範囲は次のとおりである。
 
@@ -1270,7 +1270,8 @@ Egisonが実際のtensor値とambient dimension/geometry bindingsを使って検
 | `TensorExpr.hs` | pre-fec surface AST / index diagnostics / effect analysis |
 | `RuntimeTensor.hs` | `Pre.EmitEgison`へ置換し、旧moduleは削除済み |
 | native operator marker/名前別rank-policy/mode/dimension表 | `formurae-operators.egi` の通常関数と実tensor検査へ置換 |
-| `formurae-tensor.egi` のtensor introspection/algebra | 中段Egisonに残す |
+| `.` / `.'` / `contractWith`、matrix `trace` / `sym` / `antisym`、form `wedge` | Egison標準math libraryへ一本化 |
+| `formurae-tensor.egi` のFormurae固有helper/canonical form bridge | 中段Egisonに残す |
 | `formurae-tensor.egi` のcallback付きcoordinate operators | 短いEgison定義へ置換 |
 | `formurae-grid.egi` のGridPolicy/component placement | logical dataをFEIR、計算をpost-fecへ移し旧libraryは削除済み |
 | `FE.gridDerivativeChain`, generated `dC/dC2/dYee` | `Formurae.Post.Stencil` |

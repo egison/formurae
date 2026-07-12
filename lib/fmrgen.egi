@@ -5,7 +5,8 @@
 -- Generated/hand-written models
 -- provide their own coordinate context, stencil/differential operators,
 -- and Formura printer.
--- Tensor semantics live in lib/formurae-tensor.egi and are loaded separately.
+-- General tensor/matrix/form semantics come from Egison's standard math
+-- libraries; Formurae's remaining tensor bridge is loaded separately.
 --
 
 --

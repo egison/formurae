@@ -2,6 +2,10 @@
 
 Date: 2026-07-09
 
+> **実装更新 (2026-07-12):** `.` / `.'` / `contractWith`はEgison本体の
+> `lib/math/algebra/tensor.egi`を唯一の定義元とする。Formuraeは同名関数を複製せず、
+> surface parseとFEIRへの正規化だけを担当する。
+
 ## 目的
 
 Egison の利点は、任意のテンソル演算子を添字記法で簡潔に定義できることにある。

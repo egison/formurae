@@ -813,7 +813,7 @@ end function</pre></details>
 <div class="card">
   <h3>Maxwell(collocated)</h3>
   <div class="math">∂<sub>t</sub>E = ∇×B,&nbsp;&nbsp;∂<sub>t</sub>B = −∇×E&nbsp;&nbsp;(c=1)</div>
-  <div class="cap">回転は <code>lib/formurae-tensor.egi</code> と生成差分 hook を使う Egison-side operator（<code>epsilon_i~j~k . ∂_j X_k</code>）として評価される。</div>
+  <div class="cap">回転はEgison標準tensor algebraとmodel-localな解析微分を使う演算子（<code>epsilon_i~j~k . ∂_j X_k</code>）として評価される。</div>
   <details class="codebox" data-fme="maxwell3d/maxwell3d.fme" open><summary>Formurae ソース全文(maxwell3d.fme・28 行)</summary>
 <pre><span class="c">-- Maxwell's equations in vacuum (c = 1), collocated grid</span>
 <span class="c">--   dE/dt =  curl B</span>

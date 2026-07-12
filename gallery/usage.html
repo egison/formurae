@@ -44,7 +44,8 @@
   <b>目次:</b>
   <a href="#pipeline">pipeline</a> / <a href="#setup">setup</a> /
   <a href="#tutorial">tutorial</a> / <a href="#syntax">syntax</a> /
-  <a href="#derivative">微分と精度</a> / <a href="#tensor">tensor・form</a> /
+  <a href="#operators">演算子の分類</a> / <a href="#derivative">微分と精度</a> /
+  <a href="#tensor">tensor・form</a> /
   <a href="#geometry">geometry</a> / <a href="#artifacts">生成物と検証</a>
 </div>
 
@@ -60,7 +61,8 @@ model.fmr    Formura source
    │ Formura
 model.c/.h   MPI + temporal blocking C library</pre>
 
-<p>数学的な演算子はEgison、具体的な差分と格子配置はpost-fec、loopと通信はFormuraが担当します。
+<p>pureな解析式で定義できる演算子はEgison、具体的な差分、格子配置、storageを含む離散意味は
+opaque requestとpost-fec、loopと通信はFormuraが担当します。
 成功時のEgison stdoutはFEIR 1個だけです。warningやtype/evaluation errorはmachine runnerが拒否します。</p>
 
 <h2 id="setup">2. セットアップ</h2>
@@ -121,7 +123,87 @@ step:
 surfaceで暗黙総和しません。<code>withSymbols</code>、<code>tensorMap</code>、<code>subrefs</code>、
 <code>transpose</code>、<code>!.</code>はEgison tensor algebraへ渡されます。</p>
 
-<h2 id="derivative">5. 微分と離散化精度</h2>
+<h2 id="operators">5. 演算子は「pureに短く定義できるか」で分ける</h2>
+
+<p>「基本演算子か合成演算子か」ではなく、演算子の意味そのものを通常のEgison数式として
+1行から数行で定義できるかで分けます。pureな演算子はtensor/index algebraと解析微分によって
+FieldJetを含む式までEgisonが正規化し、その後のstencil選択だけをpost-fecに任せます。</p>
+
+<h3>Egisonと同レベルで簡潔に定義できる演算子</h3>
+
+<table>
+<tr><th>演算子</th><th>短い定義で表している意味</th></tr>
+<tr><td><code>∂_x</code>、<code>∂^n_x</code>、<code>∂_i</code>、<code>grad</code>、<code>dGrad</code></td><td>解析微分と、結果に残る共変微分添字</td></tr>
+<tr><td><code>divg</code>、<code>curl</code>、<code>hessian</code>、<code>lap</code> / user-defined <code>Δ</code></td><td>微分、縮約、Levi-Civita tensorの合成</td></tr>
+<tr><td><code>.</code>、<code>contractWith</code>、<code>!.</code> / <code>wedge</code>、<code>trace</code>、<code>sym</code>、<code>antisym</code>、<code>norm2</code></td><td>通常のtensor/index algebra</td></tr>
+<tr><td>四則演算、<code>sin</code>、<code>exp</code>、<code>sqrt</code>など</td><td>scalar algebraと解析的intrinsic function</td></tr>
+<tr><td><code>flat</code>、<code>sharp</code></td><td>計量または逆計量との縮約</td></tr>
+<tr><td><code>d</code>、<code>dForm</code>、<code>hodge</code></td><td>外微分とHodge star。<code>hodge</code>の基底補集合と計量係数は共有定義に集約</td></tr>
+<tr><td><code>codiff</code>、<code>delta</code>、<code>δ</code>、<code>formLaplacian</code></td><td>default Euclidean geometryでは<code>d</code>と<code>hodge</code>のpureな合成</td></tr>
+</table>
+
+<p>したがって、組み合わせて作るuser operatorも数学の形を保ったまま書けます。</p>
+
+<pre>def Δ u = divg (grad u)
+
+def symmetricGrad X = sym (dGrad X)
+def bilaplacian u = lap (lap u)
+
+def curlLike X =
+  withSymbols [i, j, k]
+    (epsilon_i~j~k . ∂_j X_k)
+
+metric g
+def raise A =
+  withSymbols [i, j]
+    (g~i~j . A_j)
+
+def codifferential A =
+  let k := dfOrder A
+   in (-1) ^ (dimension * (k + 1) + 1)
+      * hodge (d (hodge A))</pre>
+
+<p><code>dimension</code>、<code>coordinates</code>、<code>metric</code>、<code>inverseMetric</code>、
+<code>volume</code>、<code>epsilon</code>はmodelから束縛されるambient値です。
+<code>metric g</code>を宣言すると、同じ計量を<code>g_i_j</code> / <code>g_#_#</code>と
+<code>g~i~j</code> / <code>g~#~#</code>でも参照できます。
+hidden contextをuser operatorの引数として渡す必要はありません。</p>
+
+<h3>pureな短いEgison定義だけでは意味が完結しない演算子</h3>
+
+<p>次の演算子は、数式だけでなくstencil、絶対格子位置、保存的flux、または一時storageを指定します。
+呼び出しは短くても、演算子の意味を上のようなpure Egison functionへ展開することはしません。
+Egisonはversion付きのopaque requestを残し、post-fecが格子上のprogramへlowerします。</p>
+
+<table>
+<tr><th>演算子</th><th>pureな数式以外に必要な意味</th></tr>
+<tr><td><code>∂'_x</code>、<code>∂'^m_x</code></td><td>その出現箇所だけに固定する差分radiusとstencil</td></tr>
+<tr><td><code>gridD_x</code>、<code>gridDerivative_x</code></td><td>積・chain ruleを展開せず、式全体を同じoffsetでsampleする離散微分</td></tr>
+<tr><td><code>orderedD</code>、<code>orderedDerivative</code></td><td>反復を含む微分軸の順序</td></tr>
+<tr><td><code>resample</code>、<code>interpolate</code></td><td>補間先の絶対placement</td></tr>
+<tr><td><code>fluxDiv</code>、<code>conservativeDiv</code></td><td>materialize済みface fluxからの保存的divergence</td></tr>
+<tr><td><code>materialize</code></td><td>中間grid fieldのstorage、lifetime、schedule barrier</td></tr>
+<tr><td><code>lb</code></td><td>可変係数、cell-to-face gradient、flux storage、face-to-cell divergence、volume除算</td></tr>
+<tr><td>geometry付き<code>codiff</code>、<code>delta</code>、<code>δ</code>、<code>formLaplacian</code></td><td>weighted discrete adjoint、dual placement、計量係数のsampleと補助field</td></tr>
+</table>
+
+<pre>def Δ u = lb u   <span class="c">-- 呼び出しは1行だが、lbの意味はopaque requestへ委譲</span></pre>
+
+<p class="note"><code>metric scale [...]</code>または<code>embedding [...]</code>を宣言したmodelでは、
+現状の<code>codiff</code>系はscale式が定数でもgeometry付きのopaque経路を使います。
+またPhase 10aではopaque演算子を1行のuser <code>def</code>から呼べますが、
+<code>let</code>/<code>match</code>を含む複数行body内のopaque callは未対応です。これは上の意味上の分類とは別の実装制約です。</p>
+
+<p>座標非依存の縮約は<a href="../../egison/lib/math/algebra/tensor.egi"><code>egison/lib/math/algebra/tensor.egi</code></a>、
+rank-2演算は<a href="../../egison/lib/math/algebra/matrix.egi"><code>egison/lib/math/algebra/matrix.egi</code></a>、
+<code>wedge</code>は<a href="../../egison/lib/math/geometry/differential-form.egi"><code>egison/lib/math/geometry/differential-form.egi</code></a>を唯一の定義元とします。
+解析微分のcoreは<a href="../../egison/lib/math/analysis/derivative.egi"><code>egison/lib/math/analysis/derivative.egi</code></a>、
+model-local calculus・form・geometry定義は<a href="../lib/formurae-operators.egi"><code>lib/formurae-operators.egi</code></a>にあります。
+opaque operatorの権威的一覧は<a href="../spec/feir-primitives-v1.sexp"><code>spec/feir-primitives-v1.sexp</code></a>、
+格子programへのloweringは<a href="../fec/src/Formurae/Post/Compile.hs"><code>Compile.hs</code></a>と
+<a href="../fec/src/Formurae/Post/BackendPlan.hs"><code>BackendPlan.hs</code></a>にあります。</p>
+
+<h2 id="derivative">6. 微分と離散化精度</h2>
 
 <h3>解析微分</h3>
 
@@ -158,7 +240,7 @@ materialize(q)      <span class="c">-- 型・配置を保つstep-local barrier</
 <code>grad</code>/<code>divg</code>/<code>lap</code>には不要です。<code>lb</code>や可変計量
 <code>codiff</code>の補助fieldはpost-fecが自動で計画します。</p>
 
-<h2 id="tensor">6. Tensor、form、placement</h2>
+<h2 id="tensor">7. Tensor、form、placement</h2>
 
 <p><code>Collocated</code>はcell位置を保ちます。<code>Primal</code>/<code>Dual</code>では、policyとcomponent basisの
 parityから各軸の半セルbitを求めます。微分は自然なtarget placementへ移り、異なるplacementを
@@ -177,11 +259,12 @@ step:
 
 assert-dd-zero E'</pre>
 
-<p><code>d</code>、orthogonal-metric <code>hodge</code>、constant-metric <code>codiff</code>は短いpure Egison definitionです。
-variable-metric <code>codiff</code>はweighted discrete-adjoint requestとしてpost-fecが補助fieldへlowerします。
+<p><code>d</code>とorthogonal-metric <code>hodge</code>は短いpure Egison definitionです。
+default Euclidean <code>codiff</code>もその合成です。geometry宣言付き<code>codiff</code>は
+weighted discrete-adjoint requestとしてpost-fecが補助fieldへlowerします。
 <code>assert-dd-zero</code>はEgison normalizationで<code>d(d E') = 0</code>を確認します。</p>
 
-<h2 id="geometry">7. 直交geometryとlb</h2>
+<h2 id="geometry">8. 直交geometryとlb</h2>
 
 <pre>axes θ, φ, z
 embedding [ `(2 + cos θ) * cos φ, `(2 + cos θ) * sin φ, sin θ, z ]
@@ -192,9 +275,10 @@ def Δ u = lb u</pre>
 induced metricを導出して直交性をgateします。metric、inverse、scale、volumeはGeometryNFへ入ります。</p>
 
 <p><code>lb</code>は係数field、cell-to-face gradient、materialized flux、face-to-cell divergence、volume除算を
-必要とするため、Egisonでは短いopaque requestです。post-fecのBackendPlanがstorageとscheduleを決めます。</p>
+必要とするため、Egisonは意味を展開せずopaque requestとして保持します。
+post-fecのBackendPlanがstorageとscheduleを決めます。</p>
 
-<h2 id="artifacts">8. 生成artifactと検証</h2>
+<h2 id="artifacts">9. 生成artifactと検証</h2>
 
 <p><code>.fme</code>が編集対象です。FME exampleではreview用に次を追跡します。</p>
 

@@ -1,25 +1,11 @@
 --
 -- formurae-tensor.egi : Formurae's Egison tensor bridge
 --
--- This is the shared continuum tensor kernel.  Egison evaluates this algebra
--- before FEIR serialization; post-fec alone handles placement, stencils, and
--- storage.  Keep this file free of Formurae grid/layout code so it can also be
--- used by hand-written .egi probes.
+-- General contraction and matrix/form operators are owned by Egison's
+-- standard tensor, matrix, and differential-form libraries.  This bridge
+-- contains only Formurae-specific symbolic and canonical-form helpers used
+-- before FEIR serialization; post-fec alone owns grid/layout semantics.
 --
-
-declare symbol i, j, k
-declare symbol formuraeOrdinaryTensorIndex1, formuraeOrdinaryTensorIndex2
-
-infixl expression 7 .
-infixl expression 7 .'
-
--- Egison's `contract` returns the diagonal components of a tensor.  The
--- reducer is deliberately explicit: equal upper/lower names alone do not
--- imply a sum in Formurae.  The result remains a rank-reduced Tensor; scalar
--- helpers such as `trace` use `sum (contract ...)` when a scalar is wanted.
-def contractWith {a} (reducer: Tensor a -> Tensor a -> Tensor a)
-                (t: Tensor a) : Tensor a :=
-  foldl1 reducer (contract t)
 
 -- A named reducer such as `max` must remain a symbolic backend call when its
 -- arguments contain field expressions: Egison's ordinary `max` requires an
@@ -28,58 +14,6 @@ def contractWith {a} (reducer: Tensor a -> Tensor a -> Tensor a)
 def FE.symbolicBinary
       (name: String) (lhs: MathValue) (rhs: MathValue) : MathValue :=
   functionSymbol name [lhs, rhs]
-
--- The ordinary and MathValue tensor products are the same operations used by
--- Egison's algebra/tensor library.  They are repeated here so generated
--- Formurae .egi files need only load this one bridge.
-def (.') (t1: Tensor MathValue) (t2: Tensor MathValue) : Tensor MathValue :=
-  foldl1 (+') (contract (t1 *' t2))
-
-def (.) {Ring a} (t1: Tensor a) (t2: Tensor a) : Tensor a :=
-  foldl1 (+) (contract (t1 * t2))
-
-def wedge {Ring a} (a: Tensor a) (b: Tensor a) : Tensor a := a !. b
-
-def trace {Ring a} (a: Tensor a) : a :=
-  withSymbols [i] sum (contract a~i_i)
-
--- Egison's local indices become anonymous differential-form axes after
--- leaving `withSymbols`.  That is the desired representation for form
--- operators, but ordinary rank-two tensor operators must restore the
--- source's explicit variance metadata on their result.  Bare/canonical form
--- tensors are left untouched so their dfOrder remains authoritative.
-def FE.attachOrdinaryRank2Variances {a}
-      (variances: [String]) (value: Tensor a) : Tensor a :=
-  if variances = ["down", "down"]
-    then value_formuraeOrdinaryTensorIndex1_formuraeOrdinaryTensorIndex2
-    else if variances = ["down", "up"]
-      then value_formuraeOrdinaryTensorIndex1~formuraeOrdinaryTensorIndex2
-      else if variances = ["up", "down"]
-        then value~formuraeOrdinaryTensorIndex1_formuraeOrdinaryTensorIndex2
-        else if variances = ["up", "up"]
-          then value~formuraeOrdinaryTensorIndex1~formuraeOrdinaryTensorIndex2
-          else value
-
-def FE.preserveOrdinaryRank2Metadata {a}
-      (source: Tensor a) (value: Tensor a) : Tensor a :=
-  let variances := tensorVariances source
-   in if dfOrder source = 0 && length variances = 2
-        then match assert "ordinary rank-two operator changed tensor shape"
-                          (length (tensorShape source) = 2
-                           && tensorShape value = tensorShape source)
-                   as bool with
-               | #True -> FE.attachOrdinaryRank2Variances variances value
-        else value
-
-def sym {Ring a} (a: Tensor a) : Tensor a :=
-  FE.preserveOrdinaryRank2Metadata a
-    (withSymbols [i, j]
-      ((a_i_j + a_j_i) / 2))
-
-def antisym {Ring a} (a: Tensor a) : Tensor a :=
-  FE.preserveOrdinaryRank2Metadata a
-    (withSymbols [i, j]
-      ((a_i_j - a_j_i) / 2))
 
 def norm2 {Ring a} (a: Tensor a) : a :=
   withSymbols [i] (a~i . a_i)

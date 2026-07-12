@@ -576,7 +576,9 @@ step:
   operator marker を同じ TensorExpr 解決経路に通すが、通常の whole-tensor 式では標準6演算子を
   storage 成分へ特殊化せず `FE.grad` / `FE.dGrad` / `FE.divg` / `FE.curl` / `FE.lap` / `FE.hessian`
   として emit する。grid 固有 stencil は generated callback だけが与える。
-  `lib/formurae-tensor.egi` はこれらと `sym`/`wedge` 等の Egison Tensor kernel を提供する。
+  座標非依存の `.` / `.'` / `contractWith` / `trace` / `sym` / `antisym` / `wedge` は
+  Egison標準のtensor・matrix・differential-form libraryを唯一の定義元とする。
+  `lib/formurae-tensor.egi` はFormurae固有のsymbolic backend helperとcanonical-form bridgeだけを提供する。
   `lib/fmrgen.egi` は `taylorStencil` の stencil 数学 core、
   `lib/formurae-runtime.egi` は完全 field descriptor と明示 context を受け取る共有 `.fmr`
   プリンタである。

@@ -194,9 +194,9 @@ if cabal run -v0 post-fec -- "$WORK/select-placement.feir" \
 fi
 grep -F 'grid placement mismatch' "$WORK/select-placement.err" >/dev/null
 
-# Whole-tensor wedge/sym calls retain explicit covariant metadata.  In
-# particular, sym must not turn ordinary rank-two axes into anonymous form
-# axes when its local Egison indices leave scope.
+# Egison's shared whole-tensor wedge/sym calls retain explicit covariant
+# metadata.  In particular, sym must not turn ordinary rank-two axes into
+# anonymous form axes when its local indices leave scope.
 cabal run -v0 pre-fec -- "$ROOT/tests/formurae_runtime_tensor_ops.fme" \
   > "$WORK/runtime-tensor-ops.egi"
 grep -F "def FormuraeInternalValue3 := wedge A' T" \

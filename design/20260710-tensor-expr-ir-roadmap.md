@@ -5,6 +5,9 @@ Date: 2026-07-10
 > **履歴文書:** このロードマップのcutoverは完了した。`TensorExpr`はsurface
 > parse/diagnostics/Egison syntax生成に限定される。現行仕様は
 > [20260711-pre-post-fec-pipeline.md](20260711-pre-post-fec-pipeline.md)を正とする。
+> 2026-07-12以降、`.` / `.'` / `contractWith`はEgisonの`algebra/tensor.egi`、
+> `trace` / `sym` / `antisym`は`algebra/matrix.egi`、`wedge`は
+> `geometry/differential-form.egi`を唯一の定義元とし、Formurae bridge内の複製は削除した。
 
 ## 実装更新 (2026-07-10)
 
@@ -23,7 +26,7 @@ Date: 2026-07-10
   TensorExpr の first-class node として追加し、成分 lowering まで実装した。
 - `def swap A_i_j = ...` のような固定長 indexed parameter と、
   `X...` の rank-polymorphic marker を受け付ける。
-- `wedge`、`trace`、`sym`、`antisym`、`norm2` は Egison bridge に残し、
+- `wedge`、`trace`、`sym`、`antisym` はEgison標準libraryから利用し、`norm2`だけをbridgeに残して、
   field と indexed `let` 自体を bare tensor binding として生成する。
   Egison の添字補完で成分参照と Tensor 全体の参照を同じ束縛から解決できるため、
   `E := E_#` のような alias は生成しない。
