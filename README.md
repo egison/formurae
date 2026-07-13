@@ -268,11 +268,12 @@ cabal run -v0 post-fec -- /tmp/model.feir > /tmp/model.fmr
 | `lib/formurae-operators.egi` | pure continuum operatorとopaque request constructor |
 | `lib/formurae-primitives.egi` | primitive manifestから自動生成するversioned full-signature binding |
 | `lib/formurae-feir.egi` | MathValue/Tensorからcanonical FEIRへのencoder |
-| `spec/feir-primitives-v1.sexp` | 8 primitiveのfull signatureを規定する唯一のmanifest source |
+| `spec/feir-primitives-v1.sexp` | 6 primitiveのfull signatureを規定する唯一のmanifest source |
 | `spec/egison-normalization-v1.list` | Egison normalization libraryのversioned load順 |
 | `examples/` | model、生成artifact、C numerical check |
 | `gallery/` | sourceと数値結果のgallery |
 | `design/20260711-pre-post-fec-pipeline.md` | normative compiler design |
+| `design/20260713-quoted-derivative-and-minimal-discrete-surface.md` | quoted derivative・typed local・canonical operator surfaceのnormative design |
 
 ## 検証
 
@@ -300,6 +301,7 @@ Phase 0--9の受入れ基準と最終rerunの記録は
 
 - [`DSL-DESIGN.md`](DSL-DESIGN.md): 表層構文と設計履歴
 - [`design/20260711-pre-post-fec-pipeline.md`](design/20260711-pre-post-fec-pipeline.md): 現在の責務境界とFEIR contract
+- [`design/20260713-quoted-derivative-and-minimal-discrete-surface.md`](design/20260713-quoted-derivative-and-minimal-discrete-surface.md): quoted derivative・typed local・保存flux・canonical演算子surface
 - [`gallery/usage.html`](gallery/usage.html): tutorialとusage guide
 - [`APPLICATIONS.md`](APPLICATIONS.md): 応用例一覧
 - [`UPSTREAM.md`](UPSTREAM.md): Formura側の拡張計画
