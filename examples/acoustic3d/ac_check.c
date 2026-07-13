@@ -26,9 +26,9 @@ static double energy(Formura_Navi n) {
     for (int j = n.lower_y; j < n.upper_y; j++)
       for (int k = n.lower_z; k < n.upper_z; k++) {
         double p = formura_data.p[i][j][k];
-        double v2 = formura_data.vx[i][j][k]*formura_data.vx[i][j][k]
-                  + formura_data.vy[i][j][k]*formura_data.vy[i][j][k]
-                  + formura_data.vz[i][j][k]*formura_data.vz[i][j][k];
+        double v2 = formura_data.v_down1[i][j][k]*formura_data.v_down1[i][j][k]
+                  + formura_data.v_down2[i][j][k]*formura_data.v_down2[i][j][k]
+                  + formura_data.v_down3[i][j][k]*formura_data.v_down3[i][j][k];
         E += p*p/(2*kap) + 0.5*rho0*v2;
       }
   return E;
@@ -39,8 +39,8 @@ static double maxTrans(Formura_Navi n) {
   for (int i = n.lower_x; i < n.upper_x; i++)
     for (int j = n.lower_y; j < n.upper_y; j++)
       for (int k = n.lower_z; k < n.upper_z; k++) {
-        double a = fabs(formura_data.vy[i][j][k]);
-        double b = fabs(formura_data.vz[i][j][k]);
+        double a = fabs(formura_data.v_down2[i][j][k]);
+        double b = fabs(formura_data.v_down3[i][j][k]);
         if (a > m) m = a;
         if (b > m) m = b;
       }

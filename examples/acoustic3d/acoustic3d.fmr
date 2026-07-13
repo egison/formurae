@@ -1,7 +1,6 @@
 dimension :: 3
 axes :: x,y,z
 
-# kap = rho0 = 1  ->  c = 1, Z = 1
 double :: kap = 1.0
 double :: rho0 = 1.0
 double :: dt = 0.0005
@@ -9,17 +8,17 @@ double :: dt = 0.0005
 extern function :: exp
 gp = fun(x) exp(-((x - 0.3)/0.02)*((x - 0.3)/0.02))
 
-begin function (p, vx, vy, vz) = init()
-  double [] :: p, vx, vy, vz
+begin function (p,v_down1,v_down2,v_down3) = init()
+  double [] :: p, v_down1, v_down2, v_down3
   p[i,j,k] = gp(i*dx)
-  vx[i,j,k] = gp((i + 0.5)*dx)
-  vy[i,j,k] = 0.0
-  vz[i,j,k] = 0.0
+  v_down1[i,j,k] = gp((i+0.5)*dx)
+  v_down2[i,j,k] = 0
+  v_down3[i,j,k] = 0
 end function
 
-begin function (p', vx', vy', vz') = step(p, vx, vy, vz)
-  vx' = vx[i,j,k] + dt*p[i,j,k]/(dx*rho0) + (-1)*dt*p[i+1,j,k]/(dx*rho0)
-  vy' = vy[i,j,k] + dt*p[i,j,k]/(dy*rho0) + (-1)*dt*p[i,j+1,k]/(dy*rho0)
-  vz' = vz[i,j,k] + dt*p[i,j,k]/(dz*rho0) + (-1)*dt*p[i,j,k+1]/(dz*rho0)
-  p' = (-1)*dt*kap*vz'[i,j,k]/(dz) + dt*kap*vz'[i,j,k-1]/(dz) + (-1)*dt*kap*vy'[i,j,k]/(dy) + dt*kap*vy'[i,j-1,k]/(dy) + (-1)*dt*kap*vx'[i,j,k]/(dx) + dt*kap*vx'[i-1,j,k]/(dx) + p[i,j,k]
+begin function (p',v_down1',v_down2',v_down3') = step(p,v_down1,v_down2,v_down3)
+  v_down1'[i,j,k] = v_down1[i,j,k] + (-1) * dt * (p[i+1,j,k] + (-1) * p[i,j,k]) / dx * rho0**(-1)
+  v_down2'[i,j,k] = v_down2[i,j,k] + (-1) * dt * (p[i,j+1,k] + (-1) * p[i,j,k]) / dy * rho0**(-1)
+  v_down3'[i,j,k] = v_down3[i,j,k] + (-1) * dt * (p[i,j,k+1] + (-1) * p[i,j,k]) / dz * rho0**(-1)
+  p'[i,j,k] = p[i,j,k] + (-1) * dt * kap * (v_down1'[i,j,k] + (-1) * v_down1'[i-1,j,k]) / dx + (-1) * dt * kap * (v_down2'[i,j,k] + (-1) * v_down2'[i,j-1,k]) / dy + (-1) * dt * kap * (v_down3'[i,j,k] + (-1) * v_down3'[i,j,k-1]) / dz
 end function

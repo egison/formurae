@@ -1,0 +1,32 @@
+-- Linear acoustics, pressure-velocity formulation (the scalar reduction
+-- of the Virieux/Yee scheme):
+--   dp/dt = -kap div v
+--   dv/dt = -(1/rho0) grad p
+-- p sits on cell centers (Primal 0-component); the velocity covector
+-- v_i sits on the axis-i faces, so grad p lands exactly on v's
+-- placement and divg v' returns to the cell.  Updating v first and
+-- reading the primed v in p' makes the pair symplectic.  With
+-- kap = rho0 = 1 the impedance is 1 and p = vx launches a pure
+-- right-moving plane pulse.
+
+mode collocated
+dimension 3
+axes x, y, z
+
+param kap = 1.0
+param rho0 = 1.0
+param dt = 0.0005
+
+extern exp
+raw gp = fun(x) exp(-((x - 0.3)/0.02)*((x - 0.3)/0.02))
+
+field p : scalar @ primal
+field v_i @ primal
+
+init:
+  p = gp(i*dx)
+  v_i = [| gp((i+0.5)*dx), 0, 0 |]_i
+
+step:
+  v' = v - (dt / rho0) * grad p
+  p' = p - dt * kap * divg v'

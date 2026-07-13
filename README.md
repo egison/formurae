@@ -251,10 +251,12 @@ cabal run -v0 post-fec -- /tmp/model.feir > /tmp/model.fmr
 
 ## 生成物
 
-`.fme`が編集対象です。23個のFME例では`.egi`、`.feir`、`.fmr`をreview可能な生成artifactとして
-追跡し、Makefileから再生成します。galleryは4段すべてを表示します。`mhd_ot`、`lbm_d3q19`、
-`acoustic3d`の3例はcompiler cutoverの対象外に置いたhand-written Egison exampleであり、
-`fmrgen.egi`と`fmr-direct3d.egi`を使う独立したdirect Egison→Formura ruleで検査します。
+`.fme`が編集対象です。24個のFME例では`.egi`、`.feir`、`.fmr`をreview可能な生成artifactとして
+追跡し、Makefileから再生成します。galleryは4段すべてを表示します。`mhd_ot`と`lbm_d3q19`の
+2例はhand-written Egison exampleであり、`fmrgen.egi`と`fmr-direct3d.egi`を使う独立した
+direct Egison→Formura ruleで検査します。MHDは原理的には表層で表現できます(20本のfluxは
+typed `local`+中心差分)が、LBMのstreamingは整数格子シフト(微分でない)のため、transport
+primitiveと場・式のfamily構文が入るまで表層の対象外です。
 
 ## リポジトリ構成
 

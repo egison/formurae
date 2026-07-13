@@ -34,11 +34,11 @@ EGISON_NORMALIZE = $(abspath tools/run_formurae_normalization.sh) $(EGISON_DIR)
 # EGI_EXAMPLES: intentionally remain direct embedded-Egison samples outside
 # the Formurae/FEIR compiler scope.
 
-FME_EXAMPLES := diffusion1d diffusion2d divergence2d diffusion3d maxwell3d maxwell3d_yee maxwell_dec kleingordon ks3d \
+FME_EXAMPLES := acoustic3d diffusion1d diffusion2d divergence2d diffusion3d maxwell3d maxwell3d_yee maxwell_dec kleingordon ks3d \
                 burgers3d pearson3d cahnhilliard3d tdgl3d shallowwater \
                 euler_sod highorder4 dirichlet_diffusion elastic3d \
                 metric_torus metric_sphere hyperbolic polar2d spherical3d
-EGI_EXAMPLES := mhd_ot lbm_d3q19 acoustic3d
+EGI_EXAMPLES := mhd_ot lbm_d3q19
 
 CHECK_diffusion1d         := diffusion1d_check.c
 CHECK_diffusion2d         := diffusion2d_check.c
