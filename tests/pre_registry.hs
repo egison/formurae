@@ -53,12 +53,16 @@ main = do
   let fields = preRegistryFields registry
   assertEqual "stable user and step-local field IDs"
     [(FieldId 1, "u"), (FieldId 2, "V"), (FieldId 3, "A"),
-     (FieldId 4, "B"), (FieldId 5, "flux")]
+     (FieldId 4, "B"), (FieldId 5, "flux"), (FieldId 6, "face"),
+     (FieldId 7, "stress"), (FieldId 8, "omega")]
     [(logicalFieldId field, logicalFieldSourceName field) | field <- fields]
   let vectorV = fieldNamed "V" fields
       vectorA = fieldNamed "A" fields
       vectorB = fieldNamed "B" fields
       localFlux = fieldNamed "flux" fields
+      localFace = fieldNamed "face" fields
+      localStress = fieldNamed "stress" fields
+      localOmega = fieldNamed "omega" fields
   assertEqual "unmarked variance remains distinguishable"
     (TensorType [2] [VarianceDown] 0, [Nothing])
     (logicalFieldTensorType vectorV, logicalFieldDeclaredVariances vectorV)
@@ -72,6 +76,36 @@ main = do
     (logicalFieldLifetime localFlux, logicalFieldPolicy localFlux,
      logicalFieldTensorType localFlux,
      originLine registry (logicalFieldOrigin localFlux))
+  assertEqual "indexed local reuses vector descriptor and explicit policy"
+    ( StepLocalLifetime, PrimalPolicy
+    , TensorType [2] [VarianceDown] 0, VectorLayout
+    , [Just VarianceDown], 18
+    )
+    ( logicalFieldLifetime localFace, logicalFieldPolicy localFace
+    , logicalFieldTensorType localFace, logicalFieldLayout localFace
+    , logicalFieldDeclaredVariances localFace
+    , originLine registry (logicalFieldOrigin localFace)
+    )
+  assertEqual "rank-two local preserves mixed variance and full layout"
+    ( StepLocalLifetime, DualPolicy
+    , TensorType [2, 2] [VarianceUp, VarianceDown] 0, FullLayout
+    , [Just VarianceUp, Just VarianceDown], 19
+    )
+    ( logicalFieldLifetime localStress, logicalFieldPolicy localStress
+    , logicalFieldTensorType localStress, logicalFieldLayout localStress
+    , logicalFieldDeclaredVariances localStress
+    , originLine registry (logicalFieldOrigin localStress)
+    )
+  assertEqual "form local preserves degree/layout and explicit policy"
+    ( StepLocalLifetime, PrimalPolicy
+    , TensorType [2, 2] [VarianceDown, VarianceDown] 2, FormLayout
+    , [Nothing, Nothing], 20
+    )
+    ( logicalFieldLifetime localOmega, logicalFieldPolicy localOmega
+    , logicalFieldTensorType localOmega, logicalFieldLayout localOmega
+    , logicalFieldDeclaredVariances localOmega
+    , originLine registry (logicalFieldOrigin localOmega)
+    )
 
   let profile = preRegistryDiscretization registry
   assert "profile fingerprint is canonical" (profileFingerprintMatches profile)
@@ -88,11 +122,37 @@ main = do
   assertEqual "Euclidean geometry skeleton"
     (GeometryDecl (GeometryId 1) Nothing Nothing EuclideanGeometry)
     (preRegistryGeometry registry)
+
+  quotedModel <- parseModel "registry-quoted.fme" "registry-quoted"
+    quotedTraceSource
+  quotedRegistry <- requireRight "build quoted trace registry"
+    (buildRegistry quotedModel)
+  let [quotedStepOriginId] = preRegistryStepOrigins quotedRegistry
+      OriginTable quotedOrigins = preRegistryOrigins quotedRegistry
+      quotedStepOrigin = requireJust "quoted step origin"
+        (lookup quotedStepOriginId quotedOrigins)
+  assertEqual "definition tracing traverses a quoted derivative operand"
+    ["outer", "inner"]
+    [expansionFrameName frame
+    | frame <- sourceOriginTrace quotedStepOrigin]
+
+  literalModel <- parseModel "registry-literal.fme" "registry-literal"
+    literalTraceSource
+  literalRegistry <- requireRight "build literal trace registry"
+    (buildRegistry literalModel)
+  let [literalStepOriginId] = preRegistryStepOrigins literalRegistry
+      OriginTable literalOrigins = preRegistryOrigins literalRegistry
+      literalStepOrigin = requireJust "literal step origin"
+        (lookup literalStepOriginId literalOrigins)
+  assertEqual "definition tracing traverses all tensor literal components"
+    ["outer", "first", "second"]
+    [expansionFrameName frame
+    | frame <- sourceOriginTrace literalStepOrigin]
   putStrLn "pre registry tests: ok"
 
 source :: String
 source = unlines
-  [ "mode collocated"
+  [ "mode dec"
   , "dimension 2"
   , "axes r, theta"
   , "discretization collocated centered accuracy 2"
@@ -109,7 +169,35 @@ source = unlines
   , "step:"
   , "  let q = u + alpha"
   , "  local flux = q"
+  , "  local face_i @ primal = A_i"
+  , "  local stress~i_j @ dual = B~i * A_j"
+  , "  local omega : 2-form @ primal = d face"
   , "  u' = flux"
+  ]
+
+quotedTraceSource :: String
+quotedTraceSource = unlines
+  [ "mode collocated"
+  , "dimension 1"
+  , "axes x"
+  , "field u : scalar"
+  , "def inner x = x + 1"
+  , "def outer x = `(d_x (inner x))"
+  , "step:"
+  , "  u' = outer u"
+  ]
+
+literalTraceSource :: String
+literalTraceSource = unlines
+  [ "mode collocated"
+  , "dimension 1"
+  , "axes x"
+  , "field u : scalar"
+  , "def first x = x + 1"
+  , "def second x = x - 1"
+  , "def outer x = [| first x, second x |]_i"
+  , "step:"
+  , "  u' = outer u"
   ]
 
 originLine :: PreRegistry -> OriginId -> Int

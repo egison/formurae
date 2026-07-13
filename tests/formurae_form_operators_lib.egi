@@ -156,15 +156,32 @@ assertEqual "codifferential two-form components follow the fixed sign"
   , 0 - userRefs formB13 [1] - userRefs formB23 [2]
   ]
 
-assertEqual "delta is the public codifferential alias"
-  (Formurae.delta formCoordinates3 formDimension3 formScales3 formB)
-  (Formurae.codiff formCoordinates3 formDimension3 formScales3 formB)
-
-assertEqual "positive scalar Laplacian is minus delta d"
-  ( Formurae.formLaplacian
+assertEqual "PDE-sign scalar Laplacian is minus codifferential d"
+  ( Formurae.scalarLaplacian
       formCoordinates3 formDimension3 formScales3 formU
   , 0 - FE.tensorComponentAt
-          (Formurae.delta formCoordinates3 formDimension3 formScales3
+          (Formurae.codiff formCoordinates3 formDimension3 formScales3
             (Formurae.d formCoordinates3 formU)) [])
   (Formurae.lap formCoordinates3 formU,
    Formurae.lap formCoordinates3 formU)
+
+assertEqual "Hodge Laplacian is d delta plus delta d on a middle-degree form"
+  (Formurae.hodgeLaplacian
+    formCoordinates3 formDimension3 formScales3 formB)
+  ( Formurae.d formCoordinates3
+      (Formurae.codiff formCoordinates3 formDimension3 formScales3 formB)
+    + Formurae.codiff formCoordinates3 formDimension3 formScales3
+        (Formurae.d formCoordinates3 formB)
+  )
+
+assertEqual "Hodge Laplacian omits d delta on a zero-form"
+  (Formurae.hodgeLaplacian
+    formCoordinates3 formDimension3 formScales3 formU)
+  (Formurae.codiff formCoordinates3 formDimension3 formScales3
+    (Formurae.d formCoordinates3 formU))
+
+assertEqual "Hodge Laplacian omits delta d on a top form"
+  (Formurae.hodgeLaplacian
+    formCoordinates3 formDimension3 formScales3 formVolume)
+  (Formurae.d formCoordinates3
+    (Formurae.codiff formCoordinates3 formDimension3 formScales3 formVolume))

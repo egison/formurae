@@ -13,8 +13,6 @@ param mob = 1.0
 param dt = 0.004
 
 extern sin
-def Δ u = divg (grad u)
-
 field c : scalar
 
 init:

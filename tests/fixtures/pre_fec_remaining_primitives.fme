@@ -14,7 +14,8 @@ init:
   G_i = [| 0.0, 0.0 |]_i
 
 step:
-  u' = orderedD(u, x, y) + fluxDiv(materialize(F + G)) + materialize(fluxDiv(F))
+  local H_i @ primal = F_i + G_i
+  u' = `(∂_y (`(∂_x u)))
   v' = resample(u, 1, 1)
-  F'_i = materialize(F + G)
+  F'_i = H_i
   G'_i = G_i

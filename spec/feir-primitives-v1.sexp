@@ -36,28 +36,12 @@
     (commutation ordered))
 
   (primitive
-    (op flux.conservative-divergence 1)
-    (inputs tensor)
-    (output scalar)
-    (placement conservative-cell)
-    (effects needs-materialization flux result)
-    (commutation declared-commutative))
-
-  (primitive
     (op lb.orthogonal 1)
     (inputs scalar)
     (output scalar)
     (placement conservative-cell)
     (effects needs-materialization coefficient volume flux result)
     (commutation declared-commutative))
-
-  (primitive
-    (op operator.materialized 1)
-    (inputs any)
-    (output any)
-    (placement preserve-source)
-    (effects needs-materialization intermediate)
-    (commutation ordered))
 
   (primitive
     (op codiff.metric 1)

@@ -112,6 +112,7 @@ data ValidationIssue
   | RefNotPreceding NodeId
   | FieldValueNotAvailable FieldId TimeSlot
   | InvalidTargetTime TimeSlot TimeSlot
+  | ComponentUpdateTargetNotAllowed FieldId Basis
   | InvalidFieldLifetime FieldId Lifetime Lifetime
   | TensorTypeMismatch TensorType TensorType
   | InvalidDerivativeRuleOrder Int
@@ -662,6 +663,9 @@ validateTarget environment stage path target =
           WholeFieldTarget _ _ -> []
           FieldComponentTarget _ _ basis ->
             validateBasis path (tensorTypeShape (logicalFieldTensorType field)) basis
+            ++ [validationError path
+                  (ComponentUpdateTargetNotAllowed fieldId basis)
+               | UpdateStage <- [stage]]
       ]
       where
         actualLifetime = logicalFieldLifetime field

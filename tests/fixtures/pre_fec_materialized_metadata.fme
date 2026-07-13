@@ -5,8 +5,8 @@ axes x, y
 field X~i @ primal
 field A : 1-form @ primal
 
-def stored value = materialize value
-
 step:
-  X'~i = stored X
-  A' = stored A
+  local storedX~i @ primal = X~i
+  local storedA : 1-form @ primal = A
+  X'~i = storedX~i
+  A' = storedA

@@ -26,6 +26,21 @@ reservedInternalPrefix = "FormuraeInternal"
 isReservedInternalName :: String -> Bool
 isReservedInternalName = isPrefixOf reservedInternalPrefix
 
+-- These names provide the capability to construct or encode the opaque
+-- FunctionData nodes that cross the trusted Egison/FEIR boundary.  Surface
+-- source must not access either constructor directly, nor reach it through
+-- the generated Formurae/FEIR namespaces.  The parser applies this predicate
+-- only to identifiers outside comments and string literals.
+isReservedNormalizationCapability :: String -> Bool
+isReservedNormalizationCapability name =
+  isReservedInternalName name
+  || name `elem`
+       [ "functionSymbol"
+       , "formuraeOpaqueBarrier"
+       , "Formurae"
+       , "FEIR"
+       ]
+
 rejectReservedName :: Int -> String -> IO ()
 rejectReservedName ln nm =
   if isReservedInternalName nm

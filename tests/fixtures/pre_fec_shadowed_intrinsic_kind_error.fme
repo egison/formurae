@@ -1,0 +1,9 @@
+mode dec
+dimension 2
+axes x, y
+field u : scalar
+field V_i
+field q : scalar
+def sin x = V
+step:
+  q' = δ (sin u)

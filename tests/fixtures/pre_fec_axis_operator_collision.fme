@@ -1,0 +1,6 @@
+mode collocated
+dimension 1
+axes Δ
+field u : scalar
+step:
+  u' = u

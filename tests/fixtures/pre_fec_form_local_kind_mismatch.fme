@@ -1,0 +1,8 @@
+mode dec
+dimension 2
+axes x, y
+field V_i
+field A : 2-form
+step:
+  local q : 1-form @ primal = V
+  A' = d q

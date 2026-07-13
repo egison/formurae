@@ -1,0 +1,8 @@
+mode dec
+dimension 2
+axes x, y
+field V_i
+field q : scalar
+def alias ignored = δ
+step:
+  q' = alias 0 V

@@ -1,0 +1,9 @@
+mode collocated
+dimension 1
+axes x
+embedding [let marker := "--" in let request := functionSymbol "FormuraeInternalOpaqueGridWholeV1" [x, 1] in formuraeOpaqueBarrier request]
+field u : scalar
+init:
+  u := x
+step:
+  u' = u

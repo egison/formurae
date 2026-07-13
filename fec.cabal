@@ -38,8 +38,10 @@ library
                     , Formurae.Index
                     , Formurae.Pre.Effect
                     , Formurae.Pre.EmitEgison
+                    , Formurae.Pre.FormOperator
                     , Formurae.Pre.Parse
                     , Formurae.Pre.Registry
+                    , Formurae.Pre.TypeCheck
                     , Formurae.Post.BackendPlan
                     , Formurae.Post.Compile
                     , Formurae.Post.Diagnostic

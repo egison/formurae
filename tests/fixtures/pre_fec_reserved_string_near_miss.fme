@@ -1,0 +1,9 @@
+mode collocated
+dimension 1
+axes x
+field u : scalar
+def diagnostic x = let message := "-- Formurae FEIR functionSymbol formuraeOpaqueBarrier FormuraeInternalOpaqueGridWholeV1" in x
+init:
+  u := x
+step:
+  u' = diagnostic u

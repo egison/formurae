@@ -1,0 +1,6 @@
+mode dec
+dimension 2
+axes x, y
+field A : 1-form
+step:
+  A' = δ(A, A)

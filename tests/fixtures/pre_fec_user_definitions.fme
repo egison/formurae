@@ -8,6 +8,8 @@ field Y_i
 field A_i_j
 field B_i_j
 
+-- The removed primitive spelling is an ordinary user definition here; this
+-- is lexical reuse, not compatibility with the former storage operation.
 def materialize x = x + 1
 def applyShadow materialize x = materialize x
 def rankIdentity X... = X

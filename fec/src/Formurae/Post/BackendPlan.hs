@@ -14,9 +14,6 @@ module Formurae.Post.BackendPlan
   , LbRequestPlan(..)
   , MetricCodifferentialComponentPlan(..)
   , MetricCodifferentialRequestPlan(..)
-  , ConservativeDivergenceRequestPlan(..)
-  , MaterializedComponentPlan(..)
-  , MaterializedRequestPlan(..)
   , BackendPlan(..)
   , BackendPlanError(..)
   , lbOperationId
@@ -30,9 +27,7 @@ import Data.List (find, intercalate, nub, sort, sortOn)
 import qualified Formurae.FEIR.PrimitiveBindings as Primitives
 import qualified Formurae.FEIR.PrimitiveManifest as Manifest
 import Formurae.FEIR.Syntax
-import Formurae.Post.ExplicitStencil
 import Formurae.Post.Location
-import Formurae.Post.PrimitiveContract
 
 data AuxiliaryLifetime
   = PersistentAuxiliary
@@ -47,9 +42,6 @@ data AuxiliaryRole
   | LbResultRole RequestGroupId
   | MetricCodifferentialFluxRole RequestGroupId Basis AxisId
   | MetricCodifferentialResultRole RequestGroupId Basis
-  | ConservativeFluxRole RequestGroupId AxisId
-  | ConservativeResultRole RequestGroupId
-  | MaterializedIntermediateRole RequestGroupId Basis
   deriving (Eq, Ord, Show)
 
 -- | A backend-neutral description of how an auxiliary is populated.  The
@@ -79,9 +71,6 @@ data AuxiliaryComputation
       , auxiliaryMetricCodifferentialOuterCoefficientName :: String
       , auxiliaryMetricCodifferentialResultSign :: Integer
       }
-  | ComputeConservativeFlux ScalarNF
-  | ComputeConservativeResult [(AxisId, String)]
-  | ComputeMaterialized ScalarNF
   deriving (Eq, Ord, Show)
 
 data AuxiliaryFieldPlan = AuxiliaryFieldPlan
@@ -116,32 +105,10 @@ data MetricCodifferentialRequestPlan = MetricCodifferentialRequestPlan
   , metricCodifferentialComponents :: [MetricCodifferentialComponentPlan]
   } deriving (Eq, Ord, Show)
 
-data ConservativeDivergenceRequestPlan = ConservativeDivergenceRequestPlan
-  { conservativeDivergenceSemanticKey :: SemanticKey
-  , conservativeDivergenceGroup :: RequestGroupId
-  , conservativeDivergenceOrigin :: OriginId
-  , conservativeDivergenceFluxFields :: [AuxiliaryFieldPlan]
-  , conservativeDivergenceResultField :: AuxiliaryFieldPlan
-  } deriving (Eq, Ord, Show)
-
-data MaterializedComponentPlan = MaterializedComponentPlan
-  { materializedComponentBasis :: Basis
-  , materializedComponentSemanticKeys :: [SemanticKey]
-  , materializedComponentField :: AuxiliaryFieldPlan
-  } deriving (Eq, Ord, Show)
-
-data MaterializedRequestPlan = MaterializedRequestPlan
-  { materializedRequestGroup :: RequestGroupId
-  , materializedRequestOrigin :: OriginId
-  , materializedRequestComponents :: [MaterializedComponentPlan]
-  } deriving (Eq, Ord, Show)
-
 data BackendPlan = BackendPlan
   { backendGeometryInitializers :: [AuxiliaryFieldPlan]
   , backendLbRequests :: [LbRequestPlan]
   , backendMetricCodifferentialRequests :: [MetricCodifferentialRequestPlan]
-  , backendConservativeDivergenceRequests :: [ConservativeDivergenceRequestPlan]
-  , backendMaterializedRequests :: [MaterializedRequestPlan]
   -- | Topological step order.  Every request's axis fluxes precede its
   -- result, and all planned effects precede user field updates.
   , backendStepSchedule :: [AuxiliaryFieldPlan]
@@ -165,7 +132,6 @@ data BackendPlanError
   | LbInvalidResultBasis Basis OriginId
   | LbInvalidOperands OriginId
   | LbUnknownSourceField FieldId OriginId
-  | LbSourceMustBeCurrent FieldId TimeSlot OriginId
   | LbSourceMustBeScalar FieldId OriginId
   | LbSourceMustBeCollocated FieldId GridPolicy OriginId
   | LbSourceMustUseCanonicalCoordinates FieldId OriginId
@@ -215,23 +181,10 @@ planBackendEffects program = do
         ((== metricCodifferentialOperationId) .
           opaqueDiscreteOpId . occurrenceOpaque)
         uniqueOccurrences
-      conservativeOccurrences = filter
-        ((== Primitives.fluxConservativeDivergenceV1OpId) .
-          opaqueDiscreteOpId . occurrenceOpaque)
-        uniqueOccurrences
-      materializedOccurrences = filter
-        ((== Primitives.operatorMaterializedV1OpId) .
-          opaqueDiscreteOpId . occurrenceOpaque)
-        uniqueOccurrences
   requests <- mapM (uncurry (planLbRequest program geometryContext))
     (zip [1 ..] lbOccurrences)
   metricRequests <- planMetricCodifferentialRequests program geometryContext
     metricCodifferentialOccurrences
-  conservativeRequests <- mapM
-    (uncurry (planConservativeDivergenceRequest program))
-    (zip [1 ..] conservativeOccurrences)
-  materializedRequests <- planMaterializedRequests program
-    materializedOccurrences
   lbGeometryInitializers <-
     case requests of
       [] -> Right []
@@ -261,16 +214,6 @@ planBackendEffects program = do
               metricRequestSchedule request)
            | request <- metricRequests
            ]
-        ++ [ ([conservativeDivergenceSemanticKey request],
-              conservativeDivergenceFluxFields request
-                ++ [conservativeDivergenceResultField request])
-           | request <- conservativeRequests
-           ]
-        ++ [ (concatMap materializedComponentSemanticKeys components,
-              map materializedComponentField components)
-           | request <- materializedRequests
-           , let components = materializedRequestComponents request
-           ]
       stepSchedule = scheduleRequestBundles requestBundles
         (concatMap actionOpaqueKeysPostorder (feProgramStepActions program))
       lbResults =
@@ -285,27 +228,12 @@ planBackendEffects program = do
         | request <- metricRequests
         , component <- metricCodifferentialComponents request
         ]
-      conservativeResults =
-        [ (conservativeDivergenceSemanticKey request,
-           auxiliaryFieldName
-             (conservativeDivergenceResultField request))
-        | request <- conservativeRequests
-        ]
-      materializedResults =
-        [ (key, auxiliaryFieldName (materializedComponentField component))
-        | request <- materializedRequests
-        , component <- materializedRequestComponents request
-        , key <- materializedComponentSemanticKeys component
-        ]
   pure BackendPlan
     { backendGeometryInitializers = geometryInitializers
     , backendLbRequests = requests
     , backendMetricCodifferentialRequests = metricRequests
-    , backendConservativeDivergenceRequests = conservativeRequests
-    , backendMaterializedRequests = materializedRequests
     , backendStepSchedule = stepSchedule
     , backendOpaqueResults = lbResults ++ metricResults
-        ++ conservativeResults ++ materializedResults
     , backendOpaqueOrigins =
         [ (opaqueDiscreteSemanticKey (occurrenceOpaque occurrence),
            occurrenceOrigins occurrence)
@@ -335,8 +263,6 @@ rejectUnsupportedMaterializingEffects occurrences =
     , isMaterializingOperation opId
     , opId /= lbOperationId
     , opId /= metricCodifferentialOperationId
-    , opId /= Primitives.fluxConservativeDivergenceV1OpId
-    , opId /= Primitives.operatorMaterializedV1OpId
     ] of
     occurrence : _ ->
       let opaque = occurrenceOpaque occurrence
@@ -475,425 +401,6 @@ planLbRequest program geometryContext requestNumber occurrence = do
     , lbRequestFluxFields = fluxFields
     , lbRequestResultField = resultField
     }
-
-planConservativeDivergenceRequest
-    :: FEProgram
-    -> Int
-    -> RequestOccurrence
-    -> Either BackendPlanError ConservativeDivergenceRequestPlan
-planConservativeDivergenceRequest program requestNumber occurrence = do
-  let opaque = occurrenceOpaque occurrence
-      origin = occurrenceOrigin occurrence
-      key = opaqueDiscreteSemanticKey opaque
-      group = opaqueDiscreteRequestGroup opaque
-  validateManifestEffectRoles occurrence
-    [Manifest.FluxRole, Manifest.ResultRole]
-  request <- mapPrimitivePlanError origin opaque
-    (parseConservativeDivergenceRequest (feProgramDimension program) opaque)
-  fluxFields <- mapM makeFlux
-    (conservativeDivergenceComponents request)
-  resultPlacement <- mapLocation origin
-    (componentPlacement (feProgramDimension program)
-      PrimalPolicy (Basis []))
-  let resultField = AuxiliaryFieldPlan
-        { auxiliaryFieldName = internalPrefix ++ "Conservative"
-            ++ show requestNumber ++ "Result"
-        , auxiliaryFieldLifetime = StepAuxiliary
-        , auxiliaryFieldRole = ConservativeResultRole group
-        , auxiliaryFieldPlacement = resultPlacement
-        , auxiliaryFieldComputation = ComputeConservativeResult
-            [ (axisId, auxiliaryFieldName field)
-            | ((axisId, _), field) <- zip
-                (conservativeDivergenceComponents request) fluxFields
-            ]
-        }
-  Right ConservativeDivergenceRequestPlan
-    { conservativeDivergenceSemanticKey = key
-    , conservativeDivergenceGroup = group
-    , conservativeDivergenceOrigin = origin
-    , conservativeDivergenceFluxFields = fluxFields
-    , conservativeDivergenceResultField = resultField
-    }
-  where
-    makeFlux (axisId@(AxisId axis), scalar) = do
-      expected <- mapLocation (occurrenceOrigin occurrence)
-        (componentPlacement (feProgramDimension program)
-          PrimalPolicy (Basis [axis]))
-      location <- inferStoredScalarLocation program
-        (occurrenceOrigin occurrence) scalar
-      case storedLocationCapability location of
-        LocatedCapability actual
-          | actual == expected -> Right ()
-          | otherwise -> explicitPlanFailure occurrence
-              ("flux component " ++ show axisId ++ " is at " ++ show actual
-                ++ ", expected Primal face " ++ show expected)
-        capability -> explicitPlanFailure occurrence
-          ("flux component " ++ show axisId
-            ++ " must be Located, got " ++ show capability)
-      Right AuxiliaryFieldPlan
-        { auxiliaryFieldName = internalPrefix ++ "Conservative"
-            ++ show requestNumber ++ "Flux" ++ show axis
-        , auxiliaryFieldLifetime = StepAuxiliary
-        , auxiliaryFieldRole = ConservativeFluxRole
-            (opaqueDiscreteRequestGroup (occurrenceOpaque occurrence)) axisId
-        , auxiliaryFieldPlacement = expected
-        , auxiliaryFieldComputation = ComputeConservativeFlux scalar
-        }
-
-planMaterializedRequests
-    :: FEProgram
-    -> [RequestOccurrence]
-    -> Either BackendPlanError [MaterializedRequestPlan]
-planMaterializedRequests program occurrences =
-  mapM (uncurry planGroup) (zip [1 :: Int ..] grouped)
-  where
-    groups = unique (map
-      (opaqueDiscreteRequestGroup . occurrenceOpaque) occurrences)
-    grouped =
-      [ [ occurrence
-        | occurrence <- occurrences
-        , opaqueDiscreteRequestGroup (occurrenceOpaque occurrence) == group
-        ]
-      | group <- groups
-      ]
-
-    planGroup _ [] = Left (ExplicitPrimitivePlanError
-      Primitives.operatorMaterializedV1OpId (SemanticKey "")
-      "empty materialization request group" (OriginId 0))
-    planGroup requestNumber
-        groupOccurrences@(firstOccurrence : remainingOccurrences) = do
-      validateManifestEffectRoles firstOccurrence [Manifest.IntermediateRole]
-      firstRequest <- parseOccurrence firstOccurrence
-      remainingRequests <- mapM parseOccurrence remainingOccurrences
-      let parsed = firstRequest : remainingRequests
-          sourceValue = materializedSourceValue firstRequest
-          group = opaqueDiscreteRequestGroup
-            (occurrenceOpaque firstOccurrence)
-          origin = occurrenceOrigin firstOccurrence
-      if all ((== sourceValue) . materializedSourceValue) parsed
-        then Right ()
-        else explicitPlanFailure firstOccurrence
-          "materialization request-group operands differ"
-      components <- mapM
-        (planComponent requestNumber group origin firstOccurrence
-          groupOccurrences)
-        (valueComponents sourceValue)
-      Right MaterializedRequestPlan
-        { materializedRequestGroup = group
-        , materializedRequestOrigin = origin
-        , materializedRequestComponents = components
-        }
-
-    parseOccurrence occurrence = mapPrimitivePlanError
-      (occurrenceOrigin occurrence) (occurrenceOpaque occurrence)
-      (parseMaterializedComponentRequest (occurrenceOpaque occurrence))
-
-    planComponent requestNumber group origin firstOccurrence groupOccurrences
-        (basis, scalar) = do
-      location <- inferStoredScalarLocation program origin scalar
-      placement <- case storedLocationCapability location of
-        LocatedCapability value -> Right value
-        capability -> explicitPlanFailure firstOccurrence
-          ("materialized component " ++ show basis
-            ++ " must be Located, got " ++ show capability)
-      let keys =
-            [ opaqueDiscreteSemanticKey opaque
-            | occurrence <- groupOccurrences
-            , let opaque = occurrenceOpaque occurrence
-            , opaqueDiscreteResultBasis opaque == basis
-            ]
-      Right MaterializedComponentPlan
-        { materializedComponentBasis = basis
-        , materializedComponentSemanticKeys = keys
-        , materializedComponentField = AuxiliaryFieldPlan
-            { auxiliaryFieldName = internalPrefix ++ "Materialized"
-                ++ show requestNumber ++ "B" ++ basisName basis
-            , auxiliaryFieldLifetime = StepAuxiliary
-            , auxiliaryFieldRole = MaterializedIntermediateRole group basis
-            , auxiliaryFieldPlacement = placement
-            , auxiliaryFieldComputation = ComputeMaterialized scalar
-            }
-        }
-
-    valueComponents value = case value of
-      ScalarValue scalar -> [(Basis [], scalar)]
-      TensorValue tensor -> tensorNFComponents tensor
-
-data StoredScalarLocation = StoredScalarLocation
-  { storedLocationCapability :: Capability
-  , storedLocationLattice :: Maybe LatticeClass
-  } deriving (Eq, Ord, Show)
-
-inferStoredScalarLocation
-    :: FEProgram
-    -> OriginId
-    -> ScalarNF
-    -> Either BackendPlanError StoredScalarLocation
-inferStoredScalarLocation program origin scalar =
-  case scalar of
-    Exact _ _ -> Right storedConstantLocation
-    Parameter _ -> Right storedConstantLocation
-    Coordinate _ -> Right storedSampleableLocation
-    Add values -> inferMany values
-    Mul values -> inferMany values
-    Div lhs rhs -> inferMany [lhs, rhs]
-    Pow lhs rhs -> inferMany [lhs, rhs]
-    Intrinsic _ values -> inferCall values
-    AnalyticCall _ values -> inferCall values
-    Select predicate yes no -> do
-      predicateLocation <- inferStoredPredicateLocation program origin predicate
-      yesLocation <- recurse yes
-      noLocation <- recurse no
-      joinStoredLocations origin predicateLocation yesLocation
-        >>= (\joined -> joinStoredLocations origin joined noLocation)
-    FieldJet jet -> inferStoredFieldJetLocation program origin jet
-    OpaqueDiscrete opaque -> inferStoredOpaqueLocation program origin opaque
-    Ref nodeId ->
-      case [value | BindValue candidate value _ <- feProgramStepActions program,
-                    candidate == nodeId] of
-        [ScalarValue value] -> recurse value
-        [TensorValue _] -> explicitPlanFailureFor origin
-          Primitives.operatorMaterializedV1OpId (SemanticKey "")
-          ("tensor binding " ++ show nodeId ++ " was used as a scalar")
-        _ -> explicitPlanFailureFor origin
-          Primitives.operatorMaterializedV1OpId (SemanticKey "")
-          ("unknown binding " ++ show nodeId)
-  where
-    recurse = inferStoredScalarLocation program origin
-    inferMany values = mapM recurse values >>= foldStoredLocations origin
-    inferCall [] = Right storedSampleableLocation
-    inferCall values = inferMany values
-
-inferStoredPredicateLocation
-    :: FEProgram
-    -> OriginId
-    -> PredicateNF
-    -> Either BackendPlanError StoredScalarLocation
-inferStoredPredicateLocation program origin predicate =
-  case predicate of
-    BoolExact _ -> Right storedConstantLocation
-    Compare _ lhs rhs -> inferMany [lhs, rhs]
-    Not body -> inferStoredPredicateLocation program origin body
-    And bodies -> inferPredicates bodies
-    Or bodies -> inferPredicates bodies
-  where
-    inferMany values = mapM
-      (inferStoredScalarLocation program origin) values
-      >>= foldStoredLocations origin
-    inferPredicates values = mapM
-      (inferStoredPredicateLocation program origin) values
-      >>= foldStoredLocations origin
-
-inferStoredFieldJetLocation
-    :: FEProgram
-    -> OriginId
-    -> FieldJet
-    -> Either BackendPlanError StoredScalarLocation
-inferStoredFieldJetLocation program origin jet = do
-  field <- case find ((== fieldJetFieldId jet) . logicalFieldId)
-      (feProgramFields program) of
-    Just value -> Right value
-    Nothing -> explicitPlanFailureFor origin
-      Primitives.operatorMaterializedV1OpId (SemanticKey "")
-      ("unknown field " ++ show (fieldJetFieldId jet))
-  source <- mapLocation origin
-    (componentPlacement (feProgramDimension program)
-      (logicalFieldPolicy field) (fieldJetBasis jet))
-  target <- mapLocation origin
-    (derivativePlacementForPolicy (logicalFieldPolicy field)
-      (fieldJetMultiIndex jet) source)
-  Right StoredScalarLocation
-    { storedLocationCapability = LocatedCapability target
-    , storedLocationLattice = Just
-        (latticeClassOfPolicy (logicalFieldPolicy field))
-    }
-
-inferStoredOpaqueLocation
-    :: FEProgram
-    -> OriginId
-    -> OpaqueDiscrete
-    -> Either BackendPlanError StoredScalarLocation
-inferStoredOpaqueLocation program origin opaque
-  | operation == Primitives.resampleExplicitV1OpId = do
-      request <- mapPrimitivePlanError origin opaque
-        (parseResampleRequest dimension opaque)
-      _ <- inferStoredScalarLocation program origin (resampleOperand request)
-      let bits = resampleTargetBits request
-      Right StoredScalarLocation
-        { storedLocationCapability = LocatedCapability
-            (Placement (map (\bit -> if bit then HalfPoint else IntegerPoint) bits))
-        , storedLocationLattice = Just
-            (if or bits then StaggeredLattice else CollocatedLattice)
-        }
-  | operation == Primitives.derivativeOrderedV1OpId = do
-      request <- mapPrimitivePlanError origin opaque
-        (parseOrderedDerivativeRequest dimension opaque)
-      source <- inferStoredScalarLocation program origin
-        (orderedDerivativeOperand request)
-      case storedLocationCapability source of
-        LocatedCapability placement -> do
-          plan <- mapExplicitPlanError origin opaque
-            (orderedFirstDerivativeStencil
-              (storedLocationLattice source == Just StaggeredLattice)
-              (orderedDerivativeAxes request) placement)
-          Right source
-            { storedLocationCapability = LocatedCapability
-                (orderedStencilTarget plan) }
-        _ -> Right source
-  | operation == Primitives.operatorMaterializedV1OpId = do
-      request <- mapPrimitivePlanError origin opaque
-        (parseMaterializedComponentRequest opaque)
-      inferStoredScalarLocation program origin
-        (materializedSourceComponent request)
-  | operation == Primitives.fluxConservativeDivergenceV1OpId = do
-      _ <- mapPrimitivePlanError origin opaque
-        (parseConservativeDivergenceRequest dimension opaque)
-      cell <- mapLocation origin
-        (componentPlacement dimension PrimalPolicy (Basis []))
-      Right StoredScalarLocation
-        { storedLocationCapability = LocatedCapability cell
-        , storedLocationLattice = Just CollocatedLattice
-        }
-  | operation == lbOperationId = fixedCell
-  | operation == metricCodifferentialOperationId = do
-      (metricDimension, _, _, operand) <-
-        parseMetricCodifferentialPayload program origin opaque
-      policy <- inferMetricOperandPolicy program origin operand
-      placement <- mapLocation origin
-        (componentPlacement metricDimension policy
-          (opaqueDiscreteResultBasis opaque))
-      Right StoredScalarLocation
-        { storedLocationCapability = LocatedCapability placement
-        , storedLocationLattice = Just (latticeClassOfPolicy policy)
-        }
-  | operation == Primitives.derivativeCoordinateWideV1OpId =
-      inferStoredCoordinateDerivative False
-  | operation == Primitives.derivativeGridWholeV1OpId =
-      inferStoredCoordinateDerivative True
-  | otherwise = explicitPlanFailureFor origin operation
-      (opaqueDiscreteSemanticKey opaque)
-      ("unsupported nested opaque operation " ++ show operation)
-  where
-    operation = opaqueDiscreteOpId opaque
-    dimension = feProgramDimension program
-    fixedCell = do
-      cell <- mapLocation origin
-        (componentPlacement dimension CollocatedPolicy (Basis []))
-      Right StoredScalarLocation
-        { storedLocationCapability = LocatedCapability cell
-        , storedLocationLattice = Just CollocatedLattice
-        }
-    inferStoredCoordinateDerivative isGridWhole = do
-      (operand, axisId, order) <- backendDerivativePayload dimension origin opaque
-      source <- inferStoredScalarLocation program origin operand
-      case storedLocationCapability source of
-        LocatedCapability placement -> do
-          target <- case storedLocationLattice source of
-            Just StaggeredLattice -> mapLocation origin
-              (derivativePlacement [(axisId, fromIntegral order)] placement)
-            _ -> Right placement
-          if not isGridWhole && target /= placement
-            then explicitPlanFailureFor origin operation
-              (opaqueDiscreteSemanticKey opaque)
-              "centered wide derivative cannot change staggered placement"
-            else Right source
-              { storedLocationCapability = LocatedCapability target }
-        _ -> Right source
-
-backendDerivativePayload
-    :: Int
-    -> OriginId
-    -> OpaqueDiscrete
-    -> Either BackendPlanError (ScalarNF, AxisId, Int)
-backendDerivativePayload dimension origin opaque = do
-  operand <- case opaqueDiscreteOperands opaque of
-    [ScalarValue value] -> Right value
-    _ -> failure "derivative expects one scalar operand"
-  orderValue <- oneAttribute (AttributeId "order")
-  order <- positive "order" orderValue
-  axesValue <- oneAttribute (AttributeId "ordered-axes")
-  axis <- case axesValue of
-    AttributeValues [AttributeAxis value] -> Right value
-    _ -> failure "derivative ordered-axes must contain exactly one AxisId"
-  let AxisId axisNumber = axis
-  if axisNumber >= 1 && axisNumber <= dimension
-    then Right ()
-    else failure ("derivative axis is outside dimension " ++ show dimension)
-  Right (operand, axis, order)
-  where
-    failure = explicitPlanFailureFor origin (opaqueDiscreteOpId opaque)
-      (opaqueDiscreteSemanticKey opaque)
-    oneAttribute identifier =
-      case [attributeValue attribute
-           | attribute <- opaqueDiscreteAttributes opaque
-           , attributeId attribute == identifier] of
-        [value] -> Right value
-        _ -> failure ("missing or duplicate attribute " ++ show identifier)
-    positive label value = case value of
-      AttributeNatural natural
-        | integer > 0 && integer <= toInteger (maxBound :: Int) ->
-            Right (fromInteger integer)
-        where integer = toInteger natural
-      _ -> failure (label ++ " must be a positive natural")
-
-joinStoredLocations
-    :: OriginId
-    -> StoredScalarLocation
-    -> StoredScalarLocation
-    -> Either BackendPlanError StoredScalarLocation
-joinStoredLocations origin lhs rhs = do
-  capability <- mapLocation origin
-    (joinCapability (storedLocationCapability lhs)
-      (storedLocationCapability rhs))
-  lattice <- case (storedLocationLattice lhs, storedLocationLattice rhs) of
-    (Nothing, value) -> Right value
-    (value, Nothing) -> Right value
-    (left@(Just lhsValue), Just rhsValue)
-      | lhsValue == rhsValue -> Right left
-      | otherwise -> explicitPlanFailureFor origin
-          Primitives.operatorMaterializedV1OpId (SemanticKey "")
-          ("expression mixes lattice classes " ++ show lhsValue
-            ++ " and " ++ show rhsValue)
-  Right StoredScalarLocation
-    { storedLocationCapability = capability
-    , storedLocationLattice = case capability of
-        LocatedCapability _ -> lattice
-        _ -> Nothing
-    }
-
-foldStoredLocations
-    :: OriginId
-    -> [StoredScalarLocation]
-    -> Either BackendPlanError StoredScalarLocation
-foldStoredLocations _ [] = Right storedConstantLocation
-foldStoredLocations origin (first : rest) = foldl step (Right first) rest
-  where
-    step result value = result >>= (\joined ->
-      joinStoredLocations origin joined value)
-
-storedConstantLocation :: StoredScalarLocation
-storedConstantLocation = StoredScalarLocation ConstantCapability Nothing
-
-storedSampleableLocation :: StoredScalarLocation
-storedSampleableLocation = StoredScalarLocation SampleableCapability Nothing
-
-mapPrimitivePlanError
-    :: OriginId
-    -> OpaqueDiscrete
-    -> Either PrimitiveContractError value
-    -> Either BackendPlanError value
-mapPrimitivePlanError origin opaque = either
-  (\problem -> explicitPlanFailureFor origin (opaqueDiscreteOpId opaque)
-    (opaqueDiscreteSemanticKey opaque) (show problem)) Right
-
-mapExplicitPlanError
-    :: OriginId
-    -> OpaqueDiscrete
-    -> Either ExplicitStencilError value
-    -> Either BackendPlanError value
-mapExplicitPlanError origin opaque = either
-  (\problem -> explicitPlanFailureFor origin (opaqueDiscreteOpId opaque)
-    (opaqueDiscreteSemanticKey opaque) (show problem)) Right
 
 explicitPlanFailure
     :: RequestOccurrence -> String -> Either BackendPlanError value
@@ -1312,10 +819,6 @@ validateLbSource
     -> FieldJet
     -> Either BackendPlanError ()
 validateLbSource program origin field source = do
-  if fieldJetTimeSlot source == CurrentTime
-    then Right ()
-    else Left (LbSourceMustBeCurrent (logicalFieldId field)
-      (fieldJetTimeSlot source) origin)
   if logicalFieldTensorType field == TensorType [] [] 0
       && logicalFieldLayout field == ScalarLayout
       && fieldJetBasis source == Basis []

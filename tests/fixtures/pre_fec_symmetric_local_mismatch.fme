@@ -1,0 +1,15 @@
+mode collocated
+dimension 2
+axes x, y
+
+field T_i_j
+field S{_i_j}
+
+init:
+  T_i_j = [| [| 1, 2 |], [| 3, 4 |] |]_i_j
+  S_i_j = [| [| 0, 0 |], [| 0 |] |]_i_j
+
+step:
+  local bad{_i_j} = T_i_j
+  T'_i_j = T_i_j
+  S' = S

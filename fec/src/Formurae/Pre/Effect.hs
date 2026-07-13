@@ -22,11 +22,13 @@ import Data.List (find, intercalate, nub, sort)
 import qualified Formurae.FEIR.PrimitiveBindings as Primitives
 import Formurae.FEIR.PrimitiveManifest
 import Formurae.FEIR.Syntax (VersionedOpId(..))
+import Formurae.Common (isReservedNormalizationCapability)
 import Formurae.Index
   ( derivativeOpParts
   , ixSuffix
   , parseIndexedIdent
   )
+import Formurae.Pre.FormOperator
 import Formurae.Syntax
 import Formurae.TensorExpr
 
@@ -34,6 +36,21 @@ data FunctionEffect
   = PureFunction
   | DiscreteFunction [VersionedOpId]
   deriving (Eq, Ord, Show)
+
+-- Variable-metric safety needs one small amount of meaning that the
+-- Pure/Discrete distinction deliberately does not carry.  Paths are written
+-- from the innermost value operation to the outermost operation, so the
+-- unsafe weighted-adjoint expansion is the contiguous path Hodge, d, Hodge.
+-- This summary is internal: the public effect result remains stable and only
+-- reports manifest-backed discrete operations.
+data MetricOperator
+  = MetricHodge
+  | MetricExteriorD
+  deriving (Eq, Ord, Show)
+
+newtype MetricSemantics = MetricSemantics
+  { metricSemanticPaths :: [[MetricOperator]]
+  } deriving (Eq, Ord, Show)
 
 newtype EffectSummary = EffectSummary
   { effectSummaryDefinitions :: [(String, FunctionEffect)]
@@ -44,7 +61,11 @@ data EffectIssue
   | ForwardDefinitionUse String
   | MissingPrimitiveSignature String
   | AnalyticDerivativeOfDiscrete [VersionedOpId]
+  | GridDerivativeOfDiscrete [VersionedOpId]
   | EffectfulHigherOrderArgument String [VersionedOpId]
+  | CanonicalOperatorModeMismatch String
+  | VariableMetricHodgeLaplacianUnsupported
+  | VariableMetricHodgeCompositionUnsupported
   deriving (Eq, Ord, Show)
 
 data EffectError = EffectError
@@ -57,51 +78,97 @@ data EffectEnvironment = EffectEnvironment
   , environmentManifest :: PrimitiveManifest
   , environmentAllDefinitions :: [String]
   , environmentAvailableDefinitions :: [(String, FunctionEffect)]
+  , environmentAvailableMetricDefinitions :: [(String, MetricSemantics)]
+  , environmentFirstOrderBindings :: [String]
   , environmentBoundNames :: [String]
   }
 
 inferModelEffects
     :: PrimitiveManifest -> Model -> Either EffectError EffectSummary
 inferModelEffects manifest model = do
-  definitions <- inferDefinitions [] (mDefs model)
+  (definitions, metricDefinitions) <- inferDefinitions [] [] (mDefs model)
   let summary = EffectSummary definitions
-  mapM_ (checkInitializer summary) (zip [1 :: Int ..] (mInits model))
-  mapM_ (checkStep summary) (zip [1 :: Int ..] (mSteps model))
+      environment = EffectEnvironment
+        { environmentModel = model
+        , environmentManifest = manifest
+        , environmentAllDefinitions = allDefinitions
+        , environmentAvailableDefinitions = definitions
+        , environmentAvailableMetricDefinitions = metricDefinitions
+        , environmentFirstOrderBindings = []
+        , environmentBoundNames = []
+        }
+  mapM_ (checkInitializer environment)
+    (zip [1 :: Int ..] (mInits model))
+  checkSteps environment (zip [1 :: Int ..] (mSteps model))
   pure summary
   where
     allDefinitions = map defName (mDefs model)
 
-    inferDefinitions accumulated [] = pure accumulated
-    inferDefinitions accumulated (definition : rest) = do
+    inferDefinitions accumulatedEffects accumulatedMetrics [] =
+      pure (accumulatedEffects, accumulatedMetrics)
+    inferDefinitions accumulatedEffects accumulatedMetrics
+        (definition : rest) = do
       let context = "definition " ++ defName definition
           environment = EffectEnvironment
             { environmentModel = model
             , environmentManifest = manifest
             , environmentAllDefinitions = allDefinitions
-            , environmentAvailableDefinitions = accumulated
+            , environmentAvailableDefinitions = accumulatedEffects
+            , environmentAvailableMetricDefinitions = accumulatedMetrics
+            , environmentFirstOrderBindings = []
             , environmentBoundNames = map definitionParameterBase
                 (defParams definition)
             }
-      effect <- mapErrorContext context $
+      (effect, metricSemantics) <- mapErrorContext context $ do
+        rejectReservedDefinitionConstruction environment
+          (defBody definition)
         case parseTensorExprEither (defBody definition) of
-          Right syntax -> analyzeExpression environment syntax
-          Left _ -> analyzeRawEgisonDefinition environment
-            (defBody definition)
+          Right syntax -> do
+            analyzed <- analyzeExpression environment syntax
+            pure (analyzed, expressionMetricSemantics environment syntax)
+          Left _ -> do
+            analyzed <- analyzeRawEgisonDefinition environment
+              (defBody definition)
+            pure (analyzed, rawMetricSemantics environment
+              (defBody definition))
       inferDefinitions
-        (accumulated ++ [(defName definition, effect)]) rest
+        (accumulatedEffects ++ [(defName definition, effect)])
+        (accumulatedMetrics ++ [(defName definition, metricSemantics)]) rest
 
-    checkInitializer summary (index, initializer) =
-      mapM_ (checkSource summary ("initializer " ++ show index))
+    checkInitializer environment (index, initializer) =
+      mapM_ (checkSource environment ("initializer " ++ show index))
         (initializerExpressions initializer)
 
-    checkStep summary (index, step) =
-      checkSource summary
-        ("step action " ++ show index ++ " (" ++ sNm step ++ ")")
-        (sEx step)
+    checkSteps _ [] = pure ()
+    checkSteps environment ((index, step) : rest) = do
+      let context = "step action " ++ show index ++ " (" ++ sNm step ++ ")"
+      syntax <- parseIn context (sEx step)
+      effect <- mapErrorContext context
+        (analyzeExpression environment syntax)
+      let metricSemantics = expressionMetricSemantics environment syntax
+          nextEnvironment = case sk step of
+            KLet -> registerStepBinding step effect metricSemantics environment
+            -- A local materializes its RHS.  The request effect is checked on
+            -- this action, but reading the stored field later does not execute
+            -- that request again and starts a fresh metric-operator path.
+            KLocal -> registerStepBinding step PureFunction
+              identityMetricSemantics environment
+            KEq -> environment
+      checkSteps nextEnvironment rest
 
-    checkSource summary context source = do
+    registerStepBinding step effect metricSemantics environment = environment
+      { environmentAvailableDefinitions =
+          (sNm step, effect) : environmentAvailableDefinitions environment
+      , environmentAvailableMetricDefinitions =
+          (sNm step, metricSemantics) :
+            environmentAvailableMetricDefinitions environment
+      , environmentFirstOrderBindings =
+          sNm step : environmentFirstOrderBindings environment
+      }
+
+    checkSource environment context source = do
       syntax <- parseIn context source
-      _ <- expressionEffect manifest model summary context syntax
+      _ <- mapErrorContext context (analyzeExpression environment syntax)
       pure ()
 
 expressionEffect
@@ -118,6 +185,8 @@ expressionEffect manifest model (EffectSummary definitions) context expression =
       , environmentManifest = manifest
       , environmentAllDefinitions = map fst definitions
       , environmentAvailableDefinitions = definitions
+      , environmentAvailableMetricDefinitions = []
+      , environmentFirstOrderBindings = []
       , environmentBoundNames = []
       } expression)
 
@@ -144,6 +213,16 @@ parseIn context source =
 analyzeRawEgisonDefinition
     :: EffectEnvironment -> String -> Either EffectError FunctionEffect
 analyzeRawEgisonDefinition environment source = do
+  -- The raw fallback has no application tree, so it cannot prove that a
+  -- variable-metric hodge/d combination (including references through prior
+  -- user helpers) is not the weighted adjoint pattern hidden behind a local
+  -- binder.  Require that combination to stay in the structured surface (or,
+  -- preferably, use canonical δ) instead of letting raw Egison silently
+  -- product-rule-expand it.
+  if hasVariableGeometry (environmentModel environment)
+     && rawMetricSemanticsMayCompose (rawMetricSemantics environment source)
+    then effectFailure VariableMetricHodgeCompositionUnsupported
+    else pure ()
   case firstForwardReference of
     Just name -> effectFailure (ForwardDefinitionUse name)
     Nothing -> pure ()
@@ -174,13 +253,40 @@ analyzeRawEgisonDefinition environment source = do
             Just (_, radius, _)
               | radius > 1 -> primitiveEffect environment
                   Primitives.derivativeCoordinateWideV1OpId
-            _ -> case rawPrimitiveOperation
-                    (environmentModel environment) name of
-              Nothing -> pure PureFunction
-              Just operation -> primitiveEffect environment operation
+            _
+              | null parts
+              , Just operator <- canonicalOperator name ->
+                  canonicalOperatorEffect environment operator
+              | otherwise -> case rawPrimitiveOperation
+                  (environmentModel environment) name of
+                  Nothing -> pure PureFunction
+                  Just operation -> primitiveEffect environment operation
 
     plural [_] = ""
     plural _ = "s"
+
+-- The FEIR opaque boundary is intentionally constructible inside the trusted
+-- normalization libraries, but it must not be forgeable from a user
+-- definition.  This check runs before choosing structured TensorExpr versus
+-- the direct-Egison fallback: otherwise spelling an internal bridge as an
+-- ordinary application would bypass a fallback-only gate.  `functionSymbol`
+-- can build an arbitrary FunctionData head from a computed string, so checking
+-- only the currently known bridge function names is not sound.  Quoted strings
+-- are masked by rawEgisonIdentifiers, which keeps diagnostic text containing
+-- these names as ordinary continuum-pure data.
+rejectReservedDefinitionConstruction
+    :: EffectEnvironment -> String -> Either EffectError ()
+rejectReservedDefinitionConstruction environment source =
+  case fst <$> find isReservedConstructor identifiers of
+    Just name -> effectFailure (InvalidEffectExpression
+      ("user definition cannot access reserved normalization capability "
+       ++ name))
+    Nothing -> pure ()
+  where
+    identifiers = rawEgisonIdentifiers environment source
+    isReservedConstructor (name, _) =
+      name /= "FormuraeInternalKroneckerDelta"
+      && isReservedNormalizationCapability name
 
 -- Extract identifier bases and their Egison tensor indices without trying
 -- to parse the surrounding raw expression.  Quoted strings are masked so a
@@ -216,18 +322,19 @@ maskStrings = normal
 -- shallow scanner sees the final component after `Formurae.`, so include the
 -- bridge implementation names as well as the ordinary surface aliases.
 rawPrimitiveOperation :: Model -> String -> Maybe VersionedOpId
-rawPrimitiveOperation model name =
-  if hasVariableGeometry model
-     && name `elem`
-          ["FormuraeInternalCodiff", "FormuraeInternalFormLaplacian"]
-    then Just Primitives.codiffMetricV1OpId
-    else case lookup name directBridgeOperations of
+rawPrimitiveOperation model name
+  | hasVariableGeometry model
+  , name == "FormuraeInternalCodiff" =
+      Just Primitives.codiffMetricV1OpId
+  | hasVariableGeometry model
+  , name == "FormuraeInternalScalarDelta" =
+      Just Primitives.lbOrthogonalV1OpId
+  | otherwise = case lookup name directBridgeOperations of
       Just operation -> Just operation
-      Nothing -> surfacePrimitiveOperation model name
+      Nothing -> surfacePrimitiveOperation name
   where
     directBridgeOperations =
       [ ("lbOrthogonal", Primitives.lbOrthogonalV1OpId)
-      , ("FormuraeInternalLb", Primitives.lbOrthogonalV1OpId)
       , ("coordinateWideDerivative",
           Primitives.derivativeCoordinateWideV1OpId)
       , ("FormuraeInternalCoordinateWideDerivative",
@@ -235,22 +342,13 @@ rawPrimitiveOperation model name =
       , ("gridWholeDerivative", Primitives.derivativeGridWholeV1OpId)
       , ("FormuraeInternalGridWholeDerivative",
           Primitives.derivativeGridWholeV1OpId)
-      , ("orderedDerivative", Primitives.derivativeOrderedV1OpId)
+      , ("gridDerivativeChain", Primitives.derivativeOrderedV1OpId)
       , ("FormuraeInternalOrderedDerivative",
           Primitives.derivativeOrderedV1OpId)
       , ("resampleExplicit", Primitives.resampleExplicitV1OpId)
       , ("FormuraeInternalResampleExplicit",
           Primitives.resampleExplicitV1OpId)
-      , ("fluxConservativeDivergence",
-          Primitives.fluxConservativeDivergenceV1OpId)
-      , ("FormuraeInternalFluxConservativeDivergence",
-          Primitives.fluxConservativeDivergenceV1OpId)
-      , ("materialized", Primitives.operatorMaterializedV1OpId)
-      , ("FormuraeInternalMaterialized",
-          Primitives.operatorMaterializedV1OpId)
       , ("metricCodiff", Primitives.codiffMetricV1OpId)
-      , ("metricDelta", Primitives.codiffMetricV1OpId)
-      , ("metricFormLaplacian", Primitives.codiffMetricV1OpId)
       ]
 
 mapErrorContext :: String -> Either EffectError a -> Either EffectError a
@@ -272,8 +370,23 @@ initializerExpressions initializer =
 
 analyzeExpression
     :: EffectEnvironment -> TensorExpr -> Either EffectError FunctionEffect
-analyzeExpression environment expression =
-  case expression of
+analyzeExpression environment expression
+  | hasVariableGeometry (environmentModel environment)
+  , Just _ <- matchHodgeExteriorHodge
+      (effectOperatorScope environment) expression =
+      effectFailure VariableMetricHodgeCompositionUnsupported
+  | hasVariableGeometry (environmentModel environment)
+  , metricSemanticsContainUnsafeComposition
+      (expressionMetricSemantics environment expression) =
+      effectFailure VariableMetricHodgeCompositionUnsupported
+  | selectedMode (environmentModel environment) == CollocatedMode
+  , Just operand <- matchScalarDeltaExpression
+      (effectOperatorScope environment) expression = do
+      operandEffect <- analyzeExpression environment operand
+      operatorEffect <- canonicalOperatorEffect environment
+        CanonicalScalarLaplacian
+      pure (mergeMany [operandEffect, operatorEffect])
+  | otherwise = case expression of
     TENumber _ -> pure PureFunction
     -- A bare identifier may be a first-class reference to a user function or
     -- primitive.  Treat it exactly like an application head with no operand
@@ -287,7 +400,9 @@ analyzeExpression environment expression =
       mergeMany <$> mapM (analyzeExpression environment) [condition, yes, no]
     TEAppendIndexed body _ -> analyzeExpression environment body
     TEWithSymbols _ body -> analyzeExpression environment body
-    TEContractWith _ body -> analyzeExpression environment body
+    TEContractWith reducer body -> do
+      rejectHigherOrder environment "contractWith" (TEIdent reducer [])
+      analyzeExpression environment body
     TETensorMap function body -> do
       rejectHigherOrder environment "tensorMap" function
       mergeMany <$> mapM (analyzeExpression environment) [function, body]
@@ -299,9 +414,30 @@ analyzeExpression environment expression =
     TEDerivative _ body -> do
       bodyEffect <- analyzeExpression environment body
       requireAnalytic bodyEffect
-    TEDot parts -> do
-      mapM_ (rejectHigherOrder environment "composition/product") parts
-      mergeMany <$> mapM (analyzeExpression environment) parts
+    TEGridDerivativeChain axes body -> do
+      bodyEffect <- analyzeExpression environment body
+      case bodyEffect of
+        PureFunction ->
+          case axes of
+            [] -> effectFailure (InvalidEffectExpression
+              "quoted derivative chain needs one or more axes")
+            [_] -> primitiveEffect environment
+              Primitives.derivativeGridWholeV1OpId
+            _ -> primitiveEffect environment
+              Primitives.derivativeOrderedV1OpId
+        DiscreteFunction operations ->
+          effectFailure (GridDerivativeOfDiscrete operations)
+    TETensorLiteral elements _ ->
+      mergeMany <$> mapM (analyzeExpression environment) elements
+    TEDot parts
+      -- A user definition of (.) replaces the standard contraction/product
+      -- operator.  Analyze that definition as the application head so its
+      -- latent discrete effect cannot disappear inside derivative syntax.
+      | userDefinedDotIsVisible environment ->
+          analyzeApplication environment (TEIdent "." []) parts
+      | otherwise -> do
+          mapM_ (rejectHigherOrder environment "composition/product") parts
+          mergeMany <$> mapM (analyzeExpression environment) parts
     TEBinary _ lhs rhs ->
       mergeMany <$> mapM (analyzeExpression environment) [lhs, rhs]
     TEGroup body -> analyzeExpression environment body
@@ -340,11 +476,14 @@ applicationHeadEffect environment function argumentEffect =
                   effectFailure (AnalyticDerivativeOfDiscrete operations)
           | otherwise -> primitiveEffect environment
               Primitives.derivativeCoordinateWideV1OpId
-        Nothing -> namedHeadEffect environment name
+        Nothing -> namedHeadEffect environment name parts
 
 namedHeadEffect
-    :: EffectEnvironment -> String -> Either EffectError FunctionEffect
-namedHeadEffect environment name =
+    :: EffectEnvironment
+    -> String
+    -> [IxPart]
+    -> Either EffectError FunctionEffect
+namedHeadEffect environment name parts =
   if name `elem` environmentBoundNames environment
     then pure PureFunction
     else case lookup name (environmentAvailableDefinitions environment) of
@@ -352,34 +491,178 @@ namedHeadEffect environment name =
       Nothing
         | elem name (environmentAllDefinitions environment) ->
             effectFailure (ForwardDefinitionUse name)
+        | null parts
+        , Just operator <- canonicalOperator name ->
+            canonicalOperatorEffect environment operator
         | otherwise ->
-            case surfacePrimitiveOperation (environmentModel environment) name of
+            case surfacePrimitiveOperation name of
               Nothing -> pure PureFunction
               Just operation -> primitiveEffect environment operation
 
-surfacePrimitiveOperation :: Model -> String -> Maybe VersionedOpId
-surfacePrimitiveOperation model name
-  | elem name ["gridD", "gridDerivative"] =
-      Just Primitives.derivativeGridWholeV1OpId
-  | elem name ["orderedDerivative", "orderedD"] =
-      Just Primitives.derivativeOrderedV1OpId
-  | elem name ["resample", "interpolate"] =
+surfacePrimitiveOperation :: String -> Maybe VersionedOpId
+surfacePrimitiveOperation name
+  | name == "resample" =
       Just Primitives.resampleExplicitV1OpId
-  | elem name ["fluxDiv", "conservativeDiv"] =
-      Just Primitives.fluxConservativeDivergenceV1OpId
-  | name == "materialize" = Just Primitives.operatorMaterializedV1OpId
-  | name == "lb" = Just Primitives.lbOrthogonalV1OpId
-  | elem name ["codiff", "delta", "\948"] && hasVariableGeometry model =
-      Just Primitives.codiffMetricV1OpId
-  | name == "formLaplacian" && hasVariableGeometry model =
-      Just Primitives.codiffMetricV1OpId
   | otherwise = Nothing
 
-hasVariableGeometry :: Model -> Bool
-hasVariableGeometry model =
-  case (mMetric model, mEmbed model) of
-    (Nothing, Nothing) -> False
-    _ -> True
+-- Summarize only the canonical metric operators whose analytic composition
+-- can change meaning on a variable metric.  Ordinary algebra keeps paths
+-- separate; function application composes an operand path with the semantic
+-- path of its head.  Consequently helpers such as
+--
+--   hs A = hodge A; ex A = d A; hs (ex (hs A))
+--
+-- retain Hodge,d,Hodge even though no canonical spelling remains in the
+-- outer definition.  The combined-argument paths are a conservative guard
+-- for higher-order helpers whose parameter-to-result relation is unavailable
+-- in TensorExpr.
+expressionMetricSemantics :: EffectEnvironment -> TensorExpr -> MetricSemantics
+expressionMetricSemantics environment =
+  MetricSemantics . normalizeMetricPaths . paths
+  where
+    paths expression = case expression of
+      TENumber _ -> []
+      TEIdent name parts -> namedMetricPaths environment name parts
+      TEUnary _ body -> paths body
+      TECall function arguments -> applicationPaths function arguments
+      TEApply function arguments -> applicationPaths function arguments
+      TEIf condition yes no -> concatMap paths [condition, yes, no]
+      TEAppendIndexed body _ -> paths body
+      TEWithSymbols _ body -> paths body
+      -- contractWith applies its reducer to tensor components.  Preserve the
+      -- reducer's metric semantics just like an ordinary function
+      -- application; otherwise a helper reducer containing hodge could hide
+      -- the inner leg of hodge . d . hodge on a variable metric.
+      TEContractWith reducer body ->
+        applicationPaths (TEIdent reducer []) [body]
+      TETensorMap function body -> applicationPaths function [body]
+      TESubrefs body _ -> paths body
+      TETranspose _ body -> paths body
+      TEDisjoint parts -> concatMap paths parts
+      TEDerivative _ body -> paths body
+      TEGridDerivativeChain _ body -> paths body
+      TETensorLiteral elements _ -> concatMap paths elements
+      TEDot parts
+        | userDefinedDotIsVisible environment ->
+            applicationPaths (TEIdent "." []) parts
+        | otherwise ->
+            let partPaths = map paths parts
+            in concat partPaths ++ combinedMetricPaths partPaths
+      TEBinary _ lhs rhs -> paths lhs ++ paths rhs
+      TEGroup body -> paths body
+
+    applicationPaths function arguments = normalizeMetricPaths
+      (functionPaths ++ operandPaths ++ individuallyComposed
+        ++ combined ++ combinedComposed)
+      where
+        functionPaths = case directHead function of
+          Just (name, parts) -> namedMetricPaths environment name parts
+          Nothing -> paths function
+        argumentPaths = map paths arguments
+        operandPaths = concat argumentPaths
+        individuallyComposed = composeMetricPaths operandPaths functionPaths
+        combined = combinedMetricPaths argumentPaths
+        combinedComposed = composeMetricPaths combined functionPaths
+
+rawMetricSemantics :: EffectEnvironment -> String -> MetricSemantics
+rawMetricSemantics environment source = MetricSemantics
+  (normalizeMetricPaths (concatMap identifierPaths visibleIdentifiers))
+  where
+    visibleIdentifiers =
+      [ identifier
+      | identifier@(name, _) <- rawEgisonIdentifiers environment source
+      , name `notElem` environmentBoundNames environment
+      ]
+    identifierPaths (name, parts) = namedMetricPaths environment name parts
+
+-- Raw Egison has no trustworthy application tree.  Seeing both semantic
+-- ingredients, directly or through helpers, is therefore conservatively
+-- rejected.  Structured TensorExpr uses the more precise ordered-path test.
+rawMetricSemanticsMayCompose :: MetricSemantics -> Bool
+rawMetricSemanticsMayCompose semantics =
+  metricSemanticsContainUnsafeComposition semantics
+  || (MetricHodge `elem` operators && MetricExteriorD `elem` operators)
+  where
+    operators = concat (metricSemanticPaths semantics)
+
+metricSemanticsContainUnsafeComposition :: MetricSemantics -> Bool
+metricSemanticsContainUnsafeComposition =
+  any hasUnsafePath . metricSemanticPaths
+  where
+    hasUnsafePath (MetricHodge : MetricExteriorD : MetricHodge : _) = True
+    hasUnsafePath (_ : rest) = hasUnsafePath rest
+    hasUnsafePath [] = False
+
+namedMetricPaths
+    :: EffectEnvironment -> String -> [IxPart] -> [[MetricOperator]]
+namedMetricPaths environment name parts
+  | name `elem` environmentBoundNames environment = [[]]
+  | Just semantics <- lookup name
+      (environmentAvailableMetricDefinitions environment) =
+      metricSemanticPaths semantics
+  | null parts
+  , Just operator <- canonicalOperator name
+  , canonicalOperatorIsVisible (effectOperatorScope environment) operator =
+      case operator of
+        CanonicalHodge -> [[MetricHodge]]
+        CanonicalExteriorD -> [[MetricExteriorD]]
+        _ -> [[]]
+  | otherwise = [[]]
+
+composeMetricPaths
+    :: [[MetricOperator]] -> [[MetricOperator]] -> [[MetricOperator]]
+composeMetricPaths operands functions =
+  [operand ++ function
+  | operand <- identityWhenEmpty operands
+  , function <- identityWhenEmpty functions]
+
+-- Preserve both source and reverse order.  A general higher-order helper may
+-- apply its function-valued arguments in either order, and rejecting the
+-- possible weighted-adjoint path is safer than silently expanding it.
+combinedMetricPaths :: [[[MetricOperator]]] -> [[MetricOperator]]
+combinedMetricPaths groups = normalizeMetricPaths
+  (map concat (sequence choices) ++ map concat (sequence (reverse choices)))
+  where
+    choices = map identityWhenEmpty groups
+
+identityWhenEmpty :: [[MetricOperator]] -> [[MetricOperator]]
+identityWhenEmpty [] = [[]]
+identityWhenEmpty values = values
+
+normalizeMetricPaths :: [[MetricOperator]] -> [[MetricOperator]]
+normalizeMetricPaths = nub
+
+identityMetricSemantics :: MetricSemantics
+identityMetricSemantics = MetricSemantics [[]]
+
+effectOperatorScope :: EffectEnvironment -> OperatorScope
+effectOperatorScope environment = OperatorScope
+  (environmentBoundNames environment ++ environmentAllDefinitions environment)
+
+userDefinedDotIsVisible :: EffectEnvironment -> Bool
+userDefinedDotIsVisible environment =
+  "." `elem` environmentAllDefinitions environment
+  && "." `notElem` environmentBoundNames environment
+
+canonicalOperatorEffect
+    :: EffectEnvironment
+    -> CanonicalOperator
+    -> Either EffectError FunctionEffect
+canonicalOperatorEffect environment operator =
+  case canonicalOperatorModeError
+      (selectedMode (environmentModel environment)) operator of
+    Just message -> effectFailure (CanonicalOperatorModeMismatch message)
+    Nothing
+      | operator == CanonicalHodgeLaplacian
+      , hasVariableGeometry (environmentModel environment) ->
+          effectFailure VariableMetricHodgeLaplacianUnsupported
+      | operator == CanonicalScalarLaplacian
+      , hasVariableGeometry (environmentModel environment) ->
+          primitiveEffect environment Primitives.lbOrthogonalV1OpId
+      | operator == CanonicalCodifferential
+      , hasVariableGeometry (environmentModel environment) ->
+          primitiveEffect environment Primitives.codiffMetricV1OpId
+      | otherwise -> pure PureFunction
 
 primitiveEffect
     :: EffectEnvironment -> VersionedOpId -> Either EffectError FunctionEffect
@@ -408,12 +691,15 @@ rejectHigherOrder environment consumer argument = do
 -- both branches; otherwise wrapping an effectful name in `if` would bypass
 -- the higher-order guard.  Applied expressions are deliberately left to the
 -- ordinary expression analysis because they may be first-order discrete
--- values (for example materialize(fluxDiv(F))).
+-- values with nested discrete subexpressions.
 latentFunctionEffect
     :: EffectEnvironment -> TensorExpr -> Either EffectError FunctionEffect
 latentFunctionEffect environment expression =
   case expression of
-    TEIdent _ _ -> applicationHeadEffect environment expression PureFunction
+    TEIdent name _
+      | name `elem` environmentFirstOrderBindings environment ->
+          pure PureFunction
+      | otherwise -> applicationHeadEffect environment expression PureFunction
     TEGroup body -> latentFunctionEffect environment body
     TEIf _ yes no -> mergeMany <$> mapM (latentFunctionEffect environment) [yes, no]
     _ -> pure PureFunction

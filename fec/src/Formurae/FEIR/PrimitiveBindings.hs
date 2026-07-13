@@ -10,9 +10,7 @@ module Formurae.FEIR.PrimitiveBindings
   , derivativeCoordinateWideV1OpId
   , derivativeGridWholeV1OpId
   , derivativeOrderedV1OpId
-  , fluxConservativeDivergenceV1OpId
   , lbOrthogonalV1OpId
-  , operatorMaterializedV1OpId
   , resampleExplicitV1OpId
   ) where
 
@@ -31,7 +29,7 @@ import Formurae.FEIR.Syntax
   )
 
 primitiveManifestV1Id :: PrimitiveManifestId
-primitiveManifestV1Id = PrimitiveManifestId "sha256:f6294c222255af0cbc20d76a46e6eecb1858d3c4a370500f9c7c8b510a18010f"
+primitiveManifestV1Id = PrimitiveManifestId "sha256:f4623af0a5cebbf8ce86d8871b52335ae8ae7db95eaa0f25224d9bad35512c3b"
 
 primitiveManifestV1 :: PrimitiveManifest
 primitiveManifestV1 = PrimitiveManifest 1 primitiveSignaturesV1
@@ -79,16 +77,6 @@ primitiveSignaturesV1 =
       , primitiveSignatureCommutation = Ordered
       }
   , PrimitiveSignature
-      { primitiveSignatureOpId = fluxConservativeDivergenceV1OpId
-      , primitiveSignatureOpName = "flux.conservative-divergence"
-      , primitiveSignatureOpVersion = 1
-      , primitiveSignatureInputs = [TensorCategory]
-      , primitiveSignatureOutput = ScalarCategory
-      , primitiveSignaturePlacement = ConservativeCellPlacement
-      , primitiveSignatureEffect = NeedsMaterialization [FluxRole,ResultRole]
-      , primitiveSignatureCommutation = DeclaredCommutative
-      }
-  , PrimitiveSignature
       { primitiveSignatureOpId = lbOrthogonalV1OpId
       , primitiveSignatureOpName = "lb.orthogonal"
       , primitiveSignatureOpVersion = 1
@@ -97,16 +85,6 @@ primitiveSignaturesV1 =
       , primitiveSignaturePlacement = ConservativeCellPlacement
       , primitiveSignatureEffect = NeedsMaterialization [CoefficientRole,FluxRole,ResultRole,VolumeRole]
       , primitiveSignatureCommutation = DeclaredCommutative
-      }
-  , PrimitiveSignature
-      { primitiveSignatureOpId = operatorMaterializedV1OpId
-      , primitiveSignatureOpName = "operator.materialized"
-      , primitiveSignatureOpVersion = 1
-      , primitiveSignatureInputs = [AnyCategory]
-      , primitiveSignatureOutput = AnyCategory
-      , primitiveSignaturePlacement = PreserveSourcePlacement
-      , primitiveSignatureEffect = NeedsMaterialization [IntermediateRole]
-      , primitiveSignatureCommutation = Ordered
       }
   , PrimitiveSignature
       { primitiveSignatureOpId = resampleExplicitV1OpId
@@ -126,9 +104,7 @@ primitiveOperationIds =
   , derivativeCoordinateWideV1OpId
   , derivativeGridWholeV1OpId
   , derivativeOrderedV1OpId
-  , fluxConservativeDivergenceV1OpId
   , lbOrthogonalV1OpId
-  , operatorMaterializedV1OpId
   , resampleExplicitV1OpId
   ]
 
@@ -150,14 +126,8 @@ derivativeGridWholeV1OpId = VersionedOpId "derivative.grid-whole@1"
 derivativeOrderedV1OpId :: VersionedOpId
 derivativeOrderedV1OpId = VersionedOpId "derivative.ordered@1"
 
-fluxConservativeDivergenceV1OpId :: VersionedOpId
-fluxConservativeDivergenceV1OpId = VersionedOpId "flux.conservative-divergence@1"
-
 lbOrthogonalV1OpId :: VersionedOpId
 lbOrthogonalV1OpId = VersionedOpId "lb.orthogonal@1"
-
-operatorMaterializedV1OpId :: VersionedOpId
-operatorMaterializedV1OpId = VersionedOpId "operator.materialized@1"
 
 resampleExplicitV1OpId :: VersionedOpId
 resampleExplicitV1OpId = VersionedOpId "resample.explicit@1"

@@ -34,8 +34,11 @@ main = do
     "FEIR.unquoteTensor FormuraeInternalValue" embeddedUnit
   assertContains "quotes are removed only at FEIR scalar boundary"
     "FEIR.unquoteAll FormuraeInternalValue" embeddedUnit
-  assertContains "lb remains a versioned opaque boundary"
-    "FormuraeInternalLb u"
+  assertContains "canonical scalar Delta remains an lb opaque boundary"
+    "FormuraeInternalScalarDelta u"
+    embeddedUnit
+  assertContains "variable scalar Delta selects lb.orthogonal"
+    "def FormuraeInternalScalarDelta u := Formurae.lbOrthogonal feGeometryId fePrimitiveManifestId u"
     embeddedUnit
   assertAbsent "ambient operators do not construct a context"
     "Formurae.operatorContext" embeddedUnit
@@ -44,7 +47,7 @@ main = do
 
 manifestId :: PrimitiveManifestId
 manifestId = PrimitiveManifestId
-  "sha256:f6294c222255af0cbc20d76a46e6eecb1858d3c4a370500f9c7c8b510a18010f"
+  "sha256:f4623af0a5cebbf8ce86d8871b52335ae8ae7db95eaa0f25224d9bad35512c3b"
 
 scaleSource :: String
 scaleSource = unlines
@@ -53,7 +56,7 @@ scaleSource = unlines
   , "axes x, y, z"
   , "metric scale [1 / (1 + y), 1 / (1 + y), 1]"
   , "field u : scalar"
-  , "def Delta u = lb u"
+  , "def Delta u = Δ u"
   , "init:"
   , "  u := exp (cos x - 1)"
   , "step:"
@@ -67,7 +70,7 @@ embeddedSource = unlines
   , "axes theta, phi, z"
   , "embedding [`(2 + cos theta) * cos phi, `(2 + cos theta) * sin phi, sin theta, z]"
   , "field u : scalar"
-  , "def Delta u = lb u"
+  , "def Delta u = Δ u"
   , "init:"
   , "  u := exp (cos theta + cos phi - 2)"
   , "step:"

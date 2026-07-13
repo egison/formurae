@@ -16,6 +16,7 @@ main = do
   testDistinctBundles
   testStepLocalDependencyOrdering
   testLbConsumerMaterializationOrdering
+  testNextTimeSourceOrdering
   putStrLn "post compile lb tests: ok"
 
 testRenderedLb :: IO ()
@@ -168,6 +169,39 @@ testLbConsumerMaterializationOrdering = do
     "FormuraeInternalLb1Result[i,j] =" "q[i,j] =" rendered
   assertBefore "materialized consumer before update" "q[i,j] =" "u'[i,j] = q[i,j]" rendered
 
+testNextTimeSourceOrdering :: IO ()
+testNextTimeSourceOrdering = do
+  let v = scalarField (FieldId 2) "v"
+      nextLb = lbOpaqueAt (FieldId 1) NextTime
+        (SemanticKey "next-u-key") (RequestGroupId "next-u-group")
+      updateU = UpdateField (FEEquation (EquationId 3)
+        (WholeFieldTarget (FieldId 1) NextTime)
+        (scalarTensor (Add
+          [ Exact 1 1
+          , FieldJet (fieldJet (FieldId 1))
+          ]))
+        (OriginId 1))
+      updateV = UpdateField (FEEquation (EquationId 4)
+        (WholeFieldTarget (FieldId 2) NextTime)
+        (scalarTensor (OpaqueDiscrete nextLb))
+        (OriginId 1))
+      program = fixture
+        { feProgramFields = [scalarField (FieldId 1) "u", v]
+        , feProgramInitializers =
+            [ analyticInitializer 1 (FieldId 1) (Exact 0 1)
+            , analyticInitializer 2 (FieldId 2) (Exact 0 1)
+            ]
+        , feProgramStepActions = [updateU, updateV]
+        }
+  rendered <- compileAndRender "NextTime lb source" program
+  assertContains "lb flux reads the earlier NextTime field"
+    "FormuraeInternalLb1Flux1[i,j] = FormuraeInternalMetricCoefficient1[i,j] * (u'[i+1,j] + (-1) * u'[i,j]) / dx"
+    rendered
+  assertBefore "earlier update precedes its lb consumer"
+    "u'[i,j] =" "FormuraeInternalLb1Flux1[i,j] =" rendered
+  assertBefore "lb result precedes the later update"
+    "FormuraeInternalLb1Result[i,j] =" "v'[i,j] =" rendered
+
 compileAndRender :: String -> FEProgram -> IO String
 compileAndRender label program = do
   compiled <- assertRight label (compileProgram program)
@@ -244,9 +278,13 @@ defaultLbOpaque = lbOpaque (FieldId 1)
   (SemanticKey "lb-u-key") (RequestGroupId "lb-u")
 
 lbOpaque :: FieldId -> SemanticKey -> RequestGroupId -> OpaqueDiscrete
-lbOpaque fieldId key group = OpaqueDiscreteCall
+lbOpaque fieldId = lbOpaqueAt fieldId CurrentTime
+
+lbOpaqueAt :: FieldId -> TimeSlot -> SemanticKey -> RequestGroupId
+  -> OpaqueDiscrete
+lbOpaqueAt fieldId timeSlot key group = OpaqueDiscreteCall
   lbOperationId key group (Basis [])
-  [ScalarValue (FieldJet (fieldJet fieldId))]
+  [ScalarValue (FieldJet ((fieldJet fieldId) { fieldJetTimeSlot = timeSlot }))]
   [ Attribute (AttributeId "metric") (AttributeGeometry (GeometryId 1))
   , Attribute (AttributeId "source-policy")
       (AttributeGridPolicy CollocatedPolicy)

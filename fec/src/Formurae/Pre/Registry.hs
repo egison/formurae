@@ -27,10 +27,12 @@ import Formurae.TensorExpr
   , pattern TEDisjoint
   , pattern TEDot
   , pattern TEGroup
+  , pattern TEGridDerivativeChain
   , pattern TEIdent
   , pattern TEIf
   , pattern TENumber
   , pattern TESubrefs
+  , pattern TETensorLiteral
   , pattern TETensorMap
   , pattern TETranspose
   , pattern TEUnary
@@ -58,6 +60,7 @@ data RegistryError
   | DeclarationOriginCountMismatch String Int Int
   | MissingOrigin String
   | MissingDefinitionSourceText Int
+  | MissingLocalDeclaration Int
   | InvalidTraceExpression String String
   | InvalidTraceSourceSpan String Int Int
   | UnsupportedRegistryGeometry
@@ -397,6 +400,8 @@ collectDefinitionCalls isDefinition = go
         TETranspose _ body -> go boundNames body
         TEDisjoint parts -> concatMap (go boundNames) parts
         TEDerivative _ body -> go boundNames body
+        TEGridDerivativeChain _ body -> go boundNames body
+        TETensorLiteral elements _ -> concatMap (go boundNames) elements
         TEDot parts -> concatMap (go boundNames) parts
         TEBinary _ lhs rhs -> go boundNames lhs ++ go boundNames rhs
         TEGroup body -> go boundNames body
@@ -559,22 +564,27 @@ buildFields assignments model = do
   where
     buildUserField (identifier, field) = do
       origin <- originFor assignments (FieldOrigin identifier)
-      Right (logicalFieldFromSurface model (FEIR.FieldId identifier) origin field)
+      Right (logicalFieldFromSurface model (FEIR.FieldId identifier) origin
+        FEIR.UserStateLifetime field)
     buildLocalField (localIndex, (stepIndex, step)) = do
       origin <- originFor assignments (StepOrigin stepIndex)
       let identifier = length (Surface.mFieldDecls model) + localIndex
-      Right (FEIR.LogicalFieldDecl
-        (FEIR.FieldId identifier) (Surface.sNm step) FEIR.CollocatedPolicy
-        (FEIR.TensorType [] [] 0) FEIR.ScalarLayout []
-        FEIR.StepLocalLifetime origin)
+      local <- maybe (Left (MissingLocalDeclaration stepIndex)) Right
+        (Surface.sLocalDecl step)
+      Right (logicalFieldFromSurface model (FEIR.FieldId identifier) origin
+        FEIR.StepLocalLifetime (Surface.localDeclAsField local))
 
 logicalFieldFromSurface
-  :: Surface.Model -> FEIR.FieldId -> FEIR.OriginId -> Surface.FieldDecl
+  :: Surface.Model
+  -> FEIR.FieldId
+  -> FEIR.OriginId
+  -> FEIR.Lifetime
+  -> Surface.FieldDecl
   -> FEIR.LogicalFieldDecl
-logicalFieldFromSurface model identifier origin field =
+logicalFieldFromSurface model identifier origin lifetime field =
   FEIR.LogicalFieldDecl
     identifier (Surface.fdName field) (mapPolicy (Surface.fdPolicy field))
-    tensorType layout declaredVariances FEIR.UserStateLifetime origin
+    tensorType layout declaredVariances lifetime origin
   where
     rank = Index.componentRank (Surface.fdKind field)
     shape = replicate rank (Surface.mDim model)

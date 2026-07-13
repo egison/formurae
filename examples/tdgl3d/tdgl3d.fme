@@ -10,8 +10,6 @@ axes x, y, z
 param dt = 0.05
 
 extern sin
-def Δ u = divg (grad u)
-
 field a : scalar
 field b : scalar
 

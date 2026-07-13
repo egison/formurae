@@ -4,8 +4,16 @@
 -- General contraction and matrix/form operators are owned by Egison's
 -- standard tensor, matrix, and differential-form libraries.  This bridge
 -- contains only Formurae-specific symbolic and canonical-form helpers used
--- before FEIR serialization; post-fec alone owns grid/layout semantics.
+-- before FEIR serialization.  Post-fec alone owns grid placement and physical
+-- storage semantics; this bridge may validate declared logical tensor relations.
 --
+
+-- Build the Kronecker tensor structurally instead of referring to Egison's
+-- ambient name `delta`.  A model-local function with that ordinary ASCII name
+-- may therefore coexist with indexed Unicode δ without dynamic capture.
+def FE.kroneckerDelta (dimension: Integer) : Tensor Integer :=
+  generateTensor (\[row, column] -> if row = column then 1 else 0)
+                 [dimension, dimension]
 
 -- A named reducer such as `max` must remain a symbolic backend call when its
 -- arguments contain field expressions: Egison's ordinary `max` requires an
@@ -59,6 +67,39 @@ def FE.tensorComponentAt {a}
                 (FE.validTensorComponent shape indices)
         then nth (FE.flatTensorIndex shape indices) (tensorToList t)
         else head (tensorToList t)
+
+-- Logical symmetric/antisymmetric layouts are more than storage projections:
+-- a dynamically normalized whole tensor must satisfy the declared component
+-- relation before FEIR encodes it.  Check the complete square rank-two tensor,
+-- including the diagonal in the antisymmetric case.
+def Formurae.hasRank2TransposeSign
+      (sign: Integer) (value: Tensor MathValue) : Bool :=
+  match tensorShape value as list integer with
+    | $rows :: $columns :: [] ->
+        rows = columns
+        && all
+             (\row ->
+               all
+                 (\column ->
+                   FE.tensorComponentAt value [row, column]
+                   = sign * FE.tensorComponentAt value [column, row])
+                 (between 1 columns))
+             (between 1 rows)
+    | _ -> False
+
+def Formurae.requireSymmetricRank2
+      (value: Tensor MathValue) : Tensor MathValue :=
+  match assert "normalized symmetric tensor layout mismatch"
+               (Formurae.hasRank2TransposeSign 1 value)
+        as bool with
+    | #True -> value
+
+def Formurae.requireAntisymmetricRank2
+      (value: Tensor MathValue) : Tensor MathValue :=
+  match assert "normalized antisymmetric tensor layout mismatch"
+               (Formurae.hasRank2TransposeSign (-1) value)
+        as bool with
+    | #True -> value
 
 def FE.chooseAxes (degree: Integer) (axes: [Integer]) : [[Integer]] :=
   if degree = 0

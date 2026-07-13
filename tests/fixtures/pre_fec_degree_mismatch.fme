@@ -3,5 +3,6 @@ dimension 2
 axes x, y
 field V_i @ primal
 field A : 1-form @ primal
+def erase X = X
 step:
-  A' = materialize(V)
+  A' = erase V

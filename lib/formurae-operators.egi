@@ -31,12 +31,6 @@ def Formurae.opaqueOrderedDerivativeHead : String :=
 def Formurae.opaqueResampleHead : String :=
   "FormuraeInternalOpaqueResampleV1"
 
-def Formurae.opaqueConservativeDivergenceHead : String :=
-  "FormuraeInternalOpaqueConservativeDivergenceV1"
-
-def Formurae.opaqueMaterializedHead : String :=
-  "FormuraeInternalOpaqueMaterializedV1"
-
 -- Egison represents differential-form axes as anonymous tensor dimensions:
 -- tensorVariances reports the explicit tensor axes and dfOrder reports the
 -- remaining form axes.  FEIR needs one variance per shape axis, and form axes
@@ -46,19 +40,10 @@ def Formurae.logicalTensorVariances
   tensorVariances value
   ++ map (\_ -> "down") (between 1 (dfOrder value))
 
-def Formurae.varianceCode (variance: String) : Integer :=
-  if variance = "up"
-    then 1
-    else if variance = "down"
-      then 2
-      else if assert "tensor variance must be up or down" False
-        then 0
-        else 0
-
--- Opaque materialization changes scalar components but must retain the
--- source tensor's explicit index variance.  Form axes remain anonymous, so
--- their count continues to be reported by dfOrder.  Formurae supports ranks
--- through three; every mixed variance sequence in that range is structural.
+-- Tensor operators that rebuild components must retain the source tensor's
+-- explicit index variance.  Form axes remain anonymous, so their count
+-- continues to be reported by dfOrder.  Formurae supports ranks through
+-- three; every mixed variance sequence in that range is structural.
 def Formurae.attachExplicitVariances
       (variances: [String])
       (value: Tensor MathValue) : Tensor MathValue :=
@@ -211,7 +196,7 @@ def Formurae.gridWholeDerivative
 -- A noncommuting/ordered derivative chain remains one whole-expression
 -- request.  Axis order and repetition are data; the CAS never canonicalizes
 -- this sequence into a Schwarz multi-index.
-def Formurae.orderedDerivative
+def Formurae.gridDerivativeChain
       (dimension: Integer) (primitiveManifestId: String)
       (axes: Vector Integer) (value: MathValue) : MathValue :=
   let orderedAxes := tensorToList axes
@@ -242,64 +227,6 @@ def Formurae.resampleExplicit
       | #True ->
           formuraeOpaqueBarrier
             (functionSymbol Formurae.opaqueResampleHead (value :: bits))
-
--- The complete rank-one flux is carried by one request.  post-fec validates
--- that component a is already located on the corresponding Primal face;
--- this constructor performs no implicit interpolation.
-def Formurae.fluxConservativeDivergence
-      (dimension: Integer) (primitiveManifestId: String)
-      (flux: Tensor MathValue) : MathValue :=
-  let variances := tensorVariances flux
-   in match assert "conservative divergence needs a dimension-sized rank-one flux"
-                   (tensorShape flux = [dimension]
-                    && dfOrder flux = 0
-                    && length variances = 1)
-            && Formurae.requireOpaqueManifest primitiveManifestId
-        as bool with
-      | #True ->
-          let varianceCode := Formurae.varianceCode (head variances)
-           in formuraeOpaqueBarrier
-                (functionSymbol Formurae.opaqueConservativeDivergenceHead
-                  ([dimension, varianceCode] ++ tensorToList flux))
-
--- A materialization barrier can return a scalar or a tensor.  Every tensor
--- component repeats the complete source payload and differs only in result
--- basis, so the FEIR encoder assigns all components the same request group.
--- Shape, variance, and differential-form order are carried structurally in
--- the payload together with all source components; the enclosing checked
--- FEIR tensor supplies the same metadata for the result.
-def Formurae.materialized
-      (primitiveManifestId: String)
-      (value: Tensor MathValue) : Tensor MathValue :=
-  let shape := tensorShape value
-      explicitVariances := tensorVariances value
-      differentialFormOrder := dfOrder value
-      logicalVariances := Formurae.logicalTensorVariances value
-      varianceCodes := map Formurae.varianceCode logicalVariances
-      rank := length shape
-      sourceValues := tensorToList value
-      payload := [rank] ++ shape ++ varianceCodes
-        ++ [differentialFormOrder] ++ sourceValues
-      component :=
-        \basis ->
-          formuraeOpaqueBarrier
-            (functionSymbol Formurae.opaqueMaterializedHead
-              (payload ++ basis))
-      result :=
-        if shape = []
-          then component []
-          else generateTensor component shape
-   in match assert "materialization metadata must match its scalar/tensor payload"
-                   (length explicitVariances + differentialFormOrder = rank
-                    && length varianceCodes = rank
-                    && all (\code -> code = 1 || code = 2) varianceCodes
-                    && differentialFormOrder >= 0
-                    && differentialFormOrder <= rank
-                    && not (sourceValues = []))
-            && Formurae.requireOpaqueManifest primitiveManifestId
-        as bool with
-      | #True ->
-          Formurae.attachExplicitVariances explicitVariances result
 
 def Formurae.diff
       (coordinates: Vector MathValue)
@@ -451,22 +378,11 @@ def Formurae.codiff
                  (Formurae.d coordinates
                    (Formurae.hodge dimension geometryScales A))
 
-def Formurae.delta
-      (coordinates: Vector MathValue) (dimension: Integer)
-      (geometryScales: Vector MathValue)
-      (A: Tensor MathValue) : Tensor MathValue :=
-  Formurae.codiff coordinates dimension geometryScales A
-
-def Formurae.metricDelta
-      (dimension: Integer) (geometryId: Integer)
-      (primitiveManifestId: String)
-      (A: Tensor MathValue) : Tensor MathValue :=
-  Formurae.metricCodiff dimension geometryId primitiveManifestId A
-
--- Positive Cartesian scalar Laplacian under the selected codifferential
--- convention.  This is a mathematical composition and contains no stencil
--- or grid callback.
-def Formurae.formLaplacian
+-- PDE-sign scalar Laplacian under the selected codifferential convention:
+--   Delta u = -delta(d u).
+-- This constant-geometry path is a mathematical composition and contains no
+-- stencil or grid callback.  Declared geometry uses lbOrthogonal instead.
+def Formurae.scalarLaplacian
       (coordinates: Vector MathValue) (dimension: Integer)
       (geometryScales: Vector MathValue)
       (u: MathValue) : MathValue :=
@@ -474,10 +390,24 @@ def Formurae.formLaplacian
         (Formurae.codiff coordinates dimension geometryScales
           (Formurae.d coordinates u)) []
 
-def Formurae.metricFormLaplacian
+-- Nonnegative Hodge--de Rham Laplacian on a constant-metric differential
+-- form.  The endpoint terms are represented by zero times the original form
+-- so their rank and differential-form metadata are retained:
+--   Delta_H A = d(delta A) + delta(d A).
+def Formurae.hodgeLaplacian
       (coordinates: Vector MathValue) (dimension: Integer)
-      (geometryId: Integer) (primitiveManifestId: String)
-      (u: MathValue) : MathValue :=
-  0 - FE.tensorComponentAt
-        (Formurae.metricCodiff dimension geometryId primitiveManifestId
-          (Formurae.d coordinates u)) []
+      (geometryScales: Vector MathValue)
+      (A: Tensor MathValue) : Tensor MathValue :=
+  let degree := dfOrder A
+   in match assert "Hodge Laplacian needs a form degree in 0..dimension"
+                   (0 <= degree && degree <= dimension)
+            as bool with
+        | #True ->
+            (if degree = 0
+               then 0 * A
+               else Formurae.d coordinates
+                      (Formurae.codiff coordinates dimension geometryScales A))
+            + (if degree = dimension
+                 then 0 * A
+                 else Formurae.codiff coordinates dimension geometryScales
+                        (Formurae.d coordinates A))

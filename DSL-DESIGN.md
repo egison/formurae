@@ -31,18 +31,42 @@ bindingとして生成する。`metric g`は`g_i_j := metric_i_j`と
 通常のlexical shadowを許す。v1.27の同名scalarとmetricをwarningで共存させる規則は撤回し、衝突は
 hard errorとする。
 
-現行Phase 10aは、既存`TensorExpr`でparseできるbodyをFormurae derivative/opaque変換へ通し、
+**v2.2(2026-07-13): quoted derivative、typed local、canonical form surface** —
+通常の`∂_x e`は引き続きEgisonのproduct/quotient/chain ruleを使う解析微分である。
+式全体を格子上でsampleしてから差分する場合は`` `(∂_x e) ``とbackquoteする。
+`` `(∂_y (`(∂_x (`(∂_x e)))) ``の入れ子は内側からの軸順`x,x,y`と重複を保つ。
+`TensorExpr`はこのchainと`[| e1, e2 |]_i`のtensor literalをstructured nodeとして保持し、
+effect、source trace、normalizationをraw fallbackに逃がさない。
+
+step-local storageは`local q_i @ primal = ...`の宣言に型・variance・policyを持たせる。
+face fluxは`local q_i @ primal = [| ... |]_i`で保存し、通常の`divg q`と合成する。
+暗黙のplacement変換は行わず、明示補間は`resample(value, bit...)`のみとする。
+telescopingによる保存保証は周期境界またはfluxと整合するboundary処理の下で成り立ち、
+物理境界条件自体はFormura/YAML側が権威である。
+
+canonicalな微分形surfaceは`d`、`hodge`、`δ`、`Δ_H`、collocated scalar surfaceは`Δ`である。
+`Δ`はcollocated-only、`δ`/`Δ_H`はDEC-onlyとする。variable geometryのscalar `Δ`と`δ`は
+保存流束/weighted-adjointの内部discrete planへlowerする。constant geometryの`Δ_H`は
+`d (δ A) + δ (d A)`のpureな合成であり、general variable-metric `Δ_H`は現IRで表現できないため
+compile-time errorとする。離散化精度はoperator別名ではなくmodel-level profileに置く。
+quoted derivativeとscalar `Δ`はscalar-only、form演算子は宣言済みscalar/`k-form`のみを受理し、
+Egisonのcomponentwise tensor liftingへ入る前に検査する。symmetric/antisymmetric localとfield updateは
+全rank-2成分の関係もnormalization境界で検査する。indexed `δ~i_j`はcompiler-owned Kronecker tensorへ
+衛生的に解決し、ordinary ASCII `delta` user functionとは別namespaceとして振る舞う。
+
+以下のv1履歴に現れる`gridD`、`orderedD`、`fluxDiv`、`materialize(expr)`、
+`interpolate`、`dForm`、`codiff`、`formLaplacian`、`lb`とそのaliasは当時の綴りであり、
+現行surface APIとして読まない。
+
+v2.1時点のPhase 10a（履歴）は、既存`TensorExpr`でparseできるbodyをFormurae derivative/opaque変換へ通し、
 parseできないrich bodyをcontinuum-pureなraw Egison fallbackへ通す二経路である。raw body内の
 Formurae derivative sugar、opaque primitive、branch単位のsource traceを同じdirect pathで扱うことと、
 `TensorExpr` definition pathの削除はPhase 10bに属する。
 structured bodyに名前が重複しないfree result indexが残る場合は、そのvarianceを構造的なfunction
 contractとして付与するため、user-defined `curl`を`E + dt * curl B`のようなwhole-tensor合成へ使える。
 
-解析微分は導関数FunctionDataをFEIRのcanonical FieldJet multi-indexへ変換する。
-離散化精度はoperator definitionではなくmodel-level profileに置くため、
-`def Δ u = divg (grad u)`を変えずに`accuracy 2`/`accuracy 4`を切り替えられる。
-保存形のwhole-expression derivativeは`gridD_x expr`、per-occurrence wide derivative、
-可変直交計量`lb`はversioned opaque requestとなり、post-fecがprofileとは独立にlowerする。
+このPhaseで使っていた解析微分のcanonicalization、離散精度profile、
+whole-expression derivative、可変直交計量requestの綴りも、上記v2.2以前の履歴である。
 
 FEIR v1はexact rational、stable logical ID、GeometryNF、FieldJet、opaque request、provenance、
 registry/manifest/profile fingerprintを持つcanonical S-expressionである。FME exampleの追跡artifactと

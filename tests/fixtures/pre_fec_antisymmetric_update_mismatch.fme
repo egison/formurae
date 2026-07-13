@@ -1,0 +1,14 @@
+mode collocated
+dimension 2
+axes x, y
+
+field T_i_j
+field W[_i_j]
+
+init:
+  T_i_j = [| [| 1, 2 |], [| -2, 0 |] |]_i_j
+  W_i_j = [| [| 0 |] |]_i_j
+
+step:
+  T'_i_j = T_i_j
+  W' = T

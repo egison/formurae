@@ -3,7 +3,7 @@ dimension 1
 axes x
 discretization collocated centered accuracy 2
 field u : scalar
-def inner q = materialize u
+def inner q = resample(q, 0)
 def outer q = inner q
 init:
   u := outer (x * x)

@@ -1,0 +1,8 @@
+mode collocated
+dimension 2
+axes x, y
+field V_i
+field u : scalar
+step:
+  u' = `(∂_x V)
+  V'_i = V_i

@@ -634,171 +634,6 @@ def FEIR.encodeResampleOpaque
     | _ -> FEIR.unsupportedScalar
              "resample payload needs one operand and absolute placement bits"
 
-def FEIR.encodeRankOneTensorValues
-      (parameters: [(MathValue, Integer)])
-      (coordinates: [(MathValue, Integer)])
-      (fields: [(MathValue, Integer, String, [Integer])])
-      (intrinsics: [(String, Integer)])
-      (analytics: [(MathValue, Integer)])
-      (dimension: Integer) (varianceCode: Integer)
-      (values: [MathValue]) : FEIRSExpr :=
-  let bases := map (\axis -> [axis]) (between 1 dimension)
-      tensorFields :=
-        [ FEIR.field "shape" (FEIR.list [FEIR.int dimension])
-        , FEIR.field "variances"
-            (FEIR.list [FEIR.materializedVariance varianceCode])
-        , FEIR.field "df-order" (FEIR.int 0)
-        , FEIR.field "components"
-            (FEIR.list
-              (map
-                (\(basis, value) ->
-                  FEIR.record "component"
-                    [ FEIR.field "basis" (FEIR.basis basis)
-                    , FEIR.field "value"
-                        (FEIR.encodeScalar parameters coordinates fields
-                          intrinsics analytics value)
-                    ])
-                (zip bases values)))
-        ]
-   in if assert "rank-one tensor payload has the wrong component count"
-                (length values = dimension
-                 && (varianceCode = 1 || varianceCode = 2))
-        then FEIR.record "tensor" tensorFields
-        else FEIR.scalarTensor (FEIR.exactInteger 0)
-
-def FEIR.encodeConservativeDivergenceOpaque
-      (parameters: [(MathValue, Integer)])
-      (coordinates: [(MathValue, Integer)])
-      (fields: [(MathValue, Integer, String, [Integer])])
-      (intrinsics: [(String, Integer)])
-      (analytics: [(MathValue, Integer)])
-      (arguments: [MathValue]) : FEIRSExpr :=
-  match arguments as list mathValue with
-    | $dimensionValue :: $varianceValue :: $values ->
-        let dimension :=
-              FEIR.requirePositiveInteger "conservative divergence dimension"
-                dimensionValue
-            varianceCode :=
-              FEIR.requirePositiveInteger "conservative divergence variance"
-                varianceValue
-            operand :=
-              FEIR.tensorValue
-                (FEIR.encodeRankOneTensorValues parameters coordinates fields
-                  intrinsics analytics dimension varianceCode values)
-         in if assert "conservative divergence dimension must match coordinates"
-                      (dimension = length coordinates
-                       && (varianceCode = 1 || varianceCode = 2)
-                       && length values = dimension)
-              then FEIR.opaqueNode
-                     Formurae.Primitives.fluxConservativeDivergenceV1OpId
-                     [] [operand] []
-              else FEIR.unsupportedScalar
-                     "conservative divergence payload has the wrong dimension"
-    | _ -> FEIR.unsupportedScalar
-             "conservative divergence payload needs dimension and flux components"
-
-def FEIR.materializedVariance (code: Integer) : FEIRSExpr :=
-  if code = 1
-    then FEIR.atom "up"
-    else if code = 2
-      then FEIR.atom "down"
-      else FEIR.unsupportedScalar "materialized tensor has an invalid variance code"
-
-def FEIR.encodeMaterializedTensorValues
-      (parameters: [(MathValue, Integer)])
-      (coordinates: [(MathValue, Integer)])
-      (fields: [(MathValue, Integer, String, [Integer])])
-      (intrinsics: [(String, Integer)])
-      (analytics: [(MathValue, Integer)])
-      (shape: [Integer]) (varianceCodes: [Integer])
-      (differentialFormOrder: Integer)
-      (values: [MathValue]) : FEIRSExpr :=
-  let bases := FEIR.fullBases shape
-      variances := map FEIR.materializedVariance varianceCodes
-      tensorFields :=
-        [ FEIR.field "shape" (FEIR.list (map FEIR.int shape))
-        , FEIR.field "variances" (FEIR.list variances)
-        , FEIR.field "df-order" (FEIR.int differentialFormOrder)
-        , FEIR.field "components"
-            (FEIR.list
-              (map
-                (\(basis, value) ->
-                  FEIR.record "component"
-                    [ FEIR.field "basis" (FEIR.basis basis)
-                    , FEIR.field "value"
-                        (FEIR.encodeScalar parameters coordinates fields
-                          intrinsics analytics value)
-                    ])
-                (zip bases values)))
-        ]
-   in if assert "materialized tensor payload has the wrong component count"
-                (length values = length bases
-                 && length varianceCodes = length shape
-                 && all (\code -> code = 1 || code = 2) varianceCodes
-                 && differentialFormOrder >= 0
-                 && differentialFormOrder <= length shape)
-        then FEIR.record "tensor" tensorFields
-        else FEIR.scalarTensor (FEIR.exactInteger 0)
-
-def FEIR.encodeMaterializedOpaque
-      (parameters: [(MathValue, Integer)])
-      (coordinates: [(MathValue, Integer)])
-      (fields: [(MathValue, Integer, String, [Integer])])
-      (intrinsics: [(String, Integer)])
-      (analytics: [(MathValue, Integer)])
-      (arguments: [MathValue]) : FEIRSExpr :=
-  match arguments as list mathValue with
-    | $rankValue :: $payload ->
-        let rank := FEIR.requireInteger "materialized tensor rank" rankValue
-            shapeValues := take rank payload
-            shape :=
-              map (FEIR.requirePositiveInteger "materialized tensor extent")
-                shapeValues
-            componentCount := product shape
-            afterShape := drop rank payload
-            varianceValues := take rank afterShape
-            varianceCodes :=
-              map (FEIR.requirePositiveInteger "materialized tensor variance") varianceValues
-            afterVariances := drop rank afterShape
-            differentialFormOrderValue := head afterVariances
-            differentialFormOrder :=
-              FEIR.requireInteger "materialized tensor differential-form order" differentialFormOrderValue
-            afterMetadata := drop 1 afterVariances
-            sourceValues := take componentCount afterMetadata
-            resultBasisValues := drop componentCount afterMetadata
-            resultBasis :=
-              map (FEIR.requirePositiveInteger "materialized result basis") resultBasisValues
-            basisIsValid :=
-              length resultBasis = rank
-              && all
-                   (\(extent, index) -> i.<= index extent)
-                   (zip shape resultBasis)
-            operand :=
-              if rank = 0
-                then FEIR.scalarValue
-                       (FEIR.encodeScalar parameters coordinates fields
-                         intrinsics analytics (head sourceValues))
-                else FEIR.tensorValue
-                       (FEIR.encodeMaterializedTensorValues parameters coordinates
-                         fields intrinsics analytics shape varianceCodes
-                         differentialFormOrder sourceValues)
-         in if assert "materialized payload shape, components, or result basis is invalid"
-                      (rank >= 0
-                       && length shape = rank
-                       && length varianceCodes = rank
-                       && all (\code -> code = 1 || code = 2) varianceCodes
-                       && differentialFormOrder >= 0
-                       && differentialFormOrder <= rank
-                       && length sourceValues = componentCount
-                       && length afterMetadata = componentCount + rank
-                       && basisIsValid)
-              then FEIR.opaqueNode
-                     Formurae.Primitives.operatorMaterializedV1OpId
-                     resultBasis [operand] []
-              else FEIR.unsupportedScalar "invalid materialized payload"
-    | _ -> FEIR.unsupportedScalar
-             "materialized payload needs rank, shape, components, and result basis"
-
 def FEIR.encodeTensorValues
       (parameters: [(MathValue, Integer)])
       (coordinates: [(MathValue, Integer)])
@@ -902,17 +737,13 @@ def FEIR.encodeOpaqueRef
                     then FEIR.encodeCoordinateWideOpaque parameters coordinates fields intrinsics analytics arguments
                     else if name = "FormuraeInternalOpaqueGridWholeV1"
                       then FEIR.encodeGridWholeOpaque parameters coordinates fields intrinsics analytics arguments
-                  else if name = "FormuraeInternalOpaqueMetricCodiffV1"
+                      else if name = "FormuraeInternalOpaqueMetricCodiffV1"
                         then FEIR.encodeMetricCodiffOpaque parameters coordinates fields intrinsics analytics arguments
-                      else if name = "FormuraeInternalOpaqueOrderedDerivativeV1"
-                        then FEIR.encodeOrderedDerivativeOpaque parameters coordinates fields intrinsics analytics arguments
-                      else if name = "FormuraeInternalOpaqueResampleV1"
-                        then FEIR.encodeResampleOpaque parameters coordinates fields intrinsics analytics arguments
-                      else if name = "FormuraeInternalOpaqueConservativeDivergenceV1"
-                        then FEIR.encodeConservativeDivergenceOpaque parameters coordinates fields intrinsics analytics arguments
-                      else if name = "FormuraeInternalOpaqueMaterializedV1"
-                        then FEIR.encodeMaterializedOpaque parameters coordinates fields intrinsics analytics arguments
-                    else FEIR.unsupportedScalar "unknown reserved opaque head"
+                        else if name = "FormuraeInternalOpaqueOrderedDerivativeV1"
+                          then FEIR.encodeOrderedDerivativeOpaque parameters coordinates fields intrinsics analytics arguments
+                          else if name = "FormuraeInternalOpaqueResampleV1"
+                            then FEIR.encodeResampleOpaque parameters coordinates fields intrinsics analytics arguments
+                            else FEIR.unsupportedScalar "unknown reserved opaque head"
           | _ -> FEIR.unsupportedScalar "opaque payload head must be a symbol"
     | _ -> FEIR.unsupportedScalar "opaque barrier must contain FunctionData"
 

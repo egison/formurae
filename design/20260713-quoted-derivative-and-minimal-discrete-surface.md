@@ -2,7 +2,7 @@
 
 Date: 2026-07-13
 
-Status: Draft design decision; implementation pending
+Status: Implemented (2026-07-13)
 
 本書は、[pre-fec / post-fec pipeline設計](20260711-pre-post-fec-pipeline.md)を前提に、保存形のwhole-expression
 微分、step-local storage、保存flux、微分形式、Laplace--Beltramiを、できるだけ数式に近い
@@ -86,13 +86,15 @@ boundary conditionをFormuraeで宣言できることには価値があるが、
 Formuraeはinterior operatorを生成し、boundary/ghost処理はFormuraが所有する。将来導入する場合は、
 単なるghost-fill指定ではなく、保存則と離散随伴のoperator domainを型付けする構文として設計する。
 
-次は本書で提案するが、実装開始前のreview gateとする。
+review gateで次を採択し、実装した。
 
-- quoted derivativeの入れ子を順序付きgrid derivative chainとし、`orderedD`を削除する。
-- canonical surface名を`δ`と`Δ`に絞り、`codiff`、`formLaplacian`、`lb`を
+- quoted derivativeの入れ子を順序付きgrid derivative chainとし、`orderedD`を削除した。
+- canonical surface名を`δ`、scalar `Δ`、form `Δ_H`に絞り、`codiff`、`formLaplacian`、`lb`を
   特別な予約名から外す。
-- per-occurrence wide derivative `∂'^m_x`は初回cutoverでは残し、model profileだけへ
-  統一するかを別途決定する。
+- per-occurrence wide derivative `∂'^m_x`は今回のcutoverでは残した。
+- localはfield declarationが表せるscalar、vector、rank-2 tensor、form、symmetric、antisymmetricを
+  同じtype/layout projectorで扱う。
+- boundary conditionのownerは引き続きFormuraとし、Formurae surfaceには今回追加しない。
 
 ## 2. Goals and non-goals
 
@@ -365,8 +367,9 @@ local ω : 2-form @ primal = form_expr
 初版ではplain scalar/vector/rank-2 tensor/formを対象にする。symmetric/antisymmetric shorthandを
 同時に実装する場合はfield declarationと同じcanonical component projectionを必ず再利用する。
 
-policy省略時は`@ collocated`とする。Primal/Dual localは必ず明示annotationを持ち、RHSからpolicyを
-推論しない。これは既存field grammarと同じdefaultである。
+policy省略時はtensor kindにかかわらず`@ collocated`とする。Primal/Dual localは必ず明示annotationを
+持ち、RHSからpolicyを推論しない。これはlocal固有の一貫したdefaultであり、form fieldの既定policyを
+localへ流用する規則ではない。
 
 LHSは次を決める。
 
@@ -649,8 +652,10 @@ discrete codifferentialは符号・orientation conventionを除いて、
 
 pure Egison expressionへ完全展開すると、`d(cA)`がanalytic product ruleで
 `(dc)A + c(dA)`へ変形され、選択した`D`のmass-adjointであるという離散contractを失う。
-よってsurfaceでは`hodge (d (hodge A))`と書けても、variable geometryではtyped
-`AdjointExteriorDerivative` nodeまたは現行`codiff.metric@1`へlowerしなければならない。
+よってvariable geometryではcanonical `δ A`を現行`codiff.metric@1`へlowerする。explicit
+`hodge (d (hodge A))`は符号とweighted-adjoint identityを安全に回復できるtyped
+`AdjointExteriorDerivative` graphが入るまで、variable geometry上で明示診断にする。constant metricでは従来どおり
+pureな数学的合成として評価できる。
 
 ### 9.2 Laplace--Beltrami
 
@@ -762,21 +767,32 @@ LocalDecl
   SourceText
 ```
 
-微分形式については、normalized scalar式から`⋆d⋆`を探し直さない。name resolution後、Egisonへ渡す前に
-standard libraryの`d` / `hodge` callを次のようなtyped semantic graphへelaborateする。
+微分形式については、normalized scalar式から`⋆d⋆`を探し直さない。実装した
+`Pre.FormOperator`はname resolution後、Egisonへ渡す前にcanonical unary `d` / `hodge` / `δ` / `Δ` /
+`Δ_H`と、exact scalar identity `0 - δ(d u)`をscope-awareに認識する。modeとgeometryでpure mathematical
+compositionまたはtyped internal requestを選ぶ。indexed Kronecker `δ~i_j`、user-shadowed name、
+algebraic near missはcanonical operatorとして扱わない。
 
-```text
-TypedFormExpr
-  = FormValue TensorExpr FormType
-  | ExteriorD TypedFormExpr FormType
-  | Hodge GeometryId TypedFormExpr FormType
-  | Add TypedFormExpr TypedFormExpr FormType
-  | Scale Sign TypedFormExpr FormType
-```
+`Pre.TypeCheck`はEgisonのcomponentwise liftingより先にoperand kindを検査する。quoted derivativeと
+scalar `Δ`はstatically known scalarだけを受け取り、`d` / `hodge` / `δ` / `Δ_H`はscalarまたは
+宣言済み`k-form`だけを受け取る。ordinary vector/full/symmetric/antisymmetric tensorはformへ暗黙変換
+しない。現行surfaceのuser `def` parameterには型annotationがないため、parameterのkindを証明できない
+helper内でこれらのtyped operator boundaryを越えることも拒否する。field、typed local、先行するscalar
+`let`をoperandにする通常の記述は静的に判定できる。
 
-constant metricではこのgraphをpure Egison式へemitできる。variable metricのAdjointD / Laplacian
-subgraphはidentityを保ったopaque requestへemitする。これにより、surface上は`δ = ±⋆d⋆`という数学的
-定義を保ちながら、必要なdiscrete-adjoint scheduleを失わない。
+canonical operatorは単項の直接適用だけを許し、first-class alias、高階引数、誤ったarityからtyped
+boundaryを迂回できないようにする。user definitionがcanonical名、scalar intrinsic、`.`をshadowした
+場合は組み込みの返値kindを流用せず、通常のuntyped callとして扱う。type checkerは特殊AST nodeの
+全childも走査し、`local`、field update、CAS initializerでは宣言kindと静的に判明したRHS kindを照合する。
+特に`0-form`をscalarへ暗黙変換してscalar-only operatorへ渡すことはしない。ただしcollocated modeの
+exact `0 - δ(d u)`は、他passと同じscope-aware matcherでcanonical scalar `Δ`として扱う。metric scale、
+embedding、`assert-dd-zero`も同じ検査境界に含め、geometryで従来許可しているgeneric CAS quoteはraw
+fallbackとして維持しつつ、その中のcanonical operator利用は拒否する。
+
+constant metricではcanonical callをpure Egison式へemitする。variable metricの`δ`とscalar `Δ`はidentityを
+保ったopaque requestへemitする。general expression全体を表す再帰的`TypedFormExpr`は、variable metric
+general `Δ_H`とgeneric weighted-adjoint graphを実装するときの次期IRとし、今回のsurface cutoverには
+導入しない。
 
 ### 11.2 pre-fec
 
@@ -785,16 +801,32 @@ pre-fecは次を担当する。
 - quoted derivativeのexact parse、axis resolution、source span
 - nesting flattenとaxis order preservation
 - analytic/discrete effect separation
+- step `let`のeffectとvariable-metric operator pathのsource-order propagation
 - localのscope、rank、variance、degree、policy
 - local LogicalFieldDecl / FieldId / StepLocalLifetime
 - free-indexとplacement consistency diagnostics
-- removed surface名の拒否
+- 廃止surface名にcompiler special caseを残さないname resolution
+- scalar/tensor/form operator kindとform degreeの検査
 - Egison bridge call生成
 
 ### 11.3 Egison normalization
 
 Egisonは通常の`∂`にだけanalytic differentiationを行う。grid chainはopaque bridgeとして
 operandとaxis列を保持する。
+
+opaque bridgeの構築能力はgenerated normalization libraryだけが持つ。definition、step、initializer、
+metric、embeddingを含むuser sourceは、structured式とraw Egison fallbackのどちらであっても、
+`functionSymbol`、`formuraeOpaqueBarrier`、`FormuraeInternal*`、trusted `Formurae` / `FEIR`
+namespaceを参照できない。この検査は各grammarの分岐より前にsource全体へ行い、commentと
+診断用string内の同名textはidentifierとして扱わない。これによりcomputed stringから任意の
+internal FunctionDataを作る経路と、generated bridgeをsurfaceから直接呼び出す経路を切り離す。
+
+raw Egison fallbackはapplication treeを持たないため、variable metric上でcanonical `hodge`と`d`の
+両方を直接または先行helper経由で参照するbodyを保守的に拒否する。structured expressionでは
+`hodge -> d -> hodge`の順序付きsemantic pathをuser definitionとstep `let`越しにも伝播し、aliasで
+weighted-adjoint guardを迂回できないようにする。user-shadowed canonical名はこのtagを持たない。
+`contractWith`のreducerとuser-defined `.`も通常のfunction applicationと同様にeffectとmetric semantic
+pathを伝播し、高階適用の内側へ離散operationやweighted-adjoint pathを隠せないようにする。
 
 `d` / `hodge` / `δ` / `Δ`については、
 
@@ -827,44 +859,85 @@ post-fecは次を担当する。
 - source/target placementからのcentered/Yee stencil選択
 - grid chainの順序付きfixed stencil合成
 - tensor local component storageとsource-order schedule
+- `Materialize`と`UpdateField`を分離せず、FEIR actionと同じ単一のordered assignment streamとして出力
 - face fluxからcell divergenceへのplacement-aware lowering
 - geometry coefficient/volumeのdedup
 - AdjointD / Laplacian auxiliary plan
 - boundary contractが導入された後のhalo/closure検査
 
-### 11.6 Current implementation gap
+FEIR validationは`UpdateField`のtargetをwhole-fieldに限定する。component targetはraw initializer専用で、
+一部componentだけをNextTimeへ書いて未定義の残りを読むprogramは受理しない。可変計量scalar `Δ`の
+backend planは、source-order上ですでに生成済みならCurrentTimeだけでなくNextTime fieldもsourceに
+できる。
 
-実装開始時点の差分は次である。
+### 11.6 Implemented architecture and remaining limitation
 
-- `TensorExpr`にはquoted derivative専用nodeがない。現状のbackquote形はstructured Formurae parseを
-  外れてraw Egison経路へ入り、この設計のopaque grid derivativeにはならない。
-- `Pre/Parse.hs`は`local` targetのindexを明示的に拒否している。
-- `Pre/Registry.hs`は`local`を固定のCollocated scalar `StepLocal` fieldとして登録する。
-- `Pre/EmitEgison.hs`はscalar localだけを`Materialize` actionへencodeする。
-- FEIR validatorとpost-fecはmaterialization actionのsource順を使い、先行localだけを参照可能にする。
-  dependency extraction / topological reorder passは存在しない。
-- post-fecにはすでにCollocated/Primal/Dual placement、grid-whole、ordered chain、materialization、
-  conservative flux、metric `codiff`、`lb`の実行部品がある。
+実装後の構成は次である。
 
-したがって最初に新しい数値stencilを書くのではなく、surface ASTとtyped local descriptorを既存の
-versioned primitive / backend planへ接続する。その同値性をgolden testで確立してから専用surface名を
-削除する。
+- `TensorExpr`は`TEGridDerivativeChain`を持ち、exact quoted formをraw Egison fallbackより前にparseする。
+  入れ子はinnermost-firstのaxis列へflattenし、順序と重複を保持する。
+- tensor literalはstructured component ASTとして保持され、`[| e_x, e_y |]_i`をhelper関数なしで
+  typed localへ渡せる。
+- `LocalDecl`はindex、tensor kind/form degree、policy、source位置を保持する。registryとemitterはfieldと
+  同じtype/layout/component projectionを再利用し、FEIR `Materialize` actionへsource順にencodeする。
+- symmetric/antisymmetric declarationはstorage projectionだけでなく、normalization済みwhole rank-2
+  tensorの全`(i,j)`成分について`A_ij = A_ji` / `A_ij = -A_ji`をmaterialize/update境界で検査する。
+- post-fecは`Materialize`と`UpdateField`を単一のstep assignment列で保持する。これにより、先行する
+  `NextTime`更新をlocalが読み、そのlocalを後続更新が読む場合もFEIRのsource順どおりになる。
+- 保存fluxはmaterialized Primal face localへの通常の`divg`からface-to-cell differenceへlowerする。
+  旧opaque flux-divergence requestと旧opaque materialization requestは削除した。
+- canonical form resolverはscope、mode、degree、geometryをEgison normalization前に検査する。
+  constant metricの`δ`、`Δ`、`Δ_H`は数学的合成へ、variable metricの`δ`とscalar `Δ`はそれぞれ
+  internal `codiff.metric@1`、`lb.orthogonal@1`へlowerする。
+- variable metricのexplicit `hodge (d (hodge A))`はanalytic product ruleへ流さず、weighted discrete
+  adjointを保つcanonical `δ A`を要求するsource位置付き診断にする。このpathはuser helperとstep
+  `let`越しにも追跡する。
+- `grid-whole`、ordered chain、coordinate-wide、explicit resample、metric codifferential、
+  orthogonal Laplace--Beltramiのspecialized internal primitiveは維持する。
+- user definitionはstructured/rawの両経路でinternal opaque constructorとgenerated bridgeを参照できず、
+  opaque semantic identityを作れるはtrusted generated libraryに限定する。
+- indexed Unicode `δ~i_j`はASCII `delta`へ字訳せず、dimensionから構造生成したcompiler-owned
+  Kronecker tensorを参照する。従ってordinary user function `def delta ...`と衛生的に共存する。
+- boundary/ghost contractは従来どおりFormuraが所有する。
 
-## 12. Implementation plan
+variable metric上のgeneral form `Δ_H = dδ + δd`は、現行FEIRではmaterialized `δ` resultへさらに`d`を
+正しく作用させるtyped operator graphを表現できない。この組合せをpure expressionへ誤展開せず、
+source位置付きで明示的に拒否する。variable metricのgeneral `Δ_H`はweighted-adjoint graph導入後の
+拡張事項であり、variable metric `δ`とscalar `Δ`は今回実装済みである。
 
-各phaseはtest gateを通してから次へ進む。開発途中の併存は許すが、最終cutoverにはcompatibility
-aliasやdeprecated pathを残さない。
+## 12. Implementation record
 
-### Phase 0: Freeze remaining decisions
+以下のphase順で実装し、最終cutoverではcompatibility aliasやdeprecated pathを残さなかった。
+旧surface名をuser-defined ordinary function名として使うことはできるが、compiler special caseや
+旧primitiveへのloweringは行わない。
 
-実装前に次を決定する。
+| Phase | Result |
+|---|---|
+| quoted derivative / ordered chain | implemented |
+| indexed/tensor/form local | implemented; fieldと同じ全layoutを共有 |
+| symmetric/antisymmetric relation check | implemented at normalization boundary |
+| conservative face local + `divg` | implemented |
+| old surface/opaque primitive removal | implemented |
+| canonical `d` / `hodge` / `δ` / `Δ` / `Δ_H` | implemented |
+| scalar/form static operator kind check | implemented; untyped helper boundaryはreject |
+| indexed Kronecker `δ` hygiene | implemented independently of ASCII `delta` |
+| variable metric `δ` / scalar `Δ` | implemented with existing internal plans |
+| variable metric general form `Δ_H` | explicit diagnostic; typed weighted graphまでdeferred |
+| boundary syntax | out of scope; Formura ownershipを維持 |
 
-1. nested quoted derivativeを採択し、`orderedD`を削除するか。
-2. `∂'^m_x`を初回cutover後も残すか。
-3. 初版localがformとsymmetric/antisymmetric layoutまで含むか。
-4. surface `lb` / `codiff`を同じcutoverで削除するか、structural lowering完成時に削除するか。
+periodic 1D/2D diffusion examplesは`local q_i @ primal`にquoted gradientをmaterializeし、通常の
+`divg q`で更新する保存flux形へ移行した。各exampleのC numerical checkは一周期全cellの
+mass sumが時間発展前後で保存されることを検証し、face sampleの隣接cell間cancellationを1D/2Dで
+end-to-endに固定する。
 
-decision example、exact stencil、sign conventionを先にgolden testとして置く。
+### Phase 0: Frozen decisions
+
+1. nested quoted derivativeを採択し、`orderedD` surfaceを削除した。
+2. `∂'^m_x`を残した。
+3. localはformとsymmetric/antisymmetricを含むfield grammar全体を対象にした。
+4. surface `lb` / `codiff`を同じcutoverで削除し、必要なinternal loweringだけを残した。
+
+decision example、exact stencil、sign conventionはgolden/focused testで固定した。
 
 ### Phase 1: Parse and represent quoted derivative
 
@@ -1007,6 +1080,10 @@ test:
 
 ### Phase 6: Typed `d` / `hodge` / `δ` / `Δ` graph
 
+実装結果: canonical operatorとexact scalar identityに必要なtyped boundaryを
+`Pre.FormOperator`として実装した。以下のfull recursive graph項目のうち、variable metric general
+`Δ_H`にだけ必要な部分は次期IRへdeferし、その組合せは明示診断にした。
+
 主要ファイル:
 
 - `fec/src/Formurae/TensorExpr.hs`
@@ -1032,6 +1109,10 @@ test:
 8. variable metricではAdjointD / Laplacian identityをpure ScalarNFへ消さず、typed graphのままemitする。
 
 ### Phase 7: Structural variable-metric lowering
+
+実装結果: variable metric `δ`とscalar `Δ`をnormalization前に認識し、既存の
+`codiff.metric@1` / `lb.orthogonal@1`へ直接lowerした。general variable-metric `Δ_H`は
+weighted-adjoint graph未導入のため拒否する。
 
 主要ファイル:
 
@@ -1128,22 +1209,19 @@ test:
 - no deprecated path / compatibility shim。
 - generated FEIR/FMR、diagnostic provenance、manifest fingerprintが一貫する。
 
-## 14. Remaining review decisions
+## 14. Final decisions and future extensions
 
-実装開始前の未決事項を次に集約する。
+今回のcutoverで次を確定した。
 
-1. **QD-NEST**: nested quoted derivativeを初回versionで採択し、`orderedD`を削除するか。
-2. **WIDE**: per-occurrence`∂'^m_x`を残すか、model profileだけへ統一するか。
-3. **LOCAL-SCOPE**: 初版tensor localにform、symmetric、antisymmetricをどこまで含めるか。
-4. **FLUX-TYPE**: placementだけでmaterialized face fluxを認定するか、将来`FaceFlux` refinementを
-   追加するか。
-5. **RANK2-FLUX**: conserved vector/tensorのfluxでdivergence axisをどう型に持たせるか。
-6. **D-DISCRETE**: DECの`d`をfixed incidenceとする範囲と、profile-selected sampled derivativeを
-   使う範囲をどう分けるか。
-7. **BC-OWNER**: boundary conditionをFormurae surfaceとFormura backendのどちらが所有するか。
-8. **METRIC-NAMES**: `codiff` / `lb`の予約surface名をstructural loweringと同じcutoverで削除するか。
-9. **IR-CONSOLIDATION**: specialized`codiff.metric` / `lb.orthogonal`をいつgeneric
-    weighted-adjoint graphへ統合するか。
+1. **QD-NEST**: 採択。nested quoted derivativeをordered chainへflattenし、`orderedD` surfaceを削除。
+2. **WIDE**: per-occurrence `∂'^m_x`を維持。
+3. **LOCAL-SCOPE**: form、symmetric、antisymmetricを含むfield declaration全体を採択。
+4. **FLUX-TYPE**: 初版はtyped lifetime、rank、dfOrder、Primal component placementで認定。
+5. **D-DISCRETE**: 現行DEC `d`とsampled derivativeの既存mode境界を維持。
+6. **BC-OWNER**: Formura backendが所有。Formuraeはinterior operatorだけを生成。
+7. **METRIC-NAMES**: `codiff` / `lb`の予約surface名を削除。canonical `δ` / `Δ`からinternal planへlower。
+8. **IR-CONSOLIDATION**: specialized `codiff.metric` / `lb.orthogonal`を今回維持。
 
-最初のimplementation gateはQD-NESTとLOCAL-SCOPEの2点である。scalar `Δ = -δd`と
-policy省略時`@ collocated`は本書で確定済みである。
+将来拡張として残るのは、higher-rank fluxのdivergence-axis refinement、typed boundary domain、
+variable metric general `Δ_H`を表すweighted-adjoint graph、specialized metric primitiveの統合である。
+これらは今回実装した構文のcompatibility shimではなく、新しい型・IR contractを必要とする独立設計とする。

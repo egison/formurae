@@ -17,16 +17,14 @@ main = do
     (primitiveManifestSignatures parsed) primitiveSignaturesV1
   assertEqual "generated manifest ID"
     (PrimitiveManifestId
-      "sha256:f6294c222255af0cbc20d76a46e6eecb1858d3c4a370500f9c7c8b510a18010f")
+      "sha256:f4623af0a5cebbf8ce86d8871b52335ae8ae7db95eaa0f25224d9bad35512c3b")
     primitiveManifestV1Id
   assertEqual "all generated operation IDs"
     [ VersionedOpId "codiff.metric@1"
     , VersionedOpId "derivative.coordinate-wide@1"
     , VersionedOpId "derivative.grid-whole@1"
     , VersionedOpId "derivative.ordered@1"
-    , VersionedOpId "flux.conservative-divergence@1"
     , VersionedOpId "lb.orthogonal@1"
-    , VersionedOpId "operator.materialized@1"
     , VersionedOpId "resample.explicit@1"
     ]
     primitiveOperationIds

@@ -206,7 +206,6 @@ backendErrorOriginIds program backendError =
     Backend.LbInvalidResultBasis _ origin -> [origin]
     Backend.LbInvalidOperands origin -> [origin]
     Backend.LbUnknownSourceField _ origin -> [origin]
-    Backend.LbSourceMustBeCurrent _ _ origin -> [origin]
     Backend.LbSourceMustBeScalar _ origin -> [origin]
     Backend.LbSourceMustBeCollocated _ _ origin -> [origin]
     Backend.LbSourceMustUseCanonicalCoordinates _ origin -> [origin]
@@ -613,6 +612,9 @@ validationIssueMessage issue =
     InvalidTargetTime expected actual ->
       "invalid target time: expected " ++ show expected
       ++ ", got " ++ show actual
+    ComponentUpdateTargetNotAllowed fieldId basis ->
+      "field update " ++ show fieldId
+      ++ " must use a whole-field target, got component " ++ show basis
     InvalidFieldLifetime fieldId expected actual ->
       "field " ++ show fieldId ++ " lifetime mismatch: expected "
       ++ show expected ++ ", got " ++ show actual
@@ -818,9 +820,6 @@ backendErrorMessage backendError =
       "Laplace--Beltrami expects one scalar field operand"
     Backend.LbUnknownSourceField fieldId _ ->
       "Laplace--Beltrami refers to unknown field " ++ show fieldId
-    Backend.LbSourceMustBeCurrent fieldId timeSlot _ ->
-      "Laplace--Beltrami field " ++ show fieldId
-      ++ " must be current/unprimed, got " ++ show timeSlot
     Backend.LbSourceMustBeScalar fieldId _ ->
       "Laplace--Beltrami field " ++ show fieldId
       ++ " must be an unindexed scalar"

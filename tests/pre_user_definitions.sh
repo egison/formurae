@@ -20,6 +20,8 @@ compile_pipeline() {
 cd "$ROOT"
 
 compile_pipeline tests/fixtures/pre_fec_user_definitions.fme user-definitions
+# `materialize` below is deliberately a normal user-defined function after
+# removal of the former primitive surface; it must not regain storage meaning.
 grep -F 'FormuraeInternalDefinition2 materialize x' \
   "$WORK/user-definitions.egi" >/dev/null
 grep -F 'FormuraeInternalDefinition3 X :=' \

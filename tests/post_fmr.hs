@@ -81,8 +81,7 @@ testProgramRendering = do
         , fProgramInitializers =
             [ FAssignment (InitialTarget "u" ["i"])
                 (FCall "exp" [FVariable "x"]) ]
-        , fProgramStepBindings = []
-        , fProgramStepUpdates =
+        , fProgramStepAssignments =
             [ FAssignment (StepUpdateTarget "u")
                 (FGridReference "u" [GridIndex "i" 0]) ]
         }

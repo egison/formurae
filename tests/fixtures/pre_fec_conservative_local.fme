@@ -1,0 +1,17 @@
+mode collocated
+dimension 2
+axes x, y
+
+param kappa = 2.0
+param dt = 0.1
+
+field u : scalar @ primal
+
+init:
+  u = 1.0
+
+step:
+  local q_i @ primal =
+    [| -kappa * `(∂_x u),
+       -kappa * `(∂_y u) |]_i
+  u' = u - dt * divg q

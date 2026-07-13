@@ -1,0 +1,21 @@
+mode collocated
+dimension 1
+axes x
+
+discretization collocated derivative 1 centered accuracy 4
+
+metric scale [1 + x]
+
+field u : scalar
+field direct : scalar
+field exact : scalar
+
+init:
+  u = 0
+  direct = 0
+  exact = 0
+
+step:
+  u' = u
+  direct' = Δ u
+  exact' = 0 - δ (d u)

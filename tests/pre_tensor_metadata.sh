@@ -15,11 +15,13 @@ run_machine() {
 cd "$ROOT"
 cabal run -v0 pre-fec -- tests/fixtures/pre_fec_materialized_metadata.fme \
   > "$WORK/materialized.egi"
-grep -F 'FormuraeInternalMaterialized value' \
+grep -F 'def FormuraeInternalValue1~i : Tensor MathValue := X~i' \
   "$WORK/materialized.egi" >/dev/null
-grep -F 'def FormuraeInternalValue1~i : Tensor MathValue := stored X' \
+grep -F 'def FormuraeInternalValue2 := A' \
   "$WORK/materialized.egi" >/dev/null
-grep -F 'def FormuraeInternalValue2 := stored A' \
+grep -F 'FormuraeInternalEncodeTensor [2] ["up"] 0 FormuraeInternalValue1' \
+  "$WORK/materialized.egi" >/dev/null
+grep -F 'FormuraeInternalEncodeTensor [2] ["down"] 1 FormuraeInternalValue2' \
   "$WORK/materialized.egi" >/dev/null
 run_machine "$WORK/materialized.egi" > "$WORK/materialized.feir"
 cabal exec -v0 runghc -- -ifec/src tests/pre_materialized_metadata_feir.hs \
@@ -46,6 +48,6 @@ expect_metadata_failure() {
 }
 
 expect_metadata_failure variance 7:8
-expect_metadata_failure degree 7:8
+expect_metadata_failure degree 8:8
 
 printf 'pre-fec structural tensor metadata tests: ok\n'

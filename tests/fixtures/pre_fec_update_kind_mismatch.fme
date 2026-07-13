@@ -1,0 +1,9 @@
+mode dec
+dimension 1
+axes x
+field A : 0-form @ primal
+field u : scalar
+field v : scalar
+step:
+  u' = A
+  v' = `(∂_x u')

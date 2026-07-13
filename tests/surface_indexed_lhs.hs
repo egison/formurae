@@ -10,6 +10,7 @@ main :: IO ()
 main = do
   assertTargetParser
   assertIndexedSurfaceAst
+  assertLocalSurfaceAst
   assertTargetContract
   assertBindingNameSafety
   putStrLn "surface indexed LHS tests: ok"
@@ -49,6 +50,43 @@ assertIndexedSurfaceAst = do
       , "field X~i"
       , "step:"
       , "  X'~i = withSymbols [j] (g~i~j . A_j)"
+      ]
+
+assertLocalSurfaceAst :: IO ()
+assertLocalSurfaceAst = do
+  model <- parseModel "local-lhs.fme" "local-lhs" source
+  case mSteps model of
+    [vectorLocal, tensorLocal, formLocal] -> do
+      assertEqual "indexed local retains its target"
+        (IndexedTarget "q" [IxPart VDown "i"])
+        (sTarget vectorLocal)
+      assertEqual "indexed local retains its declared policy and vector kind"
+        (Just (LocalDecl "q"
+          (Just (FieldIndex (Plain [IxPart VDown "i"])))
+          Primal Vector 6))
+        (sLocalDecl vectorLocal)
+      assertEqual "rank-two local retains mixed variance and dual policy"
+        (Just (LocalDecl "A"
+          (Just (FieldIndex
+            (Plain [IxPart VUp "i", IxPart VDown "j"])))
+          Dual Tensor2 7))
+        (sLocalDecl tensorLocal)
+      assertEqual "form local is a whole-tensor target"
+        (IndexedTarget "omega" []) (sTarget formLocal)
+      assertEqual "omitted local form policy defaults to collocated"
+        (Just (LocalDecl "omega" Nothing Collocated (Form 2) 8))
+        (sLocalDecl formLocal)
+    steps -> fail ("expected three local steps, got " ++ show steps)
+  where
+    source = unlines
+      [ "mode dec"
+      , "dimension 3"
+      , "axes x, y, z"
+      , "field u : scalar"
+      , "step:"
+      , "  local q_i @ primal = [| 1, 2, 3 |]_i"
+      , "  local A~i_j @ dual = [| [| 1, 2, 3 |], [| 4, 5, 6 |], [| 7, 8, 9 |] |]~i_j"
+      , "  local omega : 2-form = d q"
       ]
 
 assertTargetContract :: IO ()

@@ -1,0 +1,31 @@
+mode dec
+dimension 2
+axes x, y
+
+field A : 1-form @ primal
+field B : 2-form @ primal
+field Q_i @ primal
+field T~i_j @ dual
+field S{_i_j} @ primal
+field W[_i_j] @ dual
+
+init:
+  A = [| 0, 0 |]
+  B = [| 0 |]
+  Q_i = [| 1, 2 |]_i
+  T~i_j = [| [| 1, 2 |], [| 3, 4 |] |]~i_j
+  S_i_j = [| [| 1, 2 |], [| 3 |] |]_i_j
+  W_i_j = [| [| 4 |] |]_i_j
+
+step:
+  local q_i @ primal = Q_i
+  local stress~i_j @ dual = T~i_j
+  local omega : 2-form @ primal = d A
+  local symbuf{_i_j} @ primal = S_i_j
+  local antibuf[_i_j] @ dual = W_i_j
+  Q'_i = q_i
+  T'~i_j = stress~i_j
+  B' = omega
+  S' = symbuf
+  W' = antibuf
+  A' = A

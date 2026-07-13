@@ -1,0 +1,13 @@
+mode collocated
+dimension 2
+axes x, y
+
+field X_i
+
+def delta x = 0
+
+init:
+  X_i = [| 1, 2 |]_i
+
+step:
+  X'_i = withSymbols [j] (δ~i_j . X~j)

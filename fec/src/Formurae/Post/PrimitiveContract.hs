@@ -13,12 +13,8 @@ module Formurae.Post.PrimitiveContract
   ( PrimitiveContractError(..)
   , OrderedDerivativeRequest(..)
   , ResampleRequest(..)
-  , ConservativeDivergenceRequest(..)
-  , MaterializedComponentRequest(..)
   , parseOrderedDerivativeRequest
   , parseResampleRequest
-  , parseConservativeDivergenceRequest
-  , parseMaterializedComponentRequest
   ) where
 
 import Data.List (find, nub)
@@ -38,7 +34,6 @@ data PrimitiveContractError
   | ContractAxisOutOfRange AxisId Int
   | ContractOrderDoesNotMatchAxes Int Int
   | ContractRadiusMustBeOne Int
-  | ContractMissingTensorComponent Basis
   deriving (Eq, Ord, Show)
 
 data OrderedDerivativeRequest = OrderedDerivativeRequest
@@ -49,17 +44,6 @@ data OrderedDerivativeRequest = OrderedDerivativeRequest
 data ResampleRequest = ResampleRequest
   { resampleOperand :: ScalarNF
   , resampleTargetBits :: [Bool]
-  } deriving (Eq, Ord, Show)
-
-data ConservativeDivergenceRequest = ConservativeDivergenceRequest
-  { conservativeDivergenceFlux :: TensorNF
-  , conservativeDivergenceComponents :: [(AxisId, ScalarNF)]
-  } deriving (Eq, Ord, Show)
-
-data MaterializedComponentRequest = MaterializedComponentRequest
-  { materializedSourceValue :: FEValue
-  , materializedResultBasis :: Basis
-  , materializedSourceComponent :: ScalarNF
   } deriving (Eq, Ord, Show)
 
 parseOrderedDerivativeRequest
@@ -115,57 +99,6 @@ parseResampleRequest dimension opaque = do
       , resampleTargetBits = bits
       }
     else Left (ContractInvalidAttribute targetPlacementAttribute placementValue)
-
-parseConservativeDivergenceRequest
-    :: Int -> OpaqueDiscrete
-    -> Either PrimitiveContractError ConservativeDivergenceRequest
-parseConservativeDivergenceRequest dimension opaque = do
-  requireOperation Primitives.fluxConservativeDivergenceV1OpId opaque
-  requireScalarResult opaque
-  requireAttributeSet [] (opaqueDiscreteAttributes opaque)
-  flux <- case opaqueDiscreteOperands opaque of
-    [TensorValue tensor]
-      | tensorNFShape tensor == [dimension]
-      , length (tensorNFVariances tensor) == 1
-      , tensorNFDfOrder tensor == 0 -> Right tensor
-    _ -> Left (ContractInvalidOperands
-      "flux.conservative-divergence@1 expects one rank-1 dimension-sized tensor")
-  components <- mapM (component flux) [1 .. dimension]
-  Right ConservativeDivergenceRequest
-    { conservativeDivergenceFlux = flux
-    , conservativeDivergenceComponents = components
-    }
-  where
-    component flux axis =
-      let basis = Basis [axis]
-      in case lookup basis (tensorNFComponents flux) of
-          Just scalar -> Right (AxisId axis, scalar)
-          Nothing -> Left (ContractMissingTensorComponent basis)
-
-parseMaterializedComponentRequest
-    :: OpaqueDiscrete
-    -> Either PrimitiveContractError MaterializedComponentRequest
-parseMaterializedComponentRequest opaque = do
-  requireOperation Primitives.operatorMaterializedV1OpId opaque
-  requireAttributeSet [] (opaqueDiscreteAttributes opaque)
-  value <- case opaqueDiscreteOperands opaque of
-    [operand] -> Right operand
-    _ -> Left (ContractInvalidOperands
-      "operator.materialized@1 expects exactly one operand")
-  let basis = opaqueDiscreteResultBasis opaque
-  scalar <- case value of
-    ScalarValue source
-      | basis == Basis [] -> Right source
-      | otherwise -> Left (ContractInvalidResultBasis basis)
-    TensorValue tensor ->
-      case lookup basis (tensorNFComponents tensor) of
-        Just source -> Right source
-        Nothing -> Left (ContractInvalidResultBasis basis)
-  Right MaterializedComponentRequest
-    { materializedSourceValue = value
-    , materializedResultBasis = basis
-    , materializedSourceComponent = scalar
-    }
 
 requireOperation
     :: VersionedOpId -> OpaqueDiscrete -> Either PrimitiveContractError ()

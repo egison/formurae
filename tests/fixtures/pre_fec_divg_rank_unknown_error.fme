@@ -1,0 +1,7 @@
+mode dec
+dimension 2
+axes x, y
+field T_i_j
+field q : scalar
+step:
+  q' = δ (divg T)

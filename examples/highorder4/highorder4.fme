@@ -13,8 +13,6 @@ param κ = 1.0
 param dt = 0.0005
 
 extern sin
-def Δ u = divg (grad u)
-
 field u : scalar
 
 init:

@@ -49,6 +49,38 @@ data FieldDecl = FieldDecl
   , fdSourceLine :: Int
   } deriving (Eq, Show)
 
+-- | The declaration carried by a materialized step-local field.  A local
+-- uses exactly the same tensor/index/policy vocabulary as a user-state
+-- field, but its lifetime and origin come from the enclosing step action.
+-- Keeping the descriptor on the step makes the source-order action stream
+-- authoritative: later passes do not reconstruct a local's type from its
+-- RHS or its name.
+data LocalDecl = LocalDecl
+  { ldName       :: String
+  , ldIndex      :: Maybe FieldIndex
+  , ldPolicy     :: GridPolicy
+  , ldKind       :: Kind
+  , ldSourceLine :: Int
+  } deriving (Eq, Show)
+
+localDeclFromField :: FieldDecl -> LocalDecl
+localDeclFromField field = LocalDecl
+  { ldName = fdName field
+  , ldIndex = fdIndex field
+  , ldPolicy = fdPolicy field
+  , ldKind = fdKind field
+  , ldSourceLine = fdSourceLine field
+  }
+
+localDeclAsField :: LocalDecl -> FieldDecl
+localDeclAsField local = FieldDecl
+  { fdName = ldName local
+  , fdIndex = ldIndex local
+  , fdPolicy = ldPolicy local
+  , fdKind = ldKind local
+  , fdSourceLine = ldSourceLine local
+  }
+
 data Init = IRaw String String | IVec String [String]
           | ISym String [String]
           | IAnti String [String]
@@ -96,6 +128,8 @@ data SourceText = SourceText
 data Step = Step
   { sk :: SK
   , sTarget :: IndexedTarget
+  -- 'Just' exactly for KLocal.  KLet and KEq retain no storage descriptor.
+  , sLocalDecl :: Maybe LocalDecl
   , sEx :: String
   , sSourceText :: SourceText
   } deriving (Eq, Show)

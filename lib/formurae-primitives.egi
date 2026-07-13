@@ -2,7 +2,7 @@
 -- Run tools/generate-feir-primitives.hs; do not edit it directly.
 
 def Formurae.Primitives.primitiveManifestV1Id : String :=
-  "sha256:f6294c222255af0cbc20d76a46e6eecb1858d3c4a370500f9c7c8b510a18010f"
+  "sha256:f4623af0a5cebbf8ce86d8871b52335ae8ae7db95eaa0f25224d9bad35512c3b"
 
 def Formurae.Primitives.codiffMetricV1OpId : String :=
   "codiff.metric@1"
@@ -16,14 +16,8 @@ def Formurae.Primitives.derivativeGridWholeV1OpId : String :=
 def Formurae.Primitives.derivativeOrderedV1OpId : String :=
   "derivative.ordered@1"
 
-def Formurae.Primitives.fluxConservativeDivergenceV1OpId : String :=
-  "flux.conservative-divergence@1"
-
 def Formurae.Primitives.lbOrthogonalV1OpId : String :=
   "lb.orthogonal@1"
-
-def Formurae.Primitives.operatorMaterializedV1OpId : String :=
-  "operator.materialized@1"
 
 def Formurae.Primitives.resampleExplicitV1OpId : String :=
   "resample.explicit@1"
@@ -34,9 +28,7 @@ def Formurae.Primitives.signatures
   , (Formurae.Primitives.derivativeCoordinateWideV1OpId, "derivative.coordinate-wide", 1, ["scalar"], "scalar", "derivative-target", "pure-local", [], "ordered")
   , (Formurae.Primitives.derivativeGridWholeV1OpId, "derivative.grid-whole", 1, ["scalar"], "scalar", "derivative-target", "pure-local", [], "ordered")
   , (Formurae.Primitives.derivativeOrderedV1OpId, "derivative.ordered", 1, ["scalar"], "scalar", "derivative-target", "pure-local", [], "ordered")
-  , (Formurae.Primitives.fluxConservativeDivergenceV1OpId, "flux.conservative-divergence", 1, ["tensor"], "scalar", "conservative-cell", "needs-materialization", ["flux", "result"], "declared-commutative")
   , (Formurae.Primitives.lbOrthogonalV1OpId, "lb.orthogonal", 1, ["scalar"], "scalar", "conservative-cell", "needs-materialization", ["coefficient", "flux", "result", "volume"], "declared-commutative")
-  , (Formurae.Primitives.operatorMaterializedV1OpId, "operator.materialized", 1, ["any"], "any", "preserve-source", "needs-materialization", ["intermediate"], "ordered")
   , (Formurae.Primitives.resampleExplicitV1OpId, "resample.explicit", 1, ["scalar"], "scalar", "explicit-target", "pure-local", [], "ordered")
   ]
 

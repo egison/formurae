@@ -1,0 +1,13 @@
+mode collocated
+dimension 1
+axes x
+
+field u : scalar
+
+init:
+  u = 0
+
+step:
+  local first = second
+  local second = u
+  u' = first

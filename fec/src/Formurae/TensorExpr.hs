@@ -23,6 +23,8 @@ module Formurae.TensorExpr
   , pattern TETranspose
   , pattern TEDisjoint
   , pattern TEDerivative
+  , pattern TEGridDerivativeChain
+  , pattern TETensorLiteral
   , pattern TEDot
   , pattern TEBinary
   , pattern TEGroup
@@ -67,6 +69,8 @@ data TensorExprNode
   | TETransposeNode [String] TensorExpr
   | TEDisjointNode [TensorExpr]
   | TEDerivativeNode [IxPart] TensorExpr
+  | TEGridDerivativeChainNode [IxPart] TensorExpr
+  | TETensorLiteralNode [TensorExpr] [IxPart]
   | TEDotNode [TensorExpr]
   | TEBinaryNode String TensorExpr TensorExpr
   | TEGroupNode TensorExpr
@@ -132,6 +136,28 @@ pattern TEDerivative :: [IxPart] -> TensorExpr -> TensorExpr
 pattern TEDerivative parts body <- TensorExpr _ (TEDerivativeNode parts body)
   where TEDerivative parts body = TensorExpr noSourceSpan (TEDerivativeNode parts body)
 
+-- A quoted whole-expression derivative chain.  Axes are stored in
+-- application order, innermost first, so @[x, y]@ denotes @G_y(G_x(e))@.
+-- Keeping this distinct from 'TEDerivative' prevents analytic
+-- differentiation from distributing through the operand.
+pattern TEGridDerivativeChain :: [IxPart] -> TensorExpr -> TensorExpr
+pattern TEGridDerivativeChain parts body <-
+  TensorExpr _ (TEGridDerivativeChainNode parts body)
+  where
+    TEGridDerivativeChain parts body =
+      TensorExpr noSourceSpan (TEGridDerivativeChainNode parts body)
+
+-- An Egison tensor literal keeps its component expressions structured so
+-- discrete requests inside a component cannot escape effect analysis or
+-- contextualization through the raw-Egison fallback.  The optional suffix
+-- is the literal's explicitly marked result-index sequence.
+pattern TETensorLiteral :: [TensorExpr] -> [IxPart] -> TensorExpr
+pattern TETensorLiteral elements parts <-
+  TensorExpr _ (TETensorLiteralNode elements parts)
+  where
+    TETensorLiteral elements parts =
+      TensorExpr noSourceSpan (TETensorLiteralNode elements parts)
+
 pattern TEDot :: [TensorExpr] -> TensorExpr
 pattern TEDot parts <- TensorExpr _ (TEDotNode parts)
   where TEDot parts = TensorExpr noSourceSpan (TEDotNode parts)
@@ -146,8 +172,9 @@ pattern TEGroup e <- TensorExpr _ (TEGroupNode e)
 
 {-# COMPLETE TENumber, TEIdent, TEUnary, TECall, TEApply, TEIf,
              TEAppendIndexed, TEWithSymbols, TEContractWith, TETensorMap,
-             TESubrefs, TETranspose, TEDisjoint, TEDerivative, TEDot,
-             TEBinary, TEGroup #-}
+             TESubrefs, TETranspose, TEDisjoint, TEDerivative,
+             TEGridDerivativeChain, TETensorLiteral, TEDot, TEBinary,
+             TEGroup #-}
 
 parseTensorExpr :: String -> TensorExpr
 parseTensorExpr src =
@@ -193,6 +220,10 @@ renderTensorExpr (TEDisjoint parts) =
 renderTensorExpr (TEDerivative parts body) =
   let (parts', body') = flattenDerivative parts body
   in unwords (map (\p -> "d" ++ ixSuffix p) parts' ++ [renderTensorAtom body'])
+renderTensorExpr (TEGridDerivativeChain parts body) =
+  renderGridDerivativeChain parts body
+renderTensorExpr (TETensorLiteral elements parts) =
+  renderTensorLiteral elements ++ concatMap ixSuffix parts
 renderTensorExpr (TEDot parts) = intercalate " . " (map renderTensorDotPart parts)
 renderTensorExpr (TEBinary op lhs rhs) =
   renderTensorBinarySide op lhs ++ " " ++ op ++ " " ++ renderTensorBinarySide op rhs
@@ -202,6 +233,20 @@ flattenDerivative :: [IxPart] -> TensorExpr -> ([IxPart], TensorExpr)
 flattenDerivative acc (TEDerivative parts body) =
   flattenDerivative (acc ++ parts) body
 flattenDerivative acc body = (acc, body)
+
+renderGridDerivativeChain :: [IxPart] -> TensorExpr -> String
+renderGridDerivativeChain [] body = renderTensorExpr body
+renderGridDerivativeChain (part:parts) body =
+  foldl wrapOuter renderInner parts
+  where
+    renderInner = "`(d" ++ ixSuffix part ++ " " ++ renderTensorAtom body ++ ")"
+    wrapOuter inner outerPart =
+      "`(d" ++ ixSuffix outerPart ++ " (" ++ inner ++ "))"
+
+renderTensorLiteral :: [TensorExpr] -> String
+renderTensorLiteral [] = "[||]"
+renderTensorLiteral elements =
+  "[| " ++ intercalate ", " (map renderTensorExpr elements) ++ " |]"
 
 preprocessTensorExpr :: Model -> String -> IO String
 preprocessTensorExpr m src = do
@@ -244,6 +289,10 @@ preprocessTensorAst m expr =
     TEDerivative parts body
       | otherwise ->
           keep (foldr lowerDerivativePart (pre body) parts)
+    TEGridDerivativeChain parts body ->
+      keep (TEGridDerivativeChain (map renameDerivativePart parts) (pre body))
+    TETensorLiteral elements parts ->
+      keep (TETensorLiteral (map pre elements) parts)
     TEDot parts ->
       keep (TEDot (map pre parts))
     TEBinary op lhs rhs ->
@@ -309,7 +358,10 @@ parseTensorTokensE src ts0 =
                                        case splitTopPowerI ts of
                                          Just (lhs, op, rhs) ->
                                            TEBinary op <$> parse lhs <*> parse rhs
-                                         Nothing -> parseTensorAtomE src ts
+                                         Nothing ->
+                                           case parseTensorLiteralExprE src ts of
+                                             Just literal -> literal
+                                             Nothing -> parseTensorAtomE src ts
   where
     parse = parseTensorTokensE src
 
@@ -334,50 +386,160 @@ sourceSpanOf _ ts =
 
 parseTensorAtomE :: String -> [ITok] -> Either String TensorExpr
 parseTensorAtomE src ts =
-  case stripOuterGroupI ts of
-    Just inner -> TEGroup <$> parse inner
+  case parseGridDerivativeExprE src ts of
+    Just e -> e
     Nothing ->
-      case parseContractWithExprE src ts of
-        Just e -> e
+      case stripOuterGroupI ts of
+        Just inner -> TEGroup <$> parse inner
         Nothing ->
-          case parseTensorMapExprE src ts of
+          case parseContractWithExprE src ts of
             Just e -> e
             Nothing ->
-              case parseSubrefsExprE src ts of
+              case parseTensorMapExprE src ts of
                 Just e -> e
                 Nothing ->
-                  case parseTransposeExprE src ts of
+                  case parseSubrefsExprE src ts of
                     Just e -> e
                     Nothing ->
-                      case parseWithSymbolsExprE src ts of
+                      case parseTransposeExprE src ts of
                         Just e -> e
                         Nothing ->
-                          case parseDerivativeExprE src ts of
+                          case parseWithSymbolsExprE src ts of
                             Just e -> e
                             Nothing ->
-                              case parseAppendExprE src ts of
+                              case parseDerivativeExprE src ts of
                                 Just e -> e
                                 Nothing ->
-                                  case parseUnaryExprE src ts of
+                                  case parseAppendExprE src ts of
                                     Just e -> e
                                     Nothing ->
-                                      case parseCallExprE src ts of
+                                      case parseUnaryExprE src ts of
                                         Just e -> e
                                         Nothing ->
-                                          case parseApplyExprE src ts of
+                                          case parseCallExprE src ts of
                                             Just e -> e
                                             Nothing ->
-                                              case parseNumberExpr ts of
-                                                Just e -> Right e
+                                              case parseApplyExprE src ts of
+                                                Just e -> e
                                                 Nothing ->
-                                                  case ts of
-                                                    [II w] ->
-                                                      let (base, parts) = parseIndexedIdent w
-                                                      in Right (TEIdent base parts)
-                                                    [IC '∂'] -> Right (TEIdent "∂" [])
-                                                    _ -> parseError src ts "unsupported scalar expression atom"
+                                                  case parseNumberExpr ts of
+                                                    Just e -> Right e
+                                                    Nothing ->
+                                                      case ts of
+                                                        [II w] ->
+                                                          let (base, parts) = parseIndexedIdent w
+                                                          in Right (TEIdent base parts)
+                                                        [IC '∂'] -> Right (TEIdent "∂" [])
+                                                        _ -> parseError src ts "unsupported scalar expression atom"
   where
     parse = parseTensorTokensE src
+
+-- Parse Egison's native tensor literal while retaining every component as a
+-- TensorExpr child.  Only the adjacent @[|@ opener is claimed here; ordinary
+-- bracketed/raw Egison constructs keep their existing fallback behavior.
+-- The optional trailing marked sequence describes the literal result, as in
+-- @[| x, y |]_i@ or a rank-two @[| ... |]~i_j@.
+parseTensorLiteralExprE
+    :: String -> [ITok] -> Maybe (Either String TensorExpr)
+parseTensorLiteralExprE src ts0 =
+  case trimTensorIToks ts0 of
+    open@(IC '[') : pipe@(IC '|') : rest
+      | tokensAdjacent open pipe -> Just $
+          case closeGroupI ']' rest [] of
+            Nothing -> parseError src ts0
+              "tensor literal needs a closing |]"
+            Just (insideWithPipe, remaining) ->
+              case removeClosingPipe insideWithPipe of
+                Nothing -> parseError src ts0
+                  "tensor literal needs a closing |]"
+                Just inside ->
+                  case indexedSuffixOnlyI (trimTensorIToks remaining) of
+                    Nothing -> parseError src remaining
+                      "tensor literal result suffix needs marked indices"
+                    Just parts ->
+                      TETensorLiteral <$> parseElements inside <*> pure parts
+    _ -> Nothing
+  where
+    removeClosingPipe tokens =
+      case reverse (dropTrailingSpaces tokens) of
+        IC '|' : reversedInside ->
+          Just (trimTensorIToks (reverse reversedInside))
+        _ -> Nothing
+
+    dropTrailingSpaces =
+      reverse . dropWhile isSpaceITok . reverse
+
+    parseElements [] = Right []
+    parseElements tokens =
+      let elements = splitTopCommaI tokens
+      in if any (null . trimTensorIToks) elements
+           then parseError src tokens
+             "tensor literal components cannot be empty"
+           else mapM (parseTensorTokensE src) elements
+
+-- Recognize only the Formurae-specific quoted derivative root
+-- @`(d_x e)@.  Other prefix quotes remain outside the structured
+-- TensorExpr grammar and continue through the existing generic/raw Egison
+-- paths.  The parser also accepts the untranslated Unicode spelling so this
+-- module can be tested directly; parseModel supplies the @d_x@ spelling.
+parseGridDerivativeExprE
+    :: String -> [ITok] -> Maybe (Either String TensorExpr)
+parseGridDerivativeExprE src ts0 =
+  case trimTensorIToks ts0 of
+    quote@(IC '`') : open@(IC '(') : rest
+      | tokensAdjacent quote open ->
+          case closeGroupI ')' rest [] of
+            Nothing ->
+              Just (parseError src ts0
+                "quoted derivative needs a closing parenthesis")
+            Just (inside, remaining)
+              | not (null (trimTensorIToks remaining)) ->
+                  case gridDerivativePrefix inside of
+                    Just _ -> Just (parseError src ts0
+                      "quoted derivative must enclose the complete derivative application")
+                    Nothing -> Nothing
+              | otherwise ->
+                  case gridDerivativePrefix inside of
+                    Nothing -> Nothing
+                    Just (part, operandTokens)
+                      | null (trimTensorIToks operandTokens) ->
+                          Just (parseError src inside
+                            "quoted derivative needs an operand")
+                      | otherwise ->
+                          Just $ do
+                            operand <- parseTensorTokensE src operandTokens
+                            pure (prependGridDerivative part operand)
+    _ -> Nothing
+
+gridDerivativePrefix :: [ITok] -> Maybe (IxPart, [ITok])
+gridDerivativePrefix ts =
+  case dropWhile isSpaceITok ts of
+    II word : rest
+      | (base, [part]) <- parseIndexedIdent word
+      , base == "d" || base == "∂" ->
+          Just (part, dropWhile isSpaceITok rest)
+    IC '∂' : IC mark : II name : rest
+      | mark == '~' || mark == '_'
+      , Just ([part], "") <- parseMarkedPrefix (mark : name) ->
+          Just (part, dropWhile isSpaceITok rest)
+    _ -> Nothing
+
+prependGridDerivative :: IxPart -> TensorExpr -> TensorExpr
+prependGridDerivative outerPart operand =
+  case ungroupGridDerivative operand of
+    Just (innerParts, innerOperand) ->
+      TEGridDerivativeChain (innerParts ++ [outerPart]) innerOperand
+    Nothing -> TEGridDerivativeChain [outerPart] operand
+
+ungroupGridDerivative :: TensorExpr -> Maybe ([IxPart], TensorExpr)
+ungroupGridDerivative (TEGridDerivativeChain parts body) = Just (parts, body)
+ungroupGridDerivative (TEGroup body) = ungroupGridDerivative body
+ungroupGridDerivative _ = Nothing
+
+tokensAdjacent :: ITok -> ITok -> Bool
+tokensAdjacent lhs rhs =
+  itokOffset lhs > 0
+  && itokOffset rhs == itokOffset lhs + itokWidth lhs
 
 parseContractWithExprE :: String -> [ITok] -> Maybe (Either String TensorExpr)
 parseContractWithExprE src ts =
@@ -582,6 +744,7 @@ renderTensorAtom e@(TETensorMap _ _) = renderTensorExpr e
 renderTensorAtom e@(TESubrefs _ _) = renderTensorExpr e
 renderTensorAtom e@(TETranspose _ _) = renderTensorExpr e
 renderTensorAtom e@(TEDisjoint _) = renderTensorExpr e
+renderTensorAtom e@(TETensorLiteral _ _) = renderTensorExpr e
 renderTensorAtom e@(TEGroup _) = renderTensorExpr e
 renderTensorAtom e = "(" ++ renderTensorExpr e ++ ")"
 
@@ -595,6 +758,7 @@ renderTensorUnaryArg e@(TETensorMap _ _) = renderTensorExpr e
 renderTensorUnaryArg e@(TESubrefs _ _) = renderTensorExpr e
 renderTensorUnaryArg e@(TETranspose _ _) = renderTensorExpr e
 renderTensorUnaryArg e@(TEDisjoint _) = renderTensorExpr e
+renderTensorUnaryArg e@(TETensorLiteral _ _) = renderTensorExpr e
 renderTensorUnaryArg e@(TEGroup _) = renderTensorExpr e
 renderTensorUnaryArg e = "(" ++ renderTensorExpr e ++ ")"
 

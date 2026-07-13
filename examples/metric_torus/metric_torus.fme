@@ -5,7 +5,7 @@
 -- symbolically (generation is gated on g_12 = g_13 = g_23 = 0),
 -- takes the scale factors h_a = sqrt(g_aa), evaluates the hodge
 -- factors sqrt(g)/h_a^2 at the half-cell placements, freezes them
--- into coefficient fields, and exposes lb u as an
+-- into coefficient fields, and lowers the canonical scalar Δ to an
 -- exactly conservative flux form.
 --
 -- Backquotes keep `(2 + cos θ) atomic during the CAS work
@@ -17,8 +17,6 @@ dimension 3
 axes θ, φ, z
 
 param dt = 0.0005
-
-def Δ u = lb u
 
 embedding [ `(2 + cos θ) * cos φ, `(2 + cos θ) * sin φ, sin θ, z ]
 

@@ -339,6 +339,10 @@ checkReferencesAndActions = do
   let badUpdate = mapUpdateTarget
         (\_ -> WholeFieldTarget userField CurrentTime) validProgram
   assertIssue "updates target NextTime" isTargetTime badUpdate
+  let badComponentUpdate = mapUpdateTarget
+        (\_ -> FieldComponentTarget userField NextTime (Basis [])) validProgram
+  assertIssue "updates use whole-field targets" isComponentUpdate
+    badComponentUpdate
   let badMaterialize = replaceMaterializeTarget userField validProgram
   assertIssue "materialization targets a step-local field" isLifetime
     badMaterialize
@@ -352,6 +356,9 @@ checkReferencesAndActions = do
     isOutside _ = False
     isTargetTime (InvalidTargetTime NextTime CurrentTime) = True
     isTargetTime _ = False
+    isComponentUpdate
+      (ComponentUpdateTargetNotAllowed fid (Basis [])) = fid == userField
+    isComponentUpdate _ = False
     isLifetime (InvalidFieldLifetime fid StepLocalLifetime UserStateLifetime) =
       fid == userField
     isLifetime _ = False

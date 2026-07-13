@@ -1,0 +1,10 @@
+mode dec
+dimension 2
+axes x, y
+field A : 1-form
+def hodge X = X
+def wrapped X =
+  let Y := X
+   in hodge Y
+step:
+  A' = wrapped A

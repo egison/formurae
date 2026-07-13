@@ -8,13 +8,15 @@ param κ = 1.0
 param dt = 0.1*dx*dx
 
 extern exp
-def Δ u = divg (grad u)
 raw gauss = fun(x,y) exp(-((x-(total_grid_x*dx/2))/(5*dx))**2 - ((y-(total_grid_y*dy/2))/(5*dy))**2)
 
-field u : scalar
+field u : scalar @ primal
 
 init:
   u = gauss(i*dx,j*dy)
 
 step:
-  u' = u + dt * κ * Δ u
+  local q_i @ primal =
+    [| 0 - κ * `(∂_x u),
+       0 - κ * `(∂_y u) |]_i
+  u' = u - dt * divg q

@@ -8,8 +8,6 @@ main :: IO ()
 main = do
   testOrdered
   testResample
-  testFlux
-  testMaterialized
   putStrLn "post primitive contract tests: ok"
 
 testOrdered :: IO ()
@@ -62,50 +60,6 @@ testResample = do
       case problem of
         ContractInvalidAttribute (AttributeId "target-placement") _ -> True
         _ -> False
-
-testFlux :: IO ()
-testFlux = do
-  let tensor = TensorNF [2] [VarianceDown] 0
-        [(Basis [1], source), (Basis [2], source)]
-      request = opaque Primitives.fluxConservativeDivergenceV1OpId
-        (Basis []) [TensorValue tensor] []
-  parsed <- assertRight "flux request"
-    (parseConservativeDivergenceRequest 2 request)
-  assertEqual "one component per declared axis"
-    [AxisId 1, AxisId 2]
-    (map fst (conservativeDivergenceComponents parsed))
-  assertLeft "flux tensor rank is strict"
-    isFluxOperandError
-    (parseConservativeDivergenceRequest 2
-      request { opaqueDiscreteOperands = [ScalarValue source] })
-  where
-    isFluxOperandError (ContractInvalidOperands _) = True
-    isFluxOperandError _ = False
-
-testMaterialized :: IO ()
-testMaterialized = do
-  let tensor = TensorNF [2] [VarianceDown] 0
-        [(Basis [1], source), (Basis [2], Exact 2 1)]
-      first = opaque Primitives.operatorMaterializedV1OpId
-        (Basis [1]) [TensorValue tensor] []
-      second = first
-        { opaqueDiscreteSemanticKey = SemanticKey "key-2"
-        , opaqueDiscreteResultBasis = Basis [2]
-        }
-  firstRequest <- assertRight "first materialized component"
-    (parseMaterializedComponentRequest first)
-  secondRequest <- assertRight "second materialized component"
-    (parseMaterializedComponentRequest second)
-  assertEqual "first source component" source
-    (materializedSourceComponent firstRequest)
-  assertEqual "second source component" (Exact 2 1)
-    (materializedSourceComponent secondRequest)
-  assertEqual "tensor components share request group"
-    (opaqueDiscreteRequestGroup first) (opaqueDiscreteRequestGroup second)
-  assertLeft "materialized basis is explicit"
-    (== ContractInvalidResultBasis (Basis [3]))
-    (parseMaterializedComponentRequest
-      first { opaqueDiscreteResultBasis = Basis [3] })
 
 source :: ScalarNF
 source = FieldJet (FieldJetValue (FieldId 1) CurrentTime (Basis [])

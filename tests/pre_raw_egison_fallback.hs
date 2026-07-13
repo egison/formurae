@@ -23,19 +23,46 @@ main = do
     [("prior", PureFunction), ("raw", PureFunction)]
     (effectSummaryDefinitions summary)
 
-  assertLeft "raw Egison rejects direct opaque operations" isRawOpaque $
+  assertLeft "raw Egison rejects direct canonical resample requests" isRawDiscrete $
     inferModelEffects manifest (baseModel
-      [definition 5 "raw" ["x"] "let y := materialize x in y"])
+      [definition 5 "raw" ["x"] "let y := resample(x, 1) in y"])
 
-  assertLeft "raw Egison rejects qualified bridge calls" isRawOpaque $
+  assertLeft "raw Egison rejects qualified normalization namespace calls" isReservedConstructor $
     inferModelEffects manifest (baseModel
       [definition 5 "raw" ["x"]
-        "let y := Formurae.materialized manifest x in y"])
+        "let y := Formurae.resampleExplicit 1 manifest [| 1 |] x in y"])
 
-  assertLeft "raw Egison rejects transitive opaque operations" isRawOpaque $
+  assertLeft "raw Egison rejects the opaque barrier" isReservedConstructor $
     inferModelEffects manifest (baseModel
-      [ definition 5 "stored" ["x"] "materialize x"
-      , definition 6 "raw" ["x"] "let y := stored x in y"
+      [definition 5 "raw" ["x"]
+        "let y := formuraeOpaqueBarrier x in y"])
+
+  assertLeft "raw Egison rejects FunctionData construction" isReservedConstructor $
+    inferModelEffects manifest (baseModel
+      [definition 5 "raw" ["x"]
+        "let request := functionSymbol \"FormuraeInternalOpaqueGridWholeV1\" [x, 1] in request"])
+
+  assertLeft "raw Egison rejects generated-internal identifiers" isReservedConstructor $
+    inferModelEffects manifest (baseModel
+      [definition 5 "raw" ["x"]
+        "let y := FormuraeInternalGridWholeDerivative 1 x in y"])
+
+  assertLeft "structured definitions cannot call an internal bridge" isReservedConstructor $
+    inferModelEffects manifest (baseModel
+      [definition 5 "raw" ["x"]
+        "FormuraeInternalGridWholeDerivative 1 x"])
+
+  nearMissSummary <- requireRight "reserved names inside a string are data" $
+    inferModelEffects manifest (baseModel
+      [definition 5 "raw" ["x"]
+        "let diagnostic := \"formuraeOpaqueBarrier functionSymbol FormuraeInternalOpaqueGridWholeV1\" in x"])
+  assertEqual "diagnostic strings do not trip the reserved constructor gate"
+    [("raw", PureFunction)] (effectSummaryDefinitions nearMissSummary)
+
+  assertLeft "raw Egison rejects transitive discrete operations" isRawDiscrete $
+    inferModelEffects manifest (baseModel
+      [ definition 5 "shifted" ["x"] "resample(x, 1)"
+      , definition 6 "raw" ["x"] "let y := shifted x in y"
       ])
 
   assertLeft "raw Egison keeps forward-reference rejection" isForward $
@@ -44,11 +71,11 @@ main = do
       , definition 6 "later" ["x"] "lap x"
       ])
 
-  boundSummary <- requireRight "bound opaque-name parameter" $
+  boundSummary <- requireRight "bound canonical-name parameter" $
     inferModelEffects manifest (baseModel
-      [definition 5 "raw" ["materialize", "x"]
-        "let y := materialize x in y"])
-  assertEqual "formal parameters shadow opaque surface names"
+      [definition 5 "raw" ["resample", "x"]
+        "let y := resample x in y"])
+  assertEqual "formal parameters shadow the canonical resample name"
     [("raw", PureFunction)] (effectSummaryDefinitions boundSummary)
 
   registry <- requireRight "raw trace registry" $
@@ -71,7 +98,7 @@ definition line name parameters body =
 
 step :: Int -> String -> String -> Step
 step line name body =
-  Step KEq (IndexedTarget name []) body (source line 8 body)
+  Step KEq (IndexedTarget name []) Nothing body (source line 8 body)
 
 source :: Int -> Int -> String -> SourceText
 source line column body = SourceText
@@ -116,11 +143,18 @@ lookupOrigin originId (FEIR.OriginTable origins) =
     Just origin -> origin
     Nothing -> error "missing test origin"
 
-isRawOpaque :: EffectError -> Bool
-isRawOpaque problem =
+isRawDiscrete :: EffectError -> Bool
+isRawDiscrete problem =
   case effectErrorIssue problem of
     InvalidEffectExpression message ->
       "direct Egison definition must be continuum-pure" `isInfixOf` message
+    _ -> False
+
+isReservedConstructor :: EffectError -> Bool
+isReservedConstructor problem =
+  case effectErrorIssue problem of
+    InvalidEffectExpression message ->
+      "cannot access reserved normalization capability" `isInfixOf` message
     _ -> False
 
 isForward :: EffectError -> Bool

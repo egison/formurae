@@ -54,8 +54,10 @@ data FProgram = FProgram
   , fProgramHelpers :: [String]
   , fProgramStateStorage :: [String]
   , fProgramInitializers :: [FAssignment]
-  , fProgramStepBindings :: [FAssignment]
-  , fProgramStepUpdates :: [FAssignment]
+  -- FEIR actions are sequential: a later local may read an earlier NextTime
+  -- update, and a later update may in turn read that local.  Keep one stream
+  -- so rendering cannot regroup bindings ahead of updates.
+  , fProgramStepAssignments :: [FAssignment]
   } deriving (Eq, Ord, Show)
 
 data FMRError
@@ -138,10 +140,8 @@ renderProgram program
   | otherwise = do
       initializerLines <- mapM (renderAssignment [])
         (fProgramInitializers program)
-      bindingLines <- mapM (renderAssignment gridIndices)
-        (fProgramStepBindings program)
-      updateLines <- mapM (renderAssignment gridIndices)
-        (fProgramStepUpdates program)
+      stepLines <- mapM (renderAssignment gridIndices)
+        (fProgramStepAssignments program)
       let state = fProgramStateStorage program
           primed = map (++ "'") state
           header =
@@ -160,7 +160,7 @@ renderProgram program
             ++ ["end function"]
           stepFunction =
             [ "begin function " ++ tuple primed ++ " = step(" ++ intercalate "," state ++ ")" ]
-            ++ map ("  " ++) (bindingLines ++ updateLines)
+            ++ map ("  " ++) stepLines
             ++ ["end function"]
           sections = filter (not . null)
             [ header

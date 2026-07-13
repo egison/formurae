@@ -13,8 +13,6 @@ axes r, θ, φ
 
 param dt = 0.0002
 
-def Δ u = lb u
-
 embedding [ `(1 + r) * sin (1 + θ) * cos φ, `(1 + r) * sin (1 + θ) * sin φ, `(1 + r) * cos (1 + θ) ]
 
 field u : scalar

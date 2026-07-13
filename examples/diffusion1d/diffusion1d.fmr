@@ -13,5 +13,6 @@ begin function u = init()
 end function
 
 begin function u' = step(u)
-  u'[i] = u[i] + dt * kappa * (u[i-1] + u[i+1] + (-2) * u[i]) / dx**2
+  q_down1[i] = (-1) * kappa * (u[i+1] + (-1) * u[i]) / dx
+  u'[i] = u[i] + (-1) * dt * (q_down1[i] + (-1) * q_down1[i-1]) / dx
 end function

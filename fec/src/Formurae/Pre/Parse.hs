@@ -20,11 +20,9 @@ standardNames :: [String]
 standardNames =
   [ ".", "wedge", "trace", "sym", "antisym", "norm2"
   , "hessian", "grad", "dGrad", "divg", "curl", "lap", "Δ"
-  , "d", "dForm", "delta", "codiff", "hodge", "formLaplacian", "lb"
+  , "d", "δ", "hodge", "ΔH"
   , "flat", "sharp"
-  , "gridD", "gridDerivative", "orderedD", "orderedDerivative"
-  , "resample", "interpolate", "fluxDiv", "conservativeDiv"
-  , "materialize"
+  , "resample"
   , "epsilon"
   ]
 
@@ -222,7 +220,7 @@ validateMetricName m =
       fatal ("metric name '" ++ nm
              ++ "' conflicts with a coordinate axis (axes line "
              ++ show (maybe 0 id (mAxesSourceLine m)) ++ ")")
-    Just "delta" ->
+    Just "δ" ->
       fatal "metric δ is reserved for Kronecker delta; use metric g for the metric tensor"
     Just nm -> do
       let conflicts = nub [kind | (kind, x) <- metricNameConflicts m, x == nm]
@@ -252,6 +250,15 @@ validateIndexedStepTargets model = mapM_ validateStep (mSteps model)
               either (fatal . renderIndexedTargetError line targetName)
                      return
                      (validateFieldTarget field (sTarget step))
+        KLocal ->
+          case sLocalDecl step of
+            Nothing -> fatal ("internal local declaration is missing for '"
+                              ++ targetName ++ "' (line " ++ show line ++ ")")
+            Just local ->
+              either (fatal . renderIndexedTargetError line targetName)
+                     return
+                     (validateFieldTarget (localDeclAsField local)
+                       (sTarget step))
         _ -> return ()
       where
         targetName = sNm step
@@ -300,7 +307,18 @@ renderIndexedTargetError line targetName problem =
     varianceLabel VDown = "a subscript"
 
 parseFieldDecl :: Int -> String -> IO FieldDecl
-parseFieldDecl ln r =
+parseFieldDecl = parseStorageDecl Primal
+
+-- Field declarations historically default differential forms to Primal.
+-- Locals deliberately do not: every omitted local policy is Collocated,
+-- independent of tensor kind, and a staggered local must say @primal or
+-- @dual explicitly.
+parseLocalDecl :: Int -> String -> IO LocalDecl
+parseLocalDecl ln source =
+  localDeclFromField <$> parseStorageDecl Collocated ln source
+
+parseStorageDecl :: GridPolicy -> Int -> String -> IO FieldDecl
+parseStorageDecl defaultFormPolicy ln r =
   case break (== ':') r of
     (nm0, ':':k0) -> withKind (strip nm0) (strip k0)
     _ -> indexed
@@ -321,7 +339,7 @@ parseFieldDecl ln r =
               policy <- parsePolicyAttrs Collocated attrs
               return (FieldDecl nm Nothing policy SymM ln)
             form : attrs | Just deg <- formKind form -> do
-              policy <- parsePolicyAttrs Primal attrs
+              policy <- parsePolicyAttrs defaultFormPolicy attrs
               return (FieldDecl nm Nothing policy (Form deg) ln)
             _ -> fatal ("bad field kind: " ++ k ++ " (line " ++ show ln ++ ")")
     indexed =
@@ -368,6 +386,25 @@ eqForm marker s = do
   r3 <- stripPrefix "=" (dropWhile isSpace r2)
   let ex = strip r3
   if null ex then Nothing else Just (target, ex)
+
+-- LOCAL-DECL = EXPR.  The declaration half accepts the complete field
+-- descriptor grammar (indices/layout, kind/degree, and policy), while the
+-- resulting IndexedTarget keeps only the free LHS indices that scope over
+-- the RHS.  A colon declaration such as @local omega : 2-form = ...@ is a
+-- whole-tensor target and therefore has no explicit LHS indices.
+localForm :: Int -> String -> IO (LocalDecl, IndexedTarget, String)
+localForm line source =
+  case break (== '=') source of
+    (declarationSource, '=' : expressionSource)
+      | not (null expression) -> do
+          declaration <- parseLocalDecl line (strip declarationSource)
+          let target = IndexedTarget (ldName declaration)
+                (maybe [] id (fieldIndexParts
+                  (localDeclAsField declaration)))
+          return (declaration, target, expression)
+      where
+        expression = strip expressionSource
+    _ -> fatal ("bad local declaration (line " ++ show line ++ ")")
 
 -- def NAME PARAM... = BODY
 -- def (.) A B = BODY
@@ -447,7 +484,11 @@ validateDimensionFeatures m
       case [k | (_, Form k) <- fieldKinds, k < 0 || k > mDim m] of
         k:_ -> Just k
         [] -> Nothing
-    fieldKinds = [(fdName field, fdKind field) | field <- mFieldDecls m]
+    fieldKinds =
+      [(fdName field, fdKind field) | field <- mFieldDecls m]
+      ++ [(ldName local, ldKind local)
+         | step <- mSteps m
+         , Just local <- [sLocalDecl step]]
 
 parseDiscretizationDecl :: Int -> String -> IO DiscretizationDecl
 parseDiscretizationDecl lineNumber source =
@@ -514,10 +555,53 @@ parseDiscretizationDecl lineNumber source =
 -- selecting a discrete implementation.  pre-fec emits this model to Egison
 -- for mathematical normalization.
 parseModel :: FilePath -> String -> String -> IO Model
-parseModel sourceFile name txt = go STop initialModel
-                      [(lineNumber, transliterate raw, raw)
-                      | (lineNumber, raw) <- zip [1 :: Int ..] (lines txt)]
+parseModel sourceFile name txt = do
+  mapM_ rejectInternalOperatorSpelling numberedLines
+  mapM_ rejectNormalizationCapability numberedLines
+  go STop initialModel
+    [(lineNumber, transliterate raw, raw) | (lineNumber, raw) <- numberedLines]
   where
+    numberedLines = zip [1 :: Int ..] (lines txt)
+
+    -- Δ_H is lowered to the atomic identifier ΔH before the indexed-expression
+    -- parser sees it.  Reserve that compact spelling so it cannot become an
+    -- accidental second surface alias for the Hodge Laplacian.
+    rejectInternalOperatorSpelling (lineNumber, raw) =
+      case [name' | TId name' _ <- tokenize (stripComment raw), name' == "ΔH"] of
+        _ : _ -> fatal ("ΔH is an internal spelling; write Δ_H (line "
+                        ++ show lineNumber ++ ")")
+        [] -> return ()
+
+    -- Generated normalization code is trusted to construct opaque FEIR
+    -- requests; user source is not.  Scan every surface context before its
+    -- grammar-specific path is selected, including definitions, steps,
+    -- initializers, metric scales, and embeddings.  Strings and comments must
+    -- be recognized in one pass: stripping comments first would mistake @--@
+    -- inside a string for a comment opener and leave later executable source
+    -- outside this capability gate.
+    rejectNormalizationCapability (lineNumber, raw) =
+      case [name' | TId name' _ <- tokenize scanned,
+                    isReservedNormalizationCapability name'] of
+        name' : _ -> fatal
+          ("reserved normalization capability '" ++ name'
+           ++ "' cannot be used in Formurae source (line "
+           ++ show lineNumber ++ ")")
+        [] -> return ()
+      where
+        scanned = maskSourceNonCode raw
+
+    maskSourceNonCode = outsideString
+      where
+        outsideString [] = []
+        outsideString ('-' : '-' : _rest) = []
+        outsideString ('"' : rest) = ' ' : insideString rest
+        outsideString (char : rest) = char : outsideString rest
+
+        insideString [] = []
+        insideString ('\\' : _escaped : rest) = ' ' : ' ' : insideString rest
+        insideString ('"' : rest) = ' ' : outsideString rest
+        insideString (_char : rest) = ' ' : insideString rest
+
     initialModel = Model
       { mName = name
       , mSourcePath = sourceFile
@@ -555,6 +639,13 @@ parseModel sourceFile name txt = go STop initialModel
                  ++ show (maybe 0 id (mAxesSourceLine m)) ++ ")")
       | any (`elem` generatedIndexNames) (mAxes m) =
           fatal ("axes coordinate names conflict with generated index symbols (line "
+                 ++ show (maybe 0 id (mAxesSourceLine m)) ++ ")")
+      | reservedAxis : _ <-
+          [axis | axis <- mAxes m,
+                  axis `elem` (standardNames ++ scalarIntrinsics
+                               ++ egisonReservedWords)] =
+          fatal ("coordinate name '" ++ reservedAxis
+                 ++ "' is reserved for a surface operator or intrinsic (axes line "
                  ++ show (maybe 0 id (mAxesSourceLine m)) ++ ")")
       | Just ambient <- firstAmbientName (mAxes m) =
           fatal ("coordinate name '" ++ ambient
@@ -632,7 +723,13 @@ parseModel sourceFile name txt = go STop initialModel
                        (s ++ " " ++ more) m
                      >>= \m' -> go SInit m' rest'
               SInit -> ini [(ln, originalCode)] s m >>= \m' -> go SInit m' rest
-              SStep -> stp ln originalCode code m >>= \m' -> go SStep m' rest
+              SStep | stepNeedsContinuation s ->
+                let (more, moreSourceLines, rest') = grab (bal s) rest
+                    sourceLines = (ln, originalCode) : moreSourceLines
+                in stp sourceLines (s ++ " " ++ more) m
+                     >>= \m' -> go SStep m' rest'
+              SStep -> stp [(ln, originalCode)] code m
+                >>= \m' -> go SStep m' rest
 
     bal t = sum [1 :: Int | c <- t, c `elem` "(["] - sum [1 | c <- t, c `elem` ")]"]
 
@@ -640,6 +737,12 @@ parseModel sourceFile name txt = go STop initialModel
       case break (== '=') source of
         (_, '=' : body) -> null (strip body)
         _ -> False
+
+    stepNeedsContinuation source =
+      bal source > 0
+      || case break (== '=') source of
+           (_, '=' : body) -> null (strip body)
+           _ -> False
 
     takeDefinitionBody = collect []
       where
@@ -753,7 +856,7 @@ parseModel sourceFile name txt = go STop initialModel
                  then fatal ("metric name '" ++ nm
                              ++ "' conflicts with a coordinate axis (line "
                              ++ show ln ++ ")")
-               else if nm == "delta"
+               else if nm == "δ"
                  then fatal "metric δ is reserved for Kronecker delta; use metric g for the metric tensor"
                else if nm `elem` generatedMetricNameConflicts
                  then fatal ("metric name '" ++ nm
@@ -1071,29 +1174,30 @@ parseModel sourceFile name txt = go STop initialModel
     -- Step equations keep superscripts (~i) and subscripts (_i) distinct.
     -- pre-fec preserves that variance in the logical tensor type; Egison
     -- evaluates the indexed equation and post-fec alone projects storage.
-    stp ln originalLine s0 m
+    stp sourceLines s0 m
       | Just bad <- banned =
           fatal (bad ++ " (line " ++ show ln ++ ")")
       | Just (target, ex) <- eqForm "let" s = do
           rejectReservedName ln (indexedTargetName target)
-          source <- sourceTextForRhs ln originalLine ex
-          return m { mSteps = Step KLet target ex source : mSteps m }
-      | Just (target, ex) <- eqForm "local" s = do
+          source <- sourceTextForRhsLines sourceLines ex
+          return m { mSteps = Step KLet target Nothing ex source : mSteps m }
+      | Just localSource <- stripPrefix "local " s = do
+          (declaration, target, ex) <- localForm ln localSource
           rejectReservedName ln (indexedTargetName target)
-          if null (indexedTargetIndices target)
-            then return ()
-            else fatal ("local materialization target cannot have indices: "
-                        ++ indexedTargetName target
-                        ++ showIxParts (indexedTargetIndices target)
-                        ++ " (line " ++ show ln ++ ")")
-          source <- sourceTextForRhs ln originalLine ex
-          return m { mSteps = Step KLocal target ex source : mSteps m }
+          source <- sourceTextForRhsLines sourceLines ex
+          return m
+            { mSteps = Step KLocal target (Just declaration) ex source
+                : mSteps m
+            }
       | Just (target, ex) <- primeEqForm s = do
           rejectReservedName ln (indexedTargetName target)
-          source <- sourceTextForRhs ln originalLine ex
-          return m { mSteps = Step KEq target ex source : mSteps m }
+          source <- sourceTextForRhsLines sourceLines ex
+          return m { mSteps = Step KEq target Nothing ex source : mSteps m }
       | otherwise = fatal ("bad step eq: " ++ s ++ " (line " ++ show ln ++ ")")
       where
+        ln = case sourceLines of
+          (lineNumber, _) : _ -> lineNumber
+          [] -> 0
         s = strip s0
         banned = surfaceBanned m [] s
 
@@ -1132,9 +1236,10 @@ parseModel sourceFile name txt = go STop initialModel
 
     sourcePieces [] = []
     sourcePieces ((lineNumber, originalLine) : rest) =
-      (lineNumber, rhsStartColumn originalLine,
-       assignmentRhs originalLine)
-      : map continuationPiece rest
+      case assignmentRhs originalLine of
+        "" -> map continuationPiece rest
+        rhs -> (lineNumber, rhsStartColumn originalLine, rhs)
+          : map continuationPiece rest
 
     continuationPiece (lineNumber, originalLine) =
       let text = strip originalLine
@@ -1192,14 +1297,16 @@ surfaceBanned m _ s =
           Just msg
       | nm == "badPartialDerivative" =
           Just "coordinate derivative must be written with subscript notation, e.g. ∂_x u, ∂^2_x u, or ∂'^2_x u"
-      | ("delta" : ps) <- splitOn '_' nm, any ((> 1) . length) ps =
-          Just ("Kronecker delta takes one index per mark (delta~i_j): " ++ nm)
+      | ("FormuraeInternalKroneckerDelta" : ps) <- splitOn '_' nm
+      , any ((> 1) . length) ps =
+          Just ("Kronecker delta takes one index per mark (δ~i_j): " ++ nm)
     checkTok _ = Nothing
     checkIndexTok (II nm) =
       case parseIndexedIdent nm of
-        ("delta", parts@(_:_))
-          | not (length parts == 2 && all isAlphaNumIx parts) ->
-              Just ("Kronecker delta takes two marked indices, e.g. delta~i_j or delta_i~1: " ++ nm)
+        ("FormuraeInternalKroneckerDelta", parts@(_:_))
+          | not (length parts == 2 && all isAlphaNumIx parts
+                 && hasOppositeVariances parts) ->
+              Just ("Kronecker delta takes one upper and one lower marked index, e.g. δ~i_j or δ_i~1: " ++ nm)
         ("epsilon", parts@(_:_))
           | not (length parts == mDim m && all isSingleAlphaIx parts) ->
               Just ("epsilon takes " ++ show (mDim m)
@@ -1207,6 +1314,8 @@ surfaceBanned m _ s =
         _ -> Nothing
     checkIndexTok _ = Nothing
     isAlphaNumIx (IxPart _ ix) = not (null ix) && all isAlphaNum ix
+    hasOppositeVariances [IxPart first _, IxPart second _] = first /= second
+    hasOppositeVariances _ = False
     orElse (Just x) _ = Just x
     orElse Nothing y = y
 
@@ -1242,8 +1351,11 @@ invalidDerivativeOp _ nm =
 -- decorated partial-derivative sign is a coordinate derivative:
 -- `∂_x u`, `∂^2_x u`, `∂'^2_x u`.  A plain marked partial (`∂_i` or
 -- `∂~i`) remains the indexed derivative when the mark is not a declared
--- axis.  A bare partial sign still becomes d.  The small delta becomes the
--- codifferential, and the minus sign becomes '-'.
+-- axis.  A bare partial sign still becomes d.  The small delta remains
+-- Unicode so the canonical codifferential cannot collide with an ASCII user
+-- identifier.  The source spelling Delta-sub-H is mapped to one atomic
+-- identifier before underscore can be read as a tensor index.  The minus
+-- sign becomes '-'.
 transliterate :: String -> String
 transliterate = fst . transliterateWithMap
 
@@ -1256,6 +1368,16 @@ transliterateWithMap :: String -> (String, [Int])
 transliterateWithMap = go 1
   where
     go _ [] = ([], [])
+    go offset ('\916':'_':'H':cs) =
+      appendMapped offset 3 "ΔH" cs
+    -- Indexed small delta is the Kronecker tensor and retains its historical
+    -- hygienic trusted spelling.  Only the unindexed glyph denotes the
+    -- canonical codifferential.  In particular, an ordinary user definition
+    -- named `delta` must not capture the Kronecker tensor after translation.
+    go offset ('\948':rest@(mark:_))
+      | mark == '_' || mark == '~' =
+          appendMapped offset 1 "FormuraeInternalKroneckerDelta" rest
+    go offset ('\948':cs) = appendMapped offset 1 "δ" cs
     go offset ('\8706':cs) =
       case coordDerivative cs of
         Just ((ordr, radius, part), rest) ->
@@ -1347,6 +1469,6 @@ transliterateWithMap = go 1
     tr '\950' = "zeta"     -- ζ
     tr '\967' = "chi"      -- χ
     tr '\960' = "pi"       -- π
-    tr '\948' = "delta"    -- δ
+    tr '\948' = "δ"        -- δ remains distinct from ASCII delta
     tr '\8722' = "-"       -- − (minus sign)
     tr c = [c]

@@ -1,69 +1,27 @@
 declare symbol x, y
-declare symbol remainingTensorIndex
 
 def remainingDimension : Integer := 2
 def remainingManifestId : String :=
   Formurae.Primitives.primitiveManifestV1Id
 
 def remainingU := function (x, y)
-def remainingF1 := function (x, y)
-def remainingF2 := function (x, y)
-def remainingFRaw := generateTensor
-  (\[axis] -> if axis = 1 then remainingF1 else remainingF2) [2]
-def remainingF := remainingFRaw_remainingTensorIndex
-def remainingFUp := remainingFRaw~remainingTensorIndex
-def remainingForm := remainingFRaw
 
 def remainingCoordinates := [(x, 1), (y, 2)]
 def remainingFields :=
-  [ FEIR.fieldEntry 1 "current" [] remainingU
-  , FEIR.fieldEntry 2 "current" [1] remainingF1
-  , FEIR.fieldEntry 2 "current" [2] remainingF2
-  ]
+  [ FEIR.fieldEntry 1 "current" [] remainingU ]
 
 def encodeRemaining value :=
   FEIR.encodeScalar [] remainingCoordinates remainingFields [] [] value
 
 def encodedRemainingU := encodeRemaining remainingU
-def encodedRemainingF :=
-  FEIR.encodeMaterializedTensorValues [] remainingCoordinates remainingFields
-    [] [] [2] [2] 0 (tensorToList remainingF)
-
-def encodedRemainingFUp :=
-  FEIR.encodeMaterializedTensorValues [] remainingCoordinates remainingFields
-    [] [] [2] [1] 0 (tensorToList remainingFUp)
-
-def encodedRemainingForm :=
-  FEIR.encodeMaterializedTensorValues [] remainingCoordinates remainingFields
-    [] [] [2] [2] 1 (tensorToList remainingForm)
 
 def orderedRequest :=
-  Formurae.orderedDerivative
+  Formurae.gridDerivativeChain
     remainingDimension remainingManifestId [|2, 1, 2|] remainingU
 
 def resampleRequest :=
   Formurae.resampleExplicit
     remainingDimension remainingManifestId [|0, 1|] remainingU
-
-def fluxRequest :=
-  Formurae.fluxConservativeDivergence
-    remainingDimension remainingManifestId remainingF
-
-def fluxUpRequest :=
-  Formurae.fluxConservativeDivergence
-    remainingDimension remainingManifestId remainingFUp
-
-def materializedScalarRequest :=
-  Formurae.materialized remainingManifestId remainingU
-
-def materializedTensor :=
-  Formurae.materialized remainingManifestId remainingF
-
-def materializedUpTensor :=
-  Formurae.materialized remainingManifestId remainingFUp
-
-def materializedFormTensor :=
-  Formurae.materialized remainingManifestId remainingForm
 
 def expectedOrdered :=
   FEIR.opaqueNode "derivative.ordered@1" []
@@ -86,46 +44,6 @@ def expectedResample :=
           [FEIR.attributeBoolean False, FEIR.attributeBoolean True])
     ]
 
-def expectedFlux :=
-  FEIR.opaqueNode "flux.conservative-divergence@1" []
-    [ FEIR.tensorValue
-        (FEIR.encodeRankOneTensorValues [] remainingCoordinates
-          remainingFields [] [] 2 2 (tensorToList remainingF))
-    ] []
-
-def expectedFluxUp :=
-  FEIR.opaqueNode "flux.conservative-divergence@1" []
-    [ FEIR.tensorValue
-        (FEIR.encodeRankOneTensorValues [] remainingCoordinates
-          remainingFields [] [] 2 1 (tensorToList remainingF))
-    ] []
-
-def expectedMaterializedScalar :=
-  FEIR.opaqueNode "operator.materialized@1" []
-    [FEIR.scalarValue encodedRemainingU] []
-
-def expectedMaterialized1 :=
-  FEIR.opaqueNode "operator.materialized@1" [1]
-    [FEIR.tensorValue encodedRemainingF] []
-
-def expectedMaterialized2 :=
-  FEIR.opaqueNode "operator.materialized@1" [2]
-    [FEIR.tensorValue encodedRemainingF] []
-
-def expectedMaterializedUp1 :=
-  FEIR.opaqueNode "operator.materialized@1" [1]
-    [ FEIR.tensorValue
-        (FEIR.encodeMaterializedTensorValues [] remainingCoordinates
-          remainingFields [] [] [2] [1] 0 (tensorToList remainingF))
-    ] []
-
-def expectedMaterializedForm1 :=
-  FEIR.opaqueNode "operator.materialized@1" [1]
-    [ FEIR.tensorValue
-        (FEIR.encodeMaterializedTensorValues [] remainingCoordinates
-          remainingFields [] [] [2] [2] 1 (tensorToList remainingF))
-    ] []
-
 assertEqual "ordered derivative preserves noncanonical axis sequence"
   (FEIR.render (encodeRemaining orderedRequest))
   (FEIR.render expectedOrdered)
@@ -133,56 +51,3 @@ assertEqual "ordered derivative preserves noncanonical axis sequence"
 assertEqual "resample preserves absolute placement bits"
   (FEIR.render (encodeRemaining resampleRequest))
   (FEIR.render expectedResample)
-
-assertEqual "conservative divergence carries one complete tensor operand"
-  (FEIR.render (encodeRemaining fluxRequest))
-  (FEIR.render expectedFlux)
-
-assertEqual "conservative divergence preserves flux variance"
-  (FEIR.render (encodeRemaining fluxUpRequest))
-  (FEIR.render expectedFluxUp)
-
-assertEqual "scalar materialization has one scalar result"
-  (FEIR.render (encodeRemaining materializedScalarRequest))
-  (FEIR.render expectedMaterializedScalar)
-
-assertEqual "first materialized tensor component preserves complete operand"
-  (FEIR.render
-    (encodeRemaining (FE.tensorComponentAt materializedTensor [1])))
-  (FEIR.render expectedMaterialized1)
-
-assertEqual "second materialized tensor component preserves complete operand"
-  (FEIR.render
-    (encodeRemaining (FE.tensorComponentAt materializedTensor [2])))
-  (FEIR.render expectedMaterialized2)
-
-assertEqual "materialization payload preserves upper variance"
-  (FEIR.render
-    (encodeRemaining (FE.tensorComponentAt materializedUpTensor [1])))
-  (FEIR.render expectedMaterializedUp1)
-
-assertEqual "materialization payload preserves differential-form degree"
-  (FEIR.render
-    (encodeRemaining (FE.tensorComponentAt materializedFormTensor [1])))
-  (FEIR.render expectedMaterializedForm1)
-
-assertEqual "materialization result retains upper variance structurally"
-  (tensorVariances materializedUpTensor, dfOrder materializedUpTensor)
-  (["up"], 0)
-
-assertEqual "materialization result retains anonymous form degree structurally"
-  (Formurae.logicalTensorVariances materializedFormTensor,
-   dfOrder materializedFormTensor)
-  (["down"], 1)
-
-assertEqual "generic FEIR tensor encoder uses actual upper variance"
-  (FEIR.render
-    (FEIR.encodeTensor [] remainingCoordinates remainingFields [] []
-      remainingFUp))
-  (FEIR.render encodedRemainingFUp)
-
-assertEqual "generic FEIR tensor encoder uses actual form metadata"
-  (FEIR.render
-    (FEIR.encodeTensor [] remainingCoordinates remainingFields [] []
-      remainingForm))
-  (FEIR.render encodedRemainingForm)

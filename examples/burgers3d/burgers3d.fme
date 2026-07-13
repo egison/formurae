@@ -13,8 +13,6 @@ param k0 = 6.283185307179586
 
 extern sin
 extern cos
-def Δ u = divg (grad u)
-
 field u : scalar
 
 init:

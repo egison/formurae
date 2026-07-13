@@ -1,0 +1,7 @@
+mode dec
+dimension 1
+axes x
+field u : scalar
+embedding [δ]
+step:
+  u' = u

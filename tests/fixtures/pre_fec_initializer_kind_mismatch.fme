@@ -1,0 +1,10 @@
+mode dec
+dimension 1
+axes x
+field A : 0-form @ primal
+field u : scalar
+init:
+  u := A
+step:
+  u' = u
+  A' = A

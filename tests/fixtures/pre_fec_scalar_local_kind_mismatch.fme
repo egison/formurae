@@ -1,0 +1,8 @@
+mode collocated
+dimension 1
+axes x
+field V_i
+field u : scalar
+step:
+  local q = V
+  u' = `(∂_x q)

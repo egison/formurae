@@ -46,15 +46,77 @@ expect_parse_failure() {
   grep -F "pre-fec: error: $expected" "$WORK/$fixture.err" >/dev/null
 }
 
+expect_success() {
+  fixture=$1
+  source="tests/fixtures/$fixture.fme"
+  cabal run -v0 pre-fec -- "$source" > "$WORK/$fixture.out"
+  if [ ! -s "$WORK/$fixture.out" ]; then
+    printf 'pre-fec produced no output for valid fixture: %s\n' "$source" >&2
+    exit 1
+  fi
+}
+
 cd "$ROOT"
 expect_failure pre_fec_effect_derivative_error \
-  '6:13: analytic derivative contains discrete operation: lb.orthogonal@1'
-expect_failure pre_fec_effect_function_alias_error \
   '7:13: analytic derivative contains discrete operation: lb.orthogonal@1'
+expect_failure pre_fec_effect_function_alias_error \
+  '8:13: analytic derivative contains discrete operation: lb.orthogonal@1'
+expect_failure pre_fec_effect_contract_reducer_error \
+  '8:8: contractWith receives discrete operation as a higher-order argument: resample.explicit@1'
 expect_failure pre_fec_forward_definition_error \
   '5:15: forward reference to user definition second'
 expect_failure pre_fec_unknown_axis_error \
-  '6:8: orderedD uses unknown coordinate y'
+  '6:8: quoted derivative uses unknown coordinate y'
+expect_failure pre_fec_variable_hodge_laplacian_error \
+  '7:8: canonical Δ_H is not supported for variable metric geometry; write its metric-dependent discretization explicitly'
+expect_failure pre_fec_variable_hodge_composition_error \
+  '8:8: hodge (d (hodge A)) cannot be analytically expanded on variable metric geometry; write canonical δ A so the compiler preserves the weighted discrete adjoint'
+expect_failure pre_fec_quoted_tensor_operand_error \
+  '7:8: quoted derivative requires a scalar operand, but received ordinary tensor'
+expect_failure pre_fec_scalar_delta_tensor_error \
+  '6:10: scalar Δ requires a scalar operand, but received ordinary tensor'
+expect_failure pre_fec_codiff_tensor_error \
+  '6:10: canonical δ requires a scalar or differential form, but received ordinary tensor'
+expect_failure pre_fec_shadowed_intrinsic_kind_error \
+  '9:8: canonical δ requires a statically known scalar or differential form; untyped definition parameters cannot cross this operator boundary'
+expect_failure pre_fec_divg_rank_unknown_error \
+  '7:8: canonical δ requires a statically known scalar or differential form; untyped definition parameters cannot cross this operator boundary'
+expect_failure pre_fec_canonical_arity_error \
+  '6:8: canonical δ is unary, but received 2 operands'
+expect_failure pre_fec_canonical_alias_error \
+  '6:21: canonical δ cannot be used as a first-class value; apply it directly to one statically typed operand'
+expect_failure pre_fec_form_zero_scalar_mix_error \
+  '7:8: quoted derivative requires a scalar operand, but received 0-form'
+expect_failure pre_fec_scalar_local_kind_mismatch \
+  '7:13: local q declares scalar, but its RHS has ordinary tensor kind'
+expect_failure pre_fec_form_local_kind_mismatch \
+  '7:31: local q declares 1-form, but its RHS has ordinary tensor kind'
+expect_failure pre_fec_dot_shadow_kind_error \
+  '9:8: canonical δ requires a statically known scalar or differential form; untyped definition parameters cannot cross this operator boundary'
+expect_failure pre_fec_update_kind_mismatch \
+  '8:8: field u declares scalar, but its RHS has 0-form kind'
+expect_failure pre_fec_initializer_kind_mismatch \
+  '7:8: field u declares scalar, but its RHS has 0-form kind'
+expect_parse_failure pre_fec_metric_kind_mismatch \
+  'metric scale expression requires a scalar value, but received ordinary tensor'
+expect_parse_failure pre_fec_embedding_canonical_value_error \
+  'canonical δ cannot be used as a first-class value; apply it directly to one statically typed operand'
+expect_parse_failure pre_fec_dd_kind_mismatch \
+  'assert-dd-zero internally applies canonical d and requires a scalar or differential form, but received ordinary tensor'
+expect_parse_failure pre_fec_raw_opaque_forge_error \
+  "reserved normalization capability 'functionSymbol' cannot be used in Formurae source (line 5)"
+expect_parse_failure pre_fec_step_internal_bridge_error \
+  "reserved normalization capability 'FormuraeInternalGridWholeDerivative' cannot be used in Formurae source (line 8)"
+expect_parse_failure pre_fec_metric_opaque_forge_error \
+  "reserved normalization capability 'functionSymbol' cannot be used in Formurae source (line 4)"
+expect_parse_failure pre_fec_metric_string_comment_opaque_forge_error \
+  "reserved normalization capability 'functionSymbol' cannot be used in Formurae source (line 4)"
+expect_parse_failure pre_fec_embedding_string_comment_opaque_forge_error \
+  "reserved normalization capability 'functionSymbol' cannot be used in Formurae source (line 4)"
+expect_parse_failure pre_fec_axis_operator_collision \
+  "coordinate name 'Δ' is reserved for a surface operator or intrinsic (axes line 3)"
+expect_success pre_fec_reserved_string_near_miss
+expect_success pre_fec_raw_shadowed_canonical
 expect_parse_failure pre_fec_definition_param_collision \
   "definition name 'helper' conflicts with param value binding (definition line 6, param line 4)"
 expect_parse_failure pre_fec_definition_field_collision \

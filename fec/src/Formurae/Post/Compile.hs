@@ -119,7 +119,7 @@ compileProgram program = do
     (compileBackendInitializer initialEnvironment) backendState
   backendCarryAssignments <- mapM
     (compileBackendCarry initialEnvironment) backendState
-  (bindings, materializedAssignments, updateAssignments) <-
+  (bindings, stepAssignments) <-
     compileActions initialEnvironment (feProgramStepActions program)
   let _ = bindings
       parameters =
@@ -142,9 +142,8 @@ compileProgram program = do
             (Backend.backendStepSchedule backendPlan))
       rawHelpers = map rawHelperText (feProgramRawHelpers program)
       allInitializers = initializerAssignments ++ backendInitializerAssignments
-      allBindings = materializedAssignments
-      allUpdates = updateAssignments ++ backendCarryAssignments
-  ensureUniqueTargets (allInitializers ++ allBindings ++ allUpdates)
+      allStepAssignments = stepAssignments ++ backendCarryAssignments
+  ensureUniqueTargets (allInitializers ++ allStepAssignments)
   Right FProgram
     { fProgramDimension = feProgramDimension program
     , fProgramAxes = map axisDeclSourceName (feProgramAxes program)
@@ -152,8 +151,7 @@ compileProgram program = do
     , fProgramHelpers = externalHelpers ++ rawHelpers
     , fProgramStateStorage = userStateStorage ++ backendStateNames
     , fProgramInitializers = allInitializers
-    , fProgramStepBindings = allBindings
-    , fProgramStepUpdates = allUpdates
+    , fProgramStepAssignments = allStepAssignments
     }
   where
     stateFields =
@@ -165,15 +163,19 @@ compileProgram program = do
 compileActions
     :: CompileEnvironment
     -> [FEAction]
-    -> Either PostError ([(NodeId, FEValue)], [FAssignment], [FAssignment])
-compileActions environment actions = go environment [] [] [] [] actions
+    -> Either PostError ([(NodeId, FEValue)], [FAssignment])
+compileActions environment actions = go environment [] [] [] actions
   where
-    go _current bindings scheduled materialized updates [] =
+    -- Backend auxiliaries are scheduled immediately before the FEIR action
+    -- that first consumes them.  Materializations and updates then enter the
+    -- same stream in source order; separating them would change the meaning
+    -- of references to earlier NextTime values.
+    go _current bindings scheduled assignments [] =
       case [key | key <- allPlannedKeys, key `notElem` scheduled] of
-        [] -> Right (reverse bindings, materialized, updates)
+        [] -> Right (reverse bindings, assignments)
         remaining -> Left (PostInvalidAuxiliaryPlan
           ("unscheduled opaque requests: " ++ show remaining))
-    go current bindings scheduled materialized updates (action : rest) = do
+    go current bindings scheduled assignments (action : rest) = do
       let needed = actionOpaqueSemanticKeys action
           origin = actionOriginId action
       (nextScheduled, backendAssignments) <- withPostOrigin origin
@@ -183,17 +185,17 @@ compileActions environment actions = go environment [] [] [] [] actions
           let nextEnvironment = current
                 { compileBindings = (nodeId, value) : compileBindings current }
           in go nextEnvironment ((nodeId, value) : bindings) nextScheduled
-               (materialized ++ backendAssignments) updates rest
+               (assignments ++ backendAssignments) rest
         Materialize fieldId value materializeOrigin -> do
-          assignments <- withPostOrigin materializeOrigin $ do
+          materializationAssignments <- withPostOrigin materializeOrigin $ do
             field <- lookupField current fieldId
             compileMaterialization current field value
           go current bindings nextScheduled
-            (materialized ++ backendAssignments ++ assignments) updates rest
+            (assignments ++ backendAssignments ++ materializationAssignments) rest
         UpdateField equation -> do
-          assignments <- compileEquation current StepEquation equation
+          updateAssignments <- compileEquation current StepEquation equation
           go current bindings nextScheduled
-            (materialized ++ backendAssignments) (updates ++ assignments) rest
+            (assignments ++ backendAssignments ++ updateAssignments) rest
 
     allPlannedKeys =
       concatMap fst (plannedBackendRequests (compileBackendPlan environment))
@@ -229,20 +231,6 @@ plannedBackendRequests plan =
   ++
   [ (metricRequestKeys request, metricBackendRequestSchedule request)
   | request <- Backend.backendMetricCodifferentialRequests plan
-  ]
-  ++
-  [ ( [Backend.conservativeDivergenceSemanticKey request]
-    , Backend.conservativeDivergenceFluxFields request
-      ++ [Backend.conservativeDivergenceResultField request]
-    )
-  | request <- Backend.backendConservativeDivergenceRequests plan
-  ]
-  ++
-  [ ( concatMap Backend.materializedComponentSemanticKeys components
-    , map Backend.materializedComponentField components
-    )
-  | request <- Backend.backendMaterializedRequests plan
-  , let components = Backend.materializedRequestComponents request
   ]
 
 backendRequestSchedule :: Backend.LbRequestPlan -> [Backend.AuxiliaryFieldPlan]
@@ -339,9 +327,6 @@ auxiliaryFunctionIds auxiliary =
     Backend.ComputeMetricCodifferentialFlux operand _ _ _ _ _ ->
       scalarFunctionIds operand
     Backend.ComputeMetricCodifferentialResult {} -> []
-    Backend.ComputeConservativeFlux operand -> scalarFunctionIds operand
-    Backend.ComputeConservativeResult {} -> []
-    Backend.ComputeMaterialized operand -> scalarFunctionIds operand
 
 valueFunctionIds :: FEValue -> [FunctionId]
 valueFunctionIds value =
@@ -514,14 +499,6 @@ compileBackendStep environment auxiliary = do
           fluxNames coefficientName sign ->
         lowerMetricCodifferentialResult environment fluxNames
           coefficientName sign
-      Backend.ComputeConservativeFlux operand ->
-        lowerScalar environment
-          (Backend.auxiliaryFieldPlacement auxiliary) operand
-      Backend.ComputeConservativeResult fluxNames ->
-        lowerConservativeResult environment fluxNames
-      Backend.ComputeMaterialized operand ->
-        lowerScalar environment
-          (Backend.auxiliaryFieldPlacement auxiliary) operand
       Backend.SampleGeometry _ -> Left (PostInvalidAuxiliaryPlan
         ("step auxiliary samples geometry: "
           ++ Backend.auxiliaryFieldName auxiliary))
@@ -637,26 +614,6 @@ lowerLbResult environment fluxNames volumeName = do
           ])
         step)
 
-lowerConservativeResult
-    :: CompileEnvironment
-    -> [(AxisId, String)]
-    -> Either PostError FExpr
-lowerConservativeResult environment fluxNames =
-  normalizeExpr . FAdd <$> mapM divergence fluxNames
-  where
-    zeroOffsets = replicate (programDimension environment) 0
-    divergence (axisId@(AxisId axisNumber), fluxName) = do
-      fluxHere <- gridReference environment fluxName zeroOffsets
-      fluxPrevious <- gridReference environment fluxName
-        (adjustOffset axisNumber (-1) zeroOffsets)
-      step <- axisStep environment axisId
-      Right (normalizeExpr (FDiv
-        (normalizeExpr (FAdd
-          [ fluxHere
-          , FMul [FExact (-1) 1, fluxPrevious]
-          ]))
-        step))
-
 gridReference
     :: CompileEnvironment -> String -> [Int] -> Either PostError FExpr
 gridReference environment name offsets = do
@@ -753,11 +710,6 @@ lowerOpaqueShifted environment targetPlacement sampleOffsets opaque
       lowerOrderedDerivative environment targetPlacement sampleOffsets opaque
   | opaqueDiscreteOpId opaque == resampleOperationId =
       lowerResample environment targetPlacement sampleOffsets opaque
-  | opaqueDiscreteOpId opaque
-      `elem` [ Primitives.fluxConservativeDivergenceV1OpId
-             , Primitives.operatorMaterializedV1OpId
-             ] =
-      lowerPlannedOpaque environment targetPlacement sampleOffsets opaque
   | opaqueDiscreteOpId opaque == Backend.metricCodifferentialOperationId = do
       location <- inferMetricCodifferentialLocation environment opaque
       actual <- mapLocationError
@@ -774,21 +726,6 @@ lowerOpaqueShifted environment targetPlacement sampleOffsets opaque
     matchingRequest request =
       Backend.lbRequestSemanticKey request
         == opaqueDiscreteSemanticKey opaque
-
-lowerPlannedOpaque
-    :: CompileEnvironment
-    -> Placement
-    -> [Int]
-    -> OpaqueDiscrete
-    -> Either PostError FExpr
-lowerPlannedOpaque environment targetPlacement sampleOffsets opaque = do
-  auxiliary <- plannedOpaqueAuxiliary environment opaque
-  let actualPlacement = Backend.auxiliaryFieldPlacement auxiliary
-  if actualPlacement == targetPlacement
-    then gridReference environment
-      (Backend.auxiliaryFieldName auxiliary) sampleOffsets
-    else mapExplicitStencil opaque (Left
-      (ExplicitStencilTargetMismatch targetPlacement actualPlacement))
 
 lowerOrderedDerivative
     :: CompileEnvironment
@@ -1361,11 +1298,6 @@ inferScalarLocation environment semanticKey scalar =
           inferOrderedDerivativeLocation environment opaque
       | opaqueDiscreteOpId opaque == resampleOperationId ->
           inferResampleLocation environment opaque
-      | opaqueDiscreteOpId opaque
-          `elem` [ Primitives.fluxConservativeDivergenceV1OpId
-                 , Primitives.operatorMaterializedV1OpId
-                 ] ->
-          inferPlannedOpaqueLocation environment opaque
       | opaqueDiscreteOpId opaque == Backend.metricCodifferentialOperationId ->
           inferMetricCodifferentialLocation environment opaque
       | otherwise -> Left (PostUnsupportedOpaque (opaqueDiscreteOpId opaque))
@@ -1380,43 +1312,6 @@ inferScalarLocation environment semanticKey scalar =
       foldScalarLocations semanticKey locations
     inferCall [] = Right sampleableLocation
     inferCall arguments = inferMany arguments
-
-inferPlannedOpaqueLocation
-    :: CompileEnvironment
-    -> OpaqueDiscrete
-    -> Either PostError ScalarLocationInfo
-inferPlannedOpaqueLocation environment opaque = do
-  auxiliary <- plannedOpaqueAuxiliary environment opaque
-  let placement = Backend.auxiliaryFieldPlacement auxiliary
-  lattice <-
-    if opaqueDiscreteOpId opaque == Primitives.operatorMaterializedV1OpId
-      then do
-        request <- mapPrimitiveContract opaque
-          (parseMaterializedComponentRequest opaque)
-        source <- inferScalarLocation environment
-          (opaqueDiscreteSemanticKey opaque)
-          (materializedSourceComponent request)
-        Right (scalarLocationLattice source)
-      else Right (Just CollocatedLattice)
-  Right ScalarLocationInfo
-    { scalarLocationCapability = LocatedCapability placement
-    , scalarLocationLattice = lattice
-    }
-
-plannedOpaqueAuxiliary
-    :: CompileEnvironment
-    -> OpaqueDiscrete
-    -> Either PostError Backend.AuxiliaryFieldPlan
-plannedOpaqueAuxiliary environment opaque = do
-  resultName <- case Backend.lookupOpaqueResult (compileBackendPlan environment)
-      (opaqueDiscreteSemanticKey opaque) of
-    Just name -> Right name
-    Nothing -> Left (PostUnsupportedOpaque (opaqueDiscreteOpId opaque))
-  case find ((== resultName) . Backend.auxiliaryFieldName)
-      (Backend.backendStepSchedule (compileBackendPlan environment)) of
-    Just auxiliary -> Right auxiliary
-    Nothing -> Left (PostInvalidAuxiliaryPlan
-      ("opaque result has no scheduled auxiliary: " ++ resultName))
 
 inferPredicateLocation
     :: CompileEnvironment

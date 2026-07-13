@@ -18,10 +18,12 @@ for test in \
   feir_primitive_bindings \
   feir_registry_fingerprint \
   tensor_expr_parser \
+  pre_canonical_form_surface \
   surface_indexed_lhs \
   pre_parse_profile \
   pre_registry \
   pre_effect \
+  pre_type_check \
   pre_provenance \
   pre_raw_egison_fallback \
   pre_emit_egison \
@@ -82,6 +84,8 @@ sh tests/pre_static_diagnostic_cli.sh
 sh tests/pre_user_definitions.sh
 sh tests/post_diagnostic_cli.sh
 sh tests/pre_provenance_e2e.sh
+# Includes the typed conservative-local FEIR check in
+# tests/pre_conservative_local_feir.hs.
 sh tests/pre_fec_pipeline.sh
 
 printf 'Formurae compiler suite: ok\n'

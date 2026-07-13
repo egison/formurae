@@ -13,45 +13,20 @@ main = do
     "remaining-primitives" source
   unit <- requireRight =<< emitNormalizationUnit
     Primitives.primitiveManifestV1Id model
-  assertContains "ordered axes become stable IDs"
+  assertContains "nested quoted-derivative axes become stable IDs"
     "FormuraeInternalOrderedDerivative [| 1, 2 |] u" unit
-  assertContains "absolute placement bits remain explicit"
+  assertContains "canonical resample keeps absolute placement bits explicit"
     "FormuraeInternalResampleExplicit [| 1, 1 |] u" unit
-  assertContains "same-typed tensor algebra supplies local metadata"
-    "FormuraeInternalMaterialized (F + G)"
+  assertContains "typed indexed local scopes its index over the stored RHS"
+    "def FormuraeInternalValue1_i : Tensor MathValue := F_i + G_i" unit
+  assertContains "typed indexed local uses FEIR tensor materialization"
+    "FormuraeInternalEncodeTensor [2] [\"down\"] 0 FormuraeInternalValue1"
     unit
-  assertContains "nested tensor materialization is parenthesized"
-    "FormuraeInternalFluxConservativeDivergence (FormuraeInternalMaterialized (F + G))"
-    unit
-  assertContains "nested conservative divergence is parenthesized"
-    "FormuraeInternalMaterialized (FormuraeInternalFluxConservativeDivergence F)"
-    unit
-
-  aliasModel <- parseModel "remaining-aliases.fme" "remaining-aliases"
-    aliasSource
-  aliasUnit <- requireRight =<< emitNormalizationUnit
-    Primitives.primitiveManifestV1Id aliasModel
-  assertContains "orderedDerivative alias"
-    "FormuraeInternalOrderedDerivative [| 1 |] u" aliasUnit
-  assertContains "interpolate alias"
-    "FormuraeInternalResampleExplicit [| 1 |] u" aliasUnit
-  assertContains "conservativeDiv alias"
-    "FormuraeInternalFluxConservativeDivergence F" aliasUnit
-
-  genericModel <- parseModel "generic-materialize.fme"
-    "generic-materialize" genericSource
-  genericUnit <- requireRight =<< emitNormalizationUnit
-    Primitives.primitiveManifestV1Id genericModel
-  assertContains "generic materialization definition has no static metadata"
-    "FormuraeInternalMaterialized X" genericUnit
-  assertNotContains "ambient primitive calls have no hidden context"
-    "FormuraeInternalContext" genericUnit
-  assertContains "upper-vector equation uses the indexed definition sugar"
-    "def FormuraeInternalValue1~i : Tensor MathValue := stored X" genericUnit
-  assertContains "indexed result is read back with its declared variance"
-    "FormuraeInternalValue1~formuraeTensorIndex1" genericUnit
-  assertContains "the same generic definition accepts a differential form"
-    "def FormuraeInternalValue2 := stored A" genericUnit
+  mapM_ (\removed -> assertNotContains
+      "removed primitive bridge is absent" removed unit)
+    [ "FormuraeInternalFluxConservativeDivergence"
+    , "FormuraeInternalMaterialized"
+    ]
 
   indexedModel <- parseModel "indexed-targets.fme" "indexed-targets"
     indexedTargetSource
@@ -80,38 +55,33 @@ main = do
   assertContains "explicit indexed let reference remains explicit"
     "def FormuraeInternalValue5_i : Tensor MathValue := T_i" completionUnit
 
+  localModel <- parseModel "tensor-locals.fme" "tensor-locals"
+    tensorLocalSource
+  localUnit <- requireRight =<< emitNormalizationUnit
+    Primitives.primitiveManifestV1Id localModel
+  assertContains "indexed local scopes its LHS index over the RHS"
+    "def FormuraeInternalValue1_i : Tensor MathValue := Q_i"
+    localUnit
+  assertContains "rank-two local keeps mixed variance metadata"
+    "def FormuraeInternalValue2~i_j : Tensor MathValue := T~i_j"
+    localUnit
+  assertContains "form local keeps the mathematical form result"
+    "def FormuraeInternalValue3 := FormuraeInternalD A" localUnit
+  assertContains "vector local is encoded as a tensor materialization"
+    "FormuraeInternalEncodeTensor [2] [\"down\"] 0 FormuraeInternalValue1"
+    localUnit
+  assertContains "rank-two local is encoded as a tensor materialization"
+    "FormuraeInternalEncodeTensor [2,2] [\"up\",\"down\"] 0 FormuraeInternalValue2"
+    localUnit
+  assertContains "form local keeps its degree at the FEIR boundary"
+    "FormuraeInternalEncodeTensor [2,2] [\"down\",\"down\"] 2 FormuraeInternalValue3"
+    localUnit
+
   badBitsModel <- parseModel "bad-resample.fme" "bad-resample"
     badBitsSource
   badBits <- emitNormalizationUnit Primitives.primitiveManifestV1Id badBitsModel
   assertLeft "resample requires dimension-many literal bits" isBadBits badBits
   putStrLn "pre-fec remaining primitive emitter tests: ok"
-
-aliasSource :: String
-aliasSource = unlines
-  [ "mode collocated"
-  , "dimension 1"
-  , "axes x"
-  , "field u : scalar"
-  , "field v : scalar @ dual"
-  , "field F_i @ primal"
-  , "step:"
-  , "  u' = orderedDerivative(u, x) + conservativeDiv(F)"
-  , "  v' = interpolate(u, 1)"
-  , "  F'_i = F_i"
-  ]
-
-genericSource :: String
-genericSource = unlines
-  [ "mode dec"
-  , "dimension 2"
-  , "axes x, y"
-  , "field X~i @ primal"
-  , "field A : 1-form @ primal"
-  , "def stored X = materialize(X)"
-  , "step:"
-  , "  X'~i = stored X"
-  , "  A' = stored A"
-  ]
 
 indexedTargetSource :: String
 indexedTargetSource = unlines
@@ -142,6 +112,21 @@ indexedLetCompletionSource = unlines
   , "  C'_i = T"
   , "  N'~i_j = U"
   , "  D'_i = T_i"
+  ]
+
+tensorLocalSource :: String
+tensorLocalSource = unlines
+  [ "mode dec"
+  , "dimension 2"
+  , "axes x, y"
+  , "field A : 1-form @ primal"
+  , "field Q_i @ primal"
+  , "field T~i_j @ dual"
+  , "step:"
+  , "  local q_i @ primal = Q_i"
+  , "  local stress~i_j @ dual = T~i_j"
+  , "  local omega : 2-form @ primal = d A"
+  , "  A' = A"
   ]
 
 badBitsSource :: String

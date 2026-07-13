@@ -12,6 +12,7 @@ import Formurae.FEIR.Syntax (VersionedOpId(..))
 import Formurae.Pre.Effect
 import Formurae.Pre.EmitEgison
 import Formurae.Pre.Parse (parseModel)
+import Formurae.Pre.TypeCheck
 import qualified Formurae.Syntax as Surface
 import Paths_fec (getDataFileName)
 import Text.Read (readMaybe)
@@ -32,6 +33,8 @@ main = do
     else failWith "installed primitive manifest does not match generated bindings"
   _ <- either (failWith . renderEffectError model) pure
     (inferModelEffects manifest model)
+  _ <- either (failWith . renderOperatorTypeError) pure
+    (validateModelOperatorTypes model)
   emitted <- emitNormalizationUnit Primitives.primitiveManifestV1Id model
   output <- either (failWith . renderEmitError) pure emitted
   putStr output
@@ -43,6 +46,12 @@ renderEffectError model problem =
   where
     source = effectContextSource model (effectErrorContext problem)
     contextPrefix = effectErrorContext problem ++ ": "
+
+renderOperatorTypeError :: OperatorTypeError -> String
+renderOperatorTypeError problem =
+  maybe "" ((++ ": ") . renderSourceStart)
+    (operatorTypeErrorSource problem)
+  ++ operatorTypeErrorMessage problem
 
 effectContextSource :: Surface.Model -> String -> Maybe Surface.SourceText
 effectContextSource model context
@@ -76,10 +85,21 @@ renderEffectIssue issue =
     AnalyticDerivativeOfDiscrete operations ->
       "analytic derivative contains discrete operation"
       ++ plural operations ++ ": " ++ renderOperations operations
+    GridDerivativeOfDiscrete operations ->
+      "quoted derivative contains nested discrete operation"
+      ++ plural operations ++ ": " ++ renderOperations operations
     EffectfulHigherOrderArgument consumer operations ->
       consumer ++ " receives discrete operation"
       ++ plural operations ++ " as a higher-order argument: "
       ++ renderOperations operations
+    CanonicalOperatorModeMismatch message -> message
+    VariableMetricHodgeLaplacianUnsupported ->
+      "canonical Δ_H is not supported for variable metric geometry; "
+      ++ "write its metric-dependent discretization explicitly"
+    VariableMetricHodgeCompositionUnsupported ->
+      "hodge (d (hodge A)) cannot be analytically expanded on variable "
+      ++ "metric geometry; write canonical δ A so the compiler preserves "
+      ++ "the weighted discrete adjoint"
   where
     plural [_] = ""
     plural _ = "s"

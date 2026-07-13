@@ -1,0 +1,12 @@
+mode collocated
+dimension 2
+axes x, y
+
+field Q_i
+
+init:
+  Q_i = [| 0, 0 |]_i
+
+step:
+  local q_i @ primal = Q_i
+  Q'_i = Q_i
