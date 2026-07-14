@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Formurae future work: 一般計量対応(直交性要求の削除)</title>
+<style>
+  :root { --ink:#1c1e21; --sub:#5a6270; --line:#e3e6ea; --accent:#0b5fa5; }
+  * { box-sizing:border-box; }
+  body { margin:0; color:var(--ink); background:#f6f7f9;
+         font-family:"Hiragino Sans","Noto Sans JP",Helvetica,Arial,sans-serif; }
+  header { padding:28px 32px; background:#fff; border-bottom:1px solid var(--line); }
+  header h1 { margin:0 0 6px; font-size:22px; }
+  header p { margin:4px 0; max-width:980px; color:var(--sub); font-size:13.5px; }
+  main { max-width:920px; margin:auto; padding:12px 24px 80px; font-size:14px; line-height:1.8; }
+  h2 { margin:40px 0 10px; padding-left:10px; color:var(--accent);
+       border-left:4px solid var(--accent); font-size:17px; }
+  h3 { margin:24px 0 6px; font-size:14.5px; }
+  a { color:var(--accent); }
+  code { padding:1px 5px; border-radius:4px; background:#eef1f4;
+         font:12.5px "SF Mono",Menlo,Consolas,monospace; }
+  pre { overflow-x:auto; padding:12px 15px; border-radius:8px;
+        color:#dbe7f6; background:#0e1726;
+        font:12.5px/1.6 "SF Mono",Menlo,Consolas,monospace; }
+  table { width:100%; margin:10px 0; border-collapse:collapse; font-size:13px; }
+  th,td { padding:7px 10px; border:1px solid var(--line); background:#fff; text-align:left; }
+  th { background:#f0f3f7; }
+  .toc,.note { margin:18px 0; padding:11px 16px; border:1px solid var(--line);
+               border-radius:8px; background:#fff; font-size:13px; }
+  .note { background:#fff9e9; }
+  figure { margin:18px 0; padding:14px; border:1px solid var(--line);
+           border-radius:8px; background:#fff; }
+  figcaption { margin-top:8px; color:var(--sub); font-size:12.5px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Formurae future work: 一般計量対応(直交性要求の削除)</h1>
+  <p>検討メモ(2026-07-14)。現状は着手予定なしの future work であり、
+     <code>design/20260713-quoted-derivative-and-minimal-discrete-surface.md</code>(§非目標)でも
+     一般非直交 metric は初版の非目標と明記されている。本メモは、着手する場合の依存マップ・
+     作業計画・費用対効果の評価を記録する。</p>
+  <p><a href="general-metric.en.html">English version</a></p>
+</header>
+<main>
+
+<div class="toc">
+  <b>目次:</b>
+  <a href="#summary">要点</a> /
+  <a href="#map">依存マップ</a> /
+  <a href="#math">数学的変更点</a> /
+  <a href="#staggered">staggered DEC との衝突</a> /
+  <a href="#plan">作業フェーズ</a> /
+  <a href="#decisions">決定点</a> /
+  <a href="#benefits">メリット評価</a> /
+  <a href="#recommendation">推奨</a>
+</div>
+
+<h2 id="summary">1. 要点 — 「assert を消す」だけでは成立しない</h2>
+
+<p>現在 Formurae は、<code>metric scale [...]</code> / <code>embedding [...]</code> で宣言された幾何の誘導計量が
+記号的に直交(非対角成分がすべて 0 に簡約)であることを pre-fec の CAS 検査で要求し、
+そうでなければ reject する。この検査は単なるガードではなく、
+<b>下流全体が「計量 = scale factor の対角行列」という表現に依存している</b>:
+volume = ∏hᵢ、Hodge 係数 = V/∏hᵢ²、<code>lb</code> 係数 = V/hₐ²。
+検査だけ外すと、これらが非対角成分を黙って無視した誤った数値を出す。</p>
+
+<p>したがって「直交性要求の削除」の実体は、
+<b>一般計量を正しく扱う経路の新設 + 直交性検査の役割を gate から分類器へ変更する</b>ことである。
+論文(<code>formurae-paper/main.tex</code> の limitations)も必要 3 要素を明言している:
+(1) covariant operator の仕様確定、(2) cross term の placement 規則、
+(3) 新規または改訂した opaque discrete contract。
+長期の受け皿は <code>design/20260713</code> §9.3 の typed operator graph
+(<code>weighted-adjoint-d</code> primitive)である。</p>
+
+<h2 id="map">2. 直交性依存の現状マップ(4 層)</h2>
+
+<h3>① Egison CAS ライブラリ層</h3>
+<table>
+<tr><th>ファイル</th><th>依存内容</th></tr>
+<tr><td><code>lib/formurae-geometry.egi</code></td>
+    <td><code>FE.inverseDiagonalMetricTensor</code>(対角逆行列のみ)、
+        <code>FE.orthogonalVolume</code>(∏hᵢ)、
+        <code>FE.orthogonalHodgeCoefficient</code>(V/∏hᵢ²)</td></tr>
+<tr><td><code>lib/formurae-operators.egi</code></td>
+    <td><code>flat</code>/<code>sharp</code>/<code>hodge</code>/<code>codiff</code>/<code>scalarLaplacian</code> が
+        すべて scale vector を受け取り対角計量を再構成。<code>Formurae.lbOrthogonal</code> ラッパ</td></tr>
+<tr><td><code>lib/formurae-primitives.egi</code></td>
+    <td><code>lb.orthogonal@1</code> の manifest</td></tr>
+</table>
+
+<h3>② pre-fec</h3>
+<table>
+<tr><th>ファイル</th><th>依存内容</th></tr>
+<tr><td><code>fec/src/Formurae/Pre/EmitEgison.hs</code></td>
+    <td><code>prepareGeometryDeclarations</code> が非対角成分 = 0 の CAS assert
+        (<code>feGeometryOrthogonalityVerified</code>)を emit し、
+        <code>feGeometryScale</code>/<code>feGeometryVolume</code>/<code>feGeometryInverseMetric</code>
+        をすべて対角前提で定義</td></tr>
+<tr><td><code>fec/src/Formurae/Pre/Registry.hs</code></td>
+    <td><code>OrthogonalScaleGeometry</code> / <code>EmbeddedOrthogonalGeometry</code> の構築</td></tr>
+<tr><td><code>fec/src/Formurae/Pre/Effect.hs</code></td>
+    <td>表層 <code>lb</code> → <code>lb.orthogonal@1</code> への固定マッピング</td></tr>
+<tr><td><code>fec/src/Formurae/Pre/Parse.hs</code></td>
+    <td>予約 ambient 名リスト(<code>feGeometryOrthogonalityVerified</code> など)</td></tr>
+</table>
+
+<h3>③ FEIR 契約</h3>
+<table>
+<tr><th>ファイル</th><th>依存内容</th></tr>
+<tr><td><code>fec/src/Formurae/FEIR/Syntax.hs</code></td>
+    <td><code>GeometryKind</code>(<code>OrthogonalScaleGeometry</code> / <code>EmbeddedOrthogonalGeometry</code>)と
+        <code>GeometryNF.geometryOrthogonalityVerified :: Bool</code>。
+        なお <code>GeometryNF</code> は full metric と inverse metric を <code>TensorNF</code> として既に保持しており、
+        データは揃っている。対角前提なのは消費側</td></tr>
+<tr><td><code>fec/src/Formurae/FEIR/Validate.hs</code></td>
+    <td><code>UnverifiedOrthogonalGeometry</code> エラー</td></tr>
+<tr><td><code>fec/src/Formurae/FEIR/Codec.hs</code></td>
+    <td><code>orthogonality-verified</code> フィールドの serialization</td></tr>
+<tr><td><code>fec/src/Formurae/FEIR/RegistryFingerprint.hs</code></td>
+    <td>geometry kind タグ(<code>orthogonal-scale</code> / <code>embedded-orthogonal</code>)</td></tr>
+<tr><td><code>fec/src/Formurae/FEIR/PrimitiveBindings.hs</code> +
+        <code>spec/feir-primitives-v1.sexp</code> +
+        <code>lib/formurae-primitives.egi</code></td>
+    <td><code>lb.orthogonal@1</code> の manifest 3 箇所同期(fingerprint が検知)</td></tr>
+</table>
+
+<h3>④ post-fec</h3>
+<table>
+<tr><th>ファイル</th><th>依存内容</th></tr>
+<tr><td><code>fec/src/Formurae/Post/BackendPlan.hs</code></td>
+    <td><code>lb.orthogonal@1</code> の lowering: 軸ごとの係数場 V/hₐ²
+        (<code>OrthogonalCoefficientRole</code>)+ volume 場 + flux 場。
+        <code>LbNeedsOrthogonalMetric</code> / <code>LbUnverifiedOrthogonalMetric</code> エラー。
+        <code>makeHodgeCoefficient</code> は係数を「ソース成分の placement でサンプル」するだけ</td></tr>
+<tr><td><code>fec/src/Formurae/Post/Compile.hs</code></td>
+    <td>metric codifferential の直交性 gate
+        (<code>metricCodifferentialGeometryNF</code>)</td></tr>
+<tr><td><code>fec/src/Formurae/Post/Diagnostic.hs</code></td>
+    <td>エラーメッセージ群</td></tr>
+</table>
+
+<h2 id="math">3. 数学的に何が変わるか</h2>
+
+<table>
+<tr><th>対象</th><th>直交(現状)</th><th>一般計量</th></tr>
+<tr><td>volume</td><td>∏ hᵢ</td><td>√det g(記号的行列式 + sqrt 簡約)</td></tr>
+<tr><td>逆計量</td><td>1/hᵢ² の対角</td><td>余因子/行列式による記号的逆行列(d ≤ 3 なら余因子展開で十分)</td></tr>
+<tr><td>flat / sharp</td><td>対角縮約</td><td>既にテンソル縮約なので full metric を渡すだけ(最も軽い)</td></tr>
+<tr><td>Hodge ⋆</td><td>成分 I → 補集合 I<sup>c</sup> に対角係数 1 個</td>
+    <td>Gram 小行列式による密な線形写像(同次数の成分が混ざる)</td></tr>
+<tr><td>scalar Δ</td><td>(1/V) Σₐ ∂ₐ(V/hₐ² ∂ₐu)</td>
+    <td>(1/√g) ∂ₐ(√g g<sup>ab</sup> ∂ᵦu) — cross flux 項が発生</td></tr>
+<tr><td>検証</td><td>非対角成分 = 0 の記号検査</td>
+    <td>対称性 + 非退化性の記号検査(正定値性は決定点 3 を参照)</td></tr>
+</table>
+
+<h2 id="staggered">4. staggered DEC と一般計量 Hodge の衝突</h2>
+
+<p>staggered DEC の核心的な利点 — 離散 Hodge 星が対角、つまり
+「同一格子点の 1 つの値に係数を掛けるだけ」の演算になること — は、
+<b>計量の直交性の帰結そのもの</b>である。
+一般計量でも staggered 格子は数学的には組めるが、Hodge が
+「異なる配置に住む成分を混ぜる平均化行列」に変わり、点ごとの演算ではなくなる。</p>
+
+<h3>4.1 なぜ直交だと点ごとで済むか</h3>
+
+<p>Yee 型の staggered 配置では k-form の成分ごとに住所が違う
+(下図: α₁ は x 辺の中点、α₂ は y 辺の中点)。直交計量の Hodge は</p>
+
+<pre>(⋆α)_J = ± (V / ∏_{i∈I} hᵢ²) · α_I,   I = J の補集合</pre>
+
+<p>で、各ターゲット成分がちょうど 1 つのソース成分にしか依存しない。
+さらに Yee の双対性により primal の I-セルと dual の I<sup>c</sup>-セルは中心が同一点。
+つまり直交 ⋆ は「同じ場所の 1 値 × 係数場」で完結し、補間ゼロ・厳密に可逆。
+実装もこれに正確に対応している(<code>makeHodgeCoefficient</code> はソース placement での
+1 点サンプル、係数場の role は basis 1 つに紐づく <code>OrthogonalHodgeCoefficientRole</code>)。</p>
+
+<h3>4.2 一般計量で壊れる箇所</h3>
+
+<p>2 次元の 1-form で書くと (⋆α)₂ = √g (g¹¹α₁ + g¹²α₂)。
+直交なら g¹² = 0 で右辺は同一点の α₁ だけ。g¹² ≠ 0 になった瞬間、
+(i+½, j) にいるターゲットが (i, j±½) に住む α₂ を要求する —
+半セルずれた別配置の値で、近傍 4 点の平均なしには評価できない。
+一般に ⋆ の係数は Gram 小行列式で同次数の全成分を混ぜるため、
+このミスマッチは次元・次数が上がるほど広がる。</p>
+
+<figure>
+<svg viewBox="0 0 700 420" xmlns="http://www.w3.org/2000/svg" role="img" style="width:100%;height:auto">
+  <title>直交計量と一般計量での staggered Hodge の依存関係</title>
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#D85A30"/>
+    </marker>
+  </defs>
+  <line x1="70" y1="30" x2="86" y2="30" stroke="#1D9E75" stroke-width="3"/>
+  <text x="92" y="34" fill="#5a6270" font-size="13">α₁ = x辺の中点</text>
+  <line x1="250" y1="22" x2="250" y2="38" stroke="#7F77DD" stroke-width="3"/>
+  <text x="258" y="34" fill="#5a6270" font-size="13">α₂ = y辺の中点</text>
+  <circle cx="430" cy="30" r="8" fill="none" stroke="#D85A30" stroke-width="2"/>
+  <text x="444" y="34" fill="#5a6270" font-size="13">(⋆α)₂ の評価点</text>
+  <text x="140" y="70" fill="#1c1e21" font-size="15" font-weight="600" text-anchor="middle">直交計量(g¹² = 0)</text>
+  <text x="500" y="70" fill="#1c1e21" font-size="15" font-weight="600" text-anchor="middle">一般計量(g¹² ≠ 0)</text>
+  <g stroke="#9aa1ab" stroke-opacity="0.55" stroke-width="1">
+    <line x1="30" y1="90" x2="250" y2="90"/><line x1="30" y1="200" x2="250" y2="200"/><line x1="30" y1="310" x2="250" y2="310"/>
+    <line x1="30" y1="90" x2="30" y2="310"/><line x1="140" y1="90" x2="140" y2="310"/><line x1="250" y1="90" x2="250" y2="310"/>
+    <line x1="390" y1="90" x2="610" y2="90"/><line x1="390" y1="200" x2="610" y2="200"/><line x1="390" y1="310" x2="610" y2="310"/>
+    <line x1="390" y1="90" x2="390" y2="310"/><line x1="500" y1="90" x2="500" y2="310"/><line x1="610" y1="90" x2="610" y2="310"/>
+  </g>
+  <g fill="#9aa1ab">
+    <circle cx="30" cy="90" r="2.5"/><circle cx="140" cy="90" r="2.5"/><circle cx="250" cy="90" r="2.5"/>
+    <circle cx="30" cy="200" r="2.5"/><circle cx="140" cy="200" r="2.5"/><circle cx="250" cy="200" r="2.5"/>
+    <circle cx="30" cy="310" r="2.5"/><circle cx="140" cy="310" r="2.5"/><circle cx="250" cy="310" r="2.5"/>
+    <circle cx="390" cy="90" r="2.5"/><circle cx="500" cy="90" r="2.5"/><circle cx="610" cy="90" r="2.5"/>
+    <circle cx="390" cy="200" r="2.5"/><circle cx="500" cy="200" r="2.5"/><circle cx="610" cy="200" r="2.5"/>
+    <circle cx="390" cy="310" r="2.5"/><circle cx="500" cy="310" r="2.5"/><circle cx="610" cy="310" r="2.5"/>
+  </g>
+  <g stroke="#1D9E75" stroke-width="3">
+    <line x1="77" y1="90" x2="93" y2="90"/><line x1="187" y1="90" x2="203" y2="90"/>
+    <line x1="77" y1="200" x2="93" y2="200"/>
+    <line x1="77" y1="310" x2="93" y2="310"/><line x1="187" y1="310" x2="203" y2="310"/>
+    <line x1="437" y1="90" x2="453" y2="90"/><line x1="547" y1="90" x2="563" y2="90"/>
+    <line x1="437" y1="200" x2="453" y2="200"/>
+    <line x1="437" y1="310" x2="453" y2="310"/><line x1="547" y1="310" x2="563" y2="310"/>
+  </g>
+  <line x1="186" y1="200" x2="204" y2="200" stroke="#1D9E75" stroke-width="4.5"/>
+  <line x1="546" y1="200" x2="564" y2="200" stroke="#1D9E75" stroke-width="4.5"/>
+  <g stroke="#7F77DD" stroke-width="3">
+    <line x1="30" y1="137" x2="30" y2="153"/><line x1="140" y1="137" x2="140" y2="153"/><line x1="250" y1="137" x2="250" y2="153"/>
+    <line x1="30" y1="247" x2="30" y2="263"/><line x1="140" y1="247" x2="140" y2="263"/><line x1="250" y1="247" x2="250" y2="263"/>
+    <line x1="390" y1="137" x2="390" y2="153"/><line x1="500" y1="137" x2="500" y2="153"/><line x1="610" y1="137" x2="610" y2="153"/>
+    <line x1="390" y1="247" x2="390" y2="263"/><line x1="500" y1="247" x2="500" y2="263"/><line x1="610" y1="247" x2="610" y2="263"/>
+  </g>
+  <circle cx="195" cy="200" r="12" fill="none" stroke="#D85A30" stroke-width="2"/>
+  <circle cx="555" cy="200" r="12" fill="none" stroke="#D85A30" stroke-width="2"/>
+  <g stroke="#D85A30" stroke-width="2" stroke-dasharray="5 4" fill="none">
+    <line x1="507" y1="152" x2="544" y2="189" marker-end="url(#ar)"/>
+    <line x1="603" y1="152" x2="566" y2="189" marker-end="url(#ar)"/>
+    <line x1="507" y1="248" x2="544" y2="211" marker-end="url(#ar)"/>
+    <line x1="603" y1="248" x2="566" y2="211" marker-end="url(#ar)"/>
+  </g>
+  <text x="140" y="345" fill="#1c1e21" font-size="14" text-anchor="middle">(⋆α)₂ = (h₂/h₁) α₁ — 同一点で完結</text>
+  <text x="140" y="368" fill="#5a6270" font-size="13" text-anchor="middle">係数を1点でサンプル、補間なし</text>
+  <text x="500" y="345" fill="#1c1e21" font-size="14" text-anchor="middle">(⋆α)₂ = √g (g¹¹ α₁ + g¹² α₂)</text>
+  <text x="500" y="368" fill="#5a6270" font-size="13" text-anchor="middle">α₂ は半セルずれ → 4点平均(補間)が必須</text>
+</svg>
+<figcaption>staggered 配置での Hodge の依存関係。左: 直交計量ではターゲットとソースが
+同一点にあり係数 1 個で完結する。右: 一般計量では半セルずれた α₂ の 4 点平均が必要になる。</figcaption>
+</figure>
+
+<h3>4.3 それでも staggered でやる 3 つの既知経路</h3>
+
+<table>
+<tr><th>経路</th><th>内容</th><th>コスト</th></tr>
+<tr><td>平均化 Hodge</td>
+    <td>⋆ を近傍平均込みの疎行列として定義(非直交格子 FDTD、FIT の material 行列平均化、
+        mimetic 差分の系譜)</td>
+    <td>⋆∘⋆ = ±1 の厳密性が落ち、平均化を対称に設計しないと adjoint 構造と
+        エネルギー安定性が崩れる。stencil と halo が拡大</td></tr>
+<tr><td>Lebedev 型成分複製格子</td>
+    <td>全成分を必要な全位置に複製して ⋆ を再び点ごとにする
+        (異方性弾性波の staggered スキームで標準)</td>
+    <td>自由度が数倍、spurious mode の管理が必要</td></tr>
+<tr><td>collocated 化</td>
+    <td>全成分をセル中心に置く。密な ⋆ も自明に点ごと</td>
+    <td>staggered の利点を放棄(Formurae には既に CollocatedMode がある)</td></tr>
+</table>
+
+<p>これは構造格子特有の現象ではない。単体的 DEC でも対角 Hodge は
+circumcentric 双対 + well-centered メッシュという特殊構造への報酬であり、
+一般には Whitney 形式の質量行列(非対角)になる。直交性はその「特殊構造」の構造格子版である。</p>
+
+<h3>4.4 Formurae での意味 — 契約との衝突</h3>
+
+<p>論文の analytic/discrete boundary 段落に明記のとおり、post-fec は
+「配置が合わない場所に補間を暗黙に挿入しない」
+「resampling が semantically observable なら versioned opaque primitive にする」を設計原則とする。
+staggered な form 場への一般 ⋆ はユーザが宣言した場そのものに平均化を作用させるため、
+この境界を黙って越えることになる。やるなら上記 3 経路のどれを採るか
+(平均化ならどのスキーム・どの向き・逆 Hodge の扱い)を仕様化した
+新しい opaque contract として明示的に導入する(<code>design/20260713</code> §9.3 の
+<code>weighted-adjoint-d</code> graph の一般化が受け皿)。</p>
+
+<p>scalar Δ が先行できる理由はこの裏返しで、<code>lb</code> はソース u が collocated、
+face flux は契約内部の補助場に過ぎないため、cross 項の平均化を
+<code>lb.general@1</code> の中に閉じ込められ、ユーザに見える placement を一切跨がない。</p>
+
+<h2 id="plan">5. 作業フェーズ案</h2>
+
+<table>
+<tr><th>フェーズ</th><th>内容</th></tr>
+<tr><td>Phase 0<br>設計文書</td>
+    <td>repo 慣習どおり <code>design/2026MMDD-general-metric.md</code> を新設し、
+        §6 の決定点 4 つを確定させる</td></tr>
+<tr><td>Phase 1<br>CAS 層</td>
+    <td><code>FE.metricDeterminant</code>、一般 <code>FE.inverseMetricTensor</code>
+        (d ≤ 3 は余因子展開)、volume √det g、一般 Hodge 用 Gram 係数を
+        <code>lib/formurae-geometry.egi</code> に追加。
+        <code>flat</code>/<code>sharp</code> を scale vector 引数から metric tensor 引数へ。
+        √det g が Egison の sqrt 簡約規則で閉じることを確認</td></tr>
+<tr><td>Phase 2<br>pre-fec</td>
+    <td><code>EmitEgison.hs</code> の assert を「直交性の分類
+        (非対角が全部 0 に簡約 → orthogonal クラス、それ以外 → general クラス)
+        + 対称性・非退化性の検査」に置換。
+        <code>feGeometryScale</code> は orthogonal クラス限定、
+        general クラスは metric/inverse/volume を直接提供。予約名リスト更新</td></tr>
+<tr><td>Phase 3<br>FEIR 契約</td>
+    <td><code>GeometryKind</code> を <code>ScaleGeometry</code>/<code>EmbeddedGeometry</code> +
+        <code>metricClass</code>(Orthogonal | General)に再編、
+        <code>geometryOrthogonalityVerified</code> を置換。
+        Codec format・fingerprint タグ・validate エラーが連動。
+        primitive manifest は 3 箇所(<code>PrimitiveBindings.hs</code> /
+        <code>formurae-primitives.egi</code> / <code>feir-primitives-v1.sexp</code>)の同期必須</td></tr>
+<tr><td>Phase 4<br>post-fec</td>
+    <td><code>lb.general@1</code> 新設: 係数場を軸ごと d 本から対称ペア d(d+1)/2 本
+        (C<sup>ab</sup> = √g g<sup>ab</sup>)へ。face-a flux の cross 項 ∂ᵦu(b≠a)は
+        隣接セルの中心差分を face へ平均する標準的な保存スキーム(2D なら 9 点箱型)。
+        stencil が対角近傍まで広がるので halo/boundary closure が変わる。
+        <code>lb.orthogonal@1</code> は特殊化として温存(直交例の .fmr バイト一致を守る)。
+        <code>Effect.hs</code> の <code>lb</code> マッピングを geometry クラスで分岐</td></tr>
+<tr><td>Phase 5<br>例と検証</td>
+    <td>非直交の新例(定数非対角計量の異方拡散 = 厳密解あり、
+        graph surface z=f(x,y) の Laplacian)。
+        既存直交例(polar2d / hyperbolic / metric_sphere / metric_torus /
+        spherical3d / yinyang_diffusion)の .fmr/C バイト一致回帰。
+        テスト更新: <code>pre_geometry_emit.hs</code>・<code>pre_emit_egison.hs</code>・
+        <code>feir_validate.hs</code>・<code>post_compile_lb.hs</code>・
+        <code>post_compile_metric_codiff.hs</code>・<code>post_diagnostic.hs</code>・fixtures。
+        「非直交 → 拒否」テストが「受理 → 正しい plan」テストへ反転、
+        退化計量の拒否テストを新設</td></tr>
+<tr><td>Phase 6<br>文書・論文</td>
+    <td><code>formurae-paper/main.tex</code>: §cas-metric、backend 表、limitations、
+        assert エラーを見せる listing(別の診断例へ差し替え)など約 25 箇所。
+        JSIAM 予稿の「直交性を検査」の一文。<code>DSL-DESIGN.md</code> の
+        バージョンログ、<code>APPLICATIONS.md</code></td></tr>
+</table>
+
+<h2 id="decisions">6. 決定点(推奨つき)</h2>
+
+<table>
+<tr><th>#</th><th>決定点</th><th>推奨</th></tr>
+<tr><td>1</td><td>スコープ</td>
+    <td>scalar Δ(collocated)先行。staggered 一般 Hodge は §4 の契約衝突のため
+        v2 に分離。form codiff の gate は当面
+        「general metric codiff は未対応」の明示診断へ変更</td></tr>
+<tr><td>2</td><td>表層構文</td>
+    <td><code>embedding [...]</code> が非直交誘導計量を自然に生むのでそのまま受理。
+        <code>metric tensor [[...],[...]]</code> の直接宣言を足すかは別途判断。
+        <code>metric scale [...]</code> は定義上対角なので現状維持</td></tr>
+<tr><td>3</td><td>正定値性の検証</td>
+    <td>対称性と det g ≠ 0 は記号検査。座標依存成分の正定値性の記号証明は
+        一般には不可能なので「ユーザ義務として文書化」を推奨
+        (座標特異点を扱わない現行方針と整合)。
+        座標範囲上の区間符号証明は将来課題</td></tr>
+<tr><td>4</td><td>論文への反映時期</td>
+    <td>GPCE 版は「orthogonality は discrete contract の制限」と正直に記述済みで
+        現状でも整合。実装を先行させ、動いてから書き換える</td></tr>
+</table>
+
+<h2 id="benefits">7. メリット評価 — 対角制限のままで良いか</h2>
+
+<p>メリットの実体は「特定の応用クラスを、手書き離散化ではなく宣言的ジオメトリ層
+(embedding を書くだけで計量・体積・係数・検証が自動)に乗せられること」である。
+現行の例(27 個)はすべて平坦か直交チャートで足りており、
+非直交問題には既に回避手段(quoted derivative + 明示 flux の手書き)がある。
+つまり「不可能が可能になる」わけではない。</p>
+
+<h3>7.1 非対角でないと宣言層に乗らない応用クラス</h3>
+
+<table>
+<tr><th>応用</th><th>なぜ非対角が必須か</th><th>直交チャートでの回避</th></tr>
+<tr><td>地形追従座標(σ座標)<br>気象・海洋・地震波</td>
+    <td>剪断変換なので誘導計量に交差項</td>
+    <td>実用上なし(数値的にしか作れない)</td></tr>
+<tr><td>cubed-sphere<br>全球大気コアの標準格子</td>
+    <td>gnomonic 写像の座標線が非直交</td>
+    <td>conformal 版はあるが閉形式なし</td></tr>
+<tr><td>graph surface z = f(x,y)<br>Beltrami flow・膜・minimal surface</td>
+    <td>g = I + ∇f∇fᵀ の f_x f_y 項</td>
+    <td>等温座標は存在するが構成が別問題</td></tr>
+<tr><td>交差項つき異方拡散 ∇·(D∇u)<br>磁化プラズマ熱伝導・異方性多孔質</td>
+    <td>D の非対角 = 計量の非対角と同型</td>
+    <td>格子を主軸に揃えられる場合のみ</td></tr>
+<tr><td>ALE・動く格子 / GR 風空間計量</td>
+    <td>変形・剪断が generic に交差項を生む</td>
+    <td>なし</td></tr>
+</table>
+
+<p>上の 2 つが重要。地形追従座標と cubed-sphere は Formura 本来のホームドメイン
+(気象・地球流体)の標準チャートであり、Yin-Yang の次の自然な一歩でもある。
+しかも両者とも「直交な代替チャート」が閉形式を持たないため、
+記号 embedding を前提とする Formurae のパイプラインでは回避チャート自体が使えない。
+非直交性と記号性の要求が二重に衝突しており、一般計量対応なしには
+このドメインに宣言的ジオメトリで到達する経路がない。</p>
+
+<p>異方拡散は補足つき: 物理的には D は材料テンソルで計量ではないため、
+表層で metric として宣言させるのが正しい設計かは別問題。
+ただし <code>lb.general@1</code> の離散機構(対称係数場 C<sup>ab</sup>、
+交差項の保存スキーム)は異方拡散演算子とそのまま共有でき、
+実装投資が幾何と材料の両方に効く。</p>
+
+<h3>7.2 メリットを過大評価しないための相対化</h3>
+
+<ul>
+<li><b>回避手段の存在。</b>minimal surface の設計文書がそうしたように、
+    非直交問題は metric 宣言を諦めて明示 flux で手書きすれば現行でも書ける。
+    一般計量対応の価値は「手書き → 宣言」の格上げ分。
+    現状は「embedding が唯一の幾何入力」という看板に
+    「ただし誘導計量が対角になるチャートに限る。直交チャートを見つける微分幾何は
+    ユーザの仕事」という但し書きが付いている状態である。</li>
+<li><b>一般 Laplacian だけでは気象はできない。</b>地形追従や cubed-sphere のドメインには
+    移流・コリオリ・保存性など他の要素が要る。正確には「チャートのクラスが開く」であって
+    「応用が完成する」ではない。</li>
+<li><b>検証の頑健性(小さいが実利)。</b>記号的直交性検査は CAS の簡約力に依存しており、
+    本当は直交なのに証明できず reject される場合がある。general path は
+    その受け皿(hard error → 正しいが遅い一般コード)になる。</li>
+</ul>
+
+<h2 id="recommendation">8. 推奨 — 判断基準</h2>
+
+<p>比較すべきコストはフル一般化ではなく、<b>restricted scope
+(collocated の scalar Δ = <code>lb.general@1</code> のみ、staggered 一般 Hodge は据え置き)</b>である。
+これは d ≤ 3 の余因子逆行列、√det g の簡約、標準的な 9 点保存スキームだけで済む
+既知技術の範囲で、§5 の Phase 4 の本体部分だけに相当する。</p>
+
+<div class="note">
+<b>判断基準:</b>
+地形追従・cubed-sphere・graph surface 系を例ポートフォリオに入れる意志があるなら、
+restricted scope はメリットが上回る。入れない(曲面応用は回転面 + Yin-Yang で完結させる)なら、
+対角制限の維持で問題ない。その場合は「非直交は明示 flux で書く」を
+<code>APPLICATIONS.md</code> なりに文書化された公式方針へ格上げしておくと、
+論文の limitations の記述(現状のままで整合)とも一貫する。
+</div>
+
+</main>
+</body>
+</html>

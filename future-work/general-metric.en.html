@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Formurae future work: general (non-orthogonal) metric support</title>
+<style>
+  :root { --ink:#1c1e21; --sub:#5a6270; --line:#e3e6ea; --accent:#0b5fa5; }
+  * { box-sizing:border-box; }
+  body { margin:0; color:var(--ink); background:#f6f7f9;
+         font-family:Helvetica,Arial,"Hiragino Sans","Noto Sans JP",sans-serif; }
+  header { padding:28px 32px; background:#fff; border-bottom:1px solid var(--line); }
+  header h1 { margin:0 0 6px; font-size:22px; }
+  header p { margin:4px 0; max-width:980px; color:var(--sub); font-size:13.5px; }
+  main { max-width:920px; margin:auto; padding:12px 24px 80px; font-size:14px; line-height:1.8; }
+  h2 { margin:40px 0 10px; padding-left:10px; color:var(--accent);
+       border-left:4px solid var(--accent); font-size:17px; }
+  h3 { margin:24px 0 6px; font-size:14.5px; }
+  a { color:var(--accent); }
+  code { padding:1px 5px; border-radius:4px; background:#eef1f4;
+         font:12.5px "SF Mono",Menlo,Consolas,monospace; }
+  pre { overflow-x:auto; padding:12px 15px; border-radius:8px;
+        color:#dbe7f6; background:#0e1726;
+        font:12.5px/1.6 "SF Mono",Menlo,Consolas,monospace; }
+  table { width:100%; margin:10px 0; border-collapse:collapse; font-size:13px; }
+  th,td { padding:7px 10px; border:1px solid var(--line); background:#fff; text-align:left; }
+  th { background:#f0f3f7; }
+  .toc,.note { margin:18px 0; padding:11px 16px; border:1px solid var(--line);
+               border-radius:8px; background:#fff; font-size:13px; }
+  .note { background:#fff9e9; }
+  figure { margin:18px 0; padding:14px; border:1px solid var(--line);
+           border-radius:8px; background:#fff; }
+  figcaption { margin-top:8px; color:var(--sub); font-size:12.5px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Formurae future work: general (non-orthogonal) metric support</h1>
+  <p>Planning notes (2026-07-14). This is unscheduled future work;
+     <code>design/20260713-quoted-derivative-and-minimal-discrete-surface.md</code> (non-goals)
+     already lists general non-orthogonal metrics as an explicit non-goal of the first version.
+     This memo records the dependency map, an implementation plan, and a cost&ndash;benefit
+     assessment for the day we decide to do it.</p>
+  <p><a href="general-metric.ja.html">日本語版</a></p>
+</header>
+<main>
+
+<div class="toc">
+  <b>Contents:</b>
+  <a href="#summary">summary</a> /
+  <a href="#map">dependency map</a> /
+  <a href="#math">mathematical deltas</a> /
+  <a href="#staggered">conflict with staggered DEC</a> /
+  <a href="#plan">phased plan</a> /
+  <a href="#decisions">decision points</a> /
+  <a href="#benefits">benefit analysis</a> /
+  <a href="#recommendation">recommendation</a>
+</div>
+
+<h2 id="summary">1. Summary &mdash; deleting the assert is not enough</h2>
+
+<p>Formurae currently requires the induced metric of a geometry declared via
+<code>metric scale [...]</code> / <code>embedding [...]</code> to be symbolically orthogonal
+(every off-diagonal component reduces to zero in the CAS), and rejects the program otherwise.
+This check is not a mere guard: <b>the entire downstream pipeline depends on the
+&ldquo;metric = diagonal matrix of scale factors&rdquo; representation</b> &mdash;
+volume = &prod;h<sub>i</sub>, Hodge coefficient = V/&prod;h<sub>i</sub>&sup2;,
+<code>lb</code> coefficient = V/h<sub>a</sub>&sup2;.
+Removing only the check would make all of these silently produce numbers that
+ignore the off-diagonal components.</p>
+
+<p>So the real content of &ldquo;removing the orthogonality requirement&rdquo; is:
+<b>build a path that handles general metrics correctly, and change the role of the
+orthogonality check from a gate into a classifier.</b>
+The paper (<code>formurae-paper/main.tex</code>, limitations) already names the three
+requirements: (1) a specified covariant operator, (2) placement rules for cross terms,
+(3) a new or revised opaque discrete contract.
+The long-term receptacle is the typed operator graph
+(<code>weighted-adjoint-d</code> primitive) sketched in <code>design/20260713</code> &sect;9.3.</p>
+
+<h2 id="map">2. Where the orthogonality assumption lives today (four layers)</h2>
+
+<h3>&#9312; Egison CAS library layer</h3>
+<table>
+<tr><th>File</th><th>Dependency</th></tr>
+<tr><td><code>lib/formurae-geometry.egi</code></td>
+    <td><code>FE.inverseDiagonalMetricTensor</code> (diagonal inverse only),
+        <code>FE.orthogonalVolume</code> (&prod;h<sub>i</sub>),
+        <code>FE.orthogonalHodgeCoefficient</code> (V/&prod;h<sub>i</sub>&sup2;)</td></tr>
+<tr><td><code>lib/formurae-operators.egi</code></td>
+    <td><code>flat</code>/<code>sharp</code>/<code>hodge</code>/<code>codiff</code>/<code>scalarLaplacian</code>
+        all take a scale vector and rebuild the diagonal metric from it;
+        the <code>Formurae.lbOrthogonal</code> wrapper</td></tr>
+<tr><td><code>lib/formurae-primitives.egi</code></td>
+    <td>the <code>lb.orthogonal@1</code> manifest</td></tr>
+</table>
+
+<h3>&#9313; pre-fec</h3>
+<table>
+<tr><th>File</th><th>Dependency</th></tr>
+<tr><td><code>fec/src/Formurae/Pre/EmitEgison.hs</code></td>
+    <td><code>prepareGeometryDeclarations</code> emits the CAS assert that off-diagonal
+        components are zero (<code>feGeometryOrthogonalityVerified</code>) and defines
+        <code>feGeometryScale</code>/<code>feGeometryVolume</code>/<code>feGeometryInverseMetric</code>
+        under the diagonal assumption</td></tr>
+<tr><td><code>fec/src/Formurae/Pre/Registry.hs</code></td>
+    <td>construction of <code>OrthogonalScaleGeometry</code> / <code>EmbeddedOrthogonalGeometry</code></td></tr>
+<tr><td><code>fec/src/Formurae/Pre/Effect.hs</code></td>
+    <td>fixed mapping from surface <code>lb</code> to <code>lb.orthogonal@1</code></td></tr>
+<tr><td><code>fec/src/Formurae/Pre/Parse.hs</code></td>
+    <td>reserved ambient-name list (<code>feGeometryOrthogonalityVerified</code>, &hellip;)</td></tr>
+</table>
+
+<h3>&#9314; FEIR contract</h3>
+<table>
+<tr><th>File</th><th>Dependency</th></tr>
+<tr><td><code>fec/src/Formurae/FEIR/Syntax.hs</code></td>
+    <td><code>GeometryKind</code> (<code>OrthogonalScaleGeometry</code> / <code>EmbeddedOrthogonalGeometry</code>)
+        and <code>GeometryNF.geometryOrthogonalityVerified :: Bool</code>.
+        Note that <code>GeometryNF</code> already carries the full metric and inverse metric
+        as <code>TensorNF</code> &mdash; the data is there; it is the consumers that assume
+        diagonality</td></tr>
+<tr><td><code>fec/src/Formurae/FEIR/Validate.hs</code></td>
+    <td>the <code>UnverifiedOrthogonalGeometry</code> error</td></tr>
+<tr><td><code>fec/src/Formurae/FEIR/Codec.hs</code></td>
+    <td>serialization of the <code>orthogonality-verified</code> field</td></tr>
+<tr><td><code>fec/src/Formurae/FEIR/RegistryFingerprint.hs</code></td>
+    <td>geometry kind tags (<code>orthogonal-scale</code> / <code>embedded-orthogonal</code>)</td></tr>
+<tr><td><code>fec/src/Formurae/FEIR/PrimitiveBindings.hs</code> +
+        <code>spec/feir-primitives-v1.sexp</code> +
+        <code>lib/formurae-primitives.egi</code></td>
+    <td>three synchronized copies of the <code>lb.orthogonal@1</code> manifest
+        (guarded by the registry fingerprint)</td></tr>
+</table>
+
+<h3>&#9315; post-fec</h3>
+<table>
+<tr><th>File</th><th>Dependency</th></tr>
+<tr><td><code>fec/src/Formurae/Post/BackendPlan.hs</code></td>
+    <td>lowering of <code>lb.orthogonal@1</code>: per-axis coefficient fields
+        V/h<sub>a</sub>&sup2; (<code>OrthogonalCoefficientRole</code>), a volume field,
+        and flux fields; the <code>LbNeedsOrthogonalMetric</code> /
+        <code>LbUnverifiedOrthogonalMetric</code> errors.
+        <code>makeHodgeCoefficient</code> just samples one coefficient at the
+        source component&rsquo;s placement</td></tr>
+<tr><td><code>fec/src/Formurae/Post/Compile.hs</code></td>
+    <td>the orthogonality gate of the metric codifferential
+        (<code>metricCodifferentialGeometryNF</code>)</td></tr>
+<tr><td><code>fec/src/Formurae/Post/Diagnostic.hs</code></td>
+    <td>the diagnostic message surface</td></tr>
+</table>
+
+<h2 id="math">3. What changes mathematically</h2>
+
+<table>
+<tr><th>Object</th><th>Orthogonal (today)</th><th>General metric</th></tr>
+<tr><td>volume</td><td>&prod; h<sub>i</sub></td>
+    <td>&radic;det g (symbolic determinant + sqrt simplification)</td></tr>
+<tr><td>inverse metric</td><td>diagonal reciprocals 1/h<sub>i</sub>&sup2;</td>
+    <td>symbolic inverse via adjugate/determinant (cofactor expansion suffices for d &le; 3)</td></tr>
+<tr><td>flat / sharp</td><td>diagonal contraction</td>
+    <td>already tensor contractions &mdash; just pass the full metric (cheapest item)</td></tr>
+<tr><td>Hodge &#8902;</td><td>component I &rarr; complement I<sup>c</sup>, one diagonal coefficient</td>
+    <td>dense linear map via Gram minors (components of the same degree mix)</td></tr>
+<tr><td>scalar &Delta;</td><td>(1/V) &Sigma;<sub>a</sub> &part;<sub>a</sub>(V/h<sub>a</sub>&sup2; &part;<sub>a</sub>u)</td>
+    <td>(1/&radic;g) &part;<sub>a</sub>(&radic;g g<sup>ab</sup> &part;<sub>b</sub>u) &mdash; cross-flux terms appear</td></tr>
+<tr><td>verification</td><td>symbolic check that off-diagonals are 0</td>
+    <td>symbolic checks of symmetry + nondegeneracy (positive definiteness: see decision point 3)</td></tr>
+</table>
+
+<h2 id="staggered">4. Why the general-metric Hodge conflicts with staggered DEC</h2>
+
+<p>The headline advantage of staggered DEC &mdash; a discrete Hodge star that is diagonal,
+i.e. &ldquo;multiply one value at the same grid point by a coefficient&rdquo; &mdash;
+is <b>itself a consequence of metric orthogonality</b>.
+A staggered grid can still be built over a general metric, but the Hodge turns into an
+averaging matrix that mixes components living at different placements; it stops being pointwise.</p>
+
+<h3>4.1 Why orthogonality makes the Hodge pointwise</h3>
+
+<p>In a Yee-style staggered layout each component of a k-form has its own address
+(figure below: &alpha;&#8321; on x-edge midpoints, &alpha;&#8322; on y-edge midpoints).
+The orthogonal Hodge is</p>
+
+<pre>(&#8902;&alpha;)_J = &plusmn; (V / &prod;_{i&isin;I} h&#7522;&sup2;) &middot; &alpha;_I,   I = complement of J</pre>
+
+<p>so every target component depends on exactly one source component.
+Moreover, by Yee duality the primal I-cell and the dual I<sup>c</sup>-cell share the same
+center point. The orthogonal &#8902; therefore reduces to &ldquo;one value at the same
+location times a coefficient field&rdquo; &mdash; zero interpolation, exactly invertible.
+The implementation mirrors this precisely (<code>makeHodgeCoefficient</code> samples a single
+coefficient at the source placement; the coefficient-field role
+<code>OrthogonalHodgeCoefficientRole</code> is keyed by a single basis).</p>
+
+<h3>4.2 What breaks with a general metric</h3>
+
+<p>For 1-forms in 2D, (&#8902;&alpha;)&#8322; = &radic;g (g&sup1;&sup1;&alpha;&#8321; + g&sup1;&sup2;&alpha;&#8322;).
+When the metric is orthogonal, g&sup1;&sup2; = 0 and the right-hand side is just &alpha;&#8321;
+at the same point. The moment g&sup1;&sup2; &ne; 0, the target at (i+&frac12;, j)
+demands &alpha;&#8322;, which lives at (i, j&plusmn;&frac12;) &mdash; a value at a different
+placement half a cell away, unavailable without a 4-point average.
+In general the Hodge coefficients are Gram minors and mix all components of the same degree,
+so the mismatch grows with dimension and degree.</p>
+
+<figure>
+<svg viewBox="0 0 700 420" xmlns="http://www.w3.org/2000/svg" role="img" style="width:100%;height:auto">
+  <title>Dependencies of the staggered Hodge under orthogonal and general metrics</title>
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#D85A30"/>
+    </marker>
+  </defs>
+  <line x1="55" y1="30" x2="71" y2="30" stroke="#1D9E75" stroke-width="3"/>
+  <text x="77" y="34" fill="#5a6270" font-size="13">&alpha;&#8321; = x-edge midpoints</text>
+  <line x1="255" y1="22" x2="255" y2="38" stroke="#7F77DD" stroke-width="3"/>
+  <text x="263" y="34" fill="#5a6270" font-size="13">&alpha;&#8322; = y-edge midpoints</text>
+  <circle cx="460" cy="30" r="8" fill="none" stroke="#D85A30" stroke-width="2"/>
+  <text x="474" y="34" fill="#5a6270" font-size="13">evaluation point of (&#8902;&alpha;)&#8322;</text>
+  <text x="140" y="70" fill="#1c1e21" font-size="15" font-weight="600" text-anchor="middle">orthogonal (g&sup1;&sup2; = 0)</text>
+  <text x="500" y="70" fill="#1c1e21" font-size="15" font-weight="600" text-anchor="middle">general (g&sup1;&sup2; &ne; 0)</text>
+  <g stroke="#9aa1ab" stroke-opacity="0.55" stroke-width="1">
+    <line x1="30" y1="90" x2="250" y2="90"/><line x1="30" y1="200" x2="250" y2="200"/><line x1="30" y1="310" x2="250" y2="310"/>
+    <line x1="30" y1="90" x2="30" y2="310"/><line x1="140" y1="90" x2="140" y2="310"/><line x1="250" y1="90" x2="250" y2="310"/>
+    <line x1="390" y1="90" x2="610" y2="90"/><line x1="390" y1="200" x2="610" y2="200"/><line x1="390" y1="310" x2="610" y2="310"/>
+    <line x1="390" y1="90" x2="390" y2="310"/><line x1="500" y1="90" x2="500" y2="310"/><line x1="610" y1="90" x2="610" y2="310"/>
+  </g>
+  <g fill="#9aa1ab">
+    <circle cx="30" cy="90" r="2.5"/><circle cx="140" cy="90" r="2.5"/><circle cx="250" cy="90" r="2.5"/>
+    <circle cx="30" cy="200" r="2.5"/><circle cx="140" cy="200" r="2.5"/><circle cx="250" cy="200" r="2.5"/>
+    <circle cx="30" cy="310" r="2.5"/><circle cx="140" cy="310" r="2.5"/><circle cx="250" cy="310" r="2.5"/>
+    <circle cx="390" cy="90" r="2.5"/><circle cx="500" cy="90" r="2.5"/><circle cx="610" cy="90" r="2.5"/>
+    <circle cx="390" cy="200" r="2.5"/><circle cx="500" cy="200" r="2.5"/><circle cx="610" cy="200" r="2.5"/>
+    <circle cx="390" cy="310" r="2.5"/><circle cx="500" cy="310" r="2.5"/><circle cx="610" cy="310" r="2.5"/>
+  </g>
+  <g stroke="#1D9E75" stroke-width="3">
+    <line x1="77" y1="90" x2="93" y2="90"/><line x1="187" y1="90" x2="203" y2="90"/>
+    <line x1="77" y1="200" x2="93" y2="200"/>
+    <line x1="77" y1="310" x2="93" y2="310"/><line x1="187" y1="310" x2="203" y2="310"/>
+    <line x1="437" y1="90" x2="453" y2="90"/><line x1="547" y1="90" x2="563" y2="90"/>
+    <line x1="437" y1="200" x2="453" y2="200"/>
+    <line x1="437" y1="310" x2="453" y2="310"/><line x1="547" y1="310" x2="563" y2="310"/>
+  </g>
+  <line x1="186" y1="200" x2="204" y2="200" stroke="#1D9E75" stroke-width="4.5"/>
+  <line x1="546" y1="200" x2="564" y2="200" stroke="#1D9E75" stroke-width="4.5"/>
+  <g stroke="#7F77DD" stroke-width="3">
+    <line x1="30" y1="137" x2="30" y2="153"/><line x1="140" y1="137" x2="140" y2="153"/><line x1="250" y1="137" x2="250" y2="153"/>
+    <line x1="30" y1="247" x2="30" y2="263"/><line x1="140" y1="247" x2="140" y2="263"/><line x1="250" y1="247" x2="250" y2="263"/>
+    <line x1="390" y1="137" x2="390" y2="153"/><line x1="500" y1="137" x2="500" y2="153"/><line x1="610" y1="137" x2="610" y2="153"/>
+    <line x1="390" y1="247" x2="390" y2="263"/><line x1="500" y1="247" x2="500" y2="263"/><line x1="610" y1="247" x2="610" y2="263"/>
+  </g>
+  <circle cx="195" cy="200" r="12" fill="none" stroke="#D85A30" stroke-width="2"/>
+  <circle cx="555" cy="200" r="12" fill="none" stroke="#D85A30" stroke-width="2"/>
+  <g stroke="#D85A30" stroke-width="2" stroke-dasharray="5 4" fill="none">
+    <line x1="507" y1="152" x2="544" y2="189" marker-end="url(#ar)"/>
+    <line x1="603" y1="152" x2="566" y2="189" marker-end="url(#ar)"/>
+    <line x1="507" y1="248" x2="544" y2="211" marker-end="url(#ar)"/>
+    <line x1="603" y1="248" x2="566" y2="211" marker-end="url(#ar)"/>
+  </g>
+  <text x="140" y="345" fill="#1c1e21" font-size="14" text-anchor="middle">(&#8902;&alpha;)&#8322; = (h&#8322;/h&#8321;) &alpha;&#8321; &mdash; same point</text>
+  <text x="140" y="368" fill="#5a6270" font-size="13" text-anchor="middle">one coefficient sample, no interpolation</text>
+  <text x="500" y="345" fill="#1c1e21" font-size="14" text-anchor="middle">(&#8902;&alpha;)&#8322; = &radic;g (g&sup1;&sup1; &alpha;&#8321; + g&sup1;&sup2; &alpha;&#8322;)</text>
+  <text x="500" y="368" fill="#5a6270" font-size="13" text-anchor="middle">&alpha;&#8322; is half a cell away &rarr; 4-point average required</text>
+</svg>
+<figcaption>Dependencies of the Hodge star on a staggered layout. Left: with an orthogonal
+metric, target and source share the same point and one coefficient suffices. Right: with a
+general metric, a 4-point average of &alpha;&#8322; values half a cell away becomes necessary.</figcaption>
+</figure>
+
+<h3>4.3 Three known ways to keep a staggered grid anyway</h3>
+
+<table>
+<tr><th>Route</th><th>Idea</th><th>Cost</th></tr>
+<tr><td>Averaged Hodge</td>
+    <td>Define &#8902; as a sparse matrix with neighbor averaging
+        (the lineage of nonorthogonal-grid FDTD, FIT with averaged material matrices,
+        mimetic finite differences)</td>
+    <td>&#8902;&#8728;&#8902; = &plusmn;1 no longer holds exactly; adjointness and energy
+        stability break unless the averaging is designed symmetrically; stencils and halos widen</td></tr>
+<tr><td>Lebedev-style component duplication</td>
+    <td>Duplicate every component at every required location so &#8902; becomes pointwise
+        again (standard in staggered schemes for anisotropic elastic waves)</td>
+    <td>Several times the degrees of freedom; spurious modes must be managed</td></tr>
+<tr><td>Collocation</td>
+    <td>Put all components at cell centers; a dense &#8902; is trivially pointwise</td>
+    <td>Gives up the staggered advantages (Formurae already has CollocatedMode)</td></tr>
+</table>
+
+<p>This is not specific to structured grids. In simplicial DEC, too, the diagonal Hodge is
+the reward for a special structure (circumcentric duals + well-centered meshes); in general
+one gets the Whitney-form mass matrix, which is non-diagonal. Orthogonality is the
+structured-grid version of that special structure.</p>
+
+<h3>4.4 What this means for Formurae &mdash; a contract conflict</h3>
+
+<p>As the paper&rsquo;s analytic/discrete-boundary paragraph states, post-fec&rsquo;s design
+principles are: never insert interpolation between incompatible placements implicitly, and
+make resampling a versioned opaque primitive whenever it is semantically observable.
+A general &#8902; on staggered form fields applies averaging to fields the user declared,
+so it would silently cross exactly that boundary. Doing it properly means introducing a new
+explicit opaque contract that fixes which of the three routes is taken (and, for averaging:
+which scheme, which direction, how the inverse Hodge is handled) &mdash; the generalization
+of the <code>weighted-adjoint-d</code> graph of <code>design/20260713</code> &sect;9.3 is the
+natural receptacle.</p>
+
+<p>The scalar &Delta; can go first precisely because of the flip side of this argument:
+the <code>lb</code> source u is collocated and the face fluxes are internal auxiliaries of
+the contract, so the cross-term averaging can be confined inside <code>lb.general@1</code>
+without ever crossing a user-visible placement.</p>
+
+<h2 id="plan">5. Phased implementation plan</h2>
+
+<table>
+<tr><th>Phase</th><th>Content</th></tr>
+<tr><td>Phase 0<br>design doc</td>
+    <td>Following repo convention, create <code>design/2026MMDD-general-metric.md</code> and
+        settle the four decision points of &sect;6</td></tr>
+<tr><td>Phase 1<br>CAS layer</td>
+    <td>Add <code>FE.metricDeterminant</code>, a general <code>FE.inverseMetricTensor</code>
+        (cofactor expansion for d &le; 3), volume &radic;det g, and general Gram Hodge
+        coefficients to <code>lib/formurae-geometry.egi</code>.
+        Switch <code>flat</code>/<code>sharp</code> from scale-vector arguments to
+        metric-tensor arguments. Confirm &radic;det g closes under Egison&rsquo;s sqrt
+        simplification rules</td></tr>
+<tr><td>Phase 2<br>pre-fec</td>
+    <td>Replace the assert in <code>EmitEgison.hs</code> with classification
+        (all off-diagonals reduce to 0 &rarr; orthogonal class, otherwise general class)
+        plus symmetry and nondegeneracy checks.
+        <code>feGeometryScale</code> becomes orthogonal-class only; the general class
+        exposes metric/inverse/volume directly. Update the reserved-name list</td></tr>
+<tr><td>Phase 3<br>FEIR contract</td>
+    <td>Rework <code>GeometryKind</code> into <code>ScaleGeometry</code>/<code>EmbeddedGeometry</code>
+        + <code>metricClass</code> (Orthogonal | General), replacing
+        <code>geometryOrthogonalityVerified</code>. Codec format, fingerprint tags, and
+        validation errors follow. The primitive manifest must stay synchronized in three
+        places (<code>PrimitiveBindings.hs</code> / <code>formurae-primitives.egi</code> /
+        <code>feir-primitives-v1.sexp</code>)</td></tr>
+<tr><td>Phase 4<br>post-fec</td>
+    <td>New <code>lb.general@1</code>: coefficient fields go from d per-axis to
+        d(d+1)/2 symmetric pairs (C<sup>ab</sup> = &radic;g g<sup>ab</sup>).
+        Cross terms &part;<sub>b</sub>u (b&ne;a) in the face-a flux use the standard
+        conservative scheme that averages adjacent centered differences to the face
+        (a 9-point box scheme in 2D). The stencil widens to diagonal neighbors, so
+        halo/boundary closure changes. Keep <code>lb.orthogonal@1</code> as the
+        specialization (preserving byte-identical .fmr for orthogonal examples).
+        Dispatch the <code>lb</code> mapping in <code>Effect.hs</code> by geometry class</td></tr>
+<tr><td>Phase 5<br>examples &amp; validation</td>
+    <td>New non-orthogonal examples (anisotropic diffusion with a constant non-diagonal
+        metric = exact solution available; the Laplacian on a graph surface z=f(x,y)).
+        Byte-identical .fmr/C regression for the existing orthogonal examples
+        (polar2d / hyperbolic / metric_sphere / metric_torus / spherical3d /
+        yinyang_diffusion). Test updates: <code>pre_geometry_emit.hs</code>,
+        <code>pre_emit_egison.hs</code>, <code>feir_validate.hs</code>,
+        <code>post_compile_lb.hs</code>, <code>post_compile_metric_codiff.hs</code>,
+        <code>post_diagnostic.hs</code>, fixtures. The current
+        &ldquo;non-orthogonal &rarr; reject&rdquo; tests flip into
+        &ldquo;accept &rarr; correct plan&rdquo; tests; add new rejection tests for
+        degenerate metrics</td></tr>
+<tr><td>Phase 6<br>docs &amp; papers</td>
+    <td><code>formurae-paper/main.tex</code>: &sect;cas-metric, the backend tables,
+        limitations, and the listing that showcases the assert error (replace with a
+        different diagnostic example) &mdash; roughly 25 spots. The one sentence about
+        checking orthogonality in the JSIAM abstract. The <code>DSL-DESIGN.md</code>
+        version log and <code>APPLICATIONS.md</code></td></tr>
+</table>
+
+<h2 id="decisions">6. Decision points (with recommendations)</h2>
+
+<table>
+<tr><th>#</th><th>Decision</th><th>Recommendation</th></tr>
+<tr><td>1</td><td>Scope</td>
+    <td>Scalar &Delta; (collocated) first. Defer the staggered general Hodge to v2 because
+        of the contract conflict of &sect;4. For now, turn the form-codifferential gate into
+        an explicit &ldquo;general-metric codifferential not yet supported&rdquo; diagnostic</td></tr>
+<tr><td>2</td><td>Surface syntax</td>
+    <td>Accept non-orthogonal induced metrics from <code>embedding [...]</code> as-is
+        (this is where they arise naturally). Whether to add a direct
+        <code>metric tensor [[...],[...]]</code> declaration is a separate call.
+        <code>metric scale [...]</code> is diagonal by definition and stays unchanged</td></tr>
+<tr><td>3</td><td>Positive definiteness</td>
+    <td>Verify symmetry and det g &ne; 0 symbolically. Symbolically proving positive
+        definiteness of coordinate-dependent components is impossible in general, so
+        document it as a user obligation (consistent with the existing stance that
+        coordinate singularities are outside the model). Interval sign certificates over
+        coordinate ranges are future work</td></tr>
+<tr><td>4</td><td>Paper timing</td>
+    <td>The GPCE version already states honestly that orthogonality is a restriction of the
+        discrete contract, so it is consistent as-is. Implement first; rewrite the paper
+        once it runs</td></tr>
+</table>
+
+<h2 id="benefits">7. Benefit analysis &mdash; is keeping the diagonal restriction fine?</h2>
+
+<p>The substance of the benefit is: <b>moving specific application classes onto the
+declarative geometry layer</b> (write the embedding, get metric/volume/coefficients/
+verification for free) instead of hand-written discretization.
+All 27 current examples are served by flat or orthogonal charts, and non-orthogonal
+problems already have an escape hatch (hand-written explicit fluxes with quoted
+derivatives). So this is not &ldquo;impossible &rarr; possible&rdquo;.</p>
+
+<h3>7.1 Application classes that need a non-diagonal metric to reach the declarative layer</h3>
+
+<table>
+<tr><th>Application</th><th>Why non-diagonal is forced</th><th>Orthogonal-chart workaround</th></tr>
+<tr><td>Terrain-following (&sigma;) coordinates<br>weather, ocean, seismic waves</td>
+    <td>A shear transformation puts cross terms into the induced metric</td>
+    <td>None in practice (only numerically constructible)</td></tr>
+<tr><td>Cubed-sphere<br>the standard grid of global atmospheric cores</td>
+    <td>The gnomonic mapping&rsquo;s coordinate lines are non-orthogonal</td>
+    <td>A conformal variant exists but has no closed form</td></tr>
+<tr><td>Graph surfaces z = f(x,y)<br>Beltrami flow, membranes, minimal surfaces</td>
+    <td>g = I + &nabla;f&nabla;f&#7488; has the f<sub>x</sub>f<sub>y</sub> term</td>
+    <td>Isothermal coordinates exist but constructing them is its own problem</td></tr>
+<tr><td>Anisotropic diffusion &nabla;&middot;(D&nabla;u) with cross terms<br>
+        magnetized-plasma heat conduction, anisotropic porous media</td>
+    <td>Off-diagonal D is isomorphic to an off-diagonal metric</td>
+    <td>Only when the grid can be aligned with the principal axes</td></tr>
+<tr><td>ALE / moving grids; GR-flavored spatial metrics</td>
+    <td>Deformation and shear generically create cross terms</td>
+    <td>None</td></tr>
+</table>
+
+<p>The first two matter most. Terrain-following coordinates and the cubed-sphere are the
+standard charts of Formura&rsquo;s original home domain (weather and geophysical fluids)
+and the natural next step after Yin-Yang. Moreover, for both of them the orthogonal
+substitute charts lack closed forms, so within Formurae&rsquo;s symbolic-embedding pipeline
+the workaround charts are themselves unusable: non-orthogonality and the symbolic
+requirement collide twice over. Without general-metric support there is no route into this
+domain via declarative geometry.</p>
+
+<p>Anisotropic diffusion comes with a caveat: physically D is a material tensor, not a
+metric, so whether declaring it as a metric at the surface is the right design is a
+separate question. But the discrete machinery of <code>lb.general@1</code> (symmetric
+coefficient fields C<sup>ab</sup>, the conservative cross-term scheme) is shared with
+anisotropic diffusion operators as-is, so the implementation investment pays off for both
+geometry and materials.</p>
+
+<h3>7.2 Relativizations, to avoid overselling the benefit</h3>
+
+<ul>
+<li><b>The escape hatch exists.</b> As the minimal-surface design doc does, a non-orthogonal
+    problem can be written today by giving up the metric declaration and hand-writing
+    explicit fluxes. The value of general-metric support is the upgrade from
+    &ldquo;hand-written&rdquo; to &ldquo;declared&rdquo;. Currently the
+    &ldquo;the embedding is the only geometric input&rdquo; claim carries an asterisk:
+    only for charts whose induced metric is diagonal &mdash; finding an orthogonal chart is
+    differential-geometry work outsourced to the user.</li>
+<li><b>A general Laplacian alone does not make a weather model.</b> The terrain-following
+    and cubed-sphere domains also need advection, Coriolis terms, conservation properties,
+    and so on. Precisely: it opens the chart class; it does not complete the applications.</li>
+<li><b>Verification robustness (small but real).</b> The symbolic orthogonality check
+    depends on the CAS&rsquo;s simplification power; a genuinely orthogonal metric can fail
+    the proof and get rejected. A general path becomes the graceful fallback
+    (hard error &rarr; correct but slower general code).</li>
+</ul>
+
+<h2 id="recommendation">8. Recommendation &mdash; the decision criterion</h2>
+
+<p>The cost to weigh is not the full generalization but the <b>restricted scope
+(collocated scalar &Delta; = <code>lb.general@1</code> only, staggered general Hodge
+deferred)</b>. That stays within known techniques &mdash; cofactor inverses for d &le; 3,
+&radic;det g simplification, the standard 9-point conservative scheme &mdash; and
+corresponds to just the core of Phase 4 in &sect;5.</p>
+
+<div class="note">
+<b>Decision criterion:</b>
+if terrain-following, cubed-sphere, or graph-surface examples are wanted in the portfolio,
+the restricted scope is worth it. If not (curved-surface applications stay complete with
+surfaces of revolution + Yin-Yang), keeping the diagonal restriction is fine &mdash; in that
+case, promote &ldquo;non-orthogonal problems are written with explicit fluxes&rdquo; to a
+documented official policy (e.g. in <code>APPLICATIONS.md</code>), which also stays
+consistent with the paper&rsquo;s limitations section as written.
+</div>
+
+</main>
+</body>
+</html>
