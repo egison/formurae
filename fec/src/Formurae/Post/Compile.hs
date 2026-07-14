@@ -271,6 +271,7 @@ scalarOpaqueSemanticKeys :: ScalarNF -> [SemanticKey]
 scalarOpaqueSemanticKeys scalar =
   case scalar of
     Exact _ _ -> []
+    NamedConstant _ -> []
     Parameter _ -> []
     Coordinate _ -> []
     Add terms -> concatMap recurse terms
@@ -342,6 +343,7 @@ scalarFunctionIds :: ScalarNF -> [FunctionId]
 scalarFunctionIds scalar =
   case scalar of
     Exact _ _ -> []
+    NamedConstant _ -> []
     Parameter _ -> []
     Coordinate _ -> []
     Add terms -> concatMap recurse terms
@@ -644,6 +646,7 @@ lowerScalarShifted
 lowerScalarShifted environment targetPlacement sampleOffsets scalar =
   case scalar of
     Exact numerator denominator -> Right (FExact numerator denominator)
+    NamedConstant constantName -> Right (FNamedConstant constantName)
     Parameter parameterId ->
       FVariable . parameterDeclBackendName <$> lookupParameter environment parameterId
     Coordinate axisId ->
@@ -1058,6 +1061,7 @@ scalarGridPolicies
 scalarGridPolicies environment scalar =
   case scalar of
     Exact _ _ -> Right []
+    NamedConstant _ -> Right []
     Parameter _ -> Right []
     Coordinate _ -> Right []
     Add values -> concatMapM (scalarGridPolicies environment) values
@@ -1272,6 +1276,7 @@ inferScalarLocation
 inferScalarLocation environment semanticKey scalar =
   case scalar of
     Exact _ _ -> Right constantLocation
+    NamedConstant _ -> Right constantLocation
     Parameter _ -> Right constantLocation
     Coordinate _ -> Right sampleableLocation
     Add values -> inferMany values

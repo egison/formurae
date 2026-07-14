@@ -292,8 +292,16 @@ data TensorNF = TensorNF
   , tensorNFComponents :: [(Basis, ScalarNF)]
   } deriving (Eq, Ord, Show)
 
+-- Closed, backend-independent mathematical constants.  Their symbolic
+-- identity is preserved through FEIR; a backend chooses its numeric
+-- representation only at the final rendering boundary.
+data NamedConstant
+  = Pi
+  deriving (Eq, Ord, Show)
+
 data ScalarNF
   = Exact Integer Integer
+  | NamedConstant NamedConstant
   | Parameter ParamId
   | Coordinate AxisId
   | Add [ScalarNF]

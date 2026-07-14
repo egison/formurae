@@ -9,7 +9,7 @@ WORK=$(mktemp -d "$TMPDIR_ROOT/formurae-pre-egison-diagnostic.XXXXXX")
 trap 'rm -rf "$WORK"' EXIT HUP INT TERM
 
 cd "$ROOT"
-cabal run -v0 pre-fec -- tests/fixtures/pre_egison_diagnostic_error.fme \
+cabal run -v0 -j1 pre-fec -- tests/fixtures/pre_egison_diagnostic_error.fme \
   > "$WORK/model.egi"
 
 if "$ROOT/tools/run_formurae_normalization.sh" "$EGISON_DIR" \
@@ -37,7 +37,7 @@ if grep -F '@@FORMURAE_ACTIVE_ORIGIN:' "$WORK/model.err" >/dev/null; then
   exit 1
 fi
 
-cabal run -v0 pre-fec -- tests/fixtures/pre_fec_curl_dimension_error.fme \
+cabal run -v0 -j1 pre-fec -- tests/fixtures/pre_fec_curl_dimension_error.fme \
   > "$WORK/curl-dimension.egi"
 
 if "$ROOT/tools/run_formurae_normalization.sh" "$EGISON_DIR" \
@@ -59,7 +59,7 @@ grep -F 'Assertion failed: "curl requires three dimensions"' \
 
 for metric_use in bare mixed; do
   source="tests/fixtures/pre_fec_metric_${metric_use}_error.fme"
-  cabal run -v0 pre-fec -- "$source" > "$WORK/metric-$metric_use.egi"
+  cabal run -v0 -j1 pre-fec -- "$source" > "$WORK/metric-$metric_use.egi"
   if "$ROOT/tools/run_formurae_normalization.sh" "$EGISON_DIR" \
        "$WORK/metric-$metric_use.egi" \
        > "$WORK/metric-$metric_use.feir" \

@@ -8,7 +8,7 @@ WORK=$(mktemp -d "$TMPDIR_ROOT/formurae-post-diagnostic.XXXXXX")
 trap 'rm -rf "$WORK"' EXIT HUP INT TERM
 
 cd "$ROOT"
-cabal build -v0 post-fec
+cabal build -v0 -j1 post-fec
 POST_FEC=$(cabal list-bin post-fec)
 
 runghc -Wall -ifec/src tests/post_diagnostic_cli_fixture.hs validation \

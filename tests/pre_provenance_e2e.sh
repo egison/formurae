@@ -9,7 +9,7 @@ WORK=$(mktemp -d "$TMPDIR_ROOT/formurae-pre-provenance.XXXXXX")
 trap 'rm -rf "$WORK"' EXIT HUP INT TERM
 
 cd "$ROOT"
-cabal run -v0 pre-fec -- tests/fixtures/pre_provenance_error.fme \
+cabal run -v0 -j1 pre-fec -- tests/fixtures/pre_provenance_error.fme \
   > "$WORK/model.egi"
 
 "$ROOT/tools/run_formurae_normalization.sh" "$EGISON_DIR" \
@@ -18,7 +18,7 @@ cabal run -v0 pre-fec -- tests/fixtures/pre_provenance_error.fme \
 cabal exec -v0 runghc -- -ifec/src tests/pre_provenance_feir.hs \
   < "$WORK/model.feir"
 
-cabal run -v0 post-fec -- "$WORK/model.feir" > "$WORK/model.fmr"
+cabal run -v0 -j1 post-fec -- "$WORK/model.feir" > "$WORK/model.fmr"
 test -s "$WORK/model.fmr"
 
 printf 'pre-fec canonical-resample provenance pipeline tests: ok\n'

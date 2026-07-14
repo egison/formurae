@@ -42,6 +42,18 @@ assertEqual "FEIR exact rational is structural"
   (FEIR.render (encodeScalarFixture (1 / 2)))
   "(exact 1 2)"
 
+assertEqual "symbolic pi drives exact trigonometric simplification"
+  (sin π, cos π)
+  (0, -1)
+
+assertEqual "FEIR keeps bare pi as a named constant"
+  (FEIR.render (encodeScalarFixture π))
+  "(named-constant pi)"
+
+assertEqual "FEIR keeps pi symbolic inside a rational product"
+  (FEIR.render (encodeScalarFixture (5 * π / 24)))
+  "(mul (exact 5 24) (named-constant pi))"
+
 assertEqual "FEIR registered parameter and coordinate IDs"
   (map (\value -> FEIR.render (encodeScalarFixture value)) [a, x, y])
   ["(parameter 1)", "(coordinate 1)", "(coordinate 2)"]

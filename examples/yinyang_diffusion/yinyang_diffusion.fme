@@ -1,9 +1,9 @@
 -- Heat equation on ONE PANEL of the Yin-Yang overset grid for the
 -- FULL unit sphere (Kageyama & Sato 2004).  A panel is the low-latitude
--- lon-lat rectangle theta_phys = 5pi/24 + theta with
---   theta_phys in [pi/4 - 2h, 3pi/4 + 2h],  phi in [-3pi/4 - 2h, 3pi/4 + 2h],
--- h = pi/48: the classical minimal panel extended by a 2-cell
--- interpolation margin (0.6544984694978736 = 5pi/24).  Yin and Yang are
+-- lon-lat rectangle theta_phys = 5π/24 + theta with
+--   theta_phys in [π/4 - 2h, 3π/4 + 2h],  phi in [-3π/4 - 2h, 3π/4 + 2h],
+-- h = π/48: the classical minimal panel extended by a 2-cell
+-- interpolation margin.  Yin and Yang are
 -- congruent under the involution (x,y,z) -> (-x,z,y), so this single
 -- program is the kernel for BOTH panels: the check driver instantiates
 -- the generated grid twice and, after every step, overwrites the
@@ -12,8 +12,10 @@
 -- mirror only as a placeholder; the rim cells they influence are
 -- exactly the cells the driver overwrites.  The init below is the
 -- global eigenmode Y_1^0 = cos(theta_global) in Yin coordinates
--- (theta_global = theta_phys on Yin); the driver rewrites both panels
--- with the same global formula, and checks the exact decay e^{-2t}.
+-- (theta_global = theta_phys on Yin).  The local phi origin is
+-- phi0 = -19π/24, matching the check driver.  The
+-- driver rewrites both panels with each of the three global l=1
+-- Cartesian modes in turn, and checks their exact decay e^{-2t}.
 
 mode collocated
 dimension 3
@@ -21,12 +23,12 @@ axes θ, φ, z
 
 param dt = 0.0003
 
-embedding [ sin (6544984694978736 / 10000000000000000 + θ) * cos φ, sin (6544984694978736 / 10000000000000000 + θ) * sin φ, cos (6544984694978736 / 10000000000000000 + θ), z ]
+embedding [ sin (5 * π / 24 + θ) * cos (φ - 19 * π / 24), sin (5 * π / 24 + θ) * sin (φ - 19 * π / 24), cos (5 * π / 24 + θ), z ]
 
 field u : scalar
 
 init:
-  u := cos (6544984694978736 / 10000000000000000 + θ)
+  u := cos (5 * π / 24 + θ)
 
 step:
   u' = u + dt * Δ u

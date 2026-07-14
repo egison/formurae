@@ -24,7 +24,14 @@ standardNames =
   , "flat", "sharp"
   , "resample"
   , "epsilon"
+  , "π", "pi"
   ]
+
+-- Unicode π is the one symbolic circle constant in the mathematical
+-- surface language.  ASCII pi is reserved as a diagnostic-only near miss:
+-- Egison core defines it as a Float, which would bypass CAS simplification.
+mathematicalConstantNames :: [String]
+mathematicalConstantNames = ["π", "pi"]
 
 scalarIntrinsics :: [String]
 scalarIntrinsics =
@@ -209,6 +216,7 @@ validateValueBindingNames m =
       ++ internalCoordNames m
       ++ generatedIndexNames
       ++ generatedNormalizationNames
+      ++ mathematicalConstantNames
       ++ egisonReservedWords
       ++ normalizationDependencies
 
@@ -661,6 +669,12 @@ parseModel sourceFile name txt = do
           validateMetricName mUse
           validateDimensionFeatures mUse
           validateIndexedStepTargets mUse
+          mapM_ (checkUserSurface mUse [] "in embedding expression")
+            (maybe [] id (mEmbed mUse))
+          mapM_ (checkUserSurface mUse [] "in metric scale expression")
+            (maybe [] id (mMetric mUse))
+          mapM_ (checkUserSurface mUse [] "in assert-dd-zero expression")
+            (maybe [] (: []) (mDd mUse))
           mapM_ (\df ->
                     checkUserSurface mUse (map defParamBase (defParams df))
                       ("in def " ++ defName df) (defBody df))
@@ -805,6 +819,7 @@ parseModel sourceFile name txt = do
                             ++ show ln ++ ")")
                 else do
                   rejectReservedName ln parameterName
+                  rejectRawConstant ln "parameter value" (strip v)
                   return m
                     { mParams = (parameterName, strip v) : mParams m
                     , mParamSourceLines = ln : mParamSourceLines m
@@ -925,6 +940,14 @@ parseModel sourceFile name txt = do
               fatal ("definition parameter '" ++ parameterName
                      ++ "' is reserved for generated index symbols (line "
                      ++ show ln ++ ")")
+          case [parameterName | parameter <- defParams df
+                     , let parameterName = defParamBase parameter
+                     , parameterName `elem` mathematicalConstantNames] of
+            [] -> return ()
+            parameterName : _ ->
+              fatal ("definition parameter '" ++ parameterName
+                     ++ "' cannot shadow the symbolic constant π (line "
+                     ++ show ln ++ ")")
           definitionSource <- sourceBuilder (defBody df)
           return m
             { mDefs = df { defSourceText = Just definitionSource } : mDefs m }
@@ -961,6 +984,7 @@ parseModel sourceFile name txt = do
       | Just (nm, lhsIx, rhs) <- rawForm s = do
           rejectReservedName ln nm
           validateInitTarget nm lhsIx
+          rejectRawConstant ln "raw initializer" rhs
           case (kindOf m nm, vecLit rhs) of
             (Just SymM, Just (rows, rhsIx)) -> do
               validateInitSuffix nm lhsIx rhsIx
@@ -1263,6 +1287,15 @@ parseModel sourceFile name txt = do
           [SourcePosition lineNumber (column + offset - 1)
           | offset <- offsets])
 
+    rejectRawConstant line context expression =
+      case rawConstantUse expression of
+        Nothing -> return ()
+        Just spelling -> fatal
+          (context ++ " cannot use " ++ spelling
+           ++ " because it bypasses symbolic FEIR; use a numeric backend value"
+           ++ (if context == "raw initializer" then " or ':='" else "")
+           ++ " (line " ++ show line ++ ")")
+
     intercalatePositions _ _ [] = []
     intercalatePositions _ _ [(_, positions)] = positions
     intercalatePositions separator (_ : nextPiece : restPieces)
@@ -1292,7 +1325,13 @@ surfaceBanned m _ s =
   `orElse`
   foldr (\t acc -> checkIndexTok t `orElse` acc) Nothing (itok s)
   where
-    checkTok (TId nm _)
+    checkTok (TId nm primed)
+      | baseName == "pi" =
+          Just "ASCII 'pi' is a floating-point Egison value; write Unicode π for the symbolic circle constant"
+      | baseName == "π", primed =
+          Just "symbolic constant π cannot be primed"
+      | baseName == "π", not (null indexedParts) =
+          Just "symbolic constant π is scalar and cannot carry tensor indices"
       | Just msg <- invalidDerivativeOp m nm =
           Just msg
       | nm == "badPartialDerivative" =
@@ -1300,6 +1339,8 @@ surfaceBanned m _ s =
       | ("FormuraeInternalKroneckerDelta" : ps) <- splitOn '_' nm
       , any ((> 1) . length) ps =
           Just ("Kronecker delta takes one index per mark (δ~i_j): " ++ nm)
+      where
+        (baseName, indexedParts) = parseIndexedIdent nm
     checkTok _ = Nothing
     checkIndexTok (II nm) =
       case parseIndexedIdent nm of
@@ -1318,6 +1359,14 @@ surfaceBanned m _ s =
     hasOppositeVariances _ = False
     orElse (Just x) _ = Just x
     orElse Nothing y = y
+
+rawConstantUse :: String -> Maybe String
+rawConstantUse source =
+  case [base | TId name _ <- tokenize source
+             , let (base, _) = parseIndexedIdent name
+             , base `elem` mathematicalConstantNames] of
+    spelling : _ -> Just spelling
+    [] -> Nothing
 
 firstAmbientName :: [String] -> Maybe String
 firstAmbientName [] = Nothing
@@ -1347,7 +1396,9 @@ invalidDerivativeOp _ nm =
           Just ("coordinate derivative ∂" ++ show ordr ++ "," ++ show radius ++ ixName part
                 ++ " has too few stencil points")
       | otherwise -> Nothing
--- Unicode input: Greek letters transliterate to their ASCII names.  A
+-- Unicode input: Greek letters transliterate to their ASCII names except
+-- mathematical π (and the already-special δ), whose spelling carries CAS
+-- semantics and therefore remains Unicode.  A
 -- decorated partial-derivative sign is a coordinate derivative:
 -- `∂_x u`, `∂^2_x u`, `∂'^2_x u`.  A plain marked partial (`∂_i` or
 -- `∂~i`) remains the indexed derivative when the mark is not a declared
@@ -1468,7 +1519,7 @@ transliterateWithMap = go 1
     tr '\958' = "xi"       -- ξ
     tr '\950' = "zeta"     -- ζ
     tr '\967' = "chi"      -- χ
-    tr '\960' = "pi"       -- π
+    tr '\960' = "π"        -- π remains Egison's symbolic MathValue constant
     tr '\948' = "δ"        -- δ remains distinct from ASCII delta
     tr '\8722' = "-"       -- − (minus sign)
     tr c = [c]

@@ -213,6 +213,9 @@ checkHeaderAndIds = do
 
 checkTensorAndExact :: IO ()
 checkTensorAndExact = do
+  assertEqual "named pi is a valid closed scalar constant" (Right ())
+    (validateFEProgram validationConfig
+      (mapInitializerScalar (const (NamedConstant Pi)) validProgram))
   let badTensor = TensorNF [2] [VarianceDown] 0
         [(Basis [2], Exact 2 1), (Basis [1], Exact 1 1)]
   assertIssue "tensor components use full row-major basis" isBasisOrder
@@ -271,6 +274,10 @@ checkNormalForms = do
     (mapInitializerScalar
       (const (Mul [Parameter (ParamId 1), Parameter (ParamId 1)]))
       validProgram)
+  assertIssue "repeated named constants are combined as symbolic factors"
+    isScalarForm
+    (mapInitializerScalar
+      (const (Mul [NamedConstant Pi, NamedConstant Pi])) validProgram)
   assertIssue "zero numerator divisions are reduced" isScalarForm
     (mapInitializerScalar
       (const (Div (Exact 0 1) (Parameter (ParamId 1)))) validProgram)

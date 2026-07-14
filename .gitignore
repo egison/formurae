@@ -60,6 +60,8 @@ examples/polar2d/polar2d.c
 examples/polar2d/polar2d.h
 examples/spherical3d/spherical3d.c
 examples/spherical3d/spherical3d.h
+examples/yinyang_diffusion/yinyang_diffusion.c
+examples/yinyang_diffusion/yinyang_diffusion.h
 examples/*/viz
 gallery/data/
 dist-newstyle/

@@ -45,7 +45,7 @@ compile_generated() {
 }
 
 cd "$ROOT"
-cabal run -v0 pre-fec -- "$FIXTURE" > "$WORK/model.egi"
+cabal run -v0 -j1 pre-fec -- "$FIXTURE" > "$WORK/model.egi"
 
 for forbidden in 'def dC ' 'def dC2 ' dYee FMR. fieldEqs; do
   if grep -F "$forbidden" "$WORK/model.egi" >/dev/null; then
@@ -56,7 +56,7 @@ done
 
 run_machine "$WORK/model.egi" "$WORK/model.feir"
 
-cabal run -v0 post-fec -- "$WORK/model.feir" > "$WORK/model.fmr"
+cabal run -v0 -j1 post-fec -- "$WORK/model.feir" > "$WORK/model.fmr"
 grep -F 'u[i,j] = 1 + alpha * dr * i' "$WORK/model.fmr" >/dev/null
 grep -F 'flux[i,j] = alpha * u[i,j] + u[i,j]**2' "$WORK/model.fmr" >/dev/null
 grep -F 'extern function :: exp' "$WORK/model.fmr" >/dev/null
@@ -64,7 +64,7 @@ grep -F 'gauss = fun(r) exp(0.0 - r*r)' "$WORK/model.fmr" >/dev/null
 
 sed 's/(registry-id "sha256:[0-9a-f]*/(registry-id "sha256:tampered/' \
   "$WORK/model.feir" > "$WORK/tampered.feir"
-if cabal run -v0 post-fec -- "$WORK/tampered.feir" \
+if cabal run -v0 -j1 post-fec -- "$WORK/tampered.feir" \
      > "$WORK/tampered.fmr" 2> "$WORK/tampered.err"; then
   printf 'post-fec accepted a tampered logical registry fingerprint\n' >&2
   exit 1
@@ -73,7 +73,7 @@ grep -F 'registry ID mismatch' "$WORK/tampered.err" >/dev/null
 
 # Canonical scalar Delta expands through the pure Cartesian scalar-Laplacian
 # definition and normalizes to one second-order FieldJet, not nested stencils.
-cabal run -v0 pre-fec -- "$ROOT/tests/fixtures/pre_fec_scalar_delta_1d.fme" \
+cabal run -v0 -j1 pre-fec -- "$ROOT/tests/fixtures/pre_fec_scalar_delta_1d.fme" \
   > "$WORK/derivative.egi"
 grep -F 'def FormuraeInternalScalarDelta u := Formurae.scalarLaplacian' \
   "$WORK/derivative.egi" >/dev/null
@@ -81,18 +81,18 @@ grep -F 'FormuraeInternalScalarDelta u' \
   "$WORK/derivative.egi" >/dev/null
 run_machine "$WORK/derivative.egi" "$WORK/derivative.feir"
 grep -F '(axis-order (axis 1) (count 2))' "$WORK/derivative.feir" >/dev/null
-cabal run -v0 post-fec -- "$WORK/derivative.feir" > "$WORK/derivative.fmr"
+cabal run -v0 -j1 post-fec -- "$WORK/derivative.feir" > "$WORK/derivative.fmr"
 grep -F 'u[i-1] + u[i+1] + (-2) * u[i]' "$WORK/derivative.fmr" >/dev/null
 
 # Indexed Unicode delta is hygienically bound to Egison's Kronecker tensor;
 # an ordinary user function named ASCII `delta` cannot capture it.
-cabal run -v0 pre-fec -- \
+cabal run -v0 -j1 pre-fec -- \
   "$ROOT/tests/fixtures/pre_fec_kronecker_delta_hygiene.fme" \
   > "$WORK/kronecker.egi"
 grep -F 'FormuraeInternalKroneckerDelta~i_j . X~j' \
   "$WORK/kronecker.egi" >/dev/null
 run_machine "$WORK/kronecker.egi" "$WORK/kronecker.feir"
-cabal run -v0 post-fec -- "$WORK/kronecker.feir" \
+cabal run -v0 -j1 post-fec -- "$WORK/kronecker.feir" \
   > "$WORK/kronecker.fmr"
 grep -F "X_down1'[i,j] = X_down1[i,j]" "$WORK/kronecker.fmr" >/dev/null
 grep -F "X_down2'[i,j] = X_down2[i,j]" "$WORK/kronecker.fmr" >/dev/null
@@ -100,7 +100,7 @@ grep -F "X_down2'[i,j] = X_down2[i,j]" "$WORK/kronecker.fmr" >/dev/null
 # A pure user operator may use Egison's full let/lambda/match expression
 # syntax across multiple indented lines.  pre-fec preserves the layout needed
 # by match clauses, while Egison remains responsible for normalization.
-cabal run -v0 pre-fec -- "$ROOT/tests/fixtures/pre_fec_raw_operator.fme" \
+cabal run -v0 -j1 pre-fec -- "$ROOT/tests/fixtures/pre_fec_raw_operator.fme" \
   > "$WORK/raw-operator.egi"
 grep -F 'let lap := FormuraeInternalLap' "$WORK/raw-operator.egi" >/dev/null
 grep -F 'let apply := \f x -> f x' "$WORK/raw-operator.egi" >/dev/null
@@ -109,7 +109,7 @@ grep -F '      metric := \value -> value' \
 grep -F '      choose := match 1 as integer with' \
   "$WORK/raw-operator.egi" >/dev/null
 run_machine "$WORK/raw-operator.egi" "$WORK/raw-operator.feir"
-cabal run -v0 post-fec -- "$WORK/raw-operator.feir" \
+cabal run -v0 -j1 post-fec -- "$WORK/raw-operator.feir" \
   > "$WORK/raw-operator.fmr"
 grep -F "u'[i] = 1 + u[i]" "$WORK/raw-operator.fmr" >/dev/null
 grep -F "q'[i] = (q[i-1] + q[i+1] + (-2) * q[i]) / dx**2" \
@@ -118,14 +118,14 @@ grep -F "q'[i] = (q[i-1] + q[i+1] + (-2) * q[i]) / dx**2" \
 # Higher-order passage preserves the ambient operator closure and the tensor
 # metadata of standard operators.  `apply grad u` must therefore reach a
 # whole covector target, not an anonymous one-form axis.
-cabal run -v0 pre-fec -- "$ROOT/tests/formurae_standard_ops.fme" \
+cabal run -v0 -j1 pre-fec -- "$ROOT/tests/formurae_standard_ops.fme" \
   > "$WORK/standard-ops.egi"
 grep -F 'apply FormuraeInternalGrad u' \
   "$WORK/standard-ops.egi" >/dev/null
 run_machine "$WORK/standard-ops.egi" "$WORK/standard-ops.feir"
 grep -F '(shape (2)) (variances (down)) (df-order 0)' \
   "$WORK/standard-ops.feir" >/dev/null
-cabal run -v0 post-fec -- "$WORK/standard-ops.feir" \
+cabal run -v0 -j1 post-fec -- "$WORK/standard-ops.feir" \
   > "$WORK/standard-ops.fmr"
 grep -F "q_down1'[i,j] = ((-1 / 2) * u[i-1,j] + (1 / 2) * u[i+1,j]) / dx" \
   "$WORK/standard-ops.fmr" >/dev/null
@@ -134,20 +134,20 @@ grep -F "q_down2'[i,j] = ((-1 / 2) * u[i,j-1] + (1 / 2) * u[i,j+1]) / dy" \
 
 # The same metadata normalization is structural for rank-two derivatives and
 # the metric musical maps; it is not keyed by an operator name in pre/post-fec.
-cabal run -v0 pre-fec -- "$ROOT/tests/formurae_native_rank2_ops.fme" \
+cabal run -v0 -j1 pre-fec -- "$ROOT/tests/formurae_native_rank2_ops.fme" \
   > "$WORK/rank2-ops.egi"
 run_machine "$WORK/rank2-ops.egi" "$WORK/rank2-ops.feir"
 grep -F '(shape (2 2)) (variances (down down)) (df-order 0)' \
   "$WORK/rank2-ops.feir" >/dev/null
-cabal run -v0 post-fec -- "$WORK/rank2-ops.feir" \
+cabal run -v0 -j1 post-fec -- "$WORK/rank2-ops.feir" \
   > "$WORK/rank2-ops.fmr"
 grep -F "H_down1_down2'[i,j] =" "$WORK/rank2-ops.fmr" >/dev/null
 grep -F "G_down2_down1'[i,j] =" "$WORK/rank2-ops.fmr" >/dev/null
 
-cabal run -v0 pre-fec -- "$ROOT/tests/formurae_musical_ops.fme" \
+cabal run -v0 -j1 pre-fec -- "$ROOT/tests/formurae_musical_ops.fme" \
   > "$WORK/musical-ops.egi"
 run_machine "$WORK/musical-ops.egi" "$WORK/musical-ops.feir"
-cabal run -v0 post-fec -- "$WORK/musical-ops.feir" \
+cabal run -v0 -j1 post-fec -- "$WORK/musical-ops.feir" \
   > "$WORK/musical-ops.fmr"
 grep -F "A_down1'[i,j] = 4 * X_up1[i,j]" "$WORK/musical-ops.fmr" >/dev/null
 grep -F "X_up1'[i,j] = (1 / 4) * A_down1[i,j]" "$WORK/musical-ops.fmr" >/dev/null
@@ -155,13 +155,13 @@ grep -F "X_up1'[i,j] = (1 / 4) * A_down1[i,j]" "$WORK/musical-ops.fmr" >/dev/nul
 # Symbolic predicates remain data through Egison normalization.  The encoder
 # canonicalizes boolean collections and emits one Select per tensor component;
 # post-fec alone resolves sampling placement.
-cabal run -v0 pre-fec -- "$ROOT/tests/fixtures/pre_fec_conditional.fme" \
+cabal run -v0 -j1 pre-fec -- "$ROOT/tests/fixtures/pre_fec_conditional.fme" \
   > "$WORK/conditional.egi"
 grep -F 'Formurae.select (Formurae.predicateOr' "$WORK/conditional.egi" >/dev/null
 run_machine "$WORK/conditional.egi" "$WORK/conditional.feir"
 grep -F '(select (or (compare ge ' "$WORK/conditional.feir" >/dev/null
 grep -F '(select (and (compare ge ' "$WORK/conditional.feir" >/dev/null
-cabal run -v0 post-fec -- "$WORK/conditional.feir" \
+cabal run -v0 -j1 post-fec -- "$WORK/conditional.feir" \
   > "$WORK/conditional.fmr"
 grep -F 'u[i,j] = if dx * i < threshold then 1 else 0' \
   "$WORK/conditional.fmr" >/dev/null
@@ -178,11 +178,11 @@ compile_generated conditional diffusion2d "$WORK/conditional.fmr"
 # Both update fields and materialized step-local fields bind Formura's grid
 # coordinate variables from their indexed assignment targets.  A bare target
 # would leave the `i` in dx*i undefined during Formura code generation.
-cabal run -v0 pre-fec -- \
+cabal run -v0 -j1 pre-fec -- \
   "$ROOT/tests/fixtures/pre_fec_coordinate_targets.fme" \
   > "$WORK/coordinate-targets.egi"
 run_machine "$WORK/coordinate-targets.egi" "$WORK/coordinate-targets.feir"
-cabal run -v0 post-fec -- "$WORK/coordinate-targets.feir" \
+cabal run -v0 -j1 post-fec -- "$WORK/coordinate-targets.feir" \
   > "$WORK/coordinate-targets.fmr"
 grep -F 'position[i] = dx * i' "$WORK/coordinate-targets.fmr" >/dev/null
 grep -F "u'[i] = position[i] + u[i]" "$WORK/coordinate-targets.fmr" >/dev/null
@@ -191,7 +191,7 @@ compile_generated coordinate-targets diffusion1d "$WORK/coordinate-targets.fmr"
 # Indexed, rank-two, and form locals reuse the same logical descriptor and
 # component projection as user fields.  Their Materialize actions remain in
 # source order, and every canonical component becomes one step binding.
-cabal run -v0 pre-fec -- \
+cabal run -v0 -j1 pre-fec -- \
   "$ROOT/tests/fixtures/pre_fec_tensor_locals.fme" \
   > "$WORK/tensor-locals.egi"
 grep -F 'def FormuraeInternalValue1_i : Tensor MathValue := Q_i' \
@@ -217,7 +217,7 @@ grep -F '(source-name "antibuf") (policy dual)' \
   "$WORK/tensor-locals.feir" >/dev/null
 grep -F '(layout symmetric)' "$WORK/tensor-locals.feir" >/dev/null
 grep -F '(layout antisymmetric)' "$WORK/tensor-locals.feir" >/dev/null
-cabal run -v0 post-fec -- "$WORK/tensor-locals.feir" \
+cabal run -v0 -j1 post-fec -- "$WORK/tensor-locals.feir" \
   > "$WORK/tensor-locals.fmr"
 grep -F 'q_down1[i,j] = Q_down1[i,j]' "$WORK/tensor-locals.fmr" >/dev/null
 grep -F 'stress_up2_down1[i,j] = T_up2_down1[i,j]' \
@@ -256,7 +256,7 @@ fi
 # rank-two value, not only the independent storage projection.  Reject a full
 # tensor with inconsistent mirrored components at both local materialization
 # and user-field update boundaries.
-cabal run -v0 pre-fec -- \
+cabal run -v0 -j1 pre-fec -- \
   "$ROOT/tests/fixtures/pre_fec_symmetric_local_mismatch.fme" \
   > "$WORK/symmetric-local-mismatch.egi"
 grep -F 'Formurae.requireSymmetricRank2' \
@@ -270,7 +270,7 @@ fi
 grep -F 'Assertion failed: "normalized symmetric tensor layout mismatch"' \
   "$WORK/symmetric-local-mismatch.err" >/dev/null
 
-cabal run -v0 pre-fec -- \
+cabal run -v0 -j1 pre-fec -- \
   "$ROOT/tests/fixtures/pre_fec_antisymmetric_update_mismatch.fme" \
   > "$WORK/antisymmetric-update-mismatch.egi"
 grep -F 'Formurae.requireAntisymmetricRank2' \
@@ -288,7 +288,7 @@ grep -F 'Assertion failed: "normalized antisymmetric tensor layout mismatch"' \
 # quoted component derivatives materialize once at their natural faces, and
 # ordinary divg differentiates those stored samples back to the cell update;
 # neither of the old opaque conservation/materialization primitives is used.
-cabal run -v0 pre-fec -- \
+cabal run -v0 -j1 pre-fec -- \
   "$ROOT/tests/fixtures/pre_fec_conservative_local.fme" \
   > "$WORK/conservative-local.egi"
 grep -F 'def FormuraeInternalValue1_i : Tensor MathValue :=' \
@@ -310,7 +310,7 @@ if grep -E 'flux\.conservative-divergence@1|operator\.materialized@1' \
   printf 'conservative local FEIR retained an old opaque primitive\n' >&2
   exit 1
 fi
-cabal run -v0 post-fec -- "$WORK/conservative-local.feir" \
+cabal run -v0 -j1 post-fec -- "$WORK/conservative-local.feir" \
   > "$WORK/conservative-local.fmr"
 grep -F 'q_down1[i,j] = (-1) * kappa * (u[i+1,j] + (-1) * u[i,j]) / dx' \
   "$WORK/conservative-local.fmr" >/dev/null
@@ -337,11 +337,11 @@ fi
 # The action stream is intentionally source ordered.  A local cannot read a
 # later local, even though all logical field declarations exist in the FEIR
 # registry by the time Egison normalizes the model.
-cabal run -v0 pre-fec -- \
+cabal run -v0 -j1 pre-fec -- \
   "$ROOT/tests/fixtures/pre_fec_local_forward_reference.fme" \
   > "$WORK/local-forward.egi"
 run_machine "$WORK/local-forward.egi" "$WORK/local-forward.feir"
-if cabal run -v0 post-fec -- "$WORK/local-forward.feir" \
+if cabal run -v0 -j1 post-fec -- "$WORK/local-forward.feir" \
      > "$WORK/local-forward.fmr" 2> "$WORK/local-forward.err"; then
   printf 'post-fec accepted a forward reference to a step-local field\n' >&2
   exit 1
@@ -350,18 +350,18 @@ grep -F 'is not available here' "$WORK/local-forward.err" >/dev/null
 
 # A local policy annotation is a checked storage contract, not an implicit
 # resample request.  A collocated vector cannot be assigned to Primal faces.
-cabal run -v0 pre-fec -- \
+cabal run -v0 -j1 pre-fec -- \
   "$ROOT/tests/fixtures/pre_fec_local_placement_mismatch.fme" \
   > "$WORK/local-placement.egi"
 run_machine "$WORK/local-placement.egi" "$WORK/local-placement.feir"
-if cabal run -v0 post-fec -- "$WORK/local-placement.feir" \
+if cabal run -v0 -j1 post-fec -- "$WORK/local-placement.feir" \
      > "$WORK/local-placement.fmr" 2> "$WORK/local-placement.err"; then
   printf 'post-fec implicitly resampled a local materialization\n' >&2
   exit 1
 fi
 grep -F 'grid placement mismatch' "$WORK/local-placement.err" >/dev/null
 
-cabal run -v0 pre-fec -- "$ROOT/tests/fixtures/pre_fec_invalid_predicate.fme" \
+cabal run -v0 -j1 pre-fec -- "$ROOT/tests/fixtures/pre_fec_invalid_predicate.fme" \
   > "$WORK/invalid-predicate.egi"
 if run_machine "$WORK/invalid-predicate.egi" "$WORK/invalid-predicate.feir" \
      2> "$WORK/invalid-predicate.err"; then
@@ -371,11 +371,11 @@ fi
 grep -F 'conditional predicate is not a reserved symbolic predicate' \
   "$WORK/invalid-predicate.err" >/dev/null
 
-cabal run -v0 pre-fec -- \
+cabal run -v0 -j1 pre-fec -- \
   "$ROOT/tests/fixtures/pre_fec_select_placement_mismatch.fme" \
   > "$WORK/select-placement.egi"
 run_machine "$WORK/select-placement.egi" "$WORK/select-placement.feir"
-if cabal run -v0 post-fec -- "$WORK/select-placement.feir" \
+if cabal run -v0 -j1 post-fec -- "$WORK/select-placement.feir" \
      > "$WORK/select-placement.fmr" 2> "$WORK/select-placement.err"; then
   printf 'post-fec accepted Select branches at incompatible placements\n' >&2
   exit 1
@@ -385,14 +385,14 @@ grep -F 'grid placement mismatch' "$WORK/select-placement.err" >/dev/null
 # Egison's shared whole-tensor wedge/sym calls retain explicit covariant
 # metadata.  In particular, sym must not turn ordinary rank-two axes into
 # anonymous form axes when its local indices leave scope.
-cabal run -v0 pre-fec -- "$ROOT/tests/formurae_runtime_tensor_ops.fme" \
+cabal run -v0 -j1 pre-fec -- "$ROOT/tests/formurae_runtime_tensor_ops.fme" \
   > "$WORK/runtime-tensor-ops.egi"
 grep -F "def FormuraeInternalValue3 := wedge A' T" \
   "$WORK/runtime-tensor-ops.egi" >/dev/null
 grep -F 'def FormuraeInternalValue4 := sym C' \
   "$WORK/runtime-tensor-ops.egi" >/dev/null
 run_machine "$WORK/runtime-tensor-ops.egi" "$WORK/runtime-tensor-ops.feir"
-cabal run -v0 post-fec -- "$WORK/runtime-tensor-ops.feir" \
+cabal run -v0 -j1 post-fec -- "$WORK/runtime-tensor-ops.feir" \
   > "$WORK/runtime-tensor-ops.fmr"
 grep -F "C_down1_down2'[i,j] = A_down1'[i,j] * B_down2[i,j]" \
   "$WORK/runtime-tensor-ops.fmr" >/dev/null
@@ -401,14 +401,14 @@ grep -F "S_down1_down2'[i,j] = (1 / 2) * C_down1_down2[i,j] + (1 / 2) * C_down2_
 
 # Keep the standalone positive geometry fixtures in the production pipeline
 # suite as well as the larger example-level numerical checks.
-cabal run -v0 pre-fec -- "$ROOT/tests/formurae_metric_tensor_ops.fme" \
+cabal run -v0 -j1 pre-fec -- "$ROOT/tests/formurae_metric_tensor_ops.fme" \
   > "$WORK/metric-tensor-ops.egi"
 grep -E 'def FormuraeInternalValue[0-9]+~i : Tensor MathValue := withSymbols \[j\] \(g~i~j \. A_j\)' \
   "$WORK/metric-tensor-ops.egi" >/dev/null
 grep -E 'FormuraeInternalValue[0-9]+~formuraeTensorIndex1' \
   "$WORK/metric-tensor-ops.egi" >/dev/null
 run_machine "$WORK/metric-tensor-ops.egi" "$WORK/metric-tensor-ops.feir"
-cabal run -v0 post-fec -- "$WORK/metric-tensor-ops.feir" \
+cabal run -v0 -j1 post-fec -- "$WORK/metric-tensor-ops.feir" \
   > "$WORK/metric-tensor-ops.fmr"
 grep -F "B_up1'[i,j] = A_down1[i,j]" "$WORK/metric-tensor-ops.fmr" >/dev/null
 grep -F "B_up2'[i,j] = (1 / 4) * A_down2[i,j]" \
@@ -422,22 +422,22 @@ grep -F "H_up1_up1'[i,j] = 1" \
 grep -F "H_up2_up2'[i,j] = (1 / 4)" \
   "$WORK/metric-tensor-ops.fmr" >/dev/null
 
-cabal run -v0 pre-fec -- \
+cabal run -v0 -j1 pre-fec -- \
   "$ROOT/tests/formurae_musical_variable_metric.fme" \
   > "$WORK/musical-variable.egi"
 run_machine "$WORK/musical-variable.egi" "$WORK/musical-variable.feir"
-cabal run -v0 post-fec -- "$WORK/musical-variable.feir" \
+cabal run -v0 -j1 post-fec -- "$WORK/musical-variable.feir" \
   > "$WORK/musical-variable.fmr"
 grep -F "A_down1'[i,j] = X_up1[i,j] + 2 * dx * X_up1[i,j]" \
   "$WORK/musical-variable.fmr" >/dev/null
 grep -F "X_up1'[i,j] = A_down1[i,j] / (1 + 2 * dx" \
   "$WORK/musical-variable.fmr" >/dev/null
 
-cabal run -v0 pre-fec -- \
+cabal run -v0 -j1 pre-fec -- \
   "$ROOT/tests/formurae_hodge_variable_metric.fme" \
   > "$WORK/hodge-variable.egi"
 run_machine "$WORK/hodge-variable.egi" "$WORK/hodge-variable.feir"
-cabal run -v0 post-fec -- "$WORK/hodge-variable.feir" \
+cabal run -v0 -j1 post-fec -- "$WORK/hodge-variable.feir" \
   > "$WORK/hodge-variable.fmr"
 grep -F "H_1'[i,j] = (-1) * dx * i * A_2[i,j] + (-1) * A_2[i,j]" \
   "$WORK/hodge-variable.fmr" >/dev/null
@@ -447,33 +447,33 @@ grep -F "H_2'[i,j] = A_1[i,j] / (1 + dx * ((1 / 2) + i))" \
 # A surface `def (.)` shadows the tensor bridge's default contraction.  The
 # generated operator alias is valid Egison syntax, and later user definitions
 # resolve it directly as an ordinary context-free user function.
-cabal run -v0 pre-fec -- "$ROOT/tests/fixtures/pre_fec_dot_shadow.fme" \
+cabal run -v0 -j1 pre-fec -- "$ROOT/tests/fixtures/pre_fec_dot_shadow.fme" \
   > "$WORK/dot-shadow.egi"
 grep -F 'def (.) := FormuraeInternalDefinition1' \
   "$WORK/dot-shadow.egi" >/dev/null
 grep -F 'FormuraeInternalDefinition1 a b' \
   "$WORK/dot-shadow.egi" >/dev/null
 run_machine "$WORK/dot-shadow.egi" "$WORK/dot-shadow.feir"
-cabal run -v0 post-fec -- "$WORK/dot-shadow.feir" > "$WORK/dot-shadow.fmr"
+cabal run -v0 -j1 post-fec -- "$WORK/dot-shadow.feir" > "$WORK/dot-shadow.fmr"
 grep -F "u'[i] = 2 + u[i]" "$WORK/dot-shadow.fmr" >/dev/null
 
 # An occurrence-level radius is an opaque coordinate derivative.  It bypasses
 # the model's compact accuracy-2 profile and keeps its exact radius-2 contract.
-cabal run -v0 pre-fec -- "$ROOT/tests/fixtures/pre_fec_wide.fme" \
+cabal run -v0 -j1 pre-fec -- "$ROOT/tests/fixtures/pre_fec_wide.fme" \
   > "$WORK/wide.egi"
 grep -F 'FormuraeInternalCoordinateWideDerivative 1 2 2 u' \
   "$WORK/wide.egi" >/dev/null
 run_machine "$WORK/wide.egi" "$WORK/wide.feir"
 grep -F '(op-id "derivative.coordinate-wide@1")' "$WORK/wide.feir" >/dev/null
 grep -F '(id "radius") (value (natural 2))' "$WORK/wide.feir" >/dev/null
-cabal run -v0 post-fec -- "$WORK/wide.feir" > "$WORK/wide.fmr"
+cabal run -v0 -j1 post-fec -- "$WORK/wide.feir" > "$WORK/wide.fmr"
 grep -F 'u[i-2]' "$WORK/wide.fmr" >/dev/null
 grep -F 'u[i+2]' "$WORK/wide.fmr" >/dev/null
 grep -F '(-1 / 12)' "$WORK/wide.fmr" >/dev/null
 
 # A grid derivative is intentionally different from analytic differentiation:
 # Egison must preserve the complete nonlinear flux as one opaque operand.
-cabal run -v0 pre-fec -- "$ROOT/examples/ks3d/ks3d.fme" \
+cabal run -v0 -j1 pre-fec -- "$ROOT/examples/ks3d/ks3d.fme" \
   > "$WORK/grid-whole.egi"
 grep -F 'FormuraeInternalGridWholeDerivative 1 ((u * u) / 2)' \
   "$WORK/grid-whole.egi" >/dev/null
@@ -484,7 +484,7 @@ cabal exec -- runghc -ifec/src tests/pre_grid_whole_feir.hs \
 # A short user-defined tensor operator receives whole tensors directly.
 # pre-fec preserves its indexed contraction instead of inferring a
 # component-to-whole conversion from the operator name.
-cabal run -v0 pre-fec -- "$ROOT/examples/maxwell3d/maxwell3d.fme" \
+cabal run -v0 -j1 pre-fec -- "$ROOT/examples/maxwell3d/maxwell3d.fme" \
   > "$WORK/maxwell.egi"
 grep -F 'epsilon_i~j~k . contractWith (+) (FormuraeInternalDiff X_k)..._j' \
   "$WORK/maxwell.egi" >/dev/null
@@ -492,41 +492,41 @@ grep -F 'E + (dt * curl B)' "$WORK/maxwell.egi" >/dev/null
 grep -F "B - (dt * curl E')" "$WORK/maxwell.egi" >/dev/null
 run_machine "$WORK/maxwell.egi" "$WORK/maxwell.feir"
 grep -F '(shape (3))' "$WORK/maxwell.feir" >/dev/null
-cabal run -v0 post-fec -- "$WORK/maxwell.feir" > "$WORK/maxwell.fmr"
+cabal run -v0 -j1 post-fec -- "$WORK/maxwell.feir" > "$WORK/maxwell.fmr"
 grep -F "E_down1'[i,j,k] = E_down1[i,j,k]" "$WORK/maxwell.fmr" >/dev/null
 
-cabal run -v0 pre-fec -- "$ROOT/examples/maxwell3d_yee/maxwell3d_yee.fme" \
+cabal run -v0 -j1 pre-fec -- "$ROOT/examples/maxwell3d_yee/maxwell3d_yee.fme" \
   > "$WORK/maxwell-yee.egi"
 run_machine "$WORK/maxwell-yee.egi" "$WORK/maxwell-yee.feir"
-cabal run -v0 post-fec -- "$WORK/maxwell-yee.feir" > "$WORK/maxwell-yee.fmr"
+cabal run -v0 -j1 post-fec -- "$WORK/maxwell-yee.feir" > "$WORK/maxwell-yee.fmr"
 grep -F '(B_down2[i,j,k] + (-1) * B_down2[i,j,k-1]) / dz' \
   "$WORK/maxwell-yee.fmr" >/dev/null
 
-cabal run -v0 pre-fec -- "$ROOT/examples/diffusion3d/diffusion3d.fme" \
+cabal run -v0 -j1 pre-fec -- "$ROOT/examples/diffusion3d/diffusion3d.fme" \
   > "$WORK/indexed-derivative.egi"
 grep -F 'def FormuraeInternalScalarDelta u := Formurae.scalarLaplacian' \
   "$WORK/indexed-derivative.egi" >/dev/null
 grep -F 'FormuraeInternalScalarDelta u' \
   "$WORK/indexed-derivative.egi" >/dev/null
 run_machine "$WORK/indexed-derivative.egi" "$WORK/indexed-derivative.feir"
-cabal run -v0 post-fec -- "$WORK/indexed-derivative.feir" \
+cabal run -v0 -j1 post-fec -- "$WORK/indexed-derivative.feir" \
   > "$WORK/indexed-derivative.fmr"
 grep -F '/ dx**2' "$WORK/indexed-derivative.fmr" >/dev/null
 grep -F '/ dy**2' "$WORK/indexed-derivative.fmr" >/dev/null
 grep -F '/ dz**2' "$WORK/indexed-derivative.fmr" >/dev/null
 
-cabal run -v0 pre-fec -- "$ROOT/examples/elastic3d/elastic3d.fme" \
+cabal run -v0 -j1 pre-fec -- "$ROOT/examples/elastic3d/elastic3d.fme" \
   > "$WORK/elastic.egi"
 grep -F '(FormuraeInternalDiff sigma~i~j)..._j' \
   "$WORK/elastic.egi" >/dev/null
 run_machine "$WORK/elastic.egi" "$WORK/elastic.feir"
-cabal run -v0 post-fec -- "$WORK/elastic.feir" > "$WORK/elastic.fmr"
+cabal run -v0 -j1 post-fec -- "$WORK/elastic.feir" > "$WORK/elastic.fmr"
 grep -F "sigma_up1_up2'[i,j,k] = sigma_up1_up2[i,j,k]" "$WORK/elastic.fmr" >/dev/null
 
 # Formal accuracy belongs to the model profile, not the canonical mathematical
 # surface.  Egison expands scalar Delta to pure Cartesian algebra, normalizes
 # it to second jets, and post-fec selects the compact five-point derivative.
-cabal run -v0 pre-fec -- "$ROOT/examples/highorder4/highorder4.fme" \
+cabal run -v0 -j1 pre-fec -- "$ROOT/examples/highorder4/highorder4.fme" \
   > "$WORK/highorder.egi"
 grep -F 'def FormuraeInternalScalarDelta u := Formurae.scalarLaplacian' \
   "$WORK/highorder.egi" >/dev/null
@@ -540,7 +540,7 @@ if grep -E '\(analytic-call|\(count 1\)|grad|divg' "$WORK/highorder.feir" >/dev/
   printf 'high-order FEIR retained an operator/analytic call or first derivative\n' >&2
   exit 1
 fi
-cabal run -v0 post-fec -- "$WORK/highorder.feir" > "$WORK/highorder.fmr"
+cabal run -v0 -j1 post-fec -- "$WORK/highorder.feir" > "$WORK/highorder.fmr"
 grep -F 'u[i-2,j,k]' "$WORK/highorder.fmr" >/dev/null
 grep -F 'u[i+2,j,k]' "$WORK/highorder.fmr" >/dev/null
 if grep -E 'i[-+]4|j[-+]4|k[-+]4' "$WORK/highorder.fmr" >/dev/null; then
@@ -551,7 +551,7 @@ fi
 # Orthogonal Hodge remains pure Egison algebra.  The same unquoted scale
 # symbols feed GeometryNF and the ambient operator definitions, while variable codiff stays one
 # versioned request and materializes coefficient/flux/result effects in order.
-cabal run -v0 pre-fec -- "$ROOT/tests/fixtures/pre_fec_metric_forms.fme" \
+cabal run -v0 -j1 pre-fec -- "$ROOT/tests/fixtures/pre_fec_metric_forms.fme" \
   > "$WORK/metric-forms.egi"
 grep -F 'FEIR.unquoteAll (feGeometryScale 1)' "$WORK/metric-forms.egi" >/dev/null
 grep -F 'FormuraeInternalHodge A' "$WORK/metric-forms.egi" >/dev/null
@@ -566,7 +566,7 @@ if grep -F '(quote ' "$WORK/metric-forms.feir" >/dev/null; then
   printf 'metric form FEIR retained a quote node\n' >&2
   exit 1
 fi
-cabal run -v0 post-fec -- "$WORK/metric-forms.feir" > "$WORK/metric-forms.fmr"
+cabal run -v0 -j1 post-fec -- "$WORK/metric-forms.feir" > "$WORK/metric-forms.fmr"
 grep -F "H_1'[i,j] = (-1) * dx * i * A_2[i,j] + (-1) * A_2[i,j]" \
   "$WORK/metric-forms.fmr" >/dev/null
 grep -F "H_2'[i,j] = A_1[i,j] / (1 + dx * ((1 / 2) + i))" \
@@ -589,7 +589,7 @@ fi
 # The cutover surface keeps an ordered nested quoted derivative, explicit
 # resampling, and typed local storage.  The removed conservative-divergence
 # and expression-materialization bridges are not involved.
-cabal run -v0 pre-fec -- \
+cabal run -v0 -j1 pre-fec -- \
   "$ROOT/tests/fixtures/pre_fec_remaining_primitives.fme" \
   > "$WORK/surface-cutover.egi"
 grep -F 'FormuraeInternalOrderedDerivative [| 1, 2 |] u' \
@@ -614,7 +614,7 @@ if grep -E 'flux\.conservative-divergence@1|operator\.materialized@1' \
   printf 'cutover surface FEIR retained a removed opaque primitive\n' >&2
   exit 1
 fi
-cabal run -v0 post-fec -- "$WORK/surface-cutover.feir" \
+cabal run -v0 -j1 post-fec -- "$WORK/surface-cutover.feir" \
   > "$WORK/surface-cutover.fmr"
 grep -F "u'[i,j] = ((-1 / 4) * u[i-1,j+1] + (-1 / 4) * u[i+1,j-1] + (1 / 4) * u[i-1,j-1] + (1 / 4) * u[i+1,j+1]) / (dx * dy)" \
   "$WORK/surface-cutover.fmr" >/dev/null
@@ -642,7 +642,7 @@ fi
 # differential-form identity normalize to the same Laplace--Beltrami request.
 # Post-fec shares that request and keeps the conservative nearest-neighbor
 # flux stencil even when the ordinary derivative profile requests accuracy 4.
-cabal run -v0 pre-fec -- \
+cabal run -v0 -j1 pre-fec -- \
   "$ROOT/tests/fixtures/pre_fec_variable_scalar_delta_equivalence.fme" \
   > "$WORK/scalar-delta-equivalence.egi"
 delta_count=$(grep -c ' := FormuraeInternalScalarDelta u' \
@@ -661,7 +661,7 @@ if [ "$lb_count" -ne 2 ]; then
   exit 1
 fi
 grep -F '(accuracy 4)' "$WORK/scalar-delta-equivalence.feir" >/dev/null
-cabal run -v0 post-fec -- "$WORK/scalar-delta-equivalence.feir" \
+cabal run -v0 -j1 post-fec -- "$WORK/scalar-delta-equivalence.feir" \
   > "$WORK/scalar-delta-equivalence.fmr"
 grep -F 'FormuraeInternalLb1Flux1[i] = FormuraeInternalMetricCoefficient1[i] * (u[i+1] + (-1) * u[i]) / dx' \
   "$WORK/scalar-delta-equivalence.fmr" >/dev/null
@@ -682,18 +682,18 @@ if grep -E 'u\[i[-+]2\]' "$WORK/scalar-delta-equivalence.fmr" >/dev/null; then
   exit 1
 fi
 
-cabal run -v0 pre-fec -- "$ROOT/examples/maxwell_dec/maxwell_dec.fme" \
+cabal run -v0 -j1 pre-fec -- "$ROOT/examples/maxwell_dec/maxwell_dec.fme" \
   > "$WORK/maxwell-dec.egi"
 grep -F 'FormuraeInternalCodiff B' "$WORK/maxwell-dec.egi" >/dev/null
 grep -F 'FormuraeInternalD E' "$WORK/maxwell-dec.egi" >/dev/null
 grep -F 'continuum identity d(d A) = 0 failed' "$WORK/maxwell-dec.egi" >/dev/null
 run_machine "$WORK/maxwell-dec.egi" "$WORK/maxwell-dec.feir"
-cabal run -v0 post-fec -- "$WORK/maxwell-dec.feir" > "$WORK/maxwell-dec.fmr"
+cabal run -v0 -j1 post-fec -- "$WORK/maxwell-dec.feir" > "$WORK/maxwell-dec.fmr"
 grep -F "B_1_2'[i,j,k] = B_1_2[i,j,k]" "$WORK/maxwell-dec.fmr" >/dev/null
 compile_and_check maxwell_dec dec_check.c "$WORK/maxwell-dec.fmr"
 
 while read -r geometry check_source; do
-  cabal run -v0 pre-fec -- "$ROOT/examples/$geometry/$geometry.fme" \
+  cabal run -v0 -j1 pre-fec -- "$ROOT/examples/$geometry/$geometry.fme" \
     > "$WORK/$geometry.egi"
   grep -F 'def FormuraeInternalScalarDelta u := Formurae.lbOrthogonal' \
     "$WORK/$geometry.egi" >/dev/null
@@ -709,7 +709,7 @@ while read -r geometry check_source; do
   run_machine "$WORK/$geometry.egi" "$WORK/$geometry.feir"
   grep -F '(orthogonality-verified true)' "$WORK/$geometry.feir" >/dev/null
   grep -F '(op-id "lb.orthogonal@1")' "$WORK/$geometry.feir" >/dev/null
-  cabal run -v0 post-fec -- "$WORK/$geometry.feir" > "$WORK/$geometry.fmr"
+  cabal run -v0 -j1 post-fec -- "$WORK/$geometry.feir" > "$WORK/$geometry.fmr"
   if grep -E 'field-jet|opaque|lb\.orthogonal' "$WORK/$geometry.fmr" >/dev/null; then
     printf 'geometry FMR retained an FEIR/request marker: %s\n' "$geometry" >&2
     exit 1

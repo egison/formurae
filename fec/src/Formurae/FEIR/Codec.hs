@@ -9,6 +9,7 @@ module Formurae.FEIR.Codec
   , profileFingerprintMatches
   , verifyProfileFingerprint
   , encodeScalarNF
+  , decodeScalarNF
   , encodePredicateNF
   ) where
 
@@ -972,6 +973,8 @@ encodeScalarNF scalar =
   case scalar of
     Exact numerator denominator ->
       List [Atom "exact", encodeInteger numerator, encodeInteger denominator]
+    NamedConstant constantName ->
+      List [Atom "named-constant", encodeNamedConstant constantName]
     Parameter parameterId -> List [Atom "parameter", encodeParamId parameterId]
     Coordinate axisId -> List [Atom "coordinate", encodeAxisId axisId]
     Add terms -> List (Atom "add" : canonicalScalars terms)
@@ -996,6 +999,8 @@ decodeScalarNF expression =
     List [Atom "exact", numerator, denominator] ->
       Exact <$> decodeInteger "exact-numerator" numerator
             <*> decodeInteger "exact-denominator" denominator
+    List [Atom "named-constant", constantName] ->
+      NamedConstant <$> decodeNamedConstant constantName
     List [Atom "parameter", parameterId] -> Parameter <$> decodeParamId parameterId
     List [Atom "coordinate", axisId] -> Coordinate <$> decodeAxisId axisId
     List (Atom "add" : terms) ->
@@ -1019,6 +1024,19 @@ decodeScalarNF expression =
     List [Atom "ref", nodeId] -> Ref <$> decodeNodeId nodeId
     List (Atom tag : _) -> codecError "scalar-nf" ("unknown scalar node: " ++ tag)
     _ -> codecError "scalar-nf" ("malformed scalar node: " ++ renderSExpr expression)
+
+encodeNamedConstant :: NamedConstant -> SExpr
+encodeNamedConstant constantName =
+  case constantName of
+    Pi -> Atom "pi"
+
+decodeNamedConstant :: SExpr -> Either CodecError NamedConstant
+decodeNamedConstant expression =
+  case expression of
+    Atom "pi" -> Right Pi
+    Atom name -> codecError "named-constant" ("unknown constant: " ++ name)
+    _ -> codecError "named-constant"
+      ("malformed constant name: " ++ renderSExpr expression)
 
 encodePredicateNF :: PredicateNF -> SExpr
 encodePredicateNF predicate =

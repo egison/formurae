@@ -13,6 +13,7 @@ normalizeExpr expression =
     FExact numerator denominator
       | denominator > 0 -> exact (numerator Ratio.% denominator)
       | otherwise -> expression
+    FNamedConstant _ -> expression
     FVariable _ -> expression
     FGridReference _ _ -> expression
     FAdd terms -> normalizeAdd (map normalizeExpr terms)

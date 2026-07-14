@@ -7,7 +7,7 @@ EGISON_DIR=${EGISON_DIR:-"$ROOT/../egison"}
 
 cd "$ROOT"
 runghc -ifec/src tools/generate-feir-primitives.hs --check
-cabal build -v0 all
+cabal build -v0 -j1 all
 
 for test in \
   feir_sexpr \

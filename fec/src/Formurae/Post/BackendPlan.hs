@@ -585,6 +585,7 @@ metricScalarFieldIds
 metricScalarFieldIds program scalar =
   case scalar of
     Exact _ _ -> Right []
+    NamedConstant _ -> Right []
     Parameter _ -> Right []
     Coordinate _ -> Right []
     Add values -> concatMapM recurse values
@@ -997,6 +998,7 @@ sampleableScalar :: ScalarNF -> Bool
 sampleableScalar scalar =
   case scalar of
     Exact _ _ -> True
+    NamedConstant _ -> True
     Parameter _ -> True
     Coordinate _ -> True
     Add terms -> all sampleableScalar terms
@@ -1053,6 +1055,7 @@ collectScalarOccurrences :: OriginId -> ScalarNF -> [RequestOccurrence]
 collectScalarOccurrences origin scalar =
   case scalar of
     Exact _ _ -> []
+    NamedConstant _ -> []
     Parameter _ -> []
     Coordinate _ -> []
     Add terms -> concatMap recurse terms
@@ -1123,6 +1126,7 @@ scalarOpaqueKeysPostorder :: ScalarNF -> [SemanticKey]
 scalarOpaqueKeysPostorder scalar =
   case scalar of
     Exact _ _ -> []
+    NamedConstant _ -> []
     Parameter _ -> []
     Coordinate _ -> []
     Add values -> concatMap recurse values

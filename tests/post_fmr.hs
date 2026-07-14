@@ -69,6 +69,13 @@ testExpressionRendering = do
   assertEqual "power denominator"
     (Right "u / dx**2")
     (renderExpr (FDiv (FVariable "u") (FPow (FVariable "dx") (FExact 2 1))))
+  assertEqual "pi is numeric only at the FMR rendering boundary"
+    (Right "(884279719003555 / 281474976710656)")
+    (renderExpr (FNamedConstant Pi))
+  assertEqual "pi does not fold into an unsafe 19pi numerator"
+    (Right "19 * (884279719003555 / 281474976710656) / 24")
+    (renderExpr
+      (FDiv (FMul [FExact 19 1, FNamedConstant Pi]) (FExact 24 1)))
 
 testProgramRendering :: IO ()
 testProgramRendering = do

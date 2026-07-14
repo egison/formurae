@@ -4,6 +4,7 @@
 #   cabal build       : build the Formurae compilers (pre-fec and post-fec)
 #   make <example>    : .fme -> pre-fec -> Egison -> FEIR -> post-fec -> Formura -> cc -> check
 #   make all          : every example (each check exits nonzero on failure)
+#   make yinyang_diffusion-long : standard Yin-Yang check, then its 3000-step regression
 #   make compiler-tests : FEIR/pre/Egison/post focused and vertical tests
 #   make formurae-tensor-tests : shared Egison tensor/geometry library tests
 #
@@ -21,9 +22,9 @@ FMRDIRECT3 := $(abspath lib/fmr-direct3d.egi)
 CC      ?= cc
 CFLAGS  ?= -O2 -std=c11
 
-PRE_FEC_RUN  = cabal run -v0 pre-fec --
-POST_FEC_RUN = cabal run -v0 post-fec --
-EGISON_RUN = cd $(EGISON_DIR) && cabal run -v0 egison --
+PRE_FEC_RUN  = cabal run -v0 -j1 pre-fec --
+POST_FEC_RUN = cabal run -v0 -j1 post-fec --
+EGISON_RUN = cd $(EGISON_DIR) && cabal run -v0 -j1 egison --
 EGISON_STRICT = $(abspath tools/run_egison_machine.sh) $(EGISON_DIR)
 EGISON_NORMALIZE = $(abspath tools/run_formurae_normalization.sh) $(EGISON_DIR)
 
@@ -97,9 +98,15 @@ endef
 $(foreach e,$(FME_EXAMPLES),$(eval $(call FME_RULE,$(e))))
 $(foreach e,$(EGI_EXAMPLES),$(eval $(call EGI_RULE,$(e))))
 
-.PHONY: all setup clean compiler-tests formurae-geometry-tests formurae-tensor-tests formurae-operator-tests $(FME_EXAMPLES) $(EGI_EXAMPLES)
+.PHONY: all setup clean compiler-tests formurae-geometry-tests formurae-tensor-tests formurae-operator-tests \
+	yinyang_diffusion-long $(FME_EXAMPLES) $(EGI_EXAMPLES)
 
 all: $(FME_EXAMPLES) $(EGI_EXAMPLES)
+
+# Kept out of all: yy_check runs the global x/y/z eigenmodes, so the long
+# regression is deliberately opt-in for local/CI endurance testing.
+yinyang_diffusion-long: yinyang_diffusion
+	cd examples/yinyang_diffusion && ./check 3000
 
 compiler-tests:
 	sh tests/compiler_suite.sh

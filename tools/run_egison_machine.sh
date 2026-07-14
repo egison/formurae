@@ -56,7 +56,7 @@ report_source_origin() {
 }
 
 if (cd "$egison_dir" &&
-    cabal run -v0 egison -- --type-check-strict "$@" \
+    cabal run -v0 -j1 egison -- --type-check-strict "$@" \
       >"$stdout_file" 2>"$stderr_file"); then
   status=0
 else

@@ -205,7 +205,19 @@ divergence、更新順序を計画します。同じsourceのrequestは共有さ
 
 FEIR (Formurae Egison IR) はEgisonとpost-fecのversioned protocolです。
 
+`.fme` のgeometry、`:=` analytic initializer、step、parse可能な`def`に書いた
+小数・指数リテラルは、pre-fecが綴りどおりのexact rationalへ変換します。
+raw Egison `def`本体と`=` raw initializerはEgisonのFloat/生文字列の意味論を保ちます。
+有限なdouble backendへ安全に下ろせない指数、または約分後の分子・分母をbinary64へ
+正確に渡せない非整数リテラルは、丸めて続行せずcompile-time errorにします。
+Unicode `π` はEgison CASでシンボリックに簡約され、残った値はFEIRの
+`(named-constant pi)`としてpost-fecまで保持されます。FMRをrenderするときだけ、binary64のπと
+同値で両operandが2^53未満の`(884279719003555 / 281474976710656)`へ変換します。
+ASCII `pi`はEgisonのFloatと衝突するためaliasではありません。parameter値と`=` raw initializerは
+symbolic FEIRを通らないので、そこでは`π`を使わずbackend数値を明示します。
+
 - exact rationalを保持するcanonical S-expression
+- closedなnamed mathematical constant
 - stable `AxisId`、`FieldId`、`FunctionId`、`OriginId`
 - scalar/tensor normal formとderivative multi-index付き`FieldJet`
 - `GeometryNF`、discretization profile、versioned opaque request

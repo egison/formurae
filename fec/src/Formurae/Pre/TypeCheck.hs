@@ -50,7 +50,8 @@ validateModelOperatorTypes model = do
       | field <- mFieldDecls model]
       ++ [(name, StaticScalar) | (name, _) <- mParams model]
       ++ [(axis, StaticScalar) | axis <- mAxes model]
-      ++ [ ("dimension", StaticScalar)
+      ++ [ ("π", StaticScalar)
+         , ("dimension", StaticScalar)
          , ("volume", StaticScalar)
          , ("metric", StaticTensor)
          , ("inverseMetric", StaticTensor)

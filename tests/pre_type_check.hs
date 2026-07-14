@@ -172,6 +172,10 @@ main = do
     "canonical d is undefined on a top-degree 2-form in dimension 2"
     (validateModelOperatorTypes continuumDDTopDegree)
 
+  symbolicPi <- model "symbolic-pi" symbolicPiSource
+  assertEqual "symbolic pi is a statically known scalar"
+    (Right ()) (validateModelOperatorTypes symbolicPi)
+
   valid <- model "valid" validSource
   assertEqual "typed fields and prior scalar local aliases are accepted"
     (Right ()) (validateModelOperatorTypes valid)
@@ -510,6 +514,19 @@ continuumDDTopDegreeSource = unlines
   , "assert-dd-zero A"
   , "step:"
   , "  A' = A"
+  ]
+
+symbolicPiSource :: String
+symbolicPiSource = unlines
+  [ "mode collocated"
+  , "dimension 1"
+  , "axes x"
+  , "embedding [sin π + x]"
+  , "field u : scalar"
+  , "init:"
+  , "  u := cos π"
+  , "step:"
+  , "  u' = u + π * Δ u"
   ]
 
 validSource :: String

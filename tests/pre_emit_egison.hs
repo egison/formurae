@@ -278,6 +278,61 @@ main = do
   assertContains "ks3d uses the whole-expression grid derivative boundary"
     "FormuraeInternalGridWholeDerivative 1 ((u * u) / 2)"
     ksUnit
+
+  yinYangSource <- readFile
+    "examples/yinyang_diffusion/yinyang_diffusion.fme"
+  yinYangModel <- parseModel
+    "examples/yinyang_diffusion/yinyang_diffusion.fme"
+    "yinyang-diffusion" yinYangSource
+  yinYangUnit <- requireRight =<<
+    emitNormalizationUnit manifestId yinYangModel
+  assertContains "Yin-Yang keeps the symbolic theta origin through emission"
+    "5 * π" yinYangUnit
+  assertContains "Yin-Yang keeps the symbolic phi origin through emission"
+    "19 * π" yinYangUnit
+  assertAbsent yinYangUnit "6544984694978736"
+  assertAbsent yinYangUnit "0.6544984694978736"
+
+  decimalModel <- parseModel "pre-decimal-literal.fme"
+    "pre-decimal-literal" decimalLiteralSource
+  decimalUnit <- requireRight =<< emitNormalizationUnit manifestId decimalModel
+  assertContains "embedding decimal literal becomes an exact rational"
+    "[sin ((25 / 100) + x), cos ((25 / 100) + x), y]" decimalUnit
+  assertContains "CAS initializer decimal and exponent literals become exact"
+    "((15 / 10000) * cos ((25 / 100) + x)) + 2000" decimalUnit
+  assertContains "definition decimal literal becomes an exact rational"
+    "withSymbols [i, j, k, l, m, n] ((5 / 10) * u)" decimalUnit
+  assertContains "exact binary64 denominator above 2^53 remains supported"
+    "withSymbols [i, j, k, l, m, n] ((1 / 100000000000000000000) * u)"
+    decimalUnit
+  assertContains "integral decimal literal collapses to an integer"
+    "(1 * u) + (dt * FormuraeInternalScalarDelta u)" decimalUnit
+  assertContains "raw Egison definition body keeps its Float literal"
+    "let y := u * 0.75 in y" decimalUnit
+  assertAbsent decimalUnit "0.25"
+  assertAbsent decimalUnit "1.5e-3"
+
+  exponentAxisModel <- parseModel "pre-decimal-exponent-axis.fme"
+    "pre-decimal-exponent-axis" decimalExponentAxisSource
+  exponentAxisUnit <- requireRight =<<
+    emitNormalizationUnit manifestId exponentAxisModel
+  assertContains "leading-dot decimal and exponent lower before axis renaming"
+    "def feGeometryEmbedding := [50 + 1000 * x]" exponentAxisUnit
+  assertAbsent exponentAxisUnit "1x"
+  assertAbsent exponentAxisUnit ".500"
+
+  overflowingExponentModel <- parseModel "pre-decimal-overflow.fme"
+    "pre-decimal-overflow" (unsafeDecimalSource "1e18446744073709551616")
+  assertLeft "overflowing decimal exponent is rejected instead of wrapping"
+    (isDecimalMessage "exponent outside the supported range")
+    =<< emitNormalizationUnit manifestId overflowingExponentModel
+
+  inexactBackendModel <- parseModel "pre-decimal-inexact-backend.fme"
+    "pre-decimal-inexact-backend"
+    (unsafeDecimalSource "0.10000000000015839")
+  assertLeft "decimal with inexact backend division operands is rejected"
+    (isDecimalMessage "without inexact numerator/denominator rounding")
+    =<< emitNormalizationUnit manifestId inexactBackendModel
   putStrLn "pre-fec Egison emitter tests: ok"
 
 manifestId :: PrimitiveManifestId
@@ -558,6 +613,48 @@ invalidWideAritySource = unlines
   , "  u' = pd2r2_x u u"
   ]
 
+decimalLiteralSource :: String
+decimalLiteralSource = unlines
+  [ "mode collocated"
+  , "dimension 2"
+  , "axes x, y"
+  , "param dt = 0.0003"
+  , "embedding [ sin (0.25 + x), cos (0.25 + x), y ]"
+  , "field u : scalar"
+  , "def half u = 0.5 * u"
+  , "def tiny u = 1e-20 * u"
+  , "def rawQuarter u = let y := u * 0.75 in y"
+  , "init:"
+  , "  u := 1.5e-3 * cos (0.25 + x) + 2e3"
+  , "step:"
+  , "  u' = 1.0 * u + dt * Δ u"
+  ]
+
+decimalExponentAxisSource :: String
+decimalExponentAxisSource = unlines
+  [ "mode collocated"
+  , "dimension 1"
+  , "axes e3"
+  , "embedding [ .5e2 + 1e3 * e3 ]"
+  , "field u : scalar"
+  , "init:"
+  , "  u := 0"
+  , "step:"
+  , "  u' = u"
+  ]
+
+unsafeDecimalSource :: String -> String
+unsafeDecimalSource literal = unlines
+  [ "mode collocated"
+  , "dimension 1"
+  , "axes x"
+  , "field u : scalar"
+  , "init:"
+  , "  u := " ++ literal
+  , "step:"
+  , "  u' = u"
+  ]
+
 requireRight :: Either EmitError a -> IO a
 requireRight (Right value) = pure value
 requireRight (Left err) = fail (show err)
@@ -614,6 +711,13 @@ isInvalidWideArity problem =
     EmitAtSource _ nested -> isInvalidWideArity nested
     EmitExpressionError message ->
       message == "pd2r2 coordinate derivative needs one operand"
+    _ -> False
+
+isDecimalMessage :: String -> EmitError -> Bool
+isDecimalMessage expected problem =
+  case problem of
+    EmitAtSource _ nested -> isDecimalMessage expected nested
+    EmitExpressionError message -> expected `isInfixOf` message
     _ -> False
 
 isVariableHodgeLaplacian :: EmitError -> Bool

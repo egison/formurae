@@ -8,11 +8,11 @@ extern function :: cos
 
 begin function (u,FormuraeInternalMetricCoefficient1,FormuraeInternalMetricCoefficient2,FormuraeInternalMetricCoefficient3,FormuraeInternalMetricVolume) = init()
   double [] :: u, FormuraeInternalMetricCoefficient1, FormuraeInternalMetricCoefficient2, FormuraeInternalMetricCoefficient3, FormuraeInternalMetricVolume
-  u[i,j,k] = cos((409061543436171 / 625000000000000) + dtheta * i)
-  FormuraeInternalMetricCoefficient1[i,j,k] = sin((409061543436171 / 625000000000000) + dtheta * ((1 / 2) + i))
-  FormuraeInternalMetricCoefficient2[i,j,k] = sin((409061543436171 / 625000000000000) + dtheta * i) / sin((409061543436171 / 625000000000000) + dtheta * i)**2
-  FormuraeInternalMetricCoefficient3[i,j,k] = sin((409061543436171 / 625000000000000) + dtheta * i)
-  FormuraeInternalMetricVolume[i,j,k] = sin((409061543436171 / 625000000000000) + dtheta * i)
+  u[i,j,k] = cos((5 / 24) * (884279719003555 / 281474976710656) + dtheta * i)
+  FormuraeInternalMetricCoefficient1[i,j,k] = sin((5 / 24) * (884279719003555 / 281474976710656) + dtheta * ((1 / 2) + i))
+  FormuraeInternalMetricCoefficient2[i,j,k] = sin((5 / 24) * (884279719003555 / 281474976710656) + dtheta * i) / sin((5 / 24) * (884279719003555 / 281474976710656) + dtheta * i)**2
+  FormuraeInternalMetricCoefficient3[i,j,k] = sin((5 / 24) * (884279719003555 / 281474976710656) + dtheta * i)
+  FormuraeInternalMetricVolume[i,j,k] = sin((5 / 24) * (884279719003555 / 281474976710656) + dtheta * i)
 end function
 
 begin function (u',FormuraeInternalMetricCoefficient1',FormuraeInternalMetricCoefficient2',FormuraeInternalMetricCoefficient3',FormuraeInternalMetricVolume') = step(u,FormuraeInternalMetricCoefficient1,FormuraeInternalMetricCoefficient2,FormuraeInternalMetricCoefficient3,FormuraeInternalMetricVolume)

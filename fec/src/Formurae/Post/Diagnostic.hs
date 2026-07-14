@@ -454,6 +454,7 @@ collectScalarOpaque :: OriginId -> ScalarNF -> [LocatedOpaque]
 collectScalarOpaque origin scalar =
   case scalar of
     Exact _ _ -> []
+    NamedConstant _ -> []
     Parameter _ -> []
     Coordinate _ -> []
     Add values -> concatMap recurse values

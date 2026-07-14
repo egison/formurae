@@ -117,6 +117,11 @@ def FEIR.none : FEIRSExpr := FEIRList [FEIRAtom "none"]
 def FEIR.exactInteger (value: Integer) : FEIRSExpr :=
   FEIRList [FEIRAtom "exact", FEIRAtom (show value), FEIRAtom "1"]
 
+-- Keep mathematical π symbolic in FEIR.  The post backend chooses the
+-- concrete binary64 representation only when it renders FMR.
+def FEIR.piConstant : FEIRSExpr :=
+  FEIRList [FEIRAtom "named-constant", FEIRAtom "pi"]
+
 def FEIR.addNode (terms: [FEIRSExpr]) : FEIRSExpr :=
   match FEIR.sortSExprs terms as list something with
     | [] -> FEIR.exactInteger 0
@@ -944,33 +949,35 @@ def FEIR.encodeFactor
       (intrinsics: [(String, Integer)])
       (analytics: [(MathValue, Integer)])
       (value: MathValue) : FEIRSExpr :=
-  let parameterId := FEIR.lookupSymbolId value parameters
-      coordinateId := FEIR.lookupSymbolId value coordinates
-   in if parameterId > 0
-        then FEIRList [FEIRAtom "parameter", FEIR.int parameterId]
-        else if coordinateId > 0
-          then FEIRList [FEIRAtom "coordinate", FEIR.int coordinateId]
-          else match value as mathValue with
-            | func $headValue $arguments ->
-                FEIR.encodeFunctionData parameters coordinates fields intrinsics analytics
-                  headValue arguments
-            | apply1 $functionValue $argument ->
-                FEIR.encodeApply parameters coordinates fields intrinsics analytics
-                  (mathFunctionName functionValue) [argument]
-            | apply2 $functionValue $argument1 $argument2 ->
-                FEIR.encodeApply parameters coordinates fields intrinsics analytics
-                  (mathFunctionName functionValue) [argument1, argument2]
-            | apply3 $functionValue $argument1 $argument2 $argument3 ->
-                FEIR.encodeApply parameters coordinates fields intrinsics analytics
-                  (mathFunctionName functionValue) [argument1, argument2, argument3]
-            | apply4 $functionValue $argument1 $argument2 $argument3 $argument4 ->
-                FEIR.encodeApply parameters coordinates fields intrinsics analytics
-                  (mathFunctionName functionValue)
-                  [argument1, argument2, argument3, argument4]
-            | quote _ -> FEIR.unsupportedScalar "quote is not part of FEIR v1"
-            | symbol $name _ ->
-                FEIR.unsupportedScalar (S.append "unregistered symbol: " name)
-            | _ -> FEIR.unsupportedScalar "unknown CAS factor"
+  if value = π
+    then FEIR.piConstant
+    else let parameterId := FEIR.lookupSymbolId value parameters
+             coordinateId := FEIR.lookupSymbolId value coordinates
+          in if parameterId > 0
+               then FEIRList [FEIRAtom "parameter", FEIR.int parameterId]
+               else if coordinateId > 0
+                 then FEIRList [FEIRAtom "coordinate", FEIR.int coordinateId]
+                 else match value as mathValue with
+                   | func $headValue $arguments ->
+                       FEIR.encodeFunctionData parameters coordinates fields intrinsics analytics
+                         headValue arguments
+                   | apply1 $functionValue $argument ->
+                       FEIR.encodeApply parameters coordinates fields intrinsics analytics
+                         (mathFunctionName functionValue) [argument]
+                   | apply2 $functionValue $argument1 $argument2 ->
+                       FEIR.encodeApply parameters coordinates fields intrinsics analytics
+                         (mathFunctionName functionValue) [argument1, argument2]
+                   | apply3 $functionValue $argument1 $argument2 $argument3 ->
+                       FEIR.encodeApply parameters coordinates fields intrinsics analytics
+                         (mathFunctionName functionValue) [argument1, argument2, argument3]
+                   | apply4 $functionValue $argument1 $argument2 $argument3 $argument4 ->
+                       FEIR.encodeApply parameters coordinates fields intrinsics analytics
+                         (mathFunctionName functionValue)
+                         [argument1, argument2, argument3, argument4]
+                   | quote _ -> FEIR.unsupportedScalar "quote is not part of FEIR v1"
+                   | symbol $name _ ->
+                       FEIR.unsupportedScalar (S.append "unregistered symbol: " name)
+                   | _ -> FEIR.unsupportedScalar "unknown CAS factor"
 
 def FEIR.encodePoweredFactor
       (parameters: [(MathValue, Integer)])
@@ -1033,13 +1040,15 @@ def FEIR.encodeScalar
       (value: MathValue) : FEIRSExpr :=
   if isPureFraction value
     then FEIR.encodeExact value
-    else let parameterId := FEIR.lookupSymbolId value parameters
-             coordinateId := FEIR.lookupSymbolId value coordinates
-          in if parameterId > 0
-               then FEIRList [FEIRAtom "parameter", FEIR.int parameterId]
-               else if coordinateId > 0
-                 then FEIRList [FEIRAtom "coordinate", FEIR.int coordinateId]
-                 else match value as mathValue with
+    else if value = π
+      then FEIR.piConstant
+      else let parameterId := FEIR.lookupSymbolId value parameters
+               coordinateId := FEIR.lookupSymbolId value coordinates
+            in if parameterId > 0
+                 then FEIRList [FEIRAtom "parameter", FEIR.int parameterId]
+                 else if coordinateId > 0
+                   then FEIRList [FEIRAtom "coordinate", FEIR.int coordinateId]
+                   else match value as mathValue with
                    | func $headValue $arguments ->
                        FEIR.encodeFunctionData parameters coordinates fields intrinsics analytics
                          headValue arguments

@@ -816,6 +816,7 @@ validateScalar environment context path scalar =
   case scalar of
     Exact numerator denominator ->
       validateExact path numerator denominator
+    NamedConstant _ -> []
     Parameter parameterId ->
       validateSimpleReference path ParameterIds
         (show parameterId) (parameterId `elem` environmentParameterIds environment)
@@ -1542,6 +1543,7 @@ collectScalarOpaqueCalls :: ScalarNF -> [OpaqueDiscrete]
 collectScalarOpaqueCalls scalar =
   case scalar of
     Exact _ _ -> []
+    NamedConstant _ -> []
     Parameter _ -> []
     Coordinate _ -> []
     Add operands -> concatMap collectScalarOpaqueCalls operands

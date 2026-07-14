@@ -17,6 +17,10 @@ main = do
     "extern function :: sin" rendered
   assertNotContains "unused internal intrinsic is not declared"
     "extern function :: pow" rendered
+  piCompiled <- assertRight "compile named pi" (compileProgram piFixture)
+  piRendered <- assertRight "render named pi" (renderProgram piCompiled)
+  assertContains "named pi lowers only at the FMR boundary"
+    "19 * (884279719003555 / 281474976710656) / 24" piRendered
   testPlacementMismatch
   testCenteredDerivativeProfiles
   testYeeOrientations
@@ -145,6 +149,17 @@ fixture = FEProgram
   , feProgramRawHelpers = []
   , feProgramOrigins = OriginTable [(OriginId 1, origin)]
   , feProgramProvenance = ProvenanceTable []
+  }
+
+piFixture :: FEProgram
+piFixture = fixture
+  { feProgramInitializers =
+      [ AnalyticInitializer (FEEquation (EquationId 1)
+          (WholeFieldTarget (FieldId 1) CurrentTime)
+          (scalarTensor
+            (Div (Mul [Exact 19 1, NamedConstant Pi]) (Exact 24 1)))
+          (OriginId 1))
+      ]
   }
 
 profile :: DiscretizationProfile

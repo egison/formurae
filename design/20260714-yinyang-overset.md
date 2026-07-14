@@ -6,7 +6,8 @@ Status: V0 implemented (examples/yinyang_diffusion, driver-level PoC); Phase 1--
 
 本書は、Kageyama--Sato の Yin-Yang 格子(球面全域を覆う overset 格子)を Formurae に
 載せるための段階計画を定める。V0(ドライバ層 PoC)は本書と同時に実装・検証済みで、
-`examples/yinyang_diffusion` が球面**全域**の熱方程式を現行 compiler・fork **無改造**で解く。
+`examples/yinyang_diffusion` が球面**全域**の熱方程式を、現行 compiler・fork に
+**overset 固有の改造を加えず**解く。
 以降の Phase は「何をどの層に足すか」を pipeline の責務分担
 ([pre-fec / post-fec pipeline設計](20260711-pre-post-fec-pipeline.md))に沿って固定する。
 
@@ -47,8 +48,11 @@ T は対合(T² = id)なので、Yin→Yang と Yang→Yin の座標変換・補
   φ      ∈ [-3π/4 - 2h, 3π/4 + 2h]              (77 点)
   ```
 
-  古典的最小パネルを**2 セルずつ拡張**している(§2.2)。yaml は
-  `boundary: [mirror, mirror, periodic]`(z はダミー軸)。mirror は placeholder で、
+  古典的最小パネルを**2 セルずつ拡張**している(§2.2)。
+  `embedding` は θ だけでなく φ にも原点 φ₀ = −19π/24 = −3π/4−2h を含め、
+  pre-fec の固定テストが embedding の両成分にこの原点が残ることを検査する。
+  driver は独立に同じ関係式と両端点を起動時に検査する。
+  yaml は `boundary: [mirror, mirror, periodic]`(z はダミー軸)。mirror は placeholder で、
   その影響を受けるのは縁 1 セルの自己更新だけであり、そこは毎ステップ上書きされる。
 - check driver(`yy_check.c`)が overset 合成を担う:
   1. `Formura_Init` 後、`formura_data`(計量場込み)を `panel[2]` へ複製し、
@@ -76,19 +80,31 @@ T は対合(T² = id)なので、Yin→Yang と Yang→Yin の座標変換・補
 
 ### 2.3 検証(2026-07-14 実測、`make yinyang_diffusion`)
 
-Y₁⁰ = cos θ_global は Laplace--Beltrami の厳密固有関数で、u(t) = e^{-2t} u₀。
+大域 Cartesian 座標の 3 モード X_g、Y_g、Z_g(= Y₁⁰) はすべて
+Laplace--Beltrami の固有値 2 の厳密固有関数で、u(t) = e^{-2t} u₀。
+標準ドライバは 1 回の起動でこの 3 モードをすべて 1000 step 検査する。
+`make yinyang_diffusion-long` は標準検査に加えて各モードの 3000 step 検査を行い、
+`make all` の通常コストには含めない。
 
 | 検査 | 実測 |
 |---|---|
-| max\|u − e^{-2t}Y₁⁰\|(T=0.3, 29×77×2) | 7.32e-4(h² = 4.28e-3 の見積りと整合) |
-| 減衰率 fit / 厳密値 2 | 2.0007 |
-| 重なり領域の Yin/Yang 整合(1460 点) | 4.57e-4 |
-| 離散最大値原理の違反 | 0(厳密に 0) |
-| 長時間(T=0.9) | 3.62e-4 / rate 2.0013 / 違反 0(誤差は解とともに減衰) |
+| max\|u − e^{-2t}u₀\|(T=0.3, X_g/Y_g/Z_g) | 7.15e-4 / 7.32e-4 / 7.32e-4(h² = 4.28e-3 の見積りと整合) |
+| 減衰率 fit / 厳密値 2(X_g/Y_g/Z_g) | 2.0007 / 2.0007 / 2.0007 |
+| 重なり領域の Yin/Yang 整合(1460 空間点、全 4 z slice) | 5.40e-4 / 4.57e-4 / 4.57e-4 |
+| 離散最大値原理の違反(X_g/Y_g/Z_g) | raw 0 / 0 / 0(判定許容差 1e-13) |
+| dummy-z slice 間の最大差 | 0 |
+| 長時間 T=0.9 の誤差(X_g/Y_g/Z_g) | 3.46e-4 / 3.62e-4 / 3.62e-4(rate 2.0014 / 2.0013 / 2.0013) |
 
-最大値原理が**厳密に**保たれるのは、dt = 3e-4 が単調性限界
-1/(2(1/h² + 1/(h·sin θ_min)²)) ≈ 5.79e-4 の下にあり、かつ双一次補間の重みが凸だから。
-overset 交換が新しい極値を作らないことの直接検証になっている。
+厳密算術では、単調な内部更新と凸な双一次補間の合成は新しい極値を作らない。
+ドライバの「違反 0」は浮動小数点計算での厳密な 0 を主張するものではなく、
+極値の増加が 1e-13 以下だったという意味である。
+
+V0 の生成 kernel は球面に periodic な dummy-z 軸を加えた 3 次元配列である。
+検証値は全 z slice を同一に初期化し、交換も同一値を書くため、z 一様な不変部分空間に留まる。
+この制約下では dummy-z 差分が 0 であり、実効的な単調性限界は
+1/(2(1/h² + 1/(h·sin θ_min)²)) ≈ 5.79e-4。一般の z 依存入力には
+1/dz² を加えた 1/(2(1/h² + 1/(h·sin θ_min)² + 1/dz²)) を使う必要があり、
+現構成 dz = h では約 4.56e-4 となる。dt = 3e-4 はどちらの下にもある。
 
 ### 2.4 V0 の既知の制約
 
@@ -97,22 +113,37 @@ overset 交換が新しい極値を作らないことの直接検証になって
 - 大域保存(∫u dA)は検査しない: overset 補間は流束整合でなく厳密保存しない(§6)。
   さらに全球積分は重なりの二重計上を除く所属重みが要る。固有関数減衰+重なり整合は
   この弱点を避けた検証である。
-- `.fme` の罠: CAS 文脈の小数リテラルは Float になり `sin (0.654… + θ)` が正規化で落ちる。
-  整数分数 `6544984694978736 / 10000000000000000` なら exact rational として通り、
-  生成 C には既約分数 `4.09061543436171e14/6.25e14`(双方 2⁵³ 未満、丸め一致)で残る。
+- ~~`.fme` の罠: CAS 文脈の小数リテラルは Float になり `sin (0.654… + θ)` が正規化で落ちる~~
+  **解消済(2026-07-14)**: 一般の小数・指数リテラルはpre-fecがexact rationalへloweringする。
+  さらに円周率はUnicode `π`をEgison CASのsymbolとして保ち、本例は`5 * π / 24`と
+  `-19 * π / 24`を直接記述する。FEIRでは`(named-constant pi)`、FMR rendererでは
+  binary64のπと同値な`(884279719003555 / 281474976710656)`となるため、三角関数の厳密簡約と
+  backendの有限数値表現を同時に保つ。
+  raw Egison def 本体と `=` raw initializer は対象外で、そこでは小数は
+  Egison の Float/生文字列のまま。
+  exponent が有限double backendの範囲を外れる場合、または非整数値の約分後の分子・分母を
+  binary64へ正確に渡せない場合は、silent roundingせずcompile-time errorにする。
 
 ## 3. Phase 1: fork 拡張 — overset を境界 primitive にする
 
 **目的**: 「mirror を置いて縁を上書き」という間接表現をやめ、正しさの条件を機構化する。
 
-- boundary 種別に `driver`(仮)を追加: その軸の ghost 充填コードを**生成しない**。
-  ghost 領域へドライバが直接書く API(`Formura_Ghost(navi, axis, side)` 相当)を生成
-  ヘッダに出す。V0 の「上書き幅 ≥ ステンシル半径」依存(s ≥ 2 の 4 次精度で破綻)が消える。
+- **ghost-only API では V0 と同じ意味にならない**。V0 は Forward 後に縁の
+  receptor cell 自身を補間値で上書きするが、外側 ghost だけを充填するとその縁セルは
+  PDE で通常更新され、次 step の内部 stencil が別の値を読む。
+- パネルの格子点を **owned region**(パネルの PDE が更新・commit する点)と
+  **interpolation fringe**(相手パネルが値を所有する receptor 点)に分ける。kernel は
+  owned region だけを更新し、stencil から fringe を境界値として読む。各 Forward 後の
+  exchange が次時刻の fringe を充填し、その幅は最大 stencil 半径以上とする。
+  外側 ghost を公開する場合も、この owned/fringe 所有権と commit mask を代用できない。
+- V0 との比較 schedule は、t=0 の fringe を従来と同じ解析的初期値で始め、
+  `advance-owned -> exchange-fringe` を 1 step とする。V0 で計算後に捨てていた fringe の
+  PDE 更新を省くだけなので、owned 値と step 境界の fringe 値はビット同等にできる。
 - 格子の多重インスタンス化: `formura_data` のグローバル一意性を外す
   (grid struct へのポインタを Navi に持たせる、または全 API に instance 引数を足す)。
   UPSTREAM.md の PR 系列と同じく fork ブランチに積む。
-- 受け入れ: yinyang_diffusion を memcpy なし+ghost API で書き直して数値**ビット同等**、
-  既存例の回帰ゼロ。
+- 受け入れ: yinyang_diffusion を memcpy なし+instance/owned/fringe API で書き直し、
+  X_g/Y_g/Z_g の標準回帰で V0 と数値**ビット同等**、既存例の回帰ゼロ。
 
 ## 4. Phase 2: post-fec による overset 合成の自動生成
 
@@ -124,21 +155,44 @@ overset 交換が新しい極値を作らないことの直接検証になって
   grid yinyang margin 2                 -- 定型: 合同 2 パネル + 対合 T + 双一次
   ```
 
-  一般 overset へ開く場合の脱糖形:
+  一般 overset へ開く場合の脱糖形(構文案):
 
   ```formurae
   panels yin, yang
-  transform yang = involution [ -x, z, y ]
-  overset boundary bilinear
+  chart yin embedding E_yin inverse C_yin
+  chart yang embedding E_yang inverse C_yang
+  transform yin -> yang target involution [ -X, Z, Y ]
+  overset fringe 1 interpolation bilinear
   ```
 
-- pre-fec: 宣言を versioned FEIR declaration(provenance つき)として保持。
+- 一般の `transform` は source 座標上のベクトル式だけでは定義できない。receiver 点 q_r から
+  donor 座標を得る操作は `q_d = C_d(τ(E_r(q_r)))`。したがって、共通 embedding target 上の
+  写像 τ に加え、各 chart は embedding `E_p` とその適用領域での inverse chart `C_p`を
+  明示する必要がある。post-fec は一般の embedding を記号的に逆解きしない。
+  `grid yinyang margin 2` は既知の E、C、対合 τ=T への定型的な脱糖である。
+  ローカル座標の原点と chart 領域も E/C の metadata に含め、driver に別の φ₀ を
+  hard-code しない。
+- pre-fec: チャート、target 写像、owned/fringe、補間法の宣言を
+  versioned FEIR `grid-topology@1` declaration(provenance つき)として保持。
   **Egison 層は素通し**(数学演算子に混ぜない — reduce と同じ設計判断)。
-- post-fec: パネル格子は静的なので donor 探索・重み計算は**コンパイル時に完結**する。
+- post-fec の明示入力 API を次のようにする(実装時にオプション名は固定する):
+
+  ```sh
+  post-fec --grid-config model.yaml --exchange-prefix build/model model.feir > model.fmr
+  ```
+
+  FEIR はトポロジーと chart 座標の正規の意味を持ち、config は離散展開の
+  `grid_per_node`、`length_per_node`、`mpi_shape` を持つ。post-fec はこれらから全体格子形状と
+  `h_a = length_per_node_a / grid_per_node_a` を一意に決める。topology 宣言のある FEIR に
+  `--grid-config` がない場合、次元・軸・長さ・分割が不整合な場合は hard error とする。
+  正規化 config の digest を生成 artifact の provenance に記録し、生成 header は格子寸法を
+  static assert する。build graph で YAML を donor 表の prerequisite にして古い組合せを防ぐ。
+- パネル格子は静的なので、post-fec は donor 探索・重み計算を
+  **コンパイル時に完結**する。
   縁セルごとの (donor index, 重み) を定数表として `<name>_exchange.c` に生成し、
   交換関数と χ 所属重み場(§6 の大域診断用)も出す。V0 driver の実行時構築と違い、
   Formura の「全 offset は静的」という流儀に揃う。
-- 検査: 補間次数と内部差分次数の整合(全体次数)、margin ≥ ステンシル半径+補間福、
+- 検査: 補間次数と内部差分次数の整合(全体次数)、margin ≥ ステンシル半径+補間幅、
   atan2 分枝条件(§2.2)を post-fec の validation に置く。
 - 受け入れ: 生成表 = V0 手書き表(全 208 点で index・重み一致)、数値ビット同等。
 
@@ -177,10 +231,13 @@ overset 交換が新しい極値を作らないことの直接検証になって
 
 1. **overset は厳密保存しない**。V0 で保存検査を外し固有関数減衰に切り替えたのは意図的。
    保存が要る応用は §6 の対処を先に決める。
-2. **双一次の凸性が最大値原理を守る**(V0 で違反厳密 0 を実測)。bicubic へ上げると
+2. **双一次の凸性が最大値原理を守る**(V0 で 1e-13 を超える違反 0 を実測)。bicubic へ上げると
    overshoot が入りこの性質は壊れる — 次数と単調性はトレードオフとして宣言で選ばせる。
-3. **CAS 文脈の小数リテラル**は Float 扱いで正規化が落ちる(§2.4)。pre-fec で
-   小数→exact rational の lowering を入れるまでは整数分数で書く。
+3. **CAS 文脈の小数リテラル**: pre-fec が exact rational へ lowering するので
+   そのまま書いてよい(§2.4、2026-07-14 に解消)。例外は raw Egison def 本体と
+   `=` raw initializer で、そこは Egison の Float/生文字列意味論のまま。
+   意図的に Float が要る場合だけこれらの raw 経路に書く。
+   円周率はASCII `pi`でなくUnicode `π`を使い、named constantとしてFEIRへ渡す。
 4. margin・解像度を変えるときは §2.2 の 2 条件(donor 内側マージン、atan2 分枝)を
    必ず再検査する(V0 driver は構築時に全数 assert している。post-fec 化後は
    compile-time validation に移す)。

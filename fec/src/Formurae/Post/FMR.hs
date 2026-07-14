@@ -24,6 +24,7 @@ data GridIndex = GridIndex
 
 data FExpr
   = FExact Integer Integer
+  | FNamedConstant NamedConstant
   | FVariable String
   | FGridReference String [GridIndex]
   | FAdd [FExpr]
@@ -205,6 +206,11 @@ renderAt parentPrecedence expression =
       | denominator == 1 -> Right (show numerator)
       | otherwise -> Right
           ("(" ++ show numerator ++ " / " ++ show denominator ++ ")")
+    -- This exact rational is the IEEE-754 binary64 value of pi.  Keeping the
+    -- node symbolic until rendering prevents surrounding coefficients (for
+    -- example 19*pi/24) from being folded into integers above 2^53.
+    FNamedConstant Pi ->
+      Right "(884279719003555 / 281474976710656)"
     FVariable name -> Right name
     FGridReference name indices -> do
       renderedIndices <- mapM renderGridIndex indices

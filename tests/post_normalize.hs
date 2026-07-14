@@ -1,5 +1,6 @@
 module Main where
 
+import Formurae.FEIR.Syntax (NamedConstant(..))
 import Formurae.Post.FMR
 import Formurae.Post.Normalize
 
@@ -24,6 +25,10 @@ main = do
     u (normalizeExpr (FSelect (FVariable "condition") u u))
   assertEqual "deterministic multiplication"
     (FMul [u, v]) (normalizeExpr (FMul [v, FExact 1 1, u]))
+  assertEqual "named pi remains symbolic during rational normalization"
+    (FDiv (FMul [FExact 19 1, FNamedConstant Pi]) (FExact 24 1))
+    (normalizeExpr
+      (FDiv (FMul [FExact 19 1, FNamedConstant Pi]) (FExact 24 1)))
   putStrLn "post normalize tests: ok"
 
 assertEqual :: (Eq a, Show a) => String -> a -> a -> IO ()

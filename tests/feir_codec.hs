@@ -24,6 +24,12 @@ main = do
     (case parseFEProgram rendered of
        Right decoded -> containsExact (-7) 13 decoded
        Left _ -> False)
+  assert "named pi constant survives"
+    ("(named-constant pi)" `isInfixOf` rendered)
+  assertRightEqual "named constant scalar round trip" (NamedConstant Pi)
+    (decodeScalarNF (encodeScalarNF (NamedConstant Pi)))
+  assertDecodeError "unknown named constant" "unknown constant"
+    (decodeScalarNF (List [Atom "named-constant", Atom "tau"]))
 
   let profile = feProgramDiscretization program
       reorderedWithNewOrigins = profile
@@ -223,6 +229,7 @@ fixtureScalar = Add
   , Exact (-7) 13
   , FieldJet fixtureJet
   , Intrinsic (FunctionId 1) [Coordinate (AxisId 2)]
+  , NamedConstant Pi
   , OpaqueDiscrete fixtureOpaque
   , Parameter (ParamId 1)
   , Pow (Coordinate (AxisId 1)) (Exact 2 1)

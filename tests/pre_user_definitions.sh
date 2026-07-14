@@ -11,10 +11,10 @@ trap 'rm -rf "$WORK"' EXIT HUP INT TERM
 compile_pipeline() {
   source=$1
   stem=$2
-  cabal run -v0 pre-fec -- "$source" > "$WORK/$stem.egi"
+  cabal run -v0 -j1 pre-fec -- "$source" > "$WORK/$stem.egi"
   "$ROOT/tools/run_formurae_normalization.sh" "$EGISON_DIR" \
     "$WORK/$stem.egi" > "$WORK/$stem.feir"
-  cabal run -v0 post-fec -- "$WORK/$stem.feir" > "$WORK/$stem.fmr"
+  cabal run -v0 -j1 post-fec -- "$WORK/$stem.feir" > "$WORK/$stem.fmr"
 }
 
 cd "$ROOT"
@@ -62,7 +62,7 @@ grep -F "H_1'[i,j] =" "$WORK/index-completion.fmr" >/dev/null
 # An anonymous derivative axis has the default lower variance.  Completion
 # must not reinterpret it as an upper index merely to satisfy the target.
 up_error=tests/fixtures/pre_fec_index_completion_up_error.fme
-cabal run -v0 pre-fec -- "$up_error" > "$WORK/index-completion-up.egi"
+cabal run -v0 -j1 pre-fec -- "$up_error" > "$WORK/index-completion-up.egi"
 if "$ROOT/tools/run_formurae_normalization.sh" "$EGISON_DIR" \
      "$WORK/index-completion-up.egi" > "$WORK/index-completion-up.feir" \
      2> "$WORK/index-completion-up.err"; then
@@ -79,7 +79,7 @@ fi
 # A fixed indexed formal binds one whole tensor value, but its suffix remains
 # a structural rank/variance contract at the generic Egison function entry.
 fixed_error=tests/fixtures/pre_fec_fixed_parameter_error.fme
-cabal run -v0 pre-fec -- "$fixed_error" > "$WORK/fixed-parameter.egi"
+cabal run -v0 -j1 pre-fec -- "$fixed_error" > "$WORK/fixed-parameter.egi"
 if "$ROOT/tools/run_formurae_normalization.sh" "$EGISON_DIR" \
      "$WORK/fixed-parameter.egi" > "$WORK/fixed-parameter.feir" \
      2> "$WORK/fixed-parameter.err"; then

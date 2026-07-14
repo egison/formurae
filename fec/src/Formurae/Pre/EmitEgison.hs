@@ -9,8 +9,8 @@ module Formurae.Pre.EmitEgison
   ) where
 
 import Control.Monad (foldM)
-import Data.Char (isAlpha, isAlphaNum, isDigit)
-import Data.List (find, intercalate, nub, sort)
+import Data.Char (isAlpha, isAlphaNum, isDigit, isSpace)
+import Data.List (dropWhileEnd, find, intercalate, nub, sort)
 import Text.Read (readMaybe)
 
 import Formurae.FEIR.Codec (encodeFEProgram)
@@ -417,7 +417,10 @@ prepareGeometryDeclarations model =
     (Just _, Just _) -> pure (Left
       (EmitExpressionError "metric scale and embedding are mutually exclusive"))
   where
-    prepare = pure . Right . renameGeometryCoordinates model
+    -- Lower numbers before renaming coordinates.  Otherwise a legal axis
+    -- named @e3@ would make the exponent in @1e3@ look like that axis.
+    prepare source = pure $
+      renameGeometryCoordinates model <$> lowerDecimalLiterals source
     dimension = Surface.mDim model
     axes = [1 .. dimension]
     offDiagonalPairs =
@@ -645,6 +648,138 @@ renameRawCoordinates model = outsideString
     insideString (char : rest) = char : insideString rest
     isIdentifierCharacter char = isAlphaNum char || char == '_'
 
+-- A decimal or exponent literal in a surface expression denotes the exact
+-- rational it spells: FEIR carries exact rationals, and Egison would read
+-- the literal as Float, which symbolic normalization rejects.  Rewrite such
+-- literals into integer fractions before they enter the generated unit.
+-- Raw Egison definition bodies and raw @=@ initializers are left alone;
+-- there a literal keeps Egison's own Float meaning.
+lowerDecimalLiterals :: String -> Either EmitError String
+lowerDecimalLiterals = outsideString False
+  where
+    -- The Bool records whether the preceding non-space token ended an atom.
+    -- It lets a leading-dot decimal be recognized without mistaking the
+    -- second dot in a range such as @1..n@ for the start of @.n@.
+    outsideString _ [] = Right []
+    outsideString _ ('"' : rest) = ('"' :) <$> insideString rest
+    outsideString previousAtom source@('.' : next : _)
+      | not previousAtom, isDigit next = do
+          (literal, remaining) <- numericLiteral source
+          rendered <- exactLiteralText literal
+          (rendered ++) <$> outsideString True remaining
+    outsideString _ (first : rest)
+      | isAlpha first || first == '_' =
+          let (suffix, remaining) = span isIdentifierCharacter rest
+          in ((first : suffix) ++) <$> outsideString True remaining
+      | isDigit first =
+          do
+            (literal, remaining) <- numericLiteral (first : rest)
+            rendered <- exactLiteralText literal
+            (rendered ++) <$> outsideString True remaining
+      | isSpace first = (first :) <$> outsideString False rest
+      | first `elem` ")]" = (first :) <$> outsideString True rest
+      | first == '.' = (first :) <$> outsideString True rest
+      | otherwise = (first :) <$> outsideString False rest
+    insideString [] = Right []
+    insideString ('\\' : escaped : rest) =
+      ('\\' :) . (escaped :) <$> insideString rest
+    insideString ('"' : rest) = ('"' :) <$> outsideString True rest
+    insideString (char : rest) = (char :) <$> insideString rest
+    isIdentifierCharacter char = isAlphaNum char || char == '_'
+
+    -- (digits ['.' digits] | '.' digits)
+    -- [('e'|'E') ['+'|'-'] digits].  The dot and exponent marker are
+    -- consumed only when digits follow, so ranges and identifiers after a
+    -- number remain separate tokens.
+    numericLiteral source =
+      Right ((integerDigits, fractionDigits, exponentValue), afterExponent)
+      where
+        (integerDigits, afterInteger) = case source of
+          '.' : _ -> ("0", source)
+          _ -> span isDigit source
+        (fractionDigits, afterFraction) = case afterInteger of
+          '.' : next : _ | isDigit next ->
+            span isDigit (drop 1 afterInteger)
+          _ -> ("", afterInteger)
+        (exponentValue, afterExponent) = case afterFraction of
+          marker : rest | marker `elem` "eE" ->
+            case rest of
+              sign : next : _ | sign `elem` "+-", isDigit next ->
+                let (digits, remaining) = span isDigit (drop 1 rest)
+                in (Just (parseExponent sign digits), remaining)
+              next : _ | isDigit next ->
+                let (digits, remaining) = span isDigit rest
+                in (Just (parseExponent '+' digits), remaining)
+              _ -> (Nothing, afterFraction)
+          _ -> (Nothing, afterFraction)
+        parseExponent sign digits = applySign sign magnitude
+          where
+            significantDigits = dropWhile (== '0') digits
+            magnitude
+              | null significantDigits = 0
+              | length significantDigits > 3 = maxDecimalExponent + 1
+              | otherwise = read significantDigits
+        applySign sign magnitude
+          | sign == '-' = negate magnitude
+          | otherwise = magnitude
+
+    exactLiteralText literal@(integerDigits, fractionDigits, exponentValue)
+      | null fractionDigits, Nothing <- exponentValue = Right integerDigits
+      | digitCount > maxDecimalDigits = decimalError literal
+          ("has more than " ++ show maxDecimalDigits ++ " digits")
+      | mantissa == 0 = Right "0"
+      | abs decimalExponent > maxDecimalExponent = decimalError literal
+          ("has exponent outside the supported range +/-"
+           ++ show maxDecimalExponent)
+      | abs shift > maxDecimalScale = decimalError literal
+          ("needs a power of ten outside the supported range +/-"
+           ++ show maxDecimalScale)
+      | shift >= 0 =
+          let value = mantissa * powerTen shift
+          in if isInfinite (fromInteger value :: Double)
+               then decimalError literal "is outside the finite backend range"
+               else Right (show value)
+      | safeRational = Right ("(" ++ show mantissa ++ " / "
+          ++ show denominator ++ ")")
+      | otherwise = decimalError literal
+          "cannot be lowered without inexact numerator/denominator rounding in the double backend"
+      where
+        significant = dropWhileEnd (== '0') fractionDigits
+        mantissa = read (integerDigits ++ significant) :: Integer
+        decimalExponent = maybe 0 id exponentValue
+        shift = decimalExponent - toInteger (length significant)
+        digitCount = length integerDigits + length fractionDigits
+        denominator = powerTen (negate shift)
+        divisor = gcd (abs mantissa) denominator
+        reducedNumerator = abs mantissa `div` divisor
+        reducedDenominator = denominator `div` divisor
+        safeRational = exactDoubleInteger reducedNumerator
+          && exactDoubleInteger reducedDenominator
+
+    decimalError (integerDigits, fractionDigits, exponentValue) reason =
+      Left (EmitExpressionError
+        ("decimal literal " ++ renderLiteral integerDigits fractionDigits exponentValue
+         ++ " " ++ reason))
+
+    renderLiteral integerDigits fractionDigits exponentValue =
+      integerDigits
+      ++ (if null fractionDigits then "" else "." ++ fractionDigits)
+      ++ maybe "" (('e' :) . show) exponentValue
+
+    -- A division in generated C is correctly rounded when both reduced
+    -- integer operands arrive exactly as binary64 values.  Test that
+    -- property directly: powers of ten such as 10^20 can be exact even
+    -- though they are larger than 2^53.
+    exactDoubleInteger value =
+      let converted = fromInteger value :: Double
+      in not (isInfinite converted)
+         && (truncate converted :: Integer) == value
+    maxDecimalDigits = 309 :: Int
+    maxDecimalExponent = 308 :: Integer
+    maxDecimalScale = 308 :: Integer
+    powerTen :: Integer -> Integer
+    powerTen value = 10 ^ (fromInteger value :: Int)
+
 prepareDynamic
   :: Surface.Model -> DynamicValue -> IO (Either EmitError DynamicValue)
 prepareDynamic model dynamic = do
@@ -666,8 +801,8 @@ prepareExpression model userDefinitions shadowedNames boundNames source = do
   preprocessed <- preprocessTensorExpr model source
   pure $ case parseTensorExprEither preprocessed of
     Left message -> Left (EmitExpressionError message)
-    Right expression -> renderTensorExpr
-      <$> contextualize model userDefinitions shadowedNames boundNames expression
+    Right expression -> contextualize model userDefinitions shadowedNames
+      boundNames expression >>= lowerDecimalLiterals . renderTensorExpr
 
 contextualize
   :: Surface.Model

@@ -11,7 +11,7 @@ expect_failure() {
   fixture=$1
   expected=$2
   source="tests/fixtures/$fixture.fme"
-  if cabal run -v0 pre-fec -- "$source" \
+  if cabal run -v0 -j1 pre-fec -- "$source" \
        > "$WORK/$fixture.out" 2> "$WORK/$fixture.err"; then
     printf 'pre-fec accepted invalid fixture: %s\n' "$source" >&2
     exit 1
@@ -33,7 +33,7 @@ expect_parse_failure() {
   fixture=$1
   expected=$2
   source="tests/fixtures/$fixture.fme"
-  if cabal run -v0 pre-fec -- "$source" \
+  if cabal run -v0 -j1 pre-fec -- "$source" \
        > "$WORK/$fixture.out" 2> "$WORK/$fixture.err"; then
     printf 'pre-fec accepted invalid declaration fixture: %s\n' "$source" >&2
     exit 1
@@ -49,7 +49,7 @@ expect_parse_failure() {
 expect_success() {
   fixture=$1
   source="tests/fixtures/$fixture.fme"
-  cabal run -v0 pre-fec -- "$source" > "$WORK/$fixture.out"
+  cabal run -v0 -j1 pre-fec -- "$source" > "$WORK/$fixture.out"
   if [ ! -s "$WORK/$fixture.out" ]; then
     printf 'pre-fec produced no output for valid fixture: %s\n' "$source" >&2
     exit 1
@@ -145,5 +145,15 @@ expect_parse_failure pre_fec_metric_reserved_collision \
   "metric name 'metric' is reserved for the generated Egison environment (line 4)"
 expect_parse_failure pre_fec_duplicate_metric_name \
   "metric name may be declared only once (line 5)"
+expect_parse_failure pre_fec_ascii_pi_error \
+  "ASCII 'pi' is a floating-point Egison value; write Unicode π for the symbolic circle constant in init expression: u"
+expect_parse_failure pre_fec_primed_pi_error \
+  "symbolic constant π cannot be primed in init expression: u"
+expect_parse_failure pre_fec_pi_binding_error \
+  "value name 'π' is reserved for generated Egison code (param, line 4)"
+expect_parse_failure pre_fec_raw_pi_error \
+  "parameter value cannot use π because it bypasses symbolic FEIR; use a numeric backend value (line 4)"
+expect_parse_failure pre_fec_raw_initializer_pi_error \
+  "raw initializer cannot use π because it bypasses symbolic FEIR; use a numeric backend value or ':=' (line 6)"
 
 printf 'pre-fec static source-diagnostic tests: ok\n'

@@ -1,0 +1,8 @@
+mode collocated
+dimension 1
+axes x
+field u : scalar
+init:
+  u := pi
+step:
+  u' = u
