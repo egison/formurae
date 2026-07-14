@@ -8,7 +8,7 @@
 
 -- Opaque requests carry their semantic payload in a reserved FunctionData
 -- atom.  The unregistered outer math-function is an analytic derivative
--- barrier: strict∂/∂ rejects it, while ordinary algebra keeps it as one CAS
+-- barrier: ∂/∂ rejects it, while ordinary algebra keeps it as one CAS
 -- factor for the FEIR encoder to recognize structurally.
 declare mathfunc formuraeOpaqueBarrier
 declare symbol formuraeTensorIndex1, formuraeTensorIndex2, formuraeTensorIndex3
@@ -179,7 +179,7 @@ def Formurae.coordinateWideDerivative
           (functionSymbol Formurae.opaqueCoordinateWideHead
             [value, axisId, order, radius])
 
--- Whole-expression first derivative.  Unlike analytic strict∂/∂, this keeps
+-- Whole-expression first derivative. Unlike analytic ∂/∂, this keeps
 -- products and nonlinear calls inside one operand so post-fec applies one
 -- conservative/reference grid stencil to the complete expression.
 def Formurae.gridWholeDerivative
@@ -231,7 +231,7 @@ def Formurae.resampleExplicit
 def Formurae.diff
       (coordinates: Vector MathValue)
       (value: Tensor MathValue) : Tensor MathValue :=
-  strict∂/∂ value coordinates
+  ∂/∂ value coordinates
 
 def Formurae.grad
       (coordinates: Vector MathValue)
@@ -261,7 +261,7 @@ def Formurae.curl
     | #True ->
         let epsilon := ε dimension
          in (withSymbols [i, j, k]
-              (epsilon_i~j~k . strict∂/∂ X_k coordinates~j))_formuraeTensorIndex1
+              (epsilon_i~j~k . ∂/∂ X_k coordinates~j))_formuraeTensorIndex1
 
 def Formurae.hessian
       (coordinates: Vector MathValue)
@@ -309,7 +309,7 @@ def Formurae.d
   let degree := dfOrder A + 1
    in degree
       * dfNormalize
-          (!(flip strict∂/∂) coordinates A)
+          (!(flip ∂/∂) coordinates A)
 
 -- Orthogonal-metric Hodge star.  The scale vector is the same symbolic value
 -- serialized into GeometryNF; post-fec therefore samples each coefficient at

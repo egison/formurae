@@ -11,7 +11,7 @@ output=$(
 ) || true
 
 case "$output" in
-  *"strict analytic derivative: no registered derivative rule for formuraeOpaqueBarrier"*) ;;
+  *"analytic derivative: no registered derivative rule for formuraeOpaqueBarrier"*) ;;
   *)
     printf 'strict differentiation did not reject an opaque request:\n%s\n' "$output" >&2
     exit 1

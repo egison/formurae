@@ -100,7 +100,7 @@ assertEqual "variable-metric codifferential keeps the complete form opaque"
 assertEqual "grid-whole differs from analytic product-rule differentiation"
   (encodeOpaqueFixture gridWholeRequest
     = encodeOpaqueFixture
-        (strictPartialDiffMV gridWholeOperand x))
+        (partialDiffMV gridWholeOperand x))
   False
 
 assertEqual "opaque semantic key and request group are deterministic"

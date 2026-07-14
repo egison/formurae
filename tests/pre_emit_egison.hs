@@ -24,10 +24,10 @@ main = do
   assertContains "prior higher-order user definition receives the ambient operator"
     "FormuraeInternalDefinition1 FormuraeInternalLap u"
     first
-  assertContains "indexed analytic derivative uses shared strict diff"
+  assertContains "indexed analytic derivative uses shared diff"
     "(FormuraeInternalDiff X~i)..._i" first
-  assertContains "coordinate derivative uses strict analytic differentiation"
-    "strict∂/∂ (strict∂/∂ u x) x" first
+  assertContains "coordinate derivative uses analytic differentiation"
+    "∂/∂ (∂/∂ u x) x" first
   assertContains "grid derivative preserves the whole nonlinear operand"
     "FormuraeInternalGridWholeDerivative 1 ((u * u) / 2)"
     first
@@ -223,8 +223,8 @@ main = do
   quotedModel <- parseModel "pre-quoted-derivative.fme"
     "pre-quoted-derivative" quotedDerivativeSource
   quotedUnit <- requireRight =<< emitNormalizationUnit manifestId quotedModel
-  assertContains "ordinary derivative keeps the analytic differentiation path"
-    "strict\x2202/\x2202 (u * u) x" quotedUnit
+  assertContains "ordinary derivative uses the analytic differentiation path"
+    "\x2202/\x2202 (u * u) x" quotedUnit
   assertContains "single quoted derivative emits one whole-expression request"
     "FormuraeInternalGridWholeDerivative 1 (u * u)" quotedUnit
   assertContains "multi quoted derivative emits one ordered request"

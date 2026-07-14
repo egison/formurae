@@ -2,7 +2,7 @@ declare symbol x
 
 def opaqueErrorU := function (x)
 
-strictPartialDiffMV
+partialDiffMV
   (Formurae.lbOrthogonal
     1 Formurae.Primitives.primitiveManifestV1Id opaqueErrorU)
   x

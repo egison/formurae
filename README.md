@@ -100,7 +100,7 @@ compact 5点stencilをexact rational coefficientで導出します。一階wide 
 ∂_x (u * u)          -- Egison: 2 * u * FieldJet(u,{x:1})
 ```
 
-未知の解析微分則を0とみなすことはなく、Formurae用strict derivativeがerrorにします。
+未知の解析微分則を0とみなすことはなく、Egisonの`∂/∂`がerrorにします。
 混合偏微分はcanonicalなmulti-indexへまとめられます。
 
 式全体を先に格子上で評価してから差分したい保存形では、微分式をbackquoteします。

@@ -38,7 +38,7 @@ def FormuraeInternalCurl (X : Vector MathValue) : Vector MathValue :=
   match assert "curl requires three dimensions"
                (dimension = 3 && tensorShape X = [3]) as bool with
     | #True -> (withSymbols [i, j, k]
-        (epsilon_i~j~k . strict∂/∂ X_k coordinates~j))_formuraeTensorIndex1
+        (epsilon_i~j~k . ∂/∂ X_k coordinates~j))_formuraeTensorIndex1
 
 def E := (generateTensor (\[i] -> function (x, y, z)) [3])_formuraeTensorIndex1
 def E' := (generateTensor (\[i] -> function (x, y, z)) [3])_formuraeTensorIndex1

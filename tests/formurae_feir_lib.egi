@@ -68,20 +68,20 @@ assertEqual "FEIR derivative-free field FunctionData"
   "(field-jet (field 1) (time-slot current) (basis (basis)) (arguments ((coordinate 1) (coordinate 2))) (multi-index ()))"
 
 assertEqual "FEIR first derivative uses the FunctionData User position"
-  (FEIR.render (encodeScalarFixture (strictPartialDiffMV feirFieldU x)))
+  (FEIR.render (encodeScalarFixture (partialDiffMV feirFieldU x)))
   "(field-jet (field 1) (time-slot current) (basis (basis)) (arguments ((coordinate 1) (coordinate 2))) (multi-index ((axis-order (axis 1) (count 1)))))"
 
 assertEqual "FEIR repeated derivative counts one canonical axis"
   (FEIR.render
     (encodeScalarFixture
-      (strictPartialDiffMV (strictPartialDiffMV feirFieldU x) x)))
+      (partialDiffMV (partialDiffMV feirFieldU x) x)))
   "(field-jet (field 1) (time-slot current) (basis (basis)) (arguments ((coordinate 1) (coordinate 2))) (multi-index ((axis-order (axis 1) (count 2)))))"
 
 assertEqual "FEIR mixed derivative is an axis-count map"
   (map
     (\value -> FEIR.render (encodeScalarFixture value))
-    [ strictPartialDiffMV (strictPartialDiffMV feirFieldU y) x
-    , strictPartialDiffMV (strictPartialDiffMV feirFieldU x) y
+    [ partialDiffMV (partialDiffMV feirFieldU y) x
+    , partialDiffMV (partialDiffMV feirFieldU x) y
     ])
   [ "(field-jet (field 1) (time-slot current) (basis (basis)) (arguments ((coordinate 1) (coordinate 2))) (multi-index ((axis-order (axis 1) (count 1)) (axis-order (axis 2) (count 1)))))"
   , "(field-jet (field 1) (time-slot current) (basis (basis)) (arguments ((coordinate 1) (coordinate 2))) (multi-index ((axis-order (axis 1) (count 1)) (axis-order (axis 2) (count 1)))))"
@@ -99,12 +99,12 @@ def encodeVectorScalarFixture value :=
 
 assertEqual "FEIR tensor component Sub index is separate from derivative User index"
   (FEIR.render
-    (encodeVectorScalarFixture (strictPartialDiffMV feirFieldV_2 y)))
+    (encodeVectorScalarFixture (partialDiffMV feirFieldV_2 y)))
   "(field-jet (field 2) (time-slot current) (basis (basis 2)) (arguments ((coordinate 1) (coordinate 2))) (multi-index ((axis-order (axis 2) (count 1)))))"
 
 assertEqual "FEIR strict product rule produces only ordinary nodes and FieldJets"
   (FEIR.render
-    (encodeScalarFixture (strictPartialDiffMV (feirFieldU ^ 2) x)))
+    (encodeScalarFixture (partialDiffMV (feirFieldU ^ 2) x)))
   "(mul (exact 2 1) (field-jet (field 1) (time-slot current) (basis (basis)) (arguments ((coordinate 1) (coordinate 2))) (multi-index ((axis-order (axis 1) (count 1))))) (field-jet (field 1) (time-slot current) (basis (basis)) (arguments ((coordinate 1) (coordinate 2))) (multi-index ())))"
 
 assertEqual "FEIR intrinsic apply is structural"
@@ -168,7 +168,7 @@ def feirEncodedTensorFixture :=
 
 def feirDerivativeFixture :=
   encodeScalarFixture
-    (strictPartialDiffMV (strictPartialDiffMV feirFieldU y) x)
+    (partialDiffMV (partialDiffMV feirFieldU y) x)
 
 def feirOpaqueFixture :=
   FEIR.encodeOpaqueRef feirParameters feirCoordinates feirFields

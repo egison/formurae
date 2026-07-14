@@ -71,9 +71,9 @@ def feAnalytics := []
 def FormuraeInternalValue1 := (2 / 5) * (en - ((mx * mx) / (2 * rho)))
 def FormuraeInternalValue2 := ((mx * mx) / rho) + pr
 def FormuraeInternalValue3 := ((en + pr) * mx) / rho
-def FormuraeInternalValue4 := (rho - (dt * strict∂/∂ mx x)) + (dt * lambda * strict∂/∂ (strict∂/∂ rho x) x)
-def FormuraeInternalValue5 := (mx - (dt * strict∂/∂ fm x)) + (dt * lambda * strict∂/∂ (strict∂/∂ mx x) x)
-def FormuraeInternalValue6 := (en - (dt * strict∂/∂ fe x)) + (dt * lambda * strict∂/∂ (strict∂/∂ en x) x)
+def FormuraeInternalValue4 := (rho - (dt * ∂/∂ mx x)) + (dt * lambda * ∂/∂ (∂/∂ rho x) x)
+def FormuraeInternalValue5 := (mx - (dt * ∂/∂ fm x)) + (dt * lambda * ∂/∂ (∂/∂ mx x) x)
+def FormuraeInternalValue6 := (en - (dt * ∂/∂ fe x)) + (dt * lambda * ∂/∂ (∂/∂ en x) x)
 
 def FormuraeInternalAtOrigin marker thunk :=
   io $ do print marker

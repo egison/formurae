@@ -725,7 +725,7 @@ contextualize model userDefinitions shadowedNames boundNames expression
           arguments' <- mapM walk arguments
           case arguments' of
             [argument]
-              | radius == 1 -> Right (strictDerivative order axis argument)
+              | radius == 1 -> Right (analyticDerivative order axis argument)
               | otherwise -> do
                   axisId <- gridAxisId derivative axis
                   Right (TEApply
@@ -936,12 +936,12 @@ stripPrefix (expected : rest) (actual : value)
   | expected == actual = stripPrefix rest value
 stripPrefix _ _ = Nothing
 
-strictDerivative :: Int -> String -> TensorExpr -> TensorExpr
-strictDerivative order axis = applyRepeated order
+analyticDerivative :: Int -> String -> TensorExpr -> TensorExpr
+analyticDerivative order axis = applyRepeated order
   where
     applyRepeated 0 value = value
     applyRepeated count value = applyRepeated (count - 1)
-      (TEApply (TEIdent "strict∂/∂" [])
+      (TEApply (TEIdent "∂/∂" [])
         [groupAppliedValue value, TEIdent axis []])
     groupAppliedValue value@(TEApply _ _) = TEGroup value
     groupAppliedValue value = value
@@ -1034,7 +1034,7 @@ renderUnit model registry geometryDeclarations definitions dynamics program = un
           , "  match assert \"curl requires three dimensions\""
           , "               (dimension = 3 && tensorShape X = [3]) as bool with"
           , "    | #True -> (withSymbols [i, j, k]"
-          , "        (epsilon_i~j~k . strict∂/∂ X_k coordinates~j))_formuraeTensorIndex1"
+          , "        (epsilon_i~j~k . ∂/∂ X_k coordinates~j))_formuraeTensorIndex1"
           ]
       , whenUsed "FormuraeInternalHessian"
           ["def FormuraeInternalHessian u := Formurae.hessian coordinates u"]
