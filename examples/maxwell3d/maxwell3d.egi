@@ -50,7 +50,7 @@ def feFields := [FEIR.fieldEntry 1 "current" [1] (FE.tensorComponentAt E [1]), F
 def feIntrinsics := [("sin", 1), ("cos", 2), ("tan", 3), ("asin", 4), ("acos", 5), ("atan", 6), ("atan2", 7), ("sinh", 8), ("cosh", 9), ("tanh", 10), ("exp", 11), ("log", 12), ("sqrt", 13), ("pow", 14), ("fabs", 15)]
 def feAnalytics := []
 
-def FormuraeInternalDefinition1 X := Formurae.attachExplicitVariances ["down"] (withSymbols [i, j, k, l, m, n] (withSymbols [i, j, k] (epsilon_i~j~k . (FormuraeInternalDiff X_k)..._j)))
+def FormuraeInternalDefinition1 X := Formurae.attachExplicitVariances ["down"] (withSymbols [i, j, k, l, m, n] (withSymbols [i, j, k] (epsilon_i~j~k . contractWith (+) (FormuraeInternalDiff X_k)..._j)))
 def curl := FormuraeInternalDefinition1
 
 def FormuraeInternalValue1 := E + (dt * curl B)
