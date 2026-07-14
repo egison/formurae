@@ -557,8 +557,10 @@ inferFreeIndices expression =
     TETranspose _ _ -> Nothing
     TEDisjoint parts ->
       concat <$> mapM inferFreeIndices parts
-    TEDerivative parts body ->
-      appendIndices <$> inferFreeIndices body <*> pure (symbolicParts parts)
+    TEDerivative parts body -> do
+      indices <- appendIndices <$> inferFreeIndices body
+                               <*> pure (symbolicParts parts)
+      contractFreeIndices indices
     -- A quoted coordinate derivative preserves the operand's tensor rank.
     -- Its axis list selects discrete coordinate passes; it does not append
     -- free tensor indices as an analytic indexed derivative does.
@@ -827,9 +829,10 @@ contextualize model userDefinitions shadowedNames boundNames expression
     anonymousPart (Surface.IxPart variance _) =
       Surface.IxPart variance "#"
     indexedDerivativePart part value =
-      TEAppendIndexed
-        (TEGroup (TEApply (TEIdent "FormuraeInternalDiff" []) [value]))
-        [part]
+      TEContractWith "+" $
+        TEAppendIndexed
+          (TEGroup (TEApply (TEIdent "FormuraeInternalDiff" []) [value]))
+          [part]
     contextualizeResolvedCall qualified arguments = do
       arguments' <- mapM walk arguments
       Right (TEApply (TEIdent qualified []) arguments')

@@ -24,8 +24,8 @@ main = do
   assertContains "prior higher-order user definition receives the ambient operator"
     "FormuraeInternalDefinition1 FormuraeInternalLap u"
     first
-  assertContains "indexed analytic derivative uses shared diff"
-    "(FormuraeInternalDiff X~i)..._i" first
+  assertContains "indexed analytic derivative contracts repeated indices"
+    "contractWith (+) (FormuraeInternalDiff X~i)..._i" first
   assertContains "coordinate derivative uses analytic differentiation"
     "∂/∂ (∂/∂ u x) x" first
   assertContains "grid derivative preserves the whole nonlinear operand"

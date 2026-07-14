@@ -5,8 +5,8 @@
 --   d sigma^ij / dt  = lambda delta^ij (div v')
 --                      + mu (delta^ik d_k v'^j + delta^jk d_k v'^i)
 --
--- Repeated dummy index letters are contracted explicitly with contractWith
--- or ".". Superscripts and subscripts are kept distinct; on this Euclidean
+-- Indexed derivatives contract their own repeated dummy index; other
+-- contractions use ".". Superscripts and subscripts are kept distinct; on this Euclidean
 -- grid metric g is the identity, so g~i~j raises derivative indices.
 -- v' refers to the updated velocity (symplectic).
 -- The fields are declared staggered, so every d_a becomes a half-cell
@@ -39,5 +39,5 @@ init:
                   [| 0.0 |] |]~i~j
 
 step:
-  v'~i = v~i + (dt / ρ0) * contractWith (+) (∂_j σ~i~j)
-  σ'~i~j = σ~i~j + dt * (λ * g~i~j * contractWith (+) (∂_k v'~k) + μ * (g~i~k . ∂_k v'~j + g~j~k . ∂_k v'~i))
+  v'~i = v~i + (dt / ρ0) * ∂_j σ~i~j
+  σ'~i~j = σ~i~j + dt * (λ * g~i~j * ∂_k v'~k + μ * (g~i~k . ∂_k v'~j + g~j~k . ∂_k v'~i))

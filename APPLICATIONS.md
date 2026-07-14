@@ -81,8 +81,8 @@ field v~i @ primal
 field σ{~i~j} @ primal
 
 step:
-  v'~i = v~i + (dt / ρ) * contractWith (+) (∂_j σ~i~j)
-  σ'~i~j = σ~i~j + dt * (λ * g~i~j * contractWith (+) (∂_k v'~k)
+  v'~i = v~i + (dt / ρ) * ∂_j σ~i~j
+  σ'~i~j = σ~i~j + dt * (λ * g~i~j * ∂_k v'~k
                     + μ * (g~i~k . ∂_k v'~j + g~j~k . ∂_k v'~i))
 ```
 

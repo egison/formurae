@@ -486,7 +486,7 @@ cabal exec -- runghc -ifec/src tests/pre_grid_whole_feir.hs \
 # component-to-whole conversion from the operator name.
 cabal run -v0 pre-fec -- "$ROOT/examples/maxwell3d/maxwell3d.fme" \
   > "$WORK/maxwell.egi"
-grep -F 'epsilon_i~j~k . (FormuraeInternalDiff X_k)..._j' \
+grep -F 'epsilon_i~j~k . contractWith (+) (FormuraeInternalDiff X_k)..._j' \
   "$WORK/maxwell.egi" >/dev/null
 grep -F 'E + (dt * curl B)' "$WORK/maxwell.egi" >/dev/null
 grep -F "B - (dt * curl E')" "$WORK/maxwell.egi" >/dev/null
