@@ -37,7 +37,7 @@ EGISON_NORMALIZE = $(abspath tools/run_formurae_normalization.sh) $(EGISON_DIR)
 FME_EXAMPLES := acoustic3d diffusion1d diffusion2d divergence2d diffusion3d maxwell3d maxwell3d_yee maxwell_dec kleingordon ks3d \
                 burgers3d pearson3d cahnhilliard3d tdgl3d shallowwater \
                 euler_sod highorder4 dirichlet_diffusion elastic3d \
-                metric_torus metric_sphere hyperbolic polar2d spherical3d
+                metric_torus metric_sphere hyperbolic polar2d spherical3d yinyang_diffusion
 EGI_EXAMPLES := mhd_ot lbm_d3q19
 
 CHECK_diffusion1d         := diffusion1d_check.c
@@ -63,6 +63,7 @@ CHECK_hyperbolic          := hyp_check.c
 CHECK_polar2d             := polar_check.c
 CHECK_spherical3d         := spherical_check.c
 CHECK_maxwell3d_yee       := maxwell_yee_check.c
+CHECK_yinyang_diffusion   := yy_check.c
 CHECK_mhd_ot              := mhd_check.c
 CHECK_lbm_d3q19           := lbm_check.c
 CHECK_acoustic3d          := ac_check.c

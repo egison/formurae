@@ -1,0 +1,28 @@
+dimension :: 3
+axes :: theta,phi,z
+
+double :: dt = 0.0003
+
+extern function :: sin
+extern function :: cos
+
+begin function (u,FormuraeInternalMetricCoefficient1,FormuraeInternalMetricCoefficient2,FormuraeInternalMetricCoefficient3,FormuraeInternalMetricVolume) = init()
+  double [] :: u, FormuraeInternalMetricCoefficient1, FormuraeInternalMetricCoefficient2, FormuraeInternalMetricCoefficient3, FormuraeInternalMetricVolume
+  u[i,j,k] = cos((409061543436171 / 625000000000000) + dtheta * i)
+  FormuraeInternalMetricCoefficient1[i,j,k] = sin((409061543436171 / 625000000000000) + dtheta * ((1 / 2) + i))
+  FormuraeInternalMetricCoefficient2[i,j,k] = sin((409061543436171 / 625000000000000) + dtheta * i) / sin((409061543436171 / 625000000000000) + dtheta * i)**2
+  FormuraeInternalMetricCoefficient3[i,j,k] = sin((409061543436171 / 625000000000000) + dtheta * i)
+  FormuraeInternalMetricVolume[i,j,k] = sin((409061543436171 / 625000000000000) + dtheta * i)
+end function
+
+begin function (u',FormuraeInternalMetricCoefficient1',FormuraeInternalMetricCoefficient2',FormuraeInternalMetricCoefficient3',FormuraeInternalMetricVolume') = step(u,FormuraeInternalMetricCoefficient1,FormuraeInternalMetricCoefficient2,FormuraeInternalMetricCoefficient3,FormuraeInternalMetricVolume)
+  FormuraeInternalLb1Flux1[i,j,k] = FormuraeInternalMetricCoefficient1[i,j,k] * (u[i+1,j,k] + (-1) * u[i,j,k]) / dtheta
+  FormuraeInternalLb1Flux2[i,j,k] = FormuraeInternalMetricCoefficient2[i,j,k] * (u[i,j+1,k] + (-1) * u[i,j,k]) / dphi
+  FormuraeInternalLb1Flux3[i,j,k] = FormuraeInternalMetricCoefficient3[i,j,k] * (u[i,j,k+1] + (-1) * u[i,j,k]) / dz
+  FormuraeInternalLb1Result[i,j,k] = ((FormuraeInternalLb1Flux1[i,j,k] + (-1) * FormuraeInternalLb1Flux1[i-1,j,k]) / dtheta + (FormuraeInternalLb1Flux2[i,j,k] + (-1) * FormuraeInternalLb1Flux2[i,j-1,k]) / dphi + (FormuraeInternalLb1Flux3[i,j,k] + (-1) * FormuraeInternalLb1Flux3[i,j,k-1]) / dz) / FormuraeInternalMetricVolume[i,j,k]
+  u'[i,j,k] = u[i,j,k] + dt * FormuraeInternalLb1Result[i,j,k]
+  FormuraeInternalMetricCoefficient1'[i,j,k] = FormuraeInternalMetricCoefficient1[i,j,k]
+  FormuraeInternalMetricCoefficient2'[i,j,k] = FormuraeInternalMetricCoefficient2[i,j,k]
+  FormuraeInternalMetricCoefficient3'[i,j,k] = FormuraeInternalMetricCoefficient3[i,j,k]
+  FormuraeInternalMetricVolume'[i,j,k] = FormuraeInternalMetricVolume[i,j,k]
+end function

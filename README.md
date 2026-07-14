@@ -251,7 +251,7 @@ cabal run -v0 post-fec -- /tmp/model.feir > /tmp/model.fmr
 
 ## 生成物
 
-`.fme`が編集対象です。24個のFME例では`.egi`、`.feir`、`.fmr`をreview可能な生成artifactとして
+`.fme`が編集対象です。25個のFME例では`.egi`、`.feir`、`.fmr`をreview可能な生成artifactとして
 追跡し、Makefileから再生成します。galleryは4段すべてを表示します。`mhd_ot`と`lbm_d3q19`の
 2例はhand-written Egison exampleであり、`fmrgen.egi`と`fmr-direct3d.egi`を使う独立した
 direct Egison→Formura ruleで検査します。MHDは原理的には表層で表現できます(20本のfluxは

@@ -1,0 +1,4 @@
+length_per_node: [1.8980455615438332,5.0396382151336265,0.2617993877991494]
+grid_per_node: [29,77,4]
+mpi_shape: [1,1,1]
+boundary: [mirror, mirror, periodic]
