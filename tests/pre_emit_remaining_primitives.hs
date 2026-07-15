@@ -17,6 +17,12 @@ main = do
     "FormuraeInternalOrderedDerivative [| 1, 2 |] u" unit
   assertContains "canonical resample keeps absolute placement bits explicit"
     "FormuraeInternalResampleExplicit [| 1, 1 |] u" unit
+  assertContains "ordered derivative bridge uses ambient model metadata"
+    "def FormuraeInternalOrderedDerivative axes value := Formurae.gridDerivativeChain axes value"
+    unit
+  assertContains "resample bridge uses ambient model metadata"
+    "def FormuraeInternalResampleExplicit bits value := Formurae.resampleExplicit bits value"
+    unit
   assertContains "typed indexed local scopes its index over the stored RHS"
     "def FormuraeInternalValue1_i : Tensor MathValue := F_i + G_i" unit
   assertContains "typed indexed local uses FEIR tensor materialization"

@@ -25,6 +25,14 @@ assertEqual "FEIR S-expression structural canonical sort"
 
 declare symbol x, y, a
 
+def coordinates : Vector MathValue := [|x, y|]
+def dimension : Integer := 2
+def feGeometryScales : Vector MathValue := [|1, 1|]
+def feGeometryId : Integer := 1
+def epsilon : Tensor Integer := ε dimension
+def fePrimitiveManifestId : String :=
+  Formurae.Primitives.primitiveManifestV1Id
+
 def feirFieldU := function (x, y)
 def feirAnalyticQ := functionSymbol "potential" [x, y]
 
@@ -114,7 +122,7 @@ assertEqual "FEIR tensor component Sub index is separate from derivative User in
     (encodeVectorScalarFixture (partialDiffMV feirFieldV_2 y)))
   "(field-jet (field 2) (time-slot current) (basis (basis 2)) (arguments ((coordinate 1) (coordinate 2))) (multi-index ((axis-order (axis 2) (count 1)))))"
 
-assertEqual "FEIR strict product rule produces only ordinary nodes and FieldJets"
+assertEqual "FEIR analytic product rule produces only ordinary nodes and FieldJets"
   (FEIR.render
     (encodeScalarFixture (partialDiffMV (feirFieldU ^ 2) x)))
   "(mul (exact 2 1) (field-jet (field 1) (time-slot current) (basis (basis)) (arguments ((coordinate 1) (coordinate 2))) (multi-index ((axis-order (axis 1) (count 1))))) (field-jet (field 1) (time-slot current) (basis (basis)) (arguments ((coordinate 1) (coordinate 2))) (multi-index ())))"

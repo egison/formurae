@@ -89,8 +89,9 @@ The long-term receptacle is the typed operator graph
         <code>FE.orthogonalHodgeCoefficient</code> (V/&prod;h<sub>i</sub>&sup2;)</td></tr>
 <tr><td><code>lib/formurae-operators.egi</code></td>
     <td><code>flat</code>/<code>sharp</code>/<code>hodge</code>/<code>codiff</code>/<code>scalarLaplacian</code>
-        all take a scale vector and rebuild the diagonal metric from it;
-        the <code>Formurae.lbOrthogonal</code> wrapper</td></tr>
+        expose operand-only APIs and read diagonal-metric information from the generated
+        ambient dimension/coordinates/scale vector; <code>Formurae.lbOrthogonal</code> likewise
+        reads its geometry and manifest IDs from the ambient environment</td></tr>
 <tr><td><code>lib/formurae-primitives.egi</code></td>
     <td>the <code>lb.orthogonal@1</code> manifest</td></tr>
 </table>
@@ -318,8 +319,9 @@ without ever crossing a user-visible placement.</p>
     <td>Add <code>FE.metricDeterminant</code>, a general <code>FE.inverseMetricTensor</code>
         (cofactor expansion for d &le; 3), volume &radic;det g, and general Gram Hodge
         coefficients to <code>lib/formurae-geometry.egi</code>.
-        Switch <code>flat</code>/<code>sharp</code> from scale-vector arguments to
-        metric-tensor arguments. Confirm &radic;det g closes under Egison&rsquo;s sqrt
+        Preserve the operand-only <code>flat</code>/<code>sharp</code> API while switching their
+        internal source from the ambient scale vector to the ambient metric/inverse-metric
+        tensors. Confirm &radic;det g closes under Egison&rsquo;s sqrt
         simplification rules</td></tr>
 <tr><td>Phase 2<br>pre-fec</td>
     <td>Replace the assert in <code>EmitEgison.hs</code> with classification

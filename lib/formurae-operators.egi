@@ -3,7 +3,7 @@
 --
 -- These definitions deliberately contain no grid callback, component loop,
 -- tensor generator, or stencil choice.  Egison performs tensor algebra and
--- strict analytic differentiation here; post-fec owns discretization.
+-- analytic differentiation here; post-fec owns discretization.
 --
 
 -- Opaque requests carry their semantic payload in a reserved FunctionData
@@ -81,23 +81,21 @@ def Formurae.attachExplicitVariances
       then value
       else value
 
--- Model-specific values live in the generated Egison environment.  Shared
--- helpers therefore receive only the values they use instead of a bundled
--- environment tuple.
+-- Model-specific values live in the generated top-level Egison environment.
+-- The normalization runner loads this library and the generated unit in one
+-- recursive binding batch, so operators refer to that ambient environment just
+-- as Egison's geometry samples refer to their top-level coordinates and metric.
 def Formurae.geometryScale
-      (dimension: Integer) (geometryScales: Vector MathValue)
       (axis: Integer) : MathValue :=
   if assert "geometry scales must match the model dimension and axis"
-            (tensorShape geometryScales = [dimension]
+            (tensorShape feGeometryScales = [dimension]
              && i.> axis 0 && i.<= axis dimension)
-    then FE.tensorComponentAt geometryScales [axis]
+    then FE.tensorComponentAt feGeometryScales [axis]
     else 0
 
-def Formurae.requireOpaqueManifest
-      (primitiveManifestId: String)
-      : Bool :=
+def Formurae.requireOpaqueManifest : Bool :=
   assert "opaque operator has an incompatible primitive manifest"
-    (primitiveManifestId = Formurae.Primitives.primitiveManifestV1Id)
+    (fePrimitiveManifestId = Formurae.Primitives.primitiveManifestV1Id)
 
 -- Surface conditionals stay symbolic across Egison normalization.  Predicate
 -- nodes and Select are ordinary FunctionData values with versioned reserved
@@ -148,22 +146,20 @@ def Formurae.select
 -- generated model environment and the v1 source policy is collocated; neither
 -- choice is reconstructed by pre-fec or supplied by user syntax.
 def Formurae.lbOrthogonal
-      (geometryId: Integer) (primitiveManifestId: String)
       (value: MathValue) : MathValue :=
   match assert "lb.orthogonal geometry ID must be positive"
-               (i.> geometryId 0)
-        && Formurae.requireOpaqueManifest primitiveManifestId
+               (i.> feGeometryId 0)
+        && Formurae.requireOpaqueManifest
         as bool with
     | #True ->
         formuraeOpaqueBarrier
           (functionSymbol Formurae.opaqueLbHead
-            [value, geometryId, 1])
+            [value, feGeometryId, 1])
 
 -- An occurrence-level radius override bypasses the model discretization
 -- profile.  Its axis, derivative order, and radius stay atomic until
 -- post-fec selects the explicitly requested coordinate stencil.
 def Formurae.coordinateWideDerivative
-      (dimension: Integer) (primitiveManifestId: String)
       (axisId: Integer) (order: Integer) (radius: Integer)
       (value: MathValue) : MathValue :=
   match assert "coordinate-wide derivative needs a valid axis, positive order, radius greater than one, and enough stencil points"
@@ -172,7 +168,7 @@ def Formurae.coordinateWideDerivative
                 && i.> order 0
                 && i.> radius 1
                 && i.< order (i.+ (i.* 2 radius) 1))
-        && Formurae.requireOpaqueManifest primitiveManifestId
+        && Formurae.requireOpaqueManifest
         as bool with
     | #True ->
         formuraeOpaqueBarrier
@@ -183,11 +179,10 @@ def Formurae.coordinateWideDerivative
 -- products and nonlinear calls inside one operand so post-fec applies one
 -- conservative/reference grid stencil to the complete expression.
 def Formurae.gridWholeDerivative
-      (dimension: Integer) (primitiveManifestId: String)
       (axisId: Integer) (value: MathValue) : MathValue :=
   match assert "whole-expression grid derivative needs a valid axis"
                (i.> axisId 0 && i.<= axisId dimension)
-        && Formurae.requireOpaqueManifest primitiveManifestId
+        && Formurae.requireOpaqueManifest
         as bool with
     | #True ->
         formuraeOpaqueBarrier
@@ -197,7 +192,6 @@ def Formurae.gridWholeDerivative
 -- request.  Axis order and repetition are data; the CAS never canonicalizes
 -- this sequence into a Schwarz multi-index.
 def Formurae.gridDerivativeChain
-      (dimension: Integer) (primitiveManifestId: String)
       (axes: Vector Integer) (value: MathValue) : MathValue :=
   let orderedAxes := tensorToList axes
    in match assert "ordered derivative needs one or more registered axes"
@@ -206,7 +200,7 @@ def Formurae.gridDerivativeChain
                          (\axis -> i.> axis 0
                                    && i.<= axis dimension)
                          orderedAxes)
-            && Formurae.requireOpaqueManifest primitiveManifestId
+            && Formurae.requireOpaqueManifest
         as bool with
       | #True ->
           formuraeOpaqueBarrier
@@ -216,42 +210,36 @@ def Formurae.gridDerivativeChain
 -- Absolute placement bits are listed in model-axis order.  Zero denotes an
 -- integer point and one a half point; this is not a relative shift.
 def Formurae.resampleExplicit
-      (dimension: Integer) (primitiveManifestId: String)
       (placementBits: Vector Integer) (value: MathValue) : MathValue :=
   let bits := tensorToList placementBits
    in match assert "explicit resampling needs one 0/1 bit per model axis"
                    (length bits = dimension
                     && all (\bit -> bit = 0 || bit = 1) bits)
-            && Formurae.requireOpaqueManifest primitiveManifestId
+            && Formurae.requireOpaqueManifest
         as bool with
       | #True ->
           formuraeOpaqueBarrier
             (functionSymbol Formurae.opaqueResampleHead (value :: bits))
 
 def Formurae.diff
-      (coordinates: Vector MathValue)
       (value: Tensor MathValue) : Tensor MathValue :=
   ∂/∂ value coordinates
 
 def Formurae.grad
-      (coordinates: Vector MathValue)
       (u: MathValue) : Tensor MathValue :=
-  Formurae.attachExplicitVariances ["down"] (Formurae.diff coordinates u)
+  Formurae.attachExplicitVariances ["down"] (Formurae.diff u)
 
 def Formurae.dGrad
-      (coordinates: Vector MathValue)
       (X: Tensor MathValue) : Tensor MathValue :=
   Formurae.attachExplicitVariances
     ("down" :: Formurae.logicalTensorVariances X)
-    (!Formurae.diff coordinates X)
+    (!Formurae.diff X)
 
 def Formurae.divg
-      (coordinates: Vector MathValue)
       (X: Tensor MathValue) : MathValue :=
-  trace (!Formurae.diff coordinates X)
+  trace (!Formurae.diff X)
 
 def Formurae.curl
-      (dimension: Integer) (coordinates: Vector MathValue)
       (X: Vector MathValue) : Vector MathValue :=
   match assert "curl requires three-dimensional coordinates and a vector"
                (dimension = 3
@@ -259,52 +247,42 @@ def Formurae.curl
                 && tensorShape X = [dimension])
         as bool with
     | #True ->
-        let epsilon := ε dimension
-         in (withSymbols [i, j, k]
-              (epsilon_i~j~k . ∂/∂ X_k coordinates~j))_formuraeTensorIndex1
+        (withSymbols [i, j, k]
+          (epsilon_i~j~k . ∂/∂ X_k coordinates~j))_formuraeTensorIndex1
 
 def Formurae.hessian
-      (coordinates: Vector MathValue)
       (u: MathValue) : Tensor MathValue :=
   Formurae.attachExplicitVariances ["down", "down"]
-    (!Formurae.diff coordinates (Formurae.grad coordinates u))
+    (!Formurae.diff (Formurae.grad u))
 
 def Formurae.lap
-      (coordinates: Vector MathValue)
       (u: MathValue) : MathValue :=
-  Formurae.divg coordinates (Formurae.grad coordinates u)
+  Formurae.divg (Formurae.grad u)
 
-def Formurae.metric
-      (dimension: Integer) (geometryScales: Vector MathValue)
-      : Tensor MathValue :=
+def Formurae.metric : Tensor MathValue :=
   FE.diagonalMetricTensor
-    dimension (Formurae.geometryScale dimension geometryScales)
+    dimension Formurae.geometryScale
 
-def Formurae.inverseMetric
-      (dimension: Integer) (geometryScales: Vector MathValue)
-      : Tensor MathValue :=
+def Formurae.inverseMetric : Tensor MathValue :=
   FE.inverseDiagonalMetricTensor
-    dimension (Formurae.geometryScale dimension geometryScales)
+    dimension Formurae.geometryScale
 
 -- Orthogonal musical maps remain ordinary tensor contractions.  No
 -- placement callback or component enumeration is part of the public
 -- operator definition.
 def Formurae.flat
-      (dimension: Integer) (geometryScales: Vector MathValue)
       (X: Vector MathValue) : Vector MathValue :=
   Formurae.attachExplicitVariances ["down"]
     (withSymbols [i, j]
-      ((Formurae.metric dimension geometryScales)_i_j . X~j))
+      ((Formurae.metric)_i_j . X~j))
 
 def Formurae.sharp
-      (dimension: Integer) (geometryScales: Vector MathValue)
       (A: Vector MathValue) : Vector MathValue :=
   Formurae.attachExplicitVariances ["up"]
     (withSymbols [i, j]
-      ((Formurae.inverseMetric dimension geometryScales)~i~j . A_j))
+      ((Formurae.inverseMetric)~i~j . A_j))
 
 def Formurae.d
-      (coordinates: Vector MathValue)
       (A: Tensor MathValue) : Tensor MathValue :=
   let degree := dfOrder A + 1
    in degree
@@ -317,7 +295,6 @@ def Formurae.d
 -- Its component convention is
 --   (*A)_J = sign(I ++ J) (V / product(i in I, h_i^2)) A_I.
 def Formurae.hodge
-      (dimension: Integer) (geometryScales: Vector MathValue)
       (A: Tensor MathValue) : Tensor MathValue :=
   let degree := dfOrder A
    in match assert "Euclidean Hodge star needs a form degree in 0..dimension"
@@ -331,7 +308,7 @@ def Formurae.hodge
                  in FE.formBasisSign (sourceBasis ++ targetBasis)
                     * FE.orthogonalHodgeCoefficient
                         (between 1 dimension)
-                        (Formurae.geometryScale dimension geometryScales)
+                        Formurae.geometryScale
                         sourceBasis
                     * FE.tensorComponentAt A sourceBasis)
               dimension (dimension - degree)
@@ -341,22 +318,20 @@ def Formurae.hodge
 -- order so post-fec can apply the weighted whole-expression derivative
 -- without distributing it analytically through metric coefficients.
 def Formurae.metricCodiff
-      (dimension: Integer) (geometryId: Integer)
-      (primitiveManifestId: String)
       (A: Tensor MathValue) : Tensor MathValue :=
   let degree := dfOrder A
    in if degree = 0
         then 0
         else match assert "metric codifferential needs a form degree in 1..dimension"
-                          (degree <= dimension && i.> geometryId 0)
-                   && Formurae.requireOpaqueManifest primitiveManifestId
+                          (degree <= dimension && i.> feGeometryId 0)
+                   && Formurae.requireOpaqueManifest
              as bool with
           | #True ->
               FE.canonicalFormTensor
                 (\targetBasis ->
                   formuraeOpaqueBarrier
                     (functionSymbol Formurae.opaqueMetricCodiffHead
-                      ([ geometryId
+                      ([ feGeometryId
                        , dimension
                        , degree
                        ] ++ tensorToList A ++ targetBasis)))
@@ -367,16 +342,13 @@ def Formurae.metricCodiff
 -- Degree-zero forms map to zero directly, avoiding an artificial (n+1)-form
 -- while retaining the same mathematical definition.
 def Formurae.codiff
-      (coordinates: Vector MathValue) (dimension: Integer)
-      (geometryScales: Vector MathValue)
       (A: Tensor MathValue) : Tensor MathValue :=
   let degree := dfOrder A
    in if degree = 0
         then 0
         else (-1) ^ (dimension * (degree + 1) + 1)
-             * Formurae.hodge dimension geometryScales
-                 (Formurae.d coordinates
-                   (Formurae.hodge dimension geometryScales A))
+             * Formurae.hodge
+                 (Formurae.d (Formurae.hodge A))
 
 -- PDE-sign scalar Laplacian under the selected codifferential convention:
 --   Delta u = -delta(d u).
@@ -385,19 +357,14 @@ def Formurae.codiff
 -- This constant-geometry path is a mathematical composition and contains no
 -- stencil or grid callback.  Declared geometry uses lbOrthogonal instead.
 def Formurae.scalarLaplacian
-      (coordinates: Vector MathValue) (dimension: Integer)
-      (geometryScales: Vector MathValue)
       (u: MathValue) : MathValue :=
-  0 - Formurae.codiff coordinates dimension geometryScales
-        (Formurae.d coordinates u)
+  0 - Formurae.codiff (Formurae.d u)
 
 -- Nonnegative Hodge--de Rham Laplacian on a constant-metric differential
 -- form.  The endpoint terms are represented by zero times the original form
 -- so their rank and differential-form metadata are retained:
 --   Delta_H A = d(delta A) + delta(d A).
 def Formurae.hodgeLaplacian
-      (coordinates: Vector MathValue) (dimension: Integer)
-      (geometryScales: Vector MathValue)
       (A: Tensor MathValue) : Tensor MathValue :=
   let degree := dfOrder A
    in match assert "Hodge Laplacian needs a form degree in 0..dimension"
@@ -406,9 +373,7 @@ def Formurae.hodgeLaplacian
         | #True ->
             (if degree = 0
                then 0 * A
-               else Formurae.d coordinates
-                      (Formurae.codiff coordinates dimension geometryScales A))
+               else Formurae.d (Formurae.codiff A))
             + (if degree = dimension
                  then 0 * A
-                 else Formurae.codiff coordinates dimension geometryScales
-                        (Formurae.d coordinates A))
+                 else Formurae.codiff (Formurae.d A))

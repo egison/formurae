@@ -54,7 +54,7 @@ fi
 
 grep -F 'pre-fec: error: tests/fixtures/pre_fec_curl_dimension_error.fme:7:8: Egison normalization failed' \
   "$WORK/curl-dimension.err" >/dev/null
-grep -F 'Assertion failed: "curl requires three dimensions"' \
+grep -F 'Assertion failed: "curl requires three-dimensional coordinates and a vector"' \
   "$WORK/curl-dimension.err" >/dev/null
 
 for metric_use in bare mixed; do

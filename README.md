@@ -47,7 +47,8 @@ def chooseByDimension X =
 ```
 
 `dimension`、`coordinates`、`volume`、`epsilon`、`metric`、`inverseMetric`はmodelのambient
-Egison環境にあり、ユーザがcontext引数を渡す必要はありません。`metric g`を宣言すると、同じ実計量を
+Egison環境にあり、ユーザ定義と`Formurae.*`標準演算子はこれらを直接参照します。
+そのためユーザがcontext引数を渡す必要はありません。`metric g`を宣言すると、同じ実計量を
 共変な`g_i_j` / `g_#_#`と反変な`g~i~j` / `g~#~#`の両方から参照できます。宣言名を使わない
 canonical viewは`metric_i_j` / `metric_#_#`と`inverseMetric~i~j` / `inverseMetric~#~#`です。
 
@@ -299,8 +300,8 @@ make all
 ```
 
 - FEIR round-trip、malformed input、fingerprint、source diagnostic
-- pre-fec scope/effect/dictionary-passing tests
-- Egison strict differentiation、FieldJet、tensor/form operator tests
+- pre-fec scope/effect/ambient-binding tests
+- Egison analytic differentiation、FieldJet、tensor/form operator tests
 - post-fec profile、exact Taylor stencil、placement、quoted derivative、geometry-aware `Δ` / `δ` tests
 - collocated/Yee/DEC/variable-metric exampleのFormura parseとC numerical checks
 - Egison math representative samples、mini-test全件、`cabal test`

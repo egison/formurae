@@ -13,8 +13,8 @@ main = do
   second <- requireRight =<< emitNormalizationUnit manifestId model
 
   assertEqual "normalization unit is deterministic" first second
-  assertContains "ambient coordinates specialize each used shared operator"
-    "def FormuraeInternalLap u := Formurae.lap coordinates u" first
+  assertContains "shared operators read the generated ambient environment"
+    "def FormuraeInternalLap u := Formurae.lap u" first
   assertAbsent first "def FormuraeInternalGrad u :="
   assertAbsent first "Formurae.operatorContext"
   assertAbsent first "feOperatorContext"
@@ -40,7 +40,7 @@ main = do
   assertContains "canonical scalar Delta resolves to its scalar lowering"
     "FormuraeInternalScalarDelta u" first
   assertContains "constant scalar Delta uses the continuum identity"
-    "def FormuraeInternalScalarDelta u := Formurae.scalarLaplacian coordinates dimension feGeometryScales u"
+    "def FormuraeInternalScalarDelta u := Formurae.scalarLaplacian u"
     first
   aliasModel <- parseModel "pre-dec-alias.fme" "pre-dec-alias" decAliasSource
   aliasUnit <- requireRight =<< emitNormalizationUnit manifestId aliasModel
@@ -62,7 +62,7 @@ main = do
     "def FormuraeInternalDefinition2 u := withSymbols [i, j, k, l, m, n] (FormuraeInternalScalarDelta u)"
     variableScalarUnit
   assertContains "variable scalar bridge is the lb.orthogonal request"
-    "def FormuraeInternalScalarDelta u := Formurae.lbOrthogonal feGeometryId fePrimitiveManifestId u"
+    "def FormuraeInternalScalarDelta u := Formurae.lbOrthogonal u"
     variableScalarUnit
   assertAbsent variableScalarUnit "FormuraeInternalCodiff"
 
@@ -71,7 +71,7 @@ main = do
   variableCodiffUnit <- requireRight =<<
     emitNormalizationUnit manifestId variableCodiffModel
   assertContains "variable DEC delta lowers through codiff.metric"
-    "def FormuraeInternalCodiff A := Formurae.metricCodiff dimension feGeometryId fePrimitiveManifestId A"
+    "def FormuraeInternalCodiff A := Formurae.metricCodiff A"
     variableCodiffUnit
   assertContains "canonical delta call uses the codifferential bridge"
     "FormuraeInternalCodiff A" variableCodiffUnit
@@ -81,7 +81,7 @@ main = do
   constantHodgeUnit <- requireRight =<<
     emitNormalizationUnit manifestId constantHodgeModel
   assertContains "constant Delta_H lowers to the general Hodge-Laplacian identity"
-    "def FormuraeInternalHodgeLaplacian A := Formurae.hodgeLaplacian coordinates dimension feGeometryScales A"
+    "def FormuraeInternalHodgeLaplacian A := Formurae.hodgeLaplacian A"
     constantHodgeUnit
   assertContains "canonical Delta_H call uses its atomic bridge"
     "FormuraeInternalHodgeLaplacian A" constantHodgeUnit

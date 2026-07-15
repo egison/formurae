@@ -1,9 +1,11 @@
 declare symbol x, y
 
-def opaqueDimension : Integer := 2
-def opaqueGeometryId : Integer := 1
-def opaqueOtherGeometryId : Integer := 2
-def opaqueManifestId : String :=
+def coordinates : Vector MathValue := [|x, y|]
+def dimension : Integer := 2
+def feGeometryScales : Vector MathValue := [|1, 1|]
+def feGeometryId : Integer := 1
+def epsilon : Tensor Integer := ε dimension
+def fePrimitiveManifestId : String :=
   Formurae.Primitives.primitiveManifestV1Id
 
 def opaqueU := function (x, y)
@@ -25,21 +27,18 @@ def encodeOpaqueFixture value :=
 def encodedOpaqueU := encodeOpaqueFixture opaqueU
 
 def lbRequest :=
-  Formurae.lbOrthogonal opaqueGeometryId opaqueManifestId opaqueU
+  Formurae.lbOrthogonal opaqueU
 
 def wideRequest :=
-  Formurae.coordinateWideDerivative
-    opaqueDimension opaqueManifestId 2 2 2 opaqueU
+  Formurae.coordinateWideDerivative 2 2 2 opaqueU
 
 def gridWholeOperand := opaqueU * opaqueU / 2
 
 def gridWholeRequest :=
-  Formurae.gridWholeDerivative
-    opaqueDimension opaqueManifestId 1 gridWholeOperand
+  Formurae.gridWholeDerivative 1 gridWholeOperand
 
 def metricCodiffRequest :=
-  Formurae.metricCodiff
-    opaqueDimension opaqueGeometryId opaqueManifestId opaqueA
+  Formurae.metricCodiff opaqueA
 
 def expectedLb :=
   FEIR.opaqueNode "lb.orthogonal@1" []
@@ -104,7 +103,7 @@ assertEqual "grid-whole differs from analytic product-rule differentiation"
 
 assertEqual "opaque semantic key and request group are deterministic"
   (encodeOpaqueFixture
-    (Formurae.lbOrthogonal opaqueGeometryId opaqueManifestId opaqueU))
+    (Formurae.lbOrthogonal opaqueU))
   (encodeOpaqueFixture lbRequest)
 
 assertEqual "ordinary algebra retains opaque atoms"
@@ -115,16 +114,8 @@ assertEqual "ordinary algebra retains opaque atoms"
       , expectedWide
       ]))
 
-assertEqual "geometry ID is part of lb semantic identity"
-  (encodeOpaqueFixture lbRequest
-    = encodeOpaqueFixture
-        (Formurae.lbOrthogonal
-          opaqueOtherGeometryId opaqueManifestId opaqueU))
-  False
-
 assertEqual "explicit radius is part of wide semantic identity"
   (encodeOpaqueFixture wideRequest
     = encodeOpaqueFixture
-        (Formurae.coordinateWideDerivative
-          opaqueDimension opaqueManifestId 2 2 3 opaqueU))
+        (Formurae.coordinateWideDerivative 2 2 3 opaqueU))
   False

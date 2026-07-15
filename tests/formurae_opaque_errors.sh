@@ -13,7 +13,7 @@ output=$(
 case "$output" in
   *"analytic derivative: no registered derivative rule for formuraeOpaqueBarrier"*) ;;
   *)
-    printf 'strict differentiation did not reject an opaque request:\n%s\n' "$output" >&2
+    printf 'analytic differentiation did not reject an opaque request:\n%s\n' "$output" >&2
     exit 1
     ;;
 esac

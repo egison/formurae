@@ -1,8 +1,15 @@
 declare symbol x
 
+def coordinates : Vector MathValue := [|x|]
+def dimension : Integer := 1
+def feGeometryScales : Vector MathValue := [|1|]
+def feGeometryId : Integer := 1
+def epsilon : Tensor Integer := ε dimension
+def fePrimitiveManifestId : String :=
+  Formurae.Primitives.primitiveManifestV1Id
+
 def opaqueErrorU := function (x)
 
 partialDiffMV
-  (Formurae.lbOrthogonal
-    1 Formurae.Primitives.primitiveManifestV1Id opaqueErrorU)
+  (Formurae.lbOrthogonal opaqueErrorU)
   x

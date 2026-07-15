@@ -38,7 +38,7 @@ main = do
     "FormuraeInternalScalarDelta u"
     embeddedUnit
   assertContains "variable scalar Delta selects lb.orthogonal"
-    "def FormuraeInternalScalarDelta u := Formurae.lbOrthogonal feGeometryId fePrimitiveManifestId u"
+    "def FormuraeInternalScalarDelta u := Formurae.lbOrthogonal u"
     embeddedUnit
   assertAbsent "ambient operators do not construct a context"
     "Formurae.operatorContext" embeddedUnit

@@ -1,7 +1,11 @@
 declare symbol x, y
 
-def remainingDimension : Integer := 2
-def remainingManifestId : String :=
+def coordinates : Vector MathValue := [|x, y|]
+def dimension : Integer := 2
+def feGeometryScales : Vector MathValue := [|1, 1|]
+def feGeometryId : Integer := 1
+def epsilon : Tensor Integer := ε dimension
+def fePrimitiveManifestId : String :=
   Formurae.Primitives.primitiveManifestV1Id
 
 def remainingU := function (x, y)
@@ -16,12 +20,10 @@ def encodeRemaining value :=
 def encodedRemainingU := encodeRemaining remainingU
 
 def orderedRequest :=
-  Formurae.gridDerivativeChain
-    remainingDimension remainingManifestId [|2, 1, 2|] remainingU
+  Formurae.gridDerivativeChain [|2, 1, 2|] remainingU
 
 def resampleRequest :=
-  Formurae.resampleExplicit
-    remainingDimension remainingManifestId [|0, 1|] remainingU
+  Formurae.resampleExplicit [|0, 1|] remainingU
 
 def expectedOrdered :=
   FEIR.opaqueNode "derivative.ordered@1" []

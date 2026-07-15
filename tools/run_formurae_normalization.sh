@@ -6,7 +6,8 @@
 set -eu
 
 if [ "$#" -lt 2 ]; then
-  printf 'usage: %s EGISON_DIR [egison arguments ...] UNIT.egi\n' "$0" >&2
+  printf 'usage: %s EGISON_DIR UNIT.egi\n' "$0" >&2
+  printf '       %s EGISON_DIR -t TEST.egi\n' "$0" >&2
   exit 2
 fi
 
@@ -43,6 +44,24 @@ for library in "$library_1" "$library_2" "$library_3" "$library_4" "$library_5";
   fi
 done
 
-"$root/tools/run_egison_machine.sh" "$egison_dir" \
-  -l "$root/$library_1" -l "$root/$library_2" -l "$root/$library_3" \
-  -l "$root/$library_4" -l "$root/$library_5" "$@"
+# Ambient Formurae operators close over bindings in the generated unit.  A
+# normal one-unit invocation must therefore put that unit in the same initial
+# recursive binding batch as the libraries, then invoke its main explicitly.
+# Test invocations carry `-t`; the Egison CLI already includes their test file
+# in the initial batch.  No other pass-through shape is accepted because a
+# positional unit would form a later batch and silently break the ambient API.
+if [ "$#" -eq 1 ]; then
+  unit=$1
+  "$root/tools/run_egison_machine.sh" "$egison_dir" \
+    -l "$root/$library_1" -l "$root/$library_2" -l "$root/$library_3" \
+    -l "$root/$library_4" -l "$root/$library_5" \
+    -l "$unit" -c 'main []'
+elif [ "$#" -eq 2 ] && [ "$1" = '-t' ]; then
+  "$root/tools/run_egison_machine.sh" "$egison_dir" \
+    -l "$root/$library_1" -l "$root/$library_2" -l "$root/$library_3" \
+    -l "$root/$library_4" -l "$root/$library_5" "$@"
+else
+  printf 'usage: %s EGISON_DIR UNIT.egi\n' "$0" >&2
+  printf '       %s EGISON_DIR -t TEST.egi\n' "$0" >&2
+  exit 2
+fi

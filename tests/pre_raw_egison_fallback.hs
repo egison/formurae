@@ -30,7 +30,7 @@ main = do
   assertLeft "raw Egison rejects qualified normalization namespace calls" isReservedConstructor $
     inferModelEffects manifest (baseModel
       [definition 5 "raw" ["x"]
-        "let y := Formurae.resampleExplicit 1 manifest [| 1 |] x in y"])
+        "let y := Formurae.resampleExplicit [| 1 |] x in y"])
 
   assertLeft "raw Egison rejects the opaque barrier" isReservedConstructor $
     inferModelEffects manifest (baseModel

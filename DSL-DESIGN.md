@@ -15,8 +15,8 @@ Egison-side FMR printerを現在の実装説明として読まない。
 .fme -> pre-fec -> .egi -> Egison -> .feir -> post-fec -> .fmr -> Formura -> C
 ```
 
-`pre-fec`はfrontendとsource map、Egisonはtensor/index algebra・pure user function・strict analytic
-derivative、`post-fec`はplacement・exact stencil・auxiliary lifetime・storageを担当する。
+`pre-fec`はfrontendとsource map、Egisonはtensor/index algebra・pure user function・analytic
+differentiation、`post-fec`はplacement・exact stencil・auxiliary lifetime・storageを担当する。
 pure operatorは`lib/formurae-operators.egi`の短い通常関数だけを定義元とし、
 `grad`/`divg`/`curl`/`lap`/`d`等をHaskell macroやcomponent callbackへ複製しない。
 
@@ -77,6 +77,16 @@ gallery表示は`.fme / .egi / .feir / .fmr`の4段である。
 `hodge`や`codiff`が生成するdegree-zeroの結果は`FE.tensorComponentAt ... []`を介さずscalarとして
 合成できる。このruntime表現はFormurae frontendにおけるscalarと`0-form`の静的kindの区別を消さず、
 FEIRでscalarを唯一のempty-basis componentとして符号化する規則も変更しない。
+
+**v2.4(2026-07-15): ambient operator API** —
+public `Formurae.*`のcontinuum operatorは数学的operandだけを引数に取り、
+`coordinates`、`dimension`、`feGeometryScales`などのmodel情報はgenerated unitのtop-level
+ambient bindingを直接参照する。normalization runnerはversioned library群とgenerated unitを
+Egisonの同じinitial load batchに入れ、全definitionをrecursive bindした後にunitの`main`を呼ぶ。
+generated `FormuraeInternal*`はambient引数を運ぶclosureではなく、lexical hygieneと
+constant/variable geometryのdispatchだけを担う薄いoperand-only bridgeである。ただし、
+汎用の`FE.*` tensor/geometry helperは再利用に必要な引数を明示的に取り、
+`FEIR.encode*`もparameter/coordinate/field/function registryを明示的に受け取る。
 
 **v1.36(2026-07-11): runtime tensor lowering と Phase 7 完了** —
 標準6演算子だけでなく、一般の indexed equation、implicit vector equation、rank-1/rank-2

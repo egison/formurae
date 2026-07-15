@@ -1,0 +1,45 @@
+declare symbol x, y
+
+def coordinates : Vector MathValue := [|x, y|]
+def dimension : Integer := 2
+def feGeometryScales : Vector MathValue := [|2, 3|]
+def feGeometryId : Integer := 1
+def epsilon : Tensor Integer := ε dimension
+def fePrimitiveManifestId : String :=
+  Formurae.Primitives.primitiveManifestV1Id
+
+def formDx := [|1, 0|]
+def formDy := [|0, 1|]
+def formArea := FE.canonicalFormTensor (\_ -> 1) 2 2
+
+assertEqual "orthogonal Hodge uses volume over source scale squares"
+  (map
+    (\form -> FE.formComponents (Formurae.hodge form))
+    [1, formDx, formDy, formArea])
+  [[6], [0, 3 / 2], [0 - 2 / 3, 0], [1 / 6]]
+
+assertEqual "orthogonal Hodge square keeps the orientation sign"
+  (FE.formComponents (Formurae.hodge (Formurae.hodge formDx)))
+  [-1, 0]
+
+assertEqual "orthogonal flat is one metric contraction"
+  (Formurae.flat [|x, y|])
+  [|4 * x, 9 * y|]
+
+assertEqual "flat result carries covector metadata"
+  (tensorVariances (Formurae.flat [|x, y|]),
+   dfOrder (Formurae.flat [|x, y|]))
+  (["down"], 0)
+
+assertEqual "orthogonal sharp is one inverse-metric contraction"
+  (Formurae.sharp [|x, y|])
+  [|x / 4, y / 9|]
+
+assertEqual "sharp result carries contravariant vector metadata"
+  (tensorVariances (Formurae.sharp [|x, y|]),
+   dfOrder (Formurae.sharp [|x, y|]))
+  (["up"], 0)
+
+assertEqual "orthogonal musical maps are inverses"
+  (Formurae.sharp (Formurae.flat [|x, y|]))
+  [|x, y|]
