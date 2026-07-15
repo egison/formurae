@@ -142,8 +142,7 @@ assertEqual "two-dimensional Hodge square is negative on one-forms"
   [-1, 0]
 
 assertEqual "codifferential of a one-form is negative divergence"
-  (FE.tensorComponentAt
-    (Formurae.codiff formCoordinates3 formDimension3 formScales3 formX) [])
+  (Formurae.codiff formCoordinates3 formDimension3 formScales3 formX)
   (0 - userRefs formX1 [1]
      - userRefs formX2 [2]
      - userRefs formX3 [3])
@@ -159,9 +158,8 @@ assertEqual "codifferential two-form components follow the fixed sign"
 assertEqual "PDE-sign scalar Laplacian is minus codifferential d"
   ( Formurae.scalarLaplacian
       formCoordinates3 formDimension3 formScales3 formU
-  , 0 - FE.tensorComponentAt
-          (Formurae.codiff formCoordinates3 formDimension3 formScales3
-            (Formurae.d formCoordinates3 formU)) [])
+  , 0 - Formurae.codiff formCoordinates3 formDimension3 formScales3
+          (Formurae.d formCoordinates3 formU))
   (Formurae.lap formCoordinates3 formU,
    Formurae.lap formCoordinates3 formU)
 

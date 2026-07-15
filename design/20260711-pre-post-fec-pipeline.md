@@ -552,6 +552,12 @@ derivativeやdiscrete adjointと異なる場合がある。FEIR v1ではconstant
 上のpure compositionで定義し、variable-metric codifferential全体をversioned opaque requestとする。
 本符号規約ではpositive Cartesian scalar Laplacianは`-codiff (d u)`である。
 
+Egisonの`generateTensor f []`はrank-zero tensor wrapperではなく唯一のcomponentを直接返す。
+したがって、one-formに対する`codiff`とtop-formに対する`hodge`の結果はruntimeではscalarであり、
+library definitionで`FE.tensorComponentAt ... []`を呼ばない。これはFormurae frontendのscalarと
+`0-form`の静的kindを同一視する規則ではなく、FEIRのscalarが唯一のempty-basis componentを持つ
+wire表現も変更しない。
+
 `codiff.metric@1`のoperandはsource form全体の`TensorValue`、各scalar nodeの`resultBasis`は
 canonical output component、同じformに属するcomponentは同じ`RequestGroupId`を持つ。attributesは
 `metric`、`dimension`、`source-degree`である。post-fecはgroupについて全canonical result basisが

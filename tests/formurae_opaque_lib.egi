@@ -38,9 +38,8 @@ def gridWholeRequest :=
     opaqueDimension opaqueManifestId 1 gridWholeOperand
 
 def metricCodiffRequest :=
-  FE.tensorComponentAt
-    (Formurae.metricCodiff
-      opaqueDimension opaqueGeometryId opaqueManifestId opaqueA) []
+  Formurae.metricCodiff
+    opaqueDimension opaqueGeometryId opaqueManifestId opaqueA
 
 def expectedLb :=
   FEIR.opaqueNode "lb.orthogonal@1" []

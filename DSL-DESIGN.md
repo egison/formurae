@@ -72,6 +72,12 @@ FEIR v1はexact rational、stable logical ID、GeometryNF、FieldJet、opaque re
 registry/manifest/profile fingerprintを持つcanonical S-expressionである。FME exampleの追跡artifactと
 gallery表示は`.fme / .egi / .feir / .fmr`の4段である。
 
+**v2.3(2026-07-15): Egisonのrank-zero表現** —
+`generateTensor f []`はtensor wrapperではなく唯一のcomponentを直接返す。このため、
+`hodge`や`codiff`が生成するdegree-zeroの結果は`FE.tensorComponentAt ... []`を介さずscalarとして
+合成できる。このruntime表現はFormurae frontendにおけるscalarと`0-form`の静的kindの区別を消さず、
+FEIRでscalarを唯一のempty-basis componentとして符号化する規則も変更しない。
+
 **v1.36(2026-07-11): runtime tensor lowering と Phase 7 完了** —
 標準6演算子だけでなく、一般の indexed equation、implicit vector equation、rank-1/rank-2
 indexed `let`、indexed CAS initializer を、成分別 Haskell 式へ展開せず whole runtime tensor として

@@ -26,9 +26,11 @@ def FE.symbolicBinary
 def norm2 {Ring a} (a: Tensor a) : a :=
   withSymbols [i] (a~i . a_i)
 
--- Canonical full-tensor view of a differential form.  The component callback
--- is evaluated only for strictly increasing index lists; repeated indices are
--- zero and permutations share the same component with the alternating sign.
+-- Canonical full-tensor view of a differential form.  Degree zero generates a
+-- rank-zero tensor, whose sole component Egison returns directly as a scalar.
+-- For positive degree, the component callback is evaluated only for strictly
+-- increasing index lists; repeated indices are zero and permutations share the
+-- same component with the alternating sign.
 def FE.canonicalFormComponent
       (component: [Integer] -> MathValue)
       (indices: [Integer]) : MathValue :=

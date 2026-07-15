@@ -380,15 +380,16 @@ def Formurae.codiff
 
 -- PDE-sign scalar Laplacian under the selected codifferential convention:
 --   Delta u = -delta(d u).
+-- Egison returns the sole component of a generated rank-zero tensor directly,
+-- so this composition is already a scalar and needs no component extraction.
 -- This constant-geometry path is a mathematical composition and contains no
 -- stencil or grid callback.  Declared geometry uses lbOrthogonal instead.
 def Formurae.scalarLaplacian
       (coordinates: Vector MathValue) (dimension: Integer)
       (geometryScales: Vector MathValue)
       (u: MathValue) : MathValue :=
-  0 - FE.tensorComponentAt
-        (Formurae.codiff coordinates dimension geometryScales
-          (Formurae.d coordinates u)) []
+  0 - Formurae.codiff coordinates dimension geometryScales
+        (Formurae.d coordinates u)
 
 -- Nonnegative Hodge--de Rham Laplacian on a constant-metric differential
 -- form.  The endpoint terms are represented by zero times the original form

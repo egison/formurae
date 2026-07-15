@@ -327,11 +327,15 @@ field component の関数適用を grid reference、その他の function symbol
 
 ## 7. Differential-form representation
 
-generated Egison の form は次の値で表す。
+generated Egison の positive-degree form は次の値で表す。
 
 ```text
 (GridPolicy, Tensor MathValue)
 ```
+
+degree zeroでは`generateTensor f []`が唯一のcomponentを直接返すため、tensor wrapperを介さない
+`(GridPolicy, MathValue)`になる。このruntime上のscalar表現と、surface/frontendが保持する
+`0-form`の静的kindは別の層の情報である。
 
 - degree は `dfOrder tensor` から得る
 - components は tensor 自身を走査する

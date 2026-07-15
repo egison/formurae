@@ -784,8 +784,10 @@ canonical operatorは単項の直接適用だけを許し、first-class alias、
 boundaryを迂回できないようにする。user definitionがcanonical名、scalar intrinsic、`.`をshadowした
 場合は組み込みの返値kindを流用せず、通常のuntyped callとして扱う。type checkerは特殊AST nodeの
 全childも走査し、`local`、field update、CAS initializerでは宣言kindと静的に判明したRHS kindを照合する。
-特に`0-form`をscalarへ暗黙変換してscalar-only operatorへ渡すことはしない。ただしcollocated modeの
-exact `0 - δ(d u)`は、他passと同じscope-aware matcherでcanonical scalar `Δ`として扱う。metric scale、
+特に`0-form`をscalarへ暗黙変換してscalar-only operatorへ渡すことはしない。この規則はfrontendの
+静的kindに関するものであり、Egisonがgenerated rank-zero tensorの唯一のcomponentをruntime scalarとして
+返す表現とは独立である。ただしcollocated modeのexact `0 - δ(d u)`は、他passと同じscope-aware matcherで
+canonical scalar `Δ`として扱う。metric scale、
 embedding、`assert-dd-zero`も同じ検査境界に含め、geometryで従来許可しているgeneric CAS quoteはraw
 fallbackとして維持しつつ、その中のcanonical operator利用は拒否する。
 
