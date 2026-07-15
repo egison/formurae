@@ -57,6 +57,7 @@ validateModelOperatorTypes model = do
          , ("metric", StaticTensor)
          , ("inverseMetric", StaticTensor)
          , ("epsilon", StaticTensor)
+         , ("coordinates", StaticTensor)
          , ("FormuraeInternalKroneckerDelta", StaticTensor)
          ]
 
@@ -387,8 +388,12 @@ infer model shadowed environment source expression
           , kind : _ <- argumentKinds -> kind
           | Just _ <- derivativeOpParts name
           , [kind] <- argumentKinds -> kind
+          -- ∂/∂ by one coordinate keeps the operand's kind; ∂/∂ by the
+          -- ambient coordinates vector adds a derivative axis, so only
+          -- the unknown kind is safe without tensor rank.
           | name == analyticDerivativeName
-          , kind : _ <- argumentKinds -> kind
+          , [kind, StaticScalar] <- argumentKinds -> kind
+          | name == analyticDerivativeName -> StaticUnknown
         _ -> StaticUnknown
 
     scalarFunctions =

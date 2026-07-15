@@ -155,6 +155,19 @@ CAS側のquote(`` `(2 + cos θ)``の原子化)は別機構でそのまま。
 規則は「素の∂=格子の自然なradius-1差分/プライム=明示半径のcentered/
 チェーン=順序列/解析=∂/∂」で完成。
 
+**v2.9(2026-07-16): 表層`∂/∂`のcoordinates形 — 解析テンソル微分の表層化** —
+表層`∂/∂`の第2引数にambientの`coordinates`ベクトル(添字なし・`coordinates~i`)を許した。
+Egisonライブラリの慣用形(`Formurae.diff`の本体`∂/∂ value coordinates`、curl本体の
+`∂/∂ X_k coordinates~j`)がそのまま.fmeで書けるようになり、v2.7で失われていた
+「ユーザ定義の解析テンソル演算子」が新記法ゼロで復活
+(`def gradLike u = ∂/∂ u coordinates`は解析gradientで、anonymousな微分軸が
+equation boundaryで`q_i`へ補完される — 実測で(u[i+1]−u[i−1])/(2dx)の
+profile中心差分に降りることを確認)。単一座標形は従来どおりoperandのkindを保ち、
+coordinates形は微分軸が増えるためkindはStaticUnknown(`coordinates`を
+ambient tensorとして静的環境に登録)。gradLike系のfixture 3本と論文§4の例を
+解析綴りへ更新(境界診断の位置・文言は不変を実測)。これで表層は
+「解析=∂/∂(単一座標またはcoordinatesベクトル)/添字∂=常に離散」の対称形になった。
+
 **v1.36(2026-07-11): runtime tensor lowering と Phase 7 完了** —
 標準6演算子だけでなく、一般の indexed equation、implicit vector equation、rank-1/rank-2
 indexed `let`、indexed CAS initializer を、成分別 Haskell 式へ展開せず whole runtime tensor として

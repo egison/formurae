@@ -35,6 +35,8 @@ main = do
     "FormuraeInternalCoordinateWideDerivative 1 2 1 u" first
   assertContains "surface ∂/∂ is the analytic coordinate derivative"
     "∂/∂ (∂/∂ u x) x" first
+  assertContains "∂/∂ by the ambient coordinates vector stays analytic"
+    "∂/∂ u coordinates" first
   assertContains "unprimed coordinate derivative preserves the whole nonlinear operand"
     "FormuraeInternalGridWholeDerivative 1 ((u * u) / 2)"
     first
@@ -476,6 +478,7 @@ source = unlines
   , "def chain u = `(∂_r (`(∂_r u)))"
   , "def wide u = pd2r2_r u"
   , "def analytic u = ∂/∂ (∂/∂ u r) r"
+  , "def analyticVec u = ∂/∂ u coordinates"
   , "def lapAlias u = Δ u"
   , "init:"
   , "  u = 0.0"

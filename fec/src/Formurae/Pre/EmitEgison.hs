@@ -734,13 +734,20 @@ contextualize model userDefinitions shadowedNames boundNames expression
     TEApply (TEIdent name []) arguments
       | name == analyticDerivativeName ->
           case arguments of
+            -- The Egison tensor idiom: differentiating by the ambient
+            -- coordinates vector (optionally indexed) yields the analytic
+            -- derivative axis, anonymous unless an index is applied.
+            [value, TEIdent "coordinates" parts] -> do
+              value' <- walk value
+              Right (TEApply (TEIdent "∂/∂" [])
+                [applicationArgument value', TEIdent "coordinates" parts])
             [value, TEIdent axis []] -> do
               axisId <- gridAxisId "∂/∂" axis
               value' <- walk value
               Right (analyticDerivative 1
                 (internalCoordNames model !! (axisId - 1)) value')
             _ -> Left (EmitExpressionError
-              "∂/∂ needs one operand followed by one coordinate")
+              "∂/∂ needs one operand and one coordinate, or the ambient coordinates vector")
     TEApply (TEIdent derivative parts) arguments
       | Just (order, radius) <- coordinateDerivativeName derivative
       , [Surface.IxPart _ axis] <- parts -> do

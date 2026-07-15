@@ -370,6 +370,11 @@ main = do
     (expressionEffect manifest baseModel (EffectSummary [])
       "analytic coordinate derivative"
       (parseTensorExpr "FormuraeInternalAnalyticDerivative (u * u / 2) x"))
+  assertEqual "analytic ∂/∂ by the coordinates vector remains pure"
+    (Right PureFunction)
+    (expressionEffect manifest baseModel (EffectSummary [])
+      "analytic tensor derivative"
+      (parseTensorExpr "FormuraeInternalAnalyticDerivative u coordinates"))
   assertEqual "symbolic indexed derivative is a per-axis grid request"
     (Right (DiscreteFunction
       [VersionedOpId "derivative.grid-whole@1"]))

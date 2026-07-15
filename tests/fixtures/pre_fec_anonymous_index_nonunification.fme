@@ -5,7 +5,7 @@ axes x, y
 field u : scalar
 field E_i
 
-def gradLike u = withSymbols [i] (∂_i u)
+def gradLike u = ∂/∂ u coordinates
 
 step:
   E' = withSymbols [i] (E_i + gradLike u)

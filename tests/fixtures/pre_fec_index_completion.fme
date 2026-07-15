@@ -9,7 +9,7 @@ field A : 1-form @ primal
 field D : 1-form @ primal
 field H : 1-form @ dual
 
-def gradLike u = withSymbols [i] (∂_i u)
+def gradLike u = ∂/∂ u coordinates
 
 step:
   q' = gradLike u
