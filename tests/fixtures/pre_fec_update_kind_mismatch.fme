@@ -6,4 +6,4 @@ field u : scalar
 field v : scalar
 step:
   u' = A
-  v' = `(∂_x u')
+  v' = ∂_x u'

@@ -3,4 +3,4 @@ dimension 1
 axes x
 field u : scalar
 step:
-  u' = `(∂_y u)
+  u' = `(∂_y (`(∂_x u)))

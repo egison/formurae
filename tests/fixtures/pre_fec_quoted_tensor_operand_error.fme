@@ -4,5 +4,5 @@ axes x, y
 field V_i
 field u : scalar
 step:
-  u' = `(∂_x V)
+  u' = `(∂_y (`(∂_x V)))
   V'_i = V_i

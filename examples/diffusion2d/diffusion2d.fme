@@ -17,6 +17,6 @@ init:
 
 step:
   local q_i @ primal =
-    [| 0 - κ * `(∂_x u),
-       0 - κ * `(∂_y u) |]_i
+    [| 0 - κ * ∂_x u,
+       0 - κ * ∂_y u |]_i
   u' = u - dt * divg q

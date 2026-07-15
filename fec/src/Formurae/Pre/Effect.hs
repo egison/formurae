@@ -33,8 +33,6 @@ import Formurae.Common
 import Control.Monad (foldM)
 import Formurae.Index
   ( derivativeOpParts
-  , internalCoordNames
-  , ixName
   , ixSuffix
   , parseIndexedIdent
   )
@@ -406,10 +404,10 @@ analyzeExpression environment expression
     TEDisjoint parts -> do
       mapM_ (rejectHigherOrder environment "disjoint product") parts
       mergeMany <$> mapM (analyzeExpression environment) parts
-    -- Layers apply innermost-last, matching the emit-side lowering: a
-    -- concrete-axis subscript is an explicit-radius centered request; a
-    -- symbolic-index subscript enumerates axes into placement-directed
-    -- radius-one requests.  Both are grid requests over pure operands.
+    -- Layers apply innermost-last, matching the emit-side lowering.
+    -- Every subscript layer here is a first derivative, so it is the
+    -- lattice's placement-directed radius-one request (a symbolic index
+    -- enumerates the axes); orders and primes arrive as pd applications.
     TEDerivative parts body -> do
       bodyEffect <- analyzeExpression environment body
       foldM applyDerivativeLayer bodyEffect (reverse parts)
@@ -420,8 +418,8 @@ analyzeExpression environment expression
           case axes of
             [] -> effectFailure (InvalidEffectExpression
               "quoted derivative chain needs one or more axes")
-            [_] -> primitiveEffect environment
-              Primitives.derivativeGridWholeV1OpId
+            [_] -> effectFailure (InvalidEffectExpression
+              "a single quoted derivative is redundant; write the coordinate derivative unquoted and reserve backquotes for ordered chains")
             _ -> primitiveEffect environment
               Primitives.derivativeOrderedV1OpId
         DiscreteFunction operations ->
@@ -441,17 +439,12 @@ analyzeExpression environment expression
       mergeMany <$> mapM (analyzeExpression environment) [lhs, rhs]
     TEGroup body -> analyzeExpression environment body
   where
-    applyDerivativeLayer effect part =
+    applyDerivativeLayer effect _part =
       case effect of
         PureFunction -> primitiveEffect environment
-          (if ixName part `elem` modelAxisNames
-             then Primitives.derivativeCoordinateWideV1OpId
-             else Primitives.derivativeGridWholeV1OpId)
+          Primitives.derivativeGridWholeV1OpId
         DiscreteFunction operations ->
           effectFailure (GridDerivativeOfDiscrete operations)
-    modelAxisNames =
-      mAxes (environmentModel environment)
-      ++ internalCoordNames (environmentModel environment)
 
 analyzeApplication
     :: EffectEnvironment
@@ -475,10 +468,12 @@ applicationHeadEffect environment function argumentEffect =
     Nothing -> pure PureFunction
     Just (name, parts) ->
       case derivativeOpParts (name ++ concatMap ixSuffix parts) of
-        Just _ ->
+        Just (order, radius, _) ->
           case argumentEffect of
             PureFunction -> primitiveEffect environment
-              Primitives.derivativeCoordinateWideV1OpId
+              (if order == 1 && radius == 1
+                 then Primitives.derivativeGridWholeV1OpId
+                 else Primitives.derivativeCoordinateWideV1OpId)
             DiscreteFunction operations ->
               effectFailure (GridDerivativeOfDiscrete operations)
         Nothing

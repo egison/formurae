@@ -31,11 +31,11 @@ main = do
     "contractWith (+) (FormuraeInternalDiff X~i)..._i" first
   assertContains "indexed derivative bridges to per-axis grid requests"
     "def FormuraeInternalDiff value := Formurae.gridDiff value" first
-  assertContains "coordinate derivative is an explicit radius-one request"
+  assertContains "ordered coordinate derivative is a centered radius-one request"
     "FormuraeInternalCoordinateWideDerivative 1 2 1 u" first
   assertContains "surface ∂/∂ is the analytic coordinate derivative"
     "∂/∂ (∂/∂ u x) x" first
-  assertContains "grid derivative preserves the whole nonlinear operand"
+  assertContains "unprimed coordinate derivative preserves the whole nonlinear operand"
     "FormuraeInternalGridWholeDerivative 1 ((u * u) / 2)"
     first
   assertContains "nested quoted derivatives preserve their ordered chain"
@@ -339,14 +339,18 @@ main = do
   quotedModel <- parseModel "pre-quoted-derivative.fme"
     "pre-quoted-derivative" quotedDerivativeSource
   quotedUnit <- requireRight =<< emitNormalizationUnit manifestId quotedModel
-  assertContains "ordinary coordinate derivative is a radius-one request"
-    "FormuraeInternalCoordinateWideDerivative 1 1 1 (u * u)" quotedUnit
-  assertContains "single quoted derivative emits one whole-expression request"
+  assertContains "ordinary coordinate derivative is a placement-directed request"
     "FormuraeInternalGridWholeDerivative 1 (u * u)" quotedUnit
   assertContains "multi quoted derivative emits one ordered request"
     "FormuraeInternalOrderedDerivative [| 1, 1, 2 |] u" quotedUnit
   assertContains "generic quote remains raw Egison"
     "`(u * u)" quotedUnit
+
+  singleQuotedModel <- parseModel "pre-single-quoted.fme"
+    "pre-single-quoted" singleQuotedSource
+  assertLeft "a single quoted derivative is rejected as redundant"
+    isSingleQuotedDerivative
+    =<< emitNormalizationUnit manifestId singleQuotedModel
 
   upperLiteralModel <- parseModel "pre-upper-literal-result.fme"
     "pre-upper-literal-result" upperLiteralResultSource
@@ -468,7 +472,7 @@ source = unlines
   , "field u : scalar"
   , "def pass f u = f u"
   , "def indexed X = withSymbols [i] (∂_i X~i)"
-  , "def smooth u = pass lap u + ∂^2_r u + `(∂_r (u * u / 2))"
+  , "def smooth u = pass lap u + ∂^2_r u + ∂_r (u * u / 2)"
   , "def chain u = `(∂_r (`(∂_r u)))"
   , "def wide u = pd2r2_r u"
   , "def analytic u = ∂/∂ (∂/∂ u r) r"
@@ -710,11 +714,20 @@ quotedDerivativeSource = unlines
   , "axes r, s"
   , "field u : scalar"
   , "def ordinary u = d_r (u * u)"
-  , "def quotedSingle u = `(d_r (u * u))"
   , "def quotedMulti u = `(d_s (`(d_r (`(d_r u)))))"
   , "def genericQuote u = `(u * u)"
   , "step:"
-  , "  u' = ordinary u + quotedSingle u + quotedMulti u + genericQuote u"
+  , "  u' = ordinary u + quotedMulti u + genericQuote u"
+  ]
+
+singleQuotedSource :: String
+singleQuotedSource = unlines
+  [ "mode collocated"
+  , "dimension 1"
+  , "axes r"
+  , "field u : scalar"
+  , "step:"
+  , "  u' = `(d_r (u * u))"
   ]
 
 upperLiteralResultSource :: String
@@ -843,6 +856,14 @@ isUnknownQuotedCoordinate problem =
     EmitAtSource _ nested -> isUnknownQuotedCoordinate nested
     EmitExpressionError message ->
       message == "quoted derivative uses unknown coordinate q"
+    _ -> False
+
+isSingleQuotedDerivative :: EmitError -> Bool
+isSingleQuotedDerivative problem =
+  case problem of
+    EmitAtSource _ nested -> isSingleQuotedDerivative nested
+    EmitExpressionError message ->
+      "single quoted derivative" `isInfixOf` message
     _ -> False
 
 isInvalidQuotedVariance :: EmitError -> Bool

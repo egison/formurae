@@ -746,15 +746,24 @@ contextualize model userDefinitions shadowedNames boundNames expression
       , [Surface.IxPart _ axis] <- parts -> do
           arguments' <- mapM walk arguments
           case arguments' of
-            [argument] -> do
-              axisId <- gridAxisId derivative axis
-              Right (TEApply
-                (TEIdent "FormuraeInternalCoordinateWideDerivative" [])
-                [ TENumber (show axisId)
-                , TENumber (show order)
-                , TENumber (show radius)
-                , argument
-                ])
+            [argument]
+              -- An unprimed first derivative is the lattice's natural
+              -- radius-one difference (placement-directed on staggered
+              -- fields); orders and primes request centered stencils.
+              | order == 1 && radius == 1 -> do
+                  axisId <- gridAxisId derivative axis
+                  Right (TEApply
+                    (TEIdent "FormuraeInternalGridWholeDerivative" [])
+                    [TENumber (show axisId), applicationArgument argument])
+              | otherwise -> do
+                  axisId <- gridAxisId derivative axis
+                  Right (TEApply
+                    (TEIdent "FormuraeInternalCoordinateWideDerivative" [])
+                    [ TENumber (show axisId)
+                    , TENumber (show order)
+                    , TENumber (show radius)
+                    , argument
+                    ])
             _ -> Left (EmitExpressionError
               (derivative ++ " coordinate derivative needs one operand"))
     TEApply function arguments ->
@@ -784,9 +793,8 @@ contextualize model userDefinitions shadowedNames boundNames expression
       case axisIds of
         [] -> Left (EmitExpressionError
           "quoted derivative chain needs one or more coordinate indices")
-        [axisId] -> Right (TEApply
-          (TEIdent "FormuraeInternalGridWholeDerivative" [])
-          [TENumber (show axisId), applicationArgument body'])
+        [_] -> Left (EmitExpressionError
+          "a single quoted derivative is redundant; write the coordinate derivative unquoted and reserve backquotes for ordered chains")
         _ -> Right (TEApply
           (TEIdent "FormuraeInternalOrderedDerivative" [])
           [integerVector axisIds, applicationArgument body'])

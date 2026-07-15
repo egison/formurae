@@ -1,5 +1,7 @@
 module Main where
 
+import Data.List (isInfixOf)
+
 import Formurae.FEIR.PrimitiveManifest
 import Formurae.FEIR.Syntax (VersionedOpId(..))
 import Formurae.Pre.Effect
@@ -351,13 +353,18 @@ main = do
       [VersionedOpId "derivative.coordinate-wide@1"]))
     (expressionEffect manifest baseModel (EffectSummary []) "wide" parsedWide)
 
-  let parsedGridWhole = parseTensorExpr "`(d_x (u * u / 2))"
-  assertEqual "coordinate derivative is an explicit radius-one grid request"
+  assertEqual "unprimed coordinate derivative is a placement-directed grid request"
     (Right (DiscreteFunction
-      [VersionedOpId "derivative.coordinate-wide@1"]))
+      [VersionedOpId "derivative.grid-whole@1"]))
     (expressionEffect manifest baseModel (EffectSummary [])
       "coordinate derivative"
       (parseTensorExpr "d_x (u * u / 2)"))
+  assertEqual "ordered coordinate derivative is a centered explicit request"
+    (Right (DiscreteFunction
+      [VersionedOpId "derivative.coordinate-wide@1"]))
+    (expressionEffect manifest baseModel (EffectSummary [])
+      "second coordinate derivative"
+      (parseTensorExpr "pd2r1_x u"))
   assertEqual "analytic ∂/∂ remains pure"
     (Right PureFunction)
     (expressionEffect manifest baseModel (EffectSummary [])
@@ -369,15 +376,8 @@ main = do
     (expressionEffect manifest baseModel (EffectSummary [])
       "indexed derivative"
       (parseTensorExpr "d_i (u * u)"))
-  assertEqual "grid-whole derivative is manifest-backed"
-    (Right (DiscreteFunction
-      [VersionedOpId "derivative.grid-whole@1"]))
-    (expressionEffect manifest baseModel (EffectSummary [])
-      "grid whole" parsedGridWhole)
-
-  assertEqual "single quoted derivative is a grid-whole request"
-    (Right (DiscreteFunction
-      [VersionedOpId "derivative.grid-whole@1"]))
+  assertLeft "a single quoted derivative is rejected as redundant"
+    isSingleQuotedDerivative
     (expressionEffect manifest baseModel (EffectSummary [])
       "single quoted derivative"
       (parseTensorExpr "`(d_x (u * u / 2))"))
@@ -386,9 +386,9 @@ main = do
     (Right (DiscreteFunction
       [VersionedOpId "derivative.grid-whole@1"]))
     (expressionEffect manifest baseModel (EffectSummary [])
-      "quoted derivatives in tensor literal"
+      "coordinate derivatives in tensor literal"
       (parseTensorExpr
-        "[| -kappa * `(d_x u), -kappa * `(d_x (u * u)) |]_i"))
+        "[| -kappa * d_x u, -kappa * d_x (u * u) |]_i"))
 
   let twoAxisModel = baseModel { mDim = 2, mAxes = ["x", "y"] }
   assertEqual "multi quoted derivative is one ordered request"
@@ -401,27 +401,27 @@ main = do
   assertLeft "coordinate derivative rejects a nested grid-whole request"
     isGridDerivativeBarrier
     (expressionEffect manifest baseModel (EffectSummary [])
-      "grid whole under analytic derivative"
-      (parseTensorExpr "pd1r1_x (`(d_x (u * u / 2)))"))
+      "grid request under a coordinate derivative"
+      (parseTensorExpr "pd1r1_x (d_x (u * u / 2))"))
 
-  assertLeft "coordinate derivative rejects a quoted request"
+  assertLeft "coordinate derivative rejects a nested discrete derivative"
     isGridDerivativeBarrier
     (expressionEffect manifest baseModel (EffectSummary [])
-      "quoted request under ordinary analytic derivative"
-      (parseTensorExpr "d_x (`(d_x u))"))
+      "nested coordinate derivative"
+      (parseTensorExpr "d_x (d_x u)"))
 
   assertLeft "quoted derivative rejects an already-discrete operand"
     isGridDerivativeBarrier
     (expressionEffect manifest baseModel (EffectSummary [])
       "discrete request under quoted derivative"
-      (parseTensorExpr "`(d_x (resample(u, 0)))"))
+      (parseTensorExpr "`(d_x (`(d_x (resample(u, 0)))))"))
 
   assertLeft "quoted derivative rejects a discrete step-let alias"
     isGridDerivativeBarrier
     (inferModelEffects manifest baseModel
       { mSteps =
-          [ valueStep KLet "held" "`(d_x u)"
-          , step "u" "`(d_x held)"
+          [ valueStep KLet "held" "d_x u"
+          , step "u" "`(d_x (`(d_x held)))"
           ]
       })
   assertLeft "coordinate derivative rejects a discrete step-let alias"
@@ -435,14 +435,14 @@ main = do
   assertRight "ordinary first-order use of a step-let value is allowed"
     (inferModelEffects manifest baseModel
       { mSteps =
-          [ valueStep KLet "held" "`(d_x u)"
+          [ valueStep KLet "held" "d_x u"
           , step "u" "consume held"
           ]
       })
   assertRight "materialized local is a fresh first-order stored value"
     (inferModelEffects manifest baseModel
       { mSteps =
-          [ valueStep KLocal "q" "`(d_x u)"
+          [ valueStep KLocal "q" "d_x u"
           , step "u" "divg q"
           ]
       })
@@ -475,6 +475,13 @@ isDerivativeBarrier :: EffectError -> Bool
 isDerivativeBarrier problem =
   case effectErrorIssue problem of
     AnalyticDerivativeOfDiscrete _ -> True
+    _ -> False
+
+isSingleQuotedDerivative :: EffectError -> Bool
+isSingleQuotedDerivative problem =
+  case effectErrorIssue problem of
+    InvalidEffectExpression message ->
+      "single quoted derivative" `isInfixOf` message
     _ -> False
 
 isGridDerivativeBarrier :: EffectError -> Bool

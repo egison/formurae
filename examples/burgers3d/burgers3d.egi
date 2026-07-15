@@ -32,7 +32,7 @@ def volume := feGeometryVolume
 def epsilon : Tensor Integer := ε dimension
 def FormuraeInternalKroneckerDelta : Tensor Integer := FE.kroneckerDelta dimension
 def FormuraeInternalScalarDelta u := Formurae.scalarLaplacian u
-def FormuraeInternalCoordinateWideDerivative axis order radius value := Formurae.coordinateWideDerivative axis order radius value
+def FormuraeInternalGridWholeDerivative axis value := Formurae.gridWholeDerivative axis value
 
 def u := function (x, y, z)
 def u' := function (x, y, z)
@@ -43,7 +43,7 @@ def feFields := [FEIR.fieldEntry 1 "current" [] (u), FEIR.fieldEntry 1 "next" []
 def feIntrinsics := [("sin", 1), ("cos", 2), ("tan", 3), ("asin", 4), ("acos", 5), ("atan", 6), ("atan2", 7), ("sinh", 8), ("cosh", 9), ("tanh", 10), ("exp", 11), ("log", 12), ("sqrt", 13), ("pow", 14), ("fabs", 15)]
 def feAnalytics := []
 
-def FormuraeInternalValue1 := u + (dt * ((nu * FormuraeInternalScalarDelta u) - (u * FormuraeInternalCoordinateWideDerivative 1 1 1 u)))
+def FormuraeInternalValue1 := u + (dt * ((nu * FormuraeInternalScalarDelta u) - (u * FormuraeInternalGridWholeDerivative 1 u)))
 
 def FormuraeInternalAtOrigin marker thunk :=
   io $ do print marker

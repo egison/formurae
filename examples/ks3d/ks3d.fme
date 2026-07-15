@@ -21,4 +21,4 @@ init:
 
 step:
   local w = ∂^2_x u
-  u' = u - dt * (`(∂_x (u * u / 2)) + w + ∂^2_x w)
+  u' = u - dt * (∂_x (u * u / 2) + w + ∂^2_x w)

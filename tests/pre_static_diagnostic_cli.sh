@@ -69,6 +69,8 @@ expect_failure pre_fec_forward_definition_error \
   '5:15: forward reference to user definition second'
 expect_failure pre_fec_unknown_axis_error \
   '6:8: quoted derivative uses unknown coordinate y'
+expect_failure pre_fec_single_quoted_derivative_error \
+  '6:8: invalid effect expression: a single quoted derivative is redundant; write the coordinate derivative unquoted and reserve backquotes for ordered chains'
 expect_failure pre_fec_variable_hodge_laplacian_error \
   '7:8: canonical Δ_H is not supported for variable metric geometry; write its metric-dependent discretization explicitly'
 expect_failure pre_fec_variable_hodge_composition_error \

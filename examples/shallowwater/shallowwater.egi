@@ -47,6 +47,7 @@ def volume := feGeometryVolume
 def epsilon : Tensor Integer := ε dimension
 def FormuraeInternalKroneckerDelta : Tensor Integer := FE.kroneckerDelta dimension
 def FormuraeInternalCoordinateWideDerivative axis order radius value := Formurae.coordinateWideDerivative axis order radius value
+def FormuraeInternalGridWholeDerivative axis value := Formurae.gridWholeDerivative axis value
 
 def h := function (x, y, z)
 def h' := function (x, y, z)
@@ -72,9 +73,9 @@ def feAnalytics := []
 def FormuraeInternalValue1 := ((mx * mx) / h) + ((g * h * h) / 2)
 def FormuraeInternalValue2 := (mx * my) / h
 def FormuraeInternalValue3 := ((my * my) / h) + ((g * h * h) / 2)
-def FormuraeInternalValue4 := (h - (dt * (FormuraeInternalCoordinateWideDerivative 1 1 1 mx + FormuraeInternalCoordinateWideDerivative 2 1 1 my))) + (dt * lambda * (FormuraeInternalCoordinateWideDerivative 1 2 1 h + FormuraeInternalCoordinateWideDerivative 2 2 1 h))
-def FormuraeInternalValue5 := (mx - (dt * (FormuraeInternalCoordinateWideDerivative 1 1 1 fmxx + FormuraeInternalCoordinateWideDerivative 2 1 1 fmxy))) + (dt * lambda * (FormuraeInternalCoordinateWideDerivative 1 2 1 mx + FormuraeInternalCoordinateWideDerivative 2 2 1 mx))
-def FormuraeInternalValue6 := (my - (dt * (FormuraeInternalCoordinateWideDerivative 1 1 1 fmxy + FormuraeInternalCoordinateWideDerivative 2 1 1 fmyy))) + (dt * lambda * (FormuraeInternalCoordinateWideDerivative 1 2 1 my + FormuraeInternalCoordinateWideDerivative 2 2 1 my))
+def FormuraeInternalValue4 := (h - (dt * (FormuraeInternalGridWholeDerivative 1 mx + FormuraeInternalGridWholeDerivative 2 my))) + (dt * lambda * (FormuraeInternalCoordinateWideDerivative 1 2 1 h + FormuraeInternalCoordinateWideDerivative 2 2 1 h))
+def FormuraeInternalValue5 := (mx - (dt * (FormuraeInternalGridWholeDerivative 1 fmxx + FormuraeInternalGridWholeDerivative 2 fmxy))) + (dt * lambda * (FormuraeInternalCoordinateWideDerivative 1 2 1 mx + FormuraeInternalCoordinateWideDerivative 2 2 1 mx))
+def FormuraeInternalValue6 := (my - (dt * (FormuraeInternalGridWholeDerivative 1 fmxy + FormuraeInternalGridWholeDerivative 2 fmyy))) + (dt * lambda * (FormuraeInternalCoordinateWideDerivative 1 2 1 my + FormuraeInternalCoordinateWideDerivative 2 2 1 my))
 
 def FormuraeInternalAtOrigin marker thunk :=
   io $ do print marker
