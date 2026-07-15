@@ -1447,6 +1447,10 @@ transliterateWithMap = go 1
       | mark == '_' || mark == '~' =
           appendMapped offset 1 "FormuraeInternalKroneckerDelta" rest
     go offset ('\948':cs) = appendMapped offset 1 "δ" cs
+    -- `∂/∂` is the analytic coordinate derivative (the Egison spelling);
+    -- it must be claimed before the decorated/discrete ∂ forms below.
+    go offset ('\8706':'/':'\8706':cs) =
+      appendMapped offset 3 analyticDerivativeName cs
     go offset ('\8706':cs) =
       case coordDerivative cs of
         Just ((ordr, radius, part), rest) ->

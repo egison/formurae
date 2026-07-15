@@ -58,9 +58,11 @@ expect_success() {
 
 cd "$ROOT"
 expect_failure pre_fec_effect_derivative_error \
-  '7:13: analytic derivative contains discrete operation: lb.orthogonal@1'
+  '7:13: grid derivative contains nested discrete operation: lb.orthogonal@1'
 expect_failure pre_fec_effect_function_alias_error \
-  '8:13: analytic derivative contains discrete operation: lb.orthogonal@1'
+  '8:13: grid derivative contains nested discrete operation: lb.orthogonal@1'
+expect_failure pre_fec_effect_analytic_derivative_error \
+  '7:13: analytic derivative contains discrete operation: lb.orthogonal@1'
 expect_failure pre_fec_effect_contract_reducer_error \
   '8:8: contractWith receives discrete operation as a higher-order argument: resample.explicit@1'
 expect_failure pre_fec_forward_definition_error \

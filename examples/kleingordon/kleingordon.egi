@@ -34,6 +34,7 @@ def inverseMetric~i~j := feGeometryInverseMetric~i~j
 def volume := feGeometryVolume
 def epsilon : Tensor Integer := ε dimension
 def FormuraeInternalKroneckerDelta : Tensor Integer := FE.kroneckerDelta dimension
+def FormuraeInternalCoordinateWideDerivative axis order radius value := Formurae.coordinateWideDerivative axis order radius value
 
 def phi := function (x, y, z)
 def phi' := function (x, y, z)
@@ -47,7 +48,7 @@ def feFields := [FEIR.fieldEntry 1 "current" [] (phi), FEIR.fieldEntry 1 "next" 
 def feIntrinsics := [("sin", 1), ("cos", 2), ("tan", 3), ("asin", 4), ("acos", 5), ("atan", 6), ("atan2", 7), ("sinh", 8), ("cosh", 9), ("tanh", 10), ("exp", 11), ("log", 12), ("sqrt", 13), ("pow", 14), ("fabs", 15)]
 def feAnalytics := []
 
-def FormuraeInternalValue1 := w + (dt * ((∂/∂ (∂/∂ phi x) x + phi) - (phi * phi * phi)))
+def FormuraeInternalValue1 := w + (dt * ((FormuraeInternalCoordinateWideDerivative 1 2 1 phi + phi) - (phi * phi * phi)))
 def FormuraeInternalValue2 := phi + (dt * w')
 
 def FormuraeInternalAtOrigin marker thunk :=

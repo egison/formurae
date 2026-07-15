@@ -29,7 +29,9 @@ main = do
     first
   assertContains "indexed analytic derivative contracts repeated indices"
     "contractWith (+) (FormuraeInternalDiff X~i)..._i" first
-  assertContains "coordinate derivative uses analytic differentiation"
+  assertContains "coordinate derivative is an explicit radius-one request"
+    "FormuraeInternalCoordinateWideDerivative 1 2 1 u" first
+  assertContains "surface ∂/∂ is the analytic coordinate derivative"
     "∂/∂ (∂/∂ u x) x" first
   assertContains "grid derivative preserves the whole nonlinear operand"
     "FormuraeInternalGridWholeDerivative 1 ((u * u) / 2)"
@@ -335,8 +337,8 @@ main = do
   quotedModel <- parseModel "pre-quoted-derivative.fme"
     "pre-quoted-derivative" quotedDerivativeSource
   quotedUnit <- requireRight =<< emitNormalizationUnit manifestId quotedModel
-  assertContains "ordinary derivative uses the analytic differentiation path"
-    "\x2202/\x2202 (u * u) x" quotedUnit
+  assertContains "ordinary coordinate derivative is a radius-one request"
+    "FormuraeInternalCoordinateWideDerivative 1 1 1 (u * u)" quotedUnit
   assertContains "single quoted derivative emits one whole-expression request"
     "FormuraeInternalGridWholeDerivative 1 (u * u)" quotedUnit
   assertContains "multi quoted derivative emits one ordered request"
@@ -467,6 +469,7 @@ source = unlines
   , "def smooth u = pass lap u + ∂^2_r u + `(∂_r (u * u / 2))"
   , "def chain u = `(∂_r (`(∂_r u)))"
   , "def wide u = pd2r2_r u"
+  , "def analytic u = ∂/∂ (∂/∂ u r) r"
   , "def lapAlias u = Δ u"
   , "init:"
   , "  u = 0.0"

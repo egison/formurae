@@ -23,14 +23,18 @@ import qualified Formurae.FEIR.PrimitiveBindings as Primitives
 import Formurae.FEIR.PrimitiveManifest
 import Formurae.FEIR.Syntax (VersionedOpId(..))
 import Formurae.Common
-  ( egisonIdentifiers
+  ( analyticDerivativeName
+  , egisonIdentifiers
   , egisonIndexedIdentifiers
   , egisonOperators
   , isReservedNormalizationCapability
   , maskEgisonNonCode
   )
+import Control.Monad (foldM)
 import Formurae.Index
   ( derivativeOpParts
+  , internalCoordNames
+  , ixName
   , ixSuffix
   , parseIndexedIdent
   )
@@ -402,9 +406,12 @@ analyzeExpression environment expression
     TEDisjoint parts -> do
       mapM_ (rejectHigherOrder environment "disjoint product") parts
       mergeMany <$> mapM (analyzeExpression environment) parts
-    TEDerivative _ body -> do
+    -- Layers apply innermost-last, matching the emit-side lowering: a
+    -- concrete-axis subscript is an explicit-radius grid request; a
+    -- symbolic-index subscript is the analytic tensor derivative.
+    TEDerivative parts body -> do
       bodyEffect <- analyzeExpression environment body
-      requireAnalytic bodyEffect
+      foldM applyDerivativeLayer bodyEffect (reverse parts)
     TEGridDerivativeChain axes body -> do
       bodyEffect <- analyzeExpression environment body
       case bodyEffect of
@@ -436,6 +443,17 @@ analyzeExpression environment expression
     requireAnalytic PureFunction = pure PureFunction
     requireAnalytic (DiscreteFunction operations) =
       effectFailure (AnalyticDerivativeOfDiscrete operations)
+    applyDerivativeLayer effect part
+      | ixName part `elem` modelAxisNames =
+          case effect of
+            PureFunction -> primitiveEffect environment
+              Primitives.derivativeCoordinateWideV1OpId
+            DiscreteFunction operations ->
+              effectFailure (GridDerivativeOfDiscrete operations)
+      | otherwise = requireAnalytic effect
+    modelAxisNames =
+      mAxes (environmentModel environment)
+      ++ internalCoordNames (environmentModel environment)
 
 analyzeApplication
     :: EffectEnvironment
@@ -459,15 +477,19 @@ applicationHeadEffect environment function argumentEffect =
     Nothing -> pure PureFunction
     Just (name, parts) ->
       case derivativeOpParts (name ++ concatMap ixSuffix parts) of
-        Just (_, radius, _)
-          | radius == 1 ->
+        Just _ ->
+          case argumentEffect of
+            PureFunction -> primitiveEffect environment
+              Primitives.derivativeCoordinateWideV1OpId
+            DiscreteFunction operations ->
+              effectFailure (GridDerivativeOfDiscrete operations)
+        Nothing
+          | name == analyticDerivativeName ->
               case argumentEffect of
                 PureFunction -> pure PureFunction
                 DiscreteFunction operations ->
                   effectFailure (AnalyticDerivativeOfDiscrete operations)
-          | otherwise -> primitiveEffect environment
-              Primitives.derivativeCoordinateWideV1OpId
-        Nothing -> namedHeadEffect environment name parts
+          | otherwise -> namedHeadEffect environment name parts
 
 namedHeadEffect
     :: EffectEnvironment

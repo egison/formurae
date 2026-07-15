@@ -107,6 +107,20 @@ pre-fecはuser `def`本体の式構造や計算履歴を分類してresult contr
 直接書く。`flat` / `sharp`はpublic Formurae operatorとして提供せず、計量操作の意味をsource
 equationに可視化する。
 
+**v2.6(2026-07-15): 座標∂の離散統一と解析`∂/∂`の表層化** —
+「`∂_x u`が解析で`∂'_x u`が離散」という非対称を解消した。具体軸の添字つき`∂`
+(`∂_a e`・`∂^m_a e`・`∂'^m_a e`)は全てexplicit-radiusの中心stencil要求
+(`derivative.coordinate-wide@1`、radius = クォート数 + 1、素の`∂_a`はradius 1)に統一し、
+operandは式全体をひとつのsampleとして保持する。model profileはこれらに影響しない。
+既定profile(accuracy 2)ではradius-1要求と旧解析経路の選ぶstencilが一致するため、
+既存exampleの生成Cは数値的に不変。解析微分の表層形はEgisonと同じ`∂/∂ e a`
+(lexerが`FormuraeInternalAnalyticDerivative`へ写像し、emitがEgisonの`∂/∂`適用を生成、
+FieldJetになりprofileが離散化を決める唯一の座標微分)。記号添字`∂_i`は従来どおり
+解析テンソル微分+導入添字の自動縮約で変更なし。effect解析は、具体軸レイヤに
+operand純粋性(`GridDerivativeOfDiscrete`、radius≥2も同様に強化)+coordinate-wide効果、
+`∂/∂`に解析バリア(`AnalyticDerivativeOfDiscrete`)を割り当てる。
+lib/FEIR encoderのradius>1検査はradius≥1へ緩和。
+
 **v1.36(2026-07-11): runtime tensor lowering と Phase 7 完了** —
 標準6演算子だけでなく、一般の indexed equation、implicit vector equation、rank-1/rank-2
 indexed `let`、indexed CAS initializer を、成分別 Haskell 式へ展開せず whole runtime tensor として

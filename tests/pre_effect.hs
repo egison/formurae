@@ -188,13 +188,21 @@ main = do
     (expressionEffect manifest variableMetricModel (EffectSummary [])
       "Kronecker delta" (parseTensorExpr "delta~i_j . X~j"))
 
-  assertLeft "analytic derivative rejects a direct discrete request"
-    isDerivativeBarrier
+  assertLeft "coordinate derivative rejects a direct discrete request"
+    isGridDerivativeBarrier
     (inferModelEffects manifest variableMetricModel
       { mDefs = [definition "bad" ["u"] "pd1r1_x (Δ u)"] })
 
-  assertLeft "analytic derivative rejects a transitive discrete request"
+  assertLeft "analytic ∂/∂ rejects a discrete operand"
     isDerivativeBarrier
+    (inferModelEffects manifest variableMetricModel
+      { mDefs =
+          [definition "bad" ["u"]
+            "FormuraeInternalAnalyticDerivative (Δ u) x"]
+      })
+
+  assertLeft "coordinate derivative rejects a transitive discrete request"
+    isGridDerivativeBarrier
     (inferModelEffects manifest variableMetricModel
       { mDefs =
           [ definition "weighted" ["u"] "Δ u"
@@ -202,8 +210,8 @@ main = do
           ]
       })
 
-  assertLeft "analytic derivative rejects a discrete function-value alias"
-    isDerivativeBarrier
+  assertLeft "coordinate derivative rejects a discrete function-value alias"
+    isGridDerivativeBarrier
     (inferModelEffects manifest variableMetricModel
       { mDefs =
           [ definition "weighted" ["u"] "Δ u"
@@ -212,8 +220,8 @@ main = do
           ]
       })
 
-  assertLeft "analytic derivative rejects a conditional discrete function value"
-    isDerivativeBarrier
+  assertLeft "coordinate derivative rejects a conditional discrete function value"
+    isGridDerivativeBarrier
     (inferModelEffects manifest variableMetricModel
       { mDefs =
           [ definition "weighted" ["u"] "Δ u"
@@ -241,8 +249,8 @@ main = do
       , mSteps = [step "u" "contractWith shifted u"]
       })
 
-  assertLeft "analytic derivatives retain a user-defined dot effect"
-    isDerivativeBarrier
+  assertLeft "coordinate derivatives retain a user-defined dot effect"
+    isGridDerivativeBarrier
     (inferModelEffects manifest baseModel
       { mDefs =
           [definition "." ["lhs", "rhs"]
@@ -344,11 +352,17 @@ main = do
     (expressionEffect manifest baseModel (EffectSummary []) "wide" parsedWide)
 
   let parsedGridWhole = parseTensorExpr "`(d_x (u * u / 2))"
-  assertEqual "ordinary derivative remains analytic and pure"
+  assertEqual "coordinate derivative is an explicit radius-one grid request"
+    (Right (DiscreteFunction
+      [VersionedOpId "derivative.coordinate-wide@1"]))
+    (expressionEffect manifest baseModel (EffectSummary [])
+      "coordinate derivative"
+      (parseTensorExpr "d_x (u * u / 2)"))
+  assertEqual "analytic ∂/∂ remains pure"
     (Right PureFunction)
     (expressionEffect manifest baseModel (EffectSummary [])
-      "ordinary analytic derivative"
-      (parseTensorExpr "d_x (u * u / 2)"))
+      "analytic coordinate derivative"
+      (parseTensorExpr "FormuraeInternalAnalyticDerivative (u * u / 2) x"))
   assertEqual "grid-whole derivative is manifest-backed"
     (Right (DiscreteFunction
       [VersionedOpId "derivative.grid-whole@1"]))
@@ -378,14 +392,14 @@ main = do
       "multi quoted derivative"
       (parseTensorExpr "`(d_y (`(d_x (`(d_x u)))))"))
 
-  assertLeft "analytic derivative rejects a grid-whole request"
-    isDerivativeBarrier
+  assertLeft "coordinate derivative rejects a nested grid-whole request"
+    isGridDerivativeBarrier
     (expressionEffect manifest baseModel (EffectSummary [])
       "grid whole under analytic derivative"
       (parseTensorExpr "pd1r1_x (`(d_x (u * u / 2)))"))
 
-  assertLeft "ordinary analytic derivative rejects a quoted request"
-    isDerivativeBarrier
+  assertLeft "coordinate derivative rejects a quoted request"
+    isGridDerivativeBarrier
     (expressionEffect manifest baseModel (EffectSummary [])
       "quoted request under ordinary analytic derivative"
       (parseTensorExpr "d_x (`(d_x u))"))
@@ -404,8 +418,8 @@ main = do
           , step "u" "`(d_x held)"
           ]
       })
-  assertLeft "analytic derivative rejects a discrete step-let alias"
-    isDerivativeBarrier
+  assertLeft "coordinate derivative rejects a discrete step-let alias"
+    isGridDerivativeBarrier
     (inferModelEffects manifest baseModel
       { mSteps =
           [ valueStep KLet "held" "resample(u, 0)"
@@ -426,7 +440,7 @@ main = do
           , step "u" "divg q"
           ]
       })
-  assertRight "analytic derivative may consume a materialized discrete local"
+  assertRight "coordinate derivative may consume a materialized discrete local"
     (inferModelEffects manifest baseModel
       { mSteps =
           [ valueStep KLocal "sampled" "resample(u, 0)"
@@ -434,7 +448,7 @@ main = do
           ]
       })
   assertLeft "a materialized local still checks its own discrete RHS"
-    isDerivativeBarrier
+    isGridDerivativeBarrier
     (inferModelEffects manifest baseModel
       { mSteps =
           [ valueStep KLocal "sampled" "d_x (resample(u, 0))"

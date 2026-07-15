@@ -1,0 +1,9 @@
+mode collocated
+dimension 1
+axes x
+metric scale [1 + x]
+field u : scalar
+def weighted q = Δ q
+def bad q = ∂/∂ (weighted q) x
+step:
+  u' = u

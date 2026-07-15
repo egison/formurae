@@ -46,6 +46,7 @@ def inverseMetric~i~j := feGeometryInverseMetric~i~j
 def volume := feGeometryVolume
 def epsilon : Tensor Integer := ε dimension
 def FormuraeInternalKroneckerDelta : Tensor Integer := FE.kroneckerDelta dimension
+def FormuraeInternalCoordinateWideDerivative axis order radius value := Formurae.coordinateWideDerivative axis order radius value
 
 def rho := function (x, y, z)
 def rho' := function (x, y, z)
@@ -71,9 +72,9 @@ def feAnalytics := []
 def FormuraeInternalValue1 := (2 / 5) * (en - ((mx * mx) / (2 * rho)))
 def FormuraeInternalValue2 := ((mx * mx) / rho) + pr
 def FormuraeInternalValue3 := ((en + pr) * mx) / rho
-def FormuraeInternalValue4 := (rho - (dt * ∂/∂ mx x)) + (dt * lambda * ∂/∂ (∂/∂ rho x) x)
-def FormuraeInternalValue5 := (mx - (dt * ∂/∂ fm x)) + (dt * lambda * ∂/∂ (∂/∂ mx x) x)
-def FormuraeInternalValue6 := (en - (dt * ∂/∂ fe x)) + (dt * lambda * ∂/∂ (∂/∂ en x) x)
+def FormuraeInternalValue4 := (rho - (dt * FormuraeInternalCoordinateWideDerivative 1 1 1 mx)) + (dt * lambda * FormuraeInternalCoordinateWideDerivative 1 2 1 rho)
+def FormuraeInternalValue5 := (mx - (dt * FormuraeInternalCoordinateWideDerivative 1 1 1 fm)) + (dt * lambda * FormuraeInternalCoordinateWideDerivative 1 2 1 mx)
+def FormuraeInternalValue6 := (en - (dt * FormuraeInternalCoordinateWideDerivative 1 1 1 fe)) + (dt * lambda * FormuraeInternalCoordinateWideDerivative 1 2 1 en)
 
 def FormuraeInternalAtOrigin marker thunk :=
   io $ do print marker

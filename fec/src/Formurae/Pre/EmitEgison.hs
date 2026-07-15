@@ -13,7 +13,7 @@ import Data.Char (isAlpha, isAlphaNum, isDigit, isSpace)
 import Data.List (dropWhileEnd, find, intercalate, nub, sort)
 import Text.Read (readMaybe)
 
-import Formurae.Common (mapEgisonCodeIdentifiers)
+import Formurae.Common (analyticDerivativeName, mapEgisonCodeIdentifiers)
 import Formurae.FEIR.Codec (encodeFEProgram)
 import Formurae.FEIR.RegistryFingerprint (computeRegistryId)
 import Formurae.FEIR.SExpr (SExpr(..))
@@ -731,22 +731,30 @@ contextualize model userDefinitions shadowedNames boundNames expression
       | isExplicitPrimitiveName name
       , not (isLexicallyShadowed name) ->
           contextualizeExplicitPrimitive name parts arguments
+    TEApply (TEIdent name []) arguments
+      | name == analyticDerivativeName ->
+          case arguments of
+            [value, TEIdent axis []] -> do
+              axisId <- gridAxisId "∂/∂" axis
+              value' <- walk value
+              Right (analyticDerivative 1
+                (internalCoordNames model !! (axisId - 1)) value')
+            _ -> Left (EmitExpressionError
+              "∂/∂ needs one operand followed by one coordinate")
     TEApply (TEIdent derivative parts) arguments
       | Just (order, radius) <- coordinateDerivativeName derivative
       , [Surface.IxPart _ axis] <- parts -> do
           arguments' <- mapM walk arguments
           case arguments' of
-            [argument]
-              | radius == 1 -> Right (analyticDerivative order axis argument)
-              | otherwise -> do
-                  axisId <- gridAxisId derivative axis
-                  Right (TEApply
-                    (TEIdent "FormuraeInternalCoordinateWideDerivative" [])
-                    [ TENumber (show axisId)
-                    , TENumber (show order)
-                    , TENumber (show radius)
-                    , argument
-                    ])
+            [argument] -> do
+              axisId <- gridAxisId derivative axis
+              Right (TEApply
+                (TEIdent "FormuraeInternalCoordinateWideDerivative" [])
+                [ TENumber (show axisId)
+                , TENumber (show order)
+                , TENumber (show radius)
+                , argument
+                ])
             _ -> Left (EmitExpressionError
               (derivative ++ " coordinate derivative needs one operand"))
     TEApply function arguments ->

@@ -12,7 +12,7 @@ module Formurae.Pre.TypeCheck
   ) where
 
 import Data.Char (isAlphaNum)
-import Formurae.Common (egisonIdentifiers, maskEgisonNonCode)
+import Formurae.Common (analyticDerivativeName, egisonIdentifiers, maskEgisonNonCode)
 import Formurae.Index (derivativeOpParts)
 import Formurae.Pre.FormOperator
 import Formurae.Syntax
@@ -387,6 +387,8 @@ infer model shadowed environment source expression
           , kind : _ <- argumentKinds -> kind
           | Just _ <- derivativeOpParts name
           , [kind] <- argumentKinds -> kind
+          | name == analyticDerivativeName
+          , kind : _ <- argumentKinds -> kind
         _ -> StaticUnknown
 
     scalarFunctions =

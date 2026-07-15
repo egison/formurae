@@ -301,6 +301,12 @@ reservedInternalPrefix = "FormuraeInternal"
 isReservedInternalName :: String -> Bool
 isReservedInternalName = isPrefixOf reservedInternalPrefix
 
+-- The lexer rewrites the surface spelling `∂/∂` to this reserved head; it
+-- is the only analytic coordinate-derivative form in .fme source, while
+-- every subscripted ∂ is an explicit-radius discrete request.
+analyticDerivativeName :: String
+analyticDerivativeName = "FormuraeInternalAnalyticDerivative"
+
 -- These names provide the capability to construct or encode the opaque
 -- FunctionData nodes that cross the trusted Egison/FEIR boundary.  Surface
 -- source must not access either constructor directly, nor reach it through
@@ -308,7 +314,9 @@ isReservedInternalName = isPrefixOf reservedInternalPrefix
 -- only to identifiers outside comments and string literals.
 isReservedNormalizationCapability :: String -> Bool
 isReservedNormalizationCapability name =
-  isReservedInternalName name
+  -- The analytic-derivative head is the lexer's spelling of surface `∂/∂`;
+  -- it encodes nothing opaque, so user expressions may reach it.
+  (isReservedInternalName name && name /= analyticDerivativeName)
   || "Formurae." `isPrefixOf` name
   || "FEIR." `isPrefixOf` name
   || name `elem`

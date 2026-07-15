@@ -541,7 +541,7 @@ def FEIR.encodeCoordinateWideOpaque
               FEIR.scalarValue
                 (FEIR.encodeScalar parameters coordinates fields intrinsics analytics
                   operand)
-         in if i.> radius 1 && i.< order (i.+ (i.* 2 radius) 1)
+         in if i.> radius 0 && i.< order (i.+ (i.* 2 radius) 1)
               then FEIR.opaqueNode
                      Formurae.Primitives.derivativeCoordinateWideV1OpId
                      [] [operandNF] [

@@ -156,17 +156,18 @@ def Formurae.lbOrthogonal
           (functionSymbol Formurae.opaqueLbHead
             [value, feGeometryId, 1])
 
--- An occurrence-level radius override bypasses the model discretization
--- profile.  Its axis, derivative order, and radius stay atomic until
--- post-fec selects the explicitly requested coordinate stencil.
+-- Every subscripted ∂ is an explicit-radius centered request (radius =
+-- primes + 1), independent of the model discretization profile.  Its axis,
+-- derivative order, and radius stay atomic until post-fec selects the
+-- explicitly requested coordinate stencil.
 def Formurae.coordinateWideDerivative
       (axisId: Integer) (order: Integer) (radius: Integer)
       (value: MathValue) : MathValue :=
-  match assert "coordinate-wide derivative needs a valid axis, positive order, radius greater than one, and enough stencil points"
+  match assert "coordinate-wide derivative needs a valid axis, positive order, positive radius, and enough stencil points"
                (i.> axisId 0
                 && i.<= axisId dimension
                 && i.> order 0
-                && i.> radius 1
+                && i.> radius 0
                 && i.< order (i.+ (i.* 2 radius) 1))
         && Formurae.requireOpaqueManifest
         as bool with

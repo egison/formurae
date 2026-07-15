@@ -86,7 +86,7 @@ renderEffectIssue issue =
       "analytic derivative contains discrete operation"
       ++ plural operations ++ ": " ++ renderOperations operations
     GridDerivativeOfDiscrete operations ->
-      "quoted derivative contains nested discrete operation"
+      "grid derivative contains nested discrete operation"
       ++ plural operations ++ ": " ++ renderOperations operations
     EffectfulHigherOrderArgument consumer operations ->
       consumer ++ " receives discrete operation"

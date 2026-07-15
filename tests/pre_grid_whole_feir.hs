@@ -12,9 +12,20 @@ main = do
     line : _ -> pure line
     [] -> fail "Egison output did not contain a canonical FEIR value"
   program <- either (fail . show) pure (parseFEProgram encoded)
-  case concatMap actionOpaqueCalls (feProgramStepActions program) of
+  let calls = concatMap actionOpaqueCalls (feProgramStepActions program)
+      wide =
+        [ call
+        | call <- calls
+        , opaqueDiscreteOpId call == VersionedOpId "derivative.coordinate-wide@1"
+        ]
+  assertEqual "the two ∂² occurrences are radius-one coordinate requests"
+    2 (length wide)
+  case [ call
+       | call <- calls
+       , opaqueDiscreteOpId call == VersionedOpId "derivative.grid-whole@1"
+       ] of
     [opaque] -> checkGridWhole opaque
-    calls -> fail ("expected one grid-whole request, got " ++ show calls)
+    others -> fail ("expected one grid-whole request, got " ++ show others)
 
 checkGridWhole :: OpaqueDiscrete -> IO ()
 checkGridWhole opaque = do
