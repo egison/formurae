@@ -1,0 +1,7 @@
+mode collocated
+dimension 1
+axes x
+field u : scalar
+def identity assert X_i = X
+step:
+  u' = u

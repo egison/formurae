@@ -1,0 +1,16 @@
+mode collocated
+dimension 2
+axes x, y
+metric scale [2, 3]
+metric g
+
+field A_i
+field u : scalar
+field v : scalar
+
+def raisedNorm A = norm2 (withSymbols [i, j] (g~i~j . A_j))
+def raisedDiv A_i = divg (withSymbols [i, j] (g~i~j . A_j))
+
+step:
+  u' = raisedNorm A
+  v' = raisedDiv A

@@ -1,0 +1,25 @@
+mode collocated
+dimension 2
+axes x, y
+
+field A_i
+field u : scalar
+
+def rawNearMiss A =
+  let message := "flipIndices ~ suprefs attachExplicitVariances"
+      quote := '"'
+      hexQuote := '\x22'
+      nul := '\NUL'
+      flipIndices' := \value -> value
+      suprefs' := \value -> value
+      safe'x'functionSymbol := \value -> value
+      safe'x'hodge := \value -> value
+      safe.--foo := \value -> value
+      -- flipIndices A and A~i are documentation, not executable code.
+      {- " A nested block comment may also mention -- without ending here,
+         flipIndices A, hodge, resample, functionSymbol, Formurae, FEIR,
+         A~i, and {- suprefs A -} without granting that capability. -}
+   in norm2 (safe.--foo (safe'x'hodge (safe'x'functionSymbol (flipIndices' (suprefs' A))))) + 0 * x
+
+step:
+  u' = rawNearMiss A

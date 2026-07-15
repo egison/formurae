@@ -13,6 +13,7 @@ import Data.Char (isAlpha, isAlphaNum, isDigit, isSpace)
 import Data.List (dropWhileEnd, find, intercalate, nub, sort)
 import Text.Read (readMaybe)
 
+import Formurae.Common (mapEgisonCodeIdentifiers)
 import Formurae.FEIR.Codec (encodeFEProgram)
 import Formurae.FEIR.RegistryFingerprint (computeRegistryId)
 import Formurae.FEIR.SExpr (SExpr(..))
@@ -61,7 +62,6 @@ data PreparedDefinition = PreparedDefinition
   , preparedDefinitionSurface :: Surface.Def
   , preparedDefinitionBody :: String
   , preparedDefinitionIsRawEgison :: Bool
-  , preparedDefinitionResultVariances :: Maybe [Surface.Variance]
   } deriving (Eq, Show)
 
 data BuildState = BuildState
@@ -502,12 +502,9 @@ prepareDefinitions model = go [] [] (zip [1 ..] (Surface.mDefs model))
           rawEgison = case parsedSource of
             Left _ -> True
             Right _ -> False
-          resultVariances = case parsedSource of
-            Left _ -> Nothing
-            Right expression -> inferExplicitResultVariances expression
-      result <- if rawEgison
-        then pure (Right (renameRawCoordinates model source))
-        else prepareExpression model prior
+      result <- case parsedSource of
+        Left _ -> pure (Right (renameRawCoordinates model source))
+        Right _ -> prepareExpression model prior
           (Surface.defName definition : map fst prior)
           (map definitionParameterBase (Surface.defParams definition))
           source
@@ -517,136 +514,14 @@ prepareDefinitions model = go [] [] (zip [1 ..] (Surface.mDefs model))
         Right body ->
           go ((Surface.defName definition,
                 "FormuraeInternalDefinition" ++ show index) : prior)
-             (PreparedDefinition index definition body rawEgison
-                resultVariances : prepared) rest
-
--- An explicit free tensor index in a user definition denotes an ordinary
--- tensor result.  Egison intentionally turns indices local to `withSymbols`
--- into anonymous differential-form axes when they leave the scope.  That is
--- correct for d/hodge results, but an expression such as
---
---   withSymbols [i,j,k] (epsilon_i~j~k . d_j X_k)
---
--- has one visibly free covariant index and must line up with an ordinary
--- vector field.  Infer only structurally evident cases and leave function
--- calls/raw Egison bodies alone; uncertain results keep Egison's native form
--- metadata.
-inferExplicitResultVariances :: TensorExpr -> Maybe [Surface.Variance]
-inferExplicitResultVariances expression = do
-  indices <- inferFreeIndices expression
-  let names = [name | Surface.IxPart _ name <- indices]
-  case indices of
-    [] -> Nothing
-    _ | length names == length (nub names) ->
-          Just [variance | Surface.IxPart variance _ <- indices]
-      | otherwise -> Nothing
-
-inferFreeIndices :: TensorExpr -> Maybe [Surface.IxPart]
-inferFreeIndices expression =
-  case expression of
-    TENumber _ -> Just []
-    TEIdent _ parts -> Just (symbolicParts parts)
-    TEUnary _ body -> inferFreeIndices body
-    TECall _ _ -> Nothing
-    TEApply _ _ -> Nothing
-    TEIf _ yes no -> sameIndices yes no
-    TEAppendIndexed body parts ->
-      appendIndices <$> inferFreeIndices body <*> pure (symbolicParts parts)
-    TEWithSymbols _ body -> inferFreeIndices body
-    TEContractWith _ body ->
-      contractFreeIndices =<< inferFreeIndices body
-    TETensorMap _ body -> inferFreeIndices body
-    TESubrefs _ parts -> Just (symbolicParts parts)
-    TETranspose _ _ -> Nothing
-    TEDisjoint parts ->
-      concat <$> mapM inferFreeIndices parts
-    TEDerivative parts body -> do
-      indices <- appendIndices <$> inferFreeIndices body
-                               <*> pure (symbolicParts parts)
-      contractFreeIndices indices
-    -- A quoted coordinate derivative preserves the operand's tensor rank.
-    -- Its axis list selects discrete coordinate passes; it does not append
-    -- free tensor indices as an analytic indexed derivative does.
-    TEGridDerivativeChain _ body -> inferFreeIndices body
-    TETensorLiteral _ parts
-      | null parts -> Nothing
-      | otherwise -> Just (symbolicParts parts)
-    TEDot parts -> do
-      indices <- concat <$> mapM inferFreeIndices parts
-      contractFreeIndices indices
-    TEBinary operator lhs rhs
-      | operator `elem` ["+", "-"] -> sameIndices lhs rhs
-      | operator == "*" -> scalarTensorProduct lhs rhs
-      | operator `elem` ["/", "^", "**"] -> do
-          lhsIndices <- inferFreeIndices lhs
-          rhsIndices <- inferFreeIndices rhs
-          if null rhsIndices then Just lhsIndices else Nothing
-      | otherwise -> Just []
-    TEGroup body -> inferFreeIndices body
-  where
-    sameIndices lhs rhs = do
-      lhsIndices <- inferFreeIndices lhs
-      rhsIndices <- inferFreeIndices rhs
-      if lhsIndices == rhsIndices then Just lhsIndices else Nothing
-
-    scalarTensorProduct lhs rhs = do
-      lhsIndices <- inferFreeIndices lhs
-      rhsIndices <- inferFreeIndices rhs
-      case (lhsIndices, rhsIndices) of
-        ([], _) -> Just rhsIndices
-        (_, []) -> Just lhsIndices
-        _ -> Nothing
-
-    appendIndices lhs rhs = lhs ++ rhs
-
-symbolicParts :: [Surface.IxPart] -> [Surface.IxPart]
-symbolicParts = filter isSymbolic
-  where
-    isSymbolic (Surface.IxPart _ name) =
-      not (null name) && all isAlphaNum name && not (all isDigit name)
-
-contractFreeIndices
-  :: [Surface.IxPart] -> Maybe [Surface.IxPart]
-contractFreeIndices [] = Just []
-contractFreeIndices (part : rest) =
-  case removeOpposite part rest of
-    Just rest' -> contractFreeIndices rest'
-    Nothing
-      | any (sameName part) rest -> Nothing
-      | otherwise -> (part :) <$> contractFreeIndices rest
-  where
-    sameName (Surface.IxPart _ lhs) (Surface.IxPart _ rhs) = lhs == rhs
-
-removeOpposite
-  :: Surface.IxPart -> [Surface.IxPart] -> Maybe [Surface.IxPart]
-removeOpposite _ [] = Nothing
-removeOpposite part (candidate : rest)
-  | opposite part candidate = Just rest
-  | otherwise = (candidate :) <$> removeOpposite part rest
-  where
-    opposite (Surface.IxPart lhsVariance lhsName)
-             (Surface.IxPart rhsVariance rhsName) =
-      lhsName == rhsName && lhsVariance /= rhsVariance
+             (PreparedDefinition index definition body rawEgison : prepared)
+             rest
 
 renameRawCoordinates :: Surface.Model -> String -> String
-renameRawCoordinates model = outsideString
+renameRawCoordinates model = mapEgisonCodeIdentifiers renameCoordinate
   where
     coordinateNames = zip (Surface.mAxes model) (internalCoordNames model)
-    outsideString [] = []
-    outsideString ('"' : rest) = '"' : insideString rest
-    outsideString (first : rest)
-      | isAlpha first =
-          let (suffix, remaining) = span isIdentifierCharacter rest
-              name = first : suffix
-              renamed = maybe name id (lookup name coordinateNames)
-          in renamed ++ outsideString remaining
-      | otherwise = first : outsideString rest
-    insideString [] = []
-    insideString ('\\' : escaped : rest) =
-      '\\' : escaped : insideString rest
-    insideString ('"' : rest) = '"' : outsideString rest
-    insideString (char : rest) = char : insideString rest
-    isIdentifierCharacter char = isAlphaNum char || char == '_'
+    renameCoordinate name = maybe name id (lookup name coordinateNames)
 
 -- A decimal or exponent literal in a surface expression denotes the exact
 -- rational it spells: FEIR carries exact rationals, and Egison would read
@@ -1043,8 +918,6 @@ continuumOperators =
   , ("hessian", "FormuraeInternalHessian")
   , ("lap", "FormuraeInternalLap")
   , ("Δ", "FormuraeInternalScalarDelta")
-  , ("flat", "FormuraeInternalFlat")
-  , ("sharp", "FormuraeInternalSharp")
   , ("d", "FormuraeInternalD")
   , ("hodge", "FormuraeInternalHodge")
   , ("δ", "FormuraeInternalCodiff")
@@ -1174,10 +1047,6 @@ renderUnit model registry geometryDeclarations definitions dynamics program = un
       , whenUsed "FormuraeInternalLap"
           ["def FormuraeInternalLap u := Formurae.lap u"]
       , whenUsed "FormuraeInternalScalarDelta" scalarDeltaDeclarations
-      , whenUsed "FormuraeInternalFlat"
-          ["def FormuraeInternalFlat X := Formurae.flat X"]
-      , whenUsed "FormuraeInternalSharp"
-          ["def FormuraeInternalSharp A := Formurae.sharp A"]
       , whenUsed "FormuraeInternalD"
           ["def FormuraeInternalD A := Formurae.d A"]
       , whenUsed "FormuraeInternalHodge"
@@ -1479,7 +1348,9 @@ fieldComponentExpression field slot timeSlot basis =
       ++ " " ++ show basis
 
 definitionDeclarations :: Int -> [PreparedDefinition] -> [String]
-definitionDeclarations dimension = renderAll []
+definitionDeclarations _ [] = []
+definitionDeclarations dimension definitions =
+  renderAll [] definitions
   where
     renderAll _ [] = []
     renderAll prior (prepared : rest) =
@@ -1493,9 +1364,8 @@ definitionDeclarations dimension = renderAll []
       [ "def FormuraeInternalDefinition" ++ show index
           ++ concatMap (\parameter -> " " ++ definitionParameterBase parameter)
                (Surface.defParams definition)
-          ++ " := " ++ explicitizeResult prepared
-               (wrapBody
-                 (checkedBody rawEgison definition (scopedBody prior prepared)))
+          ++ " := " ++ wrapBody
+               (checkedBody rawEgison definition (scopedBody prior prepared))
       , "def " ++ publicDefinitionName (Surface.defName definition)
           ++ " := FormuraeInternalDefinition" ++ show index
       , ""
@@ -1507,17 +1377,6 @@ definitionDeclarations dimension = renderAll []
         wrapBody
           | rawEgison = withIndexSymbolsMultiline
           | otherwise = withIndexSymbols
-
-    explicitizeResult prepared body =
-      case preparedDefinitionResultVariances prepared of
-        Just variances@(_ : _) ->
-          "Formurae.attachExplicitVariances "
-          ++ show (map surfaceVarianceName variances)
-          ++ " (" ++ body ++ ")"
-        _ -> body
-
-    surfaceVarianceName Surface.VUp = "up"
-    surfaceVarianceName Surface.VDown = "down"
 
     scopedBody prior prepared
       | not (preparedDefinitionIsRawEgison prepared) = body

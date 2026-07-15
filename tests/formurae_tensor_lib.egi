@@ -4,6 +4,9 @@ def vi_i := [|1, 2, 3|]
 def vi := vi_i
 assertEqual "bare-alias-component" vi_2 2
 assertEqual "trace" (trace m) 15
+assertEqual "norm2 contracts every tensor axis"
+  (norm2 [|[|1, 2|], [|3, 4|]|])
+  30
 assertEqual "sym" (sym m) [|[|1, 3, 5|], [|3, 5, 7|], [|5, 7, 9|]|]
 
 def ordinaryM := m_matrixTestIndex1_matrixTestIndex2

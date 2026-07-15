@@ -12,6 +12,7 @@ module Formurae.Pre.TypeCheck
   ) where
 
 import Data.Char (isAlphaNum)
+import Formurae.Common (egisonIdentifiers, maskEgisonNonCode)
 import Formurae.Index (derivativeOpParts)
 import Formurae.Pre.FormOperator
 import Formurae.Syntax
@@ -521,26 +522,15 @@ typeFailure source message = Left (OperatorTypeError source message)
 -- is not confused with the unindexed canonical codifferential here.
 firstRawCanonicalOperator :: [String] -> String -> Maybe CanonicalOperator
 firstRawCanonicalOperator shadowed source =
-  firstCanonical (tokenize (maskStrings source))
+  firstCanonical (egisonIdentifiers (maskEgisonNonCode source))
   where
     firstCanonical [] = Nothing
-    firstCanonical (TId name _ : rest) = case canonicalOperator name of
+    firstCanonical (name : rest) = case canonicalOperator name of
       Just operator
         | canonicalOperatorIsVisible (OperatorScope shadowed) operator ->
             Just operator
       Nothing -> firstCanonical rest
       _ -> firstCanonical rest
-    firstCanonical (_ : rest) = firstCanonical rest
-
-    maskStrings = outside
-      where
-        outside [] = []
-        outside ('"' : rest) = ' ' : inside rest
-        outside (char : rest) = char : outside rest
-        inside [] = []
-        inside ('\\' : _ : rest) = ' ' : ' ' : inside rest
-        inside ('"' : rest) = ' ' : outside rest
-        inside (_ : rest) = ' ' : inside rest
 
 contractedDotIndices :: [TensorExpr] -> [StaticKind] -> Maybe [IxPart]
 contractedDotIndices expressions kinds =

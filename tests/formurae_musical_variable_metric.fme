@@ -2,6 +2,7 @@ mode dec
 dimension 2
 axes x, y
 
+metric g
 metric scale [1 + x, 1]
 
 field X~i @ primal
@@ -12,5 +13,5 @@ init:
   A_i = [| 0, 0 |]_i
 
 step:
-  A' = flat X
-  X' = sharp A
+  A'_i = withSymbols [j] (g_i_j . X~j)
+  X'~i = withSymbols [j] (g~i~j . A_j)

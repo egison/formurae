@@ -132,8 +132,9 @@ grep -F "q_down1'[i,j] = ((-1 / 2) * u[i-1,j] + (1 / 2) * u[i+1,j]) / dx" \
 grep -F "q_down2'[i,j] = ((-1 / 2) * u[i,j-1] + (1 / 2) * u[i,j+1]) / dy" \
   "$WORK/standard-ops.fmr" >/dev/null
 
-# The same metadata normalization is structural for rank-two derivatives and
-# the metric musical maps; it is not keyed by an operator name in pre/post-fec.
+# Rank-two derivative operators retain their declared ordinary-tensor
+# metadata.  Metric musical maps below are written as explicit contractions
+# on indexed equation targets rather than hidden behind named helpers.
 cabal run -v0 -j1 pre-fec -- "$ROOT/tests/formurae_native_rank2_ops.fme" \
   > "$WORK/rank2-ops.egi"
 run_machine "$WORK/rank2-ops.egi" "$WORK/rank2-ops.feir"
@@ -481,15 +482,20 @@ run_machine "$WORK/grid-whole.egi" "$WORK/grid-whole.feir"
 cabal exec -- runghc -ifec/src tests/pre_grid_whole_feir.hs \
   < "$WORK/grid-whole.feir"
 
-# A short user-defined tensor operator receives whole tensors directly.
-# pre-fec preserves its indexed contraction instead of inferring a
-# component-to-whole conversion from the operator name.
+# A short user-defined tensor operator receives whole tensors directly and
+# returns an anonymous covariant axis.  The mixed expression explicitly
+# applies the equation target's lower index at each call site; pre-fec does
+# not infer result variance from the operator name or body.
 cabal run -v0 -j1 pre-fec -- "$ROOT/examples/maxwell3d/maxwell3d.fme" \
   > "$WORK/maxwell.egi"
 grep -F 'epsilon_i~j~k . contractWith (+) (FormuraeInternalDiff X_k)..._j' \
   "$WORK/maxwell.egi" >/dev/null
-grep -F 'E + (dt * curl B)' "$WORK/maxwell.egi" >/dev/null
-grep -F "B - (dt * curl E')" "$WORK/maxwell.egi" >/dev/null
+grep -F '(curl B)..._i' "$WORK/maxwell.egi" >/dev/null
+grep -F "(curl E')..._i" "$WORK/maxwell.egi" >/dev/null
+if grep -F 'Formurae.attachExplicitVariances' "$WORK/maxwell.egi" >/dev/null; then
+  printf 'user curl result was unexpectedly assigned explicit variance\n' >&2
+  exit 1
+fi
 run_machine "$WORK/maxwell.egi" "$WORK/maxwell.feir"
 grep -F '(shape (3))' "$WORK/maxwell.feir" >/dev/null
 cabal run -v0 -j1 post-fec -- "$WORK/maxwell.feir" > "$WORK/maxwell.fmr"

@@ -23,9 +23,13 @@ model.fme
 `d`、`hodge`、`δ`、`Δ_H`の解析的な部分は、callbackやcomponent loopを含まない短いEgison関数です。
 具体的な差分係数や格子offsetをEgisonの演算子定義へ混ぜません。
 
-user tensor operatorも同じ経路です。例えば次の自由な下添字はEgisonで匿名tensor軸になり、ordinary
-covector targetへ代入するときだけ構造的index completionでexplicit down indexへ補われます。
-operator名を見た型推論ではありません。up targetへの読み替えは拒否し、form targetの`dfOrder`は保持します。
+user tensor operatorも同じ経路です。例えば次の`withSymbols`を出た自由な下添字は、Egisonでは
+添字を省略したtensor軸になります。省略軸には既存の明示添字とは異なるfreshな下添字が補われ、
+pre-fecは関数名や本体からresult varianceのcontractを推論・付与しません。EgisonがRHSを評価した後、
+宣言済みのequation targetまたはindexed `local`へ値を格納する時点で、targetが要求するshape、logical
+variance、`dfOrder`と実際の値を照合します。degree-zero covariant tensor targetへ代入する場合に限り、
+構造的index completionがcompatibleなanonymous down軸をtargetの下添字へ対応付けます。anonymous down軸を
+up targetとして読み替えることはできず、form targetでは`dfOrder`を保持します。
 
 ```formurae
 def gradLike u = withSymbols [i] (∂_i u)
@@ -34,8 +38,15 @@ step:
   q' = gradLike u
 ```
 
+したがって、`E_i + gradLike u`のanonymous軸が既存の`i`へ暗黙に統合されることはありません。
+この式では両者は別の軸です。同じ軸で合成する意図は、
+`withSymbols [i] (E_i + (gradLike u)..._i)`のようにcall siteで下添字を明示できます。
+
 pure user operatorの本体は1行に限定されません。`=`の次をindentすると、Egisonの`let`、lambda、
 `match`、`withSymbols`、`generateTensor`を含む式blockをそのままnormalizationへ渡せます。
+1行の本体とこのようなrich bodyは、どちらもEgisonが通常の式として評価します。Formuraeはuser
+definitionの式構造や計算履歴を検査してresult contractを付けません。評価結果がfield equation
+またはindexed `local`へ格納されるときだけ、上記のtarget metadata照合を行います。
 
 ```formurae
 def chooseByDimension X =
@@ -49,16 +60,24 @@ def chooseByDimension X =
 `dimension`、`coordinates`、`volume`、`epsilon`、`metric`、`inverseMetric`はmodelのambient
 Egison環境にあり、ユーザ定義と`Formurae.*`標準演算子はこれらを直接参照します。
 そのためユーザがcontext引数を渡す必要はありません。`metric g`を宣言すると、同じ実計量を
-共変な`g_i_j` / `g_#_#`と反変な`g~i~j` / `g~#~#`の両方から参照できます。宣言名を使わない
-canonical viewは`metric_i_j` / `metric_#_#`と`inverseMetric~i~j` / `inverseMetric~#~#`です。
+共変な`g_i_j`（whole viewは`g_#_#`）と反変な`g~i~j`から参照できます。宣言名を使わない
+canonical viewは`metric_i_j` / `metric_#_#`と`inverseMetric~i~j`です。反変なviewは、次のように
+varianceが見えるindexed equation/localで直接使います。
 
 ```formurae
 metric scale [1, 1 + x]
 metric g
 
-def raise A = withSymbols [i, j] (g~i~j . A_j)
-def lower X = withSymbols [i, j] (g_i_j . X~j)
+field A_i
+field X~i
+
+step:
+  X'~i = withSymbols [j] (g~i~j . A_j)
+  A'_i = withSymbols [j] (g_i_j . X~j)
 ```
+
+この明示的な計量縮約を正準な書き方とし、`flat` / `sharp`はFormuraeのpublic operatorとして
+提供しません。関数headへ結果添字を書く構文もありません。
 
 ambient名と`metric g`の宣言名はfield、parameter、user definition、definition parameter、
 step-level `let` / `local`では予約されます。Egison expression block内の局所`let`やlambdaだけは
@@ -287,8 +306,6 @@ primitiveと場・式のfamily構文が入るまで表層の対象外です。
 | `spec/egison-normalization-v1.list` | Egison normalization libraryのversioned load順 |
 | `examples/` | model、生成artifact、C numerical check |
 | `gallery/` | sourceと数値結果のgallery |
-| `design/20260711-pre-post-fec-pipeline.md` | normative compiler design |
-| `design/20260713-quoted-derivative-and-minimal-discrete-surface.md` | quoted derivative・typed local・canonical operator surfaceのnormative design |
 
 ## 検証
 
@@ -306,8 +323,8 @@ make all
 - collocated/Yee/DEC/variable-metric exampleのFormura parseとC numerical checks
 - Egison math representative samples、mini-test全件、`cabal test`
 
-Phase 0--9の受入れ基準と最終rerunの記録は
-[`design/20260711-pre-post-fec-pipeline.md` section 13](design/20260711-pre-post-fec-pipeline.md#13-phase-0--9完了evidenceと最終検証記録)を参照してください。
+現在の受入れ基準は `tests/compiler_suite.sh`、個別の `tests/*.sh`、および `Makefile` の
+検証targetに実行可能な形で保持します。
 
 設計上、旧`fec` CLI、旧generated `.egi` schema、callback/marker based loweringとの後方互換性は
 提供しません。仕様変更時はexample、document、testを新しい意味へ同時に更新します。
@@ -315,8 +332,6 @@ Phase 0--9の受入れ基準と最終rerunの記録は
 ## 関連資料
 
 - [`DSL-DESIGN.md`](DSL-DESIGN.md): 表層構文と設計履歴
-- [`design/20260711-pre-post-fec-pipeline.md`](design/20260711-pre-post-fec-pipeline.md): 現在の責務境界とFEIR contract
-- [`design/20260713-quoted-derivative-and-minimal-discrete-surface.md`](design/20260713-quoted-derivative-and-minimal-discrete-surface.md): quoted derivative・typed local・保存flux・canonical演算子surface
 - [`gallery/usage.html`](gallery/usage.html): tutorialとusage guide
 - [`APPLICATIONS.md`](APPLICATIONS.md): 応用例一覧
 - [`UPSTREAM.md`](UPSTREAM.md): Formura側の拡張計画

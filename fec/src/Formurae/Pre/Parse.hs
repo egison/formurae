@@ -21,7 +21,6 @@ standardNames =
   [ ".", "wedge", "trace", "sym", "antisym", "norm2"
   , "hessian", "grad", "dGrad", "divg", "curl", "lap", "Δ"
   , "d", "δ", "hodge", "ΔH"
-  , "flat", "sharp"
   , "resample"
   , "epsilon"
   , "π", "pi"
@@ -73,6 +72,9 @@ normalizationDependencies :: [String]
 normalizationDependencies =
   [ "print", "nth", "foldl", "map", "sum", "product", "sqrt"
   , "contractWith"
+  -- These names occur in generated tensor encoders and indexed-parameter
+  -- checks and therefore must not resolve to a model binding.
+  , "tensorShape", "dfOrder", "assert", "bool"
   ]
 
 -- Every user definition is wrapped in one `withSymbols` that binds these
@@ -417,9 +419,8 @@ localForm line source =
 -- def NAME PARAM... = BODY
 -- def (.) A B = BODY
 --
--- Operator definitions follow Egison: the result index is not written in the
--- head.  Indices that appear on parameters in the body are views of the
--- argument, not result indices.
+-- Formurae deliberately has no result-index syntax on a user definition
+-- head.  Indices written on parameters describe views of the arguments.
 defForm :: String -> Maybe Def
 defForm r = do
   (nm, r1) <- defNameP (strip r)
@@ -564,18 +565,25 @@ parseDiscretizationDecl lineNumber source =
 -- for mathematical normalization.
 parseModel :: FilePath -> String -> String -> IO Model
 parseModel sourceFile name txt = do
-  mapM_ rejectInternalOperatorSpelling numberedLines
-  mapM_ rejectNormalizationCapability numberedLines
+  mapM_ rejectInternalOperatorSpelling numberedMaskedLines
+  mapM_ rejectNormalizationCapability numberedMaskedLines
   go STop initialModel
     [(lineNumber, transliterate raw, raw) | (lineNumber, raw) <- numberedLines]
   where
-    numberedLines = zip [1 :: Int ..] (lines txt)
+    -- Strip line comments once for the complete file.  The scanner keeps
+    -- string, character-literal, and nested block-comment state across line
+    -- boundaries; calling a line-local stripper from the parser would lose
+    -- that state on the next line of a raw Egison block.
+    numberedLines = zip [1 :: Int ..]
+      (lines (stripEgisonLineComments txt))
+    numberedMaskedLines = zip [1 :: Int ..]
+      (lines (maskEgisonNonCode txt))
 
     -- Δ_H is lowered to the atomic identifier ΔH before the indexed-expression
     -- parser sees it.  Reserve that compact spelling so it cannot become an
     -- accidental second surface alias for the Hodge Laplacian.
     rejectInternalOperatorSpelling (lineNumber, raw) =
-      case [name' | TId name' _ <- tokenize (stripComment raw), name' == "ΔH"] of
+      case [name' | name' <- egisonIdentifiers raw, name' == "ΔH"] of
         _ : _ -> fatal ("ΔH is an internal spelling; write Δ_H (line "
                         ++ show lineNumber ++ ")")
         [] -> return ()
@@ -583,32 +591,17 @@ parseModel sourceFile name txt = do
     -- Generated normalization code is trusted to construct opaque FEIR
     -- requests; user source is not.  Scan every surface context before its
     -- grammar-specific path is selected, including definitions, steps,
-    -- initializers, metric scales, and embeddings.  Strings and comments must
-    -- be recognized in one pass: stripping comments first would mistake @--@
-    -- inside a string for a comment opener and leave later executable source
-    -- outside this capability gate.
+    -- initializers, metric scales, and embeddings.  The complete source was
+    -- masked in one stateful pass above, so strings, character literals, line
+    -- comments, and nested block comments cannot hide later executable code.
     rejectNormalizationCapability (lineNumber, raw) =
-      case [name' | TId name' _ <- tokenize scanned,
+      case [name' | name' <- egisonIdentifiers raw,
                     isReservedNormalizationCapability name'] of
         name' : _ -> fatal
           ("reserved normalization capability '" ++ name'
            ++ "' cannot be used in Formurae source (line "
            ++ show lineNumber ++ ")")
         [] -> return ()
-      where
-        scanned = maskSourceNonCode raw
-
-    maskSourceNonCode = outsideString
-      where
-        outsideString [] = []
-        outsideString ('-' : '-' : _rest) = []
-        outsideString ('"' : rest) = ' ' : insideString rest
-        outsideString (char : rest) = char : outsideString rest
-
-        insideString [] = []
-        insideString ('\\' : _escaped : rest) = ' ' : ' ' : insideString rest
-        insideString ('"' : rest) = ' ' : outsideString rest
-        insideString (_char : rest) = ' ' : insideString rest
 
     initialModel = Model
       { mName = name
@@ -699,8 +692,8 @@ parseModel sourceFile name txt = do
             }
 
     go sec m ((ln, raw, originalRaw):rest) = do
-      let code = rstrip (stripComment raw)
-          originalCode = rstrip (stripComment originalRaw)
+      let code = rstrip raw
+          originalCode = rstrip originalRaw
           s = strip code
       if null s then go sec m rest else do
         case s of
@@ -718,10 +711,10 @@ parseModel sourceFile name txt = do
                                       ++ "): a body must follow '='")
                          _ ->
                            let translatedBody = intercalate "\n" (deindentBlock
-                                 [rstrip (stripComment translatedLine)
+                                 [rstrip translatedLine
                                  | (_, translatedLine, _) <- bodyLines])
                                originalBodyLines =
-                                 [(lineNumber, rstrip (stripComment originalLine'))
+                                 [(lineNumber, rstrip originalLine')
                                  | (lineNumber, _, originalLine') <- bodyLines]
                                combinedHead = definitionHead ++ " " ++ translatedBody
                            in addDefinition ln
@@ -768,7 +761,7 @@ parseModel sourceFile name txt = do
               collect ((lineNumber, translated, original) : accumulated) rest
           | otherwise = (reverse accumulated, remaining)
           where
-            translatedCode = strip (rstrip (stripComment translated))
+            translatedCode = strip (rstrip translated)
 
     deindentBlock lines' = map (drop commonIndent) lines'
       where
@@ -790,8 +783,8 @@ parseModel sourceFile name txt = do
 
     grab _ [] = ("", [], [])
     grab d ((lineNumber, raw, originalRaw):rest) =
-      let t = strip (rstrip (stripComment raw))
-          original = rstrip (stripComment originalRaw)
+      let t = strip (rstrip raw)
+          original = rstrip originalRaw
           d' = d + bal t
       in if d' <= 0
            then (t, [(lineNumber, original)], rest)
@@ -913,8 +906,12 @@ parseModel sourceFile name txt = do
                     else return m { mDim = n }
               | otherwise = fatal ("bad dimension (line " ++ show ln ++ ")")
 
-    addDefinition ln sourceBuilder source m =
-      case defForm source of
+    addDefinition ln sourceBuilder source m
+      | not (null (snd (parseIndexedIdent (definitionHeadToken source)))) =
+          fatal ("result indices are not allowed in user definition heads; "
+                 ++ "write the metric contraction in an indexed equation or "
+                 ++ "local binding (line " ++ show ln ++ ")")
+      | otherwise = case defForm source of
         Just df -> do
           rejectReservedName ln (defName df)
           case mMetricName m of
@@ -948,11 +945,32 @@ parseModel sourceFile name txt = do
               fatal ("definition parameter '" ++ parameterName
                      ++ "' cannot shadow the symbolic constant π (line "
                      ++ show ln ++ ")")
+          case [parameterName | parameter <- defParams df
+                     , let parameterName = defParamBase parameter
+                     , parameterName `elem` definitionParameterGeneratedNames] of
+            [] -> return ()
+            parameterName : _ ->
+              fatal ("definition parameter '" ++ parameterName
+                     ++ "' is reserved for generated Egison code (line "
+                     ++ show ln ++ ")")
           definitionSource <- sourceBuilder (defBody df)
           return m
             { mDefs = df { defSourceText = Just definitionSource } : mDefs m }
         Nothing -> fatal ("bad def (line " ++ show ln
                           ++ "): def NAME ARG... = EXPR")
+
+    definitionHeadToken = takeWhile (\c -> not (isSpace c) && c /= '=') . strip
+
+    -- Standard mathematical operators remain legal higher-order formals.
+    -- Only Egison syntax and the unqualified names inserted inside this
+    -- definition's generated parameter checks must be protected from capture.
+    -- Dependencies used by separate top-level generated definitions do not
+    -- occur in this lexical scope.  Ambient values, index symbols, and π are
+    -- checked above so their specific diagnostics remain.
+    definitionParameterGeneratedNames = nub
+      (generatedNormalizationNames
+       ++ egisonReservedWords
+       ++ ["assert", "tensorShape", "bool"])
 
     ini [] _ _ = fatal "internal error: initializer has no source lines"
     ini sourceLines@((ln, _):_) s m

@@ -1,0 +1,10 @@
+mode collocated
+dimension 1
+axes x
+
+field u : scalar
+
+def applySqrt sqrt value = sqrt value
+
+step:
+  u' = applySqrt sqrt u

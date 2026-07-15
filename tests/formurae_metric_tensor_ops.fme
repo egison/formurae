@@ -11,7 +11,6 @@ field G_i_j
 field H~i~j
 
 def covariantMetric unused = g_#_#
-def contravariantMetric unused = g~#~#
 
 init:
   A_j = [| 1, 2 |]_j
@@ -22,4 +21,4 @@ init:
 step:
   B'~i = withSymbols [j] (g~i~j . A_j)
   G'_i_j = covariantMetric 0
-  H'~i~j = contravariantMetric 0
+  H'~i~j = g~i~j

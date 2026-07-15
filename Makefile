@@ -119,6 +119,7 @@ formurae-geometry-tests: formurae-tensor-tests
 
 formurae-operator-tests: formurae-geometry-tests
 	$(EGISON_NORMALIZE) -t $(abspath tests/formurae_operators_lib.egi)
+	sh tests/formurae_operator_errors.sh
 	$(EGISON_NORMALIZE) -t $(abspath tests/formurae_form_operators_lib.egi)
 	$(EGISON_NORMALIZE) -t $(abspath tests/formurae_form_operators_2d_lib.egi)
 	$(EGISON_NORMALIZE) -t $(abspath tests/formurae_opaque_lib.egi)

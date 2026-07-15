@@ -36,9 +36,8 @@
 <body>
 <header>
   <h1>Formurae future work: general (non-orthogonal) metric support</h1>
-  <p>Planning notes (2026-07-14). This is unscheduled future work;
-     <code>design/20260713-quoted-derivative-and-minimal-discrete-surface.md</code> (non-goals)
-     already lists general non-orthogonal metrics as an explicit non-goal of the first version.
+  <p>Planning notes (2026-07-14; operator policy revised 2026-07-15). This is unscheduled future work;
+     general non-orthogonal metrics are outside the scope of the first version.
      This memo records the dependency map, an implementation plan, and a cost&ndash;benefit
      assessment for the day we decide to do it.</p>
   <p><a href="general-metric.ja.html">日本語版</a></p>
@@ -75,8 +74,8 @@ orthogonality check from a gate into a classifier.</b>
 The paper (<code>formurae-paper/main.tex</code>, limitations) already names the three
 requirements: (1) a specified covariant operator, (2) placement rules for cross terms,
 (3) a new or revised opaque discrete contract.
-The long-term receptacle is the typed operator graph
-(<code>weighted-adjoint-d</code> primitive) sketched in <code>design/20260713</code> &sect;9.3.</p>
+A typed operator graph with a <code>weighted-adjoint-d</code> primitive is one candidate
+representation for these requirements, not a current contract.</p>
 
 <h2 id="map">2. Where the orthogonality assumption lives today (four layers)</h2>
 
@@ -88,7 +87,7 @@ The long-term receptacle is the typed operator graph
         <code>FE.orthogonalVolume</code> (&prod;h<sub>i</sub>),
         <code>FE.orthogonalHodgeCoefficient</code> (V/&prod;h<sub>i</sub>&sup2;)</td></tr>
 <tr><td><code>lib/formurae-operators.egi</code></td>
-    <td><code>flat</code>/<code>sharp</code>/<code>hodge</code>/<code>codiff</code>/<code>scalarLaplacian</code>
+    <td><code>hodge</code>/<code>codiff</code>/<code>scalarLaplacian</code>
         expose operand-only APIs and read diagonal-metric information from the generated
         ambient dimension/coordinates/scale vector; <code>Formurae.lbOrthogonal</code> likewise
         reads its geometry and manifest IDs from the ambient environment</td></tr>
@@ -159,8 +158,10 @@ The long-term receptacle is the typed operator graph
     <td>&radic;det g (symbolic determinant + sqrt simplification)</td></tr>
 <tr><td>inverse metric</td><td>diagonal reciprocals 1/h<sub>i</sub>&sup2;</td>
     <td>symbolic inverse via adjugate/determinant (cofactor expansion suffices for d &le; 3)</td></tr>
-<tr><td>flat / sharp</td><td>diagonal contraction</td>
-    <td>already tensor contractions &mdash; just pass the full metric (cheapest item)</td></tr>
+<tr><td>raising / lowering indices</td>
+    <td>explicit <code>g_i_j . X~j</code> / <code>g~i~j . A_j</code> contraction</td>
+    <td>write the explicit full-metric contraction directly in an indexed equation/local;
+        there is no public <code>flat</code>/<code>sharp</code> API</td></tr>
 <tr><td>Hodge &#8902;</td><td>component I &rarr; complement I<sup>c</sup>, one diagonal coefficient</td>
     <td>dense linear map via Gram minors (components of the same degree mix)</td></tr>
 <tr><td>scalar &Delta;</td><td>(1/V) &Sigma;<sub>a</sub> &part;<sub>a</sub>(V/h<sub>a</sub>&sup2; &part;<sub>a</sub>u)</td>
@@ -299,9 +300,8 @@ make resampling a versioned opaque primitive whenever it is semantically observa
 A general &#8902; on staggered form fields applies averaging to fields the user declared,
 so it would silently cross exactly that boundary. Doing it properly means introducing a new
 explicit opaque contract that fixes which of the three routes is taken (and, for averaging:
-which scheme, which direction, how the inverse Hodge is handled) &mdash; the generalization
-of the <code>weighted-adjoint-d</code> graph of <code>design/20260713</code> &sect;9.3 is the
-natural receptacle.</p>
+which scheme, which direction, how the inverse Hodge is handled). One candidate is a
+generalized <code>weighted-adjoint-d</code> graph.</p>
 
 <p>The scalar &Delta; can go first precisely because of the flip side of this argument:
 the <code>lb</code> source u is collocated and the face fluxes are internal auxiliaries of
@@ -312,16 +312,17 @@ without ever crossing a user-visible placement.</p>
 
 <table>
 <tr><th>Phase</th><th>Content</th></tr>
-<tr><td>Phase 0<br>design doc</td>
-    <td>Following repo convention, create <code>design/2026MMDD-general-metric.md</code> and
-        settle the four decision points of &sect;6</td></tr>
+<tr><td>Phase 0<br>specification</td>
+    <td>Revise this memo to settle the four decision points of &sect;6, then turn them into
+        implementation requirements and verification items</td></tr>
 <tr><td>Phase 1<br>CAS layer</td>
     <td>Add <code>FE.metricDeterminant</code>, a general <code>FE.inverseMetricTensor</code>
         (cofactor expansion for d &le; 3), volume &radic;det g, and general Gram Hodge
         coefficients to <code>lib/formurae-geometry.egi</code>.
-        Preserve the operand-only <code>flat</code>/<code>sharp</code> API while switching their
-        internal source from the ambient scale vector to the ambient metric/inverse-metric
-        tensors. Confirm &radic;det g closes under Egison&rsquo;s sqrt
+        Extend the ambient metric/inverse-metric tensors to the general case; users write
+        <code>g_i_j . X~j</code> / <code>g~i~j . A_j</code> directly in indexed equations/locals.
+        Do not reintroduce the removed public <code>flat</code>/<code>sharp</code> API.
+        Confirm &radic;det g closes under Egison&rsquo;s sqrt
         simplification rules</td></tr>
 <tr><td>Phase 2<br>pre-fec</td>
     <td>Replace the assert in <code>EmitEgison.hs</code> with classification

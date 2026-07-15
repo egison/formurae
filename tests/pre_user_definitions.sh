@@ -17,6 +17,25 @@ compile_pipeline() {
   cabal run -v0 -j1 post-fec -- "$WORK/$stem.feir" > "$WORK/$stem.fmr"
 }
 
+expect_normalization_failure() {
+  source=$1
+  stem=$2
+  expected=$3
+  cabal run -v0 -j1 pre-fec -- "$source" > "$WORK/$stem.egi"
+  if "$ROOT/tools/run_formurae_normalization.sh" "$EGISON_DIR" \
+       "$WORK/$stem.egi" > "$WORK/$stem.feir" 2> "$WORK/$stem.err"; then
+    printf 'normalization accepted invalid user definition result: %s\n' \
+      "$source" >&2
+    exit 1
+  fi
+  grep -F "$expected" "$WORK/$stem.err" >/dev/null
+  if [ -s "$WORK/$stem.feir" ]; then
+    printf 'failed user definition result leaked FEIR output: %s\n' \
+      "$source" >&2
+    exit 1
+  fi
+}
+
 cd "$ROOT"
 
 compile_pipeline tests/fixtures/pre_fec_user_definitions.fme user-definitions
@@ -28,6 +47,11 @@ grep -F 'FormuraeInternalDefinition3 X :=' \
   "$WORK/user-definitions.egi" >/dev/null
 grep -F 'FormuraeInternalDefinition4 X :=' \
   "$WORK/user-definitions.egi" >/dev/null
+if grep -F 'FormuraeInternalValidateDefinitionResult' \
+     "$WORK/user-definitions.egi" >/dev/null; then
+  printf 'user definition result validator unexpectedly remains in generated Egison\n' >&2
+  exit 1
+fi
 if grep -F 'FormuraeInternalMaterialized x' "$WORK/user-definitions.egi" >/dev/null \
    || grep -E 'FormuraeInternalDefinition[0-9]+ X(\.\.\.|_[[:alnum:]])' \
         "$WORK/user-definitions.egi" >/dev/null; then
@@ -38,6 +62,77 @@ grep -F "u'[i,j] = 1 + u[i,j]" "$WORK/user-definitions.fmr" >/dev/null
 grep -F "Y_down1'[i,j] = X_down1[i,j]" "$WORK/user-definitions.fmr" >/dev/null
 grep -F "B_down1_down2'[i,j] = A_down1_down2[i,j]" \
   "$WORK/user-definitions.fmr" >/dev/null
+
+# A comment marker inside a string is data, not the start of a surface
+# comment.  Exercise the complete generated Egison/FEIR pipeline so a
+# truncated definition body cannot pass on a merely nonempty pre-fec output.
+compile_pipeline \
+  tests/fixtures/pre_fec_reserved_string_near_miss.fme \
+  reserved-string-near-miss
+grep -F "u'[i] = u[i]" "$WORK/reserved-string-near-miss.fmr" >/dev/null
+
+# An anonymous/default-down result cannot be stored in an upper field.  This
+# is rejected at the equation target, independently of the definition body.
+expect_normalization_failure \
+  tests/fixtures/pre_fec_user_result_variance_raw_error.fme \
+  result-variance-raw \
+  'Assertion failed: "normalized equation tensor metadata mismatch"'
+
+# Egison may use temporary index views internally when the stored result is a
+# scalar.  Formurae does not inspect the definition's calculation history.
+compile_pipeline \
+  tests/fixtures/pre_fec_user_result_variance_raw_primitive.fme \
+  result-variance-raw-scalar-reducer
+grep -F "u'[i,j] =" \
+  "$WORK/result-variance-raw-scalar-reducer.fmr" >/dev/null
+
+# Full-source comment handling follows Egison strings, character literals,
+# line comments, and nested block comments.  Prime-suffixed local identifiers
+# remain ordinary raw Egison bindings.
+compile_pipeline \
+  tests/fixtures/pre_fec_user_result_variance_raw_near_miss.fme \
+  result-variance-raw-near-miss
+grep -F "u'[i,j] =" "$WORK/result-variance-raw-near-miss.fmr" >/dev/null
+
+# A multiline Egison definition may return an existing upper tensor unchanged.
+# Definition bodies do not receive a separate result-provenance contract.
+compile_pipeline \
+  tests/fixtures/pre_fec_user_result_variance_raw_preserved.fme \
+  result-variance-raw-preserved
+grep -F "Y_up1'[i,j] = X_up1[i,j]" \
+  "$WORK/result-variance-raw-preserved.fmr" >/dev/null
+
+# Scalar reducers may consume a temporary index view; only their stored scalar
+# result is checked against the equation target.
+compile_pipeline \
+  tests/fixtures/pre_fec_user_result_scalar_reducer.fme \
+  result-scalar-reducer
+grep -F "u'[i,j] =" "$WORK/result-scalar-reducer.fmr" >/dev/null
+grep -F "v'[i,j] =" "$WORK/result-scalar-reducer.fmr" >/dev/null
+
+# Existing upper and mixed-variance values may pass through ordinary Egison
+# identity, scaling, and pointwise functions before target metadata is checked.
+compile_pipeline \
+  tests/fixtures/pre_fec_user_result_variance_preserved.fme \
+  result-variance-preserved
+grep -F "Y_up1'[i,j] = X_up1[i,j]" \
+  "$WORK/result-variance-preserved.fmr" >/dev/null
+grep -F "U_up1_down2'[i,j] = 2 * T_up1_down2[i,j]" \
+  "$WORK/result-variance-preserved.fmr" >/dev/null
+grep -F "P_up1'[i,j] = alpha * X_up1[i,j]" \
+  "$WORK/result-variance-preserved.fmr" >/dev/null
+grep -F "Q_up1'[i,j] = X_up1[i,j] * c[i,j]" \
+  "$WORK/result-variance-preserved.fmr" >/dev/null
+grep -F "L_up1'[i,j] =" \
+  "$WORK/result-variance-preserved.fmr" >/dev/null
+
+# Built-in mathematical functions remain legal higher-order formals.  They
+# are not captured by the small set of names generated inside fixed-parameter
+# checks.
+compile_pipeline \
+  tests/fixtures/pre_fec_definition_higher_order_sqrt.fme \
+  higher-order-sqrt
+grep -F "u'[i] =" "$WORK/higher-order-sqrt.fmr" >/dev/null
 
 # The checked-in whole-tensor sample exercises standard operators through a
 # pure higher-order user function all the way across Egison and FEIR.
@@ -73,6 +168,27 @@ grep -F 'Assertion failed: "normalized equation tensor metadata mismatch"' \
   "$WORK/index-completion-up.err" >/dev/null
 if [ -s "$WORK/index-completion-up.feir" ]; then
   printf 'failed upper-index completion leaked FEIR output\n' >&2
+  exit 1
+fi
+
+# An anonymous rank-one result receives a fresh lower axis; it is not unified
+# with an already explicit E_i merely because both axes are covariant.
+anonymous_error=tests/fixtures/pre_fec_anonymous_index_nonunification.fme
+cabal run -v0 -j1 pre-fec -- "$anonymous_error" \
+  > "$WORK/anonymous-index-nonunification.egi"
+grep -F 'withSymbols [i] (E_i + gradLike u)' \
+  "$WORK/anonymous-index-nonunification.egi" >/dev/null
+if "$ROOT/tools/run_formurae_normalization.sh" "$EGISON_DIR" \
+     "$WORK/anonymous-index-nonunification.egi" \
+     > "$WORK/anonymous-index-nonunification.feir" \
+     2> "$WORK/anonymous-index-nonunification.err"; then
+  printf 'anonymous result axis unexpectedly unified with explicit E_i\n' >&2
+  exit 1
+fi
+grep -E 'Inconsistent tensor index|normalized equation tensor metadata mismatch' \
+  "$WORK/anonymous-index-nonunification.err" >/dev/null
+if [ -s "$WORK/anonymous-index-nonunification.feir" ]; then
+  printf 'failed anonymous-index composition leaked FEIR output\n' >&2
   exit 1
 fi
 

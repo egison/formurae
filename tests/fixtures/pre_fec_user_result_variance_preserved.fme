@@ -1,0 +1,27 @@
+mode collocated
+dimension 2
+axes x, y
+
+param alpha = 2
+
+field c : scalar
+field X~i
+field Y~i
+field P~i
+field Q~i
+field L~i
+field T~i_j
+field U~i_j
+
+def identity X = X
+def scale T = 2 * T
+def scaleParam X = alpha * X
+def scaleField X = c * X
+def lapEach X = lap X
+
+step:
+  Y' = identity X
+  P' = scaleParam X
+  Q' = scaleField X
+  L' = lapEach X
+  U' = scale T

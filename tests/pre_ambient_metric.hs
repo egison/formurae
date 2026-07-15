@@ -16,14 +16,12 @@ main = do
 
   mapM_ assertPublicEnvironment [euclidean, scaled, embedded, publicAliases]
   mapM_ assertNamedMetric [euclidean, scaled, embedded]
-  assertContains "user definitions can use the reserved covariant metric"
+  assertContains "indexed equations can use the reserved covariant metric"
     "metric_i_j . X~j" publicAliases
-  assertContains "user definitions can use the reserved inverse metric"
+  assertContains "indexed equations can use the reserved inverse metric"
     "inverseMetric~i~j . A_j" publicAliases
   assertContains "user definitions can use the whole reserved metric"
     "metric_#_#" publicAliases
-  assertContains "user definitions can use the whole reserved inverse metric"
-    "inverseMetric~#~#" publicAliases
   assertContains "ambient epsilon follows the model dimension"
     "epsilon~i~j . A_i . A_j" publicAliases
 
@@ -45,7 +43,7 @@ main = do
   assertContains "raw coordinate identifiers are canonicalized"
     "sample := x" renamed
   assertContains "raw coordinate spelling inside strings is preserved"
-    "label := \"theta\"" renamed
+    "label := \"~theta\"" renamed
 
   putStrLn "pre-fec ambient metric tests: ok"
 
@@ -75,14 +73,12 @@ assertNamedMetric unit = do
     "def g_i_j := metric_i_j" unit
   assertContains "metric g publishes the contravariant indexed definition"
     "def g~i~j := inverseMetric~i~j" unit
-  assertContains "user definitions can read the covariant metric components"
+  assertContains "indexed equations can read the covariant metric components"
     "g_i_j . X~j" unit
-  assertContains "user definitions can read the inverse metric components"
+  assertContains "indexed equations can read the inverse metric components"
     "g~i~j . A_j" unit
   assertContains "user definitions can read the whole covariant metric"
     "g_#_#" unit
-  assertContains "user definitions can read the whole contravariant metric"
-    "g~#~#" unit
   assertContains "dimension-sized epsilon indices are accepted"
     "epsilon_i_j" unit
 
@@ -107,7 +103,7 @@ renamedCoordinateSource = unlines
   , "axes theta, phi"
   , "field u : scalar"
   , "def rich u ="
-  , "  let label := \"theta\""
+  , "  let label := \"~theta\""
   , "      sample := theta"
   , "   in u + 0 * sample"
   , "step:"
@@ -121,17 +117,14 @@ publicAliasSource = unlines
   , "axes x, y"
   , "field X~i"
   , "field A_i"
-  , "def lower X = withSymbols [i, j] (metric_i_j . X~j)"
-  , "def raise A = withSymbols [i, j] (inverseMetric~i~j . A_j)"
   , "def wholeMetric unused = metric_#_#"
-  , "def wholeInverseMetric unused = inverseMetric~#~#"
   , "def orientation A = withSymbols [i, j] (epsilon~i~j . A_i . A_j)"
   , "init:"
   , "  X~i = [| 0, 0 |]~i"
   , "  A_i = [| 0, 0 |]_i"
   , "step:"
-  , "  X'~i = raise A"
-  , "  A'_i = lower X"
+  , "  X'~i = withSymbols [j] (inverseMetric~i~j . A_j)"
+  , "  A'_i = withSymbols [j] (metric_i_j . X~j)"
   ]
 
 modelSource :: [String] -> String
@@ -144,17 +137,14 @@ modelSource geometry = unlines $
   ++ [ "metric g"
      , "field X~i"
      , "field A_i"
-     , "def lower X = withSymbols [i, j] (g_i_j . X~j)"
-     , "def raise A = withSymbols [i, j] (g~i~j . A_j)"
      , "def wholeCovariant unused = g_#_#"
-     , "def wholeContravariant unused = g~#~#"
      , "def orientation unused = epsilon_i_j"
      , "init:"
      , "  X~i = [| 0, 0 |]~i"
      , "  A_i = [| 0, 0 |]_i"
      , "step:"
-     , "  X'~i = raise A"
-     , "  A'_i = lower X"
+     , "  X'~i = withSymbols [j] (g~i~j . A_j)"
+     , "  A'_i = withSymbols [j] (g_i_j . X~j)"
      ]
 
 requireRight :: Either EmitError value -> IO value

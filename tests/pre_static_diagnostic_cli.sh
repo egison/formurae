@@ -105,6 +105,8 @@ expect_parse_failure pre_fec_dd_kind_mismatch \
   'assert-dd-zero internally applies canonical d and requires a scalar or differential form, but received ordinary tensor'
 expect_parse_failure pre_fec_raw_opaque_forge_error \
   "reserved normalization capability 'functionSymbol' cannot be used in Formurae source (line 5)"
+expect_parse_failure pre_fec_char_literal_opaque_forge_error \
+  "reserved normalization capability 'functionSymbol' cannot be used in Formurae source (line 7)"
 expect_parse_failure pre_fec_step_internal_bridge_error \
   "reserved normalization capability 'FormuraeInternalGridWholeDerivative' cannot be used in Formurae source (line 8)"
 expect_parse_failure pre_fec_metric_opaque_forge_error \
@@ -116,6 +118,7 @@ expect_parse_failure pre_fec_embedding_string_comment_opaque_forge_error \
 expect_parse_failure pre_fec_axis_operator_collision \
   "coordinate name 'Δ' is reserved for a surface operator or intrinsic (axes line 3)"
 expect_success pre_fec_reserved_string_near_miss
+expect_success pre_fec_definition_higher_order_sqrt
 expect_success pre_fec_raw_shadowed_canonical
 expect_parse_failure pre_fec_definition_param_collision \
   "definition name 'helper' conflicts with param value binding (definition line 6, param line 4)"
@@ -133,6 +136,14 @@ expect_parse_failure pre_fec_axis_value_collision \
   "value name 'r' is reserved for generated Egison code (param, line 4)"
 expect_parse_failure pre_fec_definition_axis_parameter_collision \
   "definition parameter 'r' in 'identity' conflicts with a coordinate axis (line 5)"
+expect_parse_failure pre_fec_definition_result_head_error \
+  "result indices are not allowed in user definition heads; write the metric contraction in an indexed equation or local binding (line 7)"
+expect_parse_failure pre_fec_definition_result_lower_head_error \
+  "result indices are not allowed in user definition heads; write the metric contraction in an indexed equation or local binding (line 7)"
+expect_parse_failure pre_fec_definition_reserved_assert_collision \
+  "definition name 'assert' is reserved for generated Egison code (line 5)"
+expect_parse_failure pre_fec_definition_reserved_formal_collision \
+  "definition parameter 'assert' is reserved for generated Egison code (line 5)"
 expect_parse_failure pre_fec_metric_axis_collision \
   "metric name 'r' conflicts with a coordinate axis (axes line 4)"
 expect_parse_failure pre_fec_ambient_axis_collision \

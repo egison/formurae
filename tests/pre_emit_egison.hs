@@ -21,6 +21,9 @@ main = do
   assertAbsent first "FormuraeInternalContext"
   assertContains "user definition receives only its surface parameters"
     "FormuraeInternalDefinition3 u" first
+  assertContains "user definitions remain ordinary Egison functions"
+    "def FormuraeInternalDefinition1 f u := withSymbols"
+    first
   assertContains "prior higher-order user definition receives the ambient operator"
     "FormuraeInternalDefinition1 FormuraeInternalLap u"
     first
@@ -46,20 +49,16 @@ main = do
   aliasUnit <- requireRight =<< emitNormalizationUnit manifestId aliasModel
   assertContains "canonical d resolves to the shared exterior derivative"
     "FormuraeInternalD X" aliasUnit
-  assertContains "flat resolves to the shared metric contraction"
-    "FormuraeInternalFlat X" aliasUnit
-  assertContains "sharp resolves to the shared inverse metric contraction"
-    "FormuraeInternalSharp X" aliasUnit
 
   variableScalarModel <- parseModel "pre-variable-scalar-delta.fme"
     "pre-variable-scalar-delta" variableScalarSource
   variableScalarUnit <- requireRight =<<
     emitNormalizationUnit manifestId variableScalarModel
   assertContains "variable direct Delta lowers through the scalar bridge"
-    "def FormuraeInternalDefinition1 u := withSymbols [i, j, k, l, m, n] (FormuraeInternalScalarDelta u)"
+    "withSymbols [i, j, k, l, m, n] (FormuraeInternalScalarDelta u)"
     variableScalarUnit
   assertContains "the exact 0-delta(d u) identity uses the same scalar bridge"
-    "def FormuraeInternalDefinition2 u := withSymbols [i, j, k, l, m, n] (FormuraeInternalScalarDelta u)"
+    "def FormuraeInternalDefinition2 u := withSymbols"
     variableScalarUnit
   assertContains "variable scalar bridge is the lb.orthogonal request"
     "def FormuraeInternalScalarDelta u := Formurae.lbOrthogonal u"
@@ -141,12 +140,118 @@ main = do
   operatorModel <- parseModel "pre-user-operator.fme" "pre-user-operator"
     userOperatorSource
   operatorUnit <- requireRight =<< emitNormalizationUnit manifestId operatorModel
-  assertContains "free covariant result index is canonicalized structurally"
-    "def FormuraeInternalDefinition1 X := Formurae.attachExplicitVariances [\"down\"]"
+  assertContains "free covariant result remains anonymous"
+    "withSymbols [i, j, k, l, m, n] (withSymbols [i, j, k]"
     operatorUnit
-  assertContains "free contravariant result index is canonicalized structurally"
-    "def FormuraeInternalDefinition2 A := Formurae.attachExplicitVariances [\"up\"]"
-    operatorUnit
+  assertAbsent operatorUnit "Formurae.attachExplicitVariances"
+
+  raisedResultModel <- parseModel "pre-raised-result.fme" "pre-raised-result"
+    raisedResultSource
+  raisedResultUnit <- requireRight =<<
+    emitNormalizationUnit manifestId raisedResultModel
+  assertContains "definition bodies are emitted without result-provenance analysis"
+    "withSymbols [i, j] (g~i~j . A_j)"
+    raisedResultUnit
+  assertAbsent raisedResultUnit "FormuraeInternalValidateDefinitionResult"
+
+  mixedResultModel <- parseModel "pre-mixed-result.fme" "pre-mixed-result"
+    mixedResultSource
+  mixedResultUnit <- requireRight =<<
+    emitNormalizationUnit manifestId mixedResultModel
+  assertContains "mixed index expressions remain ordinary Egison bodies"
+    "withSymbols [i, j, k] (g~i~j . A_j . B_k)"
+    mixedResultUnit
+
+  rawRaisedSource <- readFile
+    "tests/fixtures/pre_fec_user_result_variance_raw_error.fme"
+  rawRaisedModel <- parseModel
+    "tests/fixtures/pre_fec_user_result_variance_raw_error.fme"
+    "pre-raised-result-raw" rawRaisedSource
+  rawRaisedUnit <- requireRight =<<
+    emitNormalizationUnit manifestId rawRaisedModel
+  assertContains "multiline Egison bodies are emitted without a result contract"
+    "let raised := withSymbols [i, j] (g~i~j . A_j)"
+    rawRaisedUnit
+  assertAbsent rawRaisedUnit "FormuraeInternalValidateDefinitionResult"
+
+  rawPrimitiveSource <- readFile
+    "tests/fixtures/pre_fec_user_result_variance_raw_primitive.fme"
+  rawPrimitiveModel <- parseModel
+    "tests/fixtures/pre_fec_user_result_variance_raw_primitive.fme"
+    "pre-raised-result-raw-primitive" rawPrimitiveSource
+  rawPrimitiveUnit <- requireRight =<<
+    emitNormalizationUnit manifestId rawPrimitiveModel
+  assertContains "an Egison scalar reducer may consume a temporary index view"
+    "norm2 raised" rawPrimitiveUnit
+
+  rawNearMissSource <- readFile
+    "tests/fixtures/pre_fec_user_result_variance_raw_near_miss.fme"
+  rawNearMissModel <- parseModel
+    "tests/fixtures/pre_fec_user_result_variance_raw_near_miss.fme"
+    "pre-raised-result-raw-near-miss" rawNearMissSource
+  _ <- requireRight =<< emitNormalizationUnit manifestId rawNearMissModel
+
+  scalarReducerSource <- readFile
+    "tests/fixtures/pre_fec_user_result_scalar_reducer.fme"
+  scalarReducerModel <- parseModel
+    "tests/fixtures/pre_fec_user_result_scalar_reducer.fme"
+    "pre-result-scalar-reducer" scalarReducerSource
+  scalarReducerUnit <- requireRight =<<
+    emitNormalizationUnit manifestId scalarReducerModel
+  assertContains "a scalar reducer consumes its argument's upper index view"
+    "norm2 (withSymbols [i, j] (g~i~j . A_j))"
+    scalarReducerUnit
+  assertContains "vector divg consumes a temporary raised vector"
+    "FormuraeInternalDivg (withSymbols [i, j] (g~i~j . A_j))"
+    scalarReducerUnit
+
+  rawPreservedSource <- readFile
+    "tests/fixtures/pre_fec_user_result_variance_raw_preserved.fme"
+  rawPreservedModel <- parseModel
+    "tests/fixtures/pre_fec_user_result_variance_raw_preserved.fme"
+    "pre-result-variance-raw-preserved" rawPreservedSource
+  rawPreservedUnit <- requireRight =<<
+    emitNormalizationUnit manifestId rawPreservedModel
+  assertContains "multiline Egison may return an existing tensor unchanged"
+    "let result := X"
+    rawPreservedUnit
+  assertAbsent rawPreservedUnit "FormuraeInternalValidateDefinitionResult"
+
+  preservedResultSource <- readFile
+    "tests/fixtures/pre_fec_user_result_variance_preserved.fme"
+  preservedResultModel <- parseModel
+    "tests/fixtures/pre_fec_user_result_variance_preserved.fme"
+    "pre-result-variance-preserved" preservedResultSource
+  preservedResultUnit <- requireRight =<<
+    emitNormalizationUnit manifestId preservedResultModel
+  assertContains "a whole upper input may be returned unchanged"
+    "withSymbols [i, j, k, l, m, n] (X)"
+    preservedResultUnit
+  assertContains "whole mixed-variance scaling remains ordinary Egison"
+    "withSymbols [i, j, k, l, m, n] (2 * T)"
+    preservedResultUnit
+  assertContains "a declared scalar parameter may scale a tensor"
+    "withSymbols [i, j, k, l, m, n] (alpha * X)"
+    preservedResultUnit
+  assertContains "a declared scalar field may scale a tensor"
+    "withSymbols [i, j, k, l, m, n] (c * X)"
+    preservedResultUnit
+  assertContains "pointwise lap remains an ordinary function application"
+    "withSymbols [i, j, k, l, m, n] (FormuraeInternalLap X)"
+    preservedResultUnit
+  assertAbsent preservedResultUnit "FormuraeInternalDefinitionMetadataMatches"
+
+  higherOrderSqrtSource <- readFile
+    "tests/fixtures/pre_fec_definition_higher_order_sqrt.fme"
+  higherOrderSqrtModel <- parseModel
+    "tests/fixtures/pre_fec_definition_higher_order_sqrt.fme"
+    "pre-definition-higher-order-sqrt" higherOrderSqrtSource
+  higherOrderSqrtUnit <- requireRight =<<
+    emitNormalizationUnit manifestId higherOrderSqrtModel
+  assertContains "sqrt remains legal as a higher-order formal"
+    "FormuraeInternalDefinition1 sqrt value"
+    higherOrderSqrtUnit
+
   assertAbsent aliasUnit
     "def FormuraeInternalDefinition1 X := Formurae.attachExplicitVariances"
 
@@ -163,7 +268,7 @@ main = do
   shadowModel <- parseModel "pre-shadow.fme" "pre-shadow" shadowSource
   shadowed <- requireRight =<< emitNormalizationUnit manifestId shadowModel
   assertContains "earlier user definition shadows the standard prelude"
-    "def FormuraeInternalDefinition2 u := withSymbols [i, j, k, l, m, n] (FormuraeInternalDefinition1 u)"
+    "withSymbols [i, j, k, l, m, n] (FormuraeInternalDefinition1 u)"
     shadowed
   assertAbsent shadowed "withSymbols [i, j, k, l, m, n] (FormuraeInternalLap u)"
 
@@ -173,7 +278,7 @@ main = do
     "def (.) := FormuraeInternalDefinition1"
     dotShadowed
   assertContains "later definition resolves user dot without a hidden argument"
-    "def FormuraeInternalDefinition2 a b := withSymbols [i, j, k, l, m, n] (FormuraeInternalDefinition1 a b)"
+    "withSymbols [i, j, k, l, m, n] (FormuraeInternalDefinition1 a b)"
     dotShadowed
 
   conditionalSource <- readFile "tests/fixtures/pre_fec_conditional.fme"
@@ -192,13 +297,16 @@ main = do
   primitiveShadowed <- requireRight =<< emitNormalizationUnit manifestId
     primitiveShadowModel
   assertContains "a removed surface name resolves an ordinary user definition"
-    "def FormuraeInternalDefinition2 x := withSymbols [i, j, k, l, m, n] (FormuraeInternalDefinition1(x))"
+    "withSymbols [i, j, k, l, m, n] (FormuraeInternalDefinition1(x))"
     primitiveShadowed
   assertContains "a parameter may reuse a removed surface name"
-    "def FormuraeInternalDefinition3 materialize x := withSymbols [i, j, k, l, m, n] (materialize(x))"
+    "withSymbols [i, j, k, l, m, n] (materialize(x))"
     primitiveShadowed
   assertContains "the ordinary user definition remains a higher-order value"
     "def FormuraeInternalValue1 := applyShadow useMaterialize u"
+    primitiveShadowed
+  assertContains "a higher-order formal takes precedence over a prior definition"
+    "withSymbols [i, j, k, l, m, n] (materialize(x))"
     primitiveShadowed
   assertAbsent primitiveShadowed "FormuraeInternalMaterialized x"
 
@@ -206,7 +314,7 @@ main = do
     "pre-definition-parameters" parameterSource
   parameterUnit <- requireRight =<< emitNormalizationUnit manifestId parameterModel
   assertContains "rank-polymorphic marker emits one whole-value parameter"
-    "def FormuraeInternalDefinition1 X := withSymbols [i, j, k, l, m, n] (X)"
+    "def FormuraeInternalDefinition1 X := withSymbols"
     parameterUnit
   assertContains "fixed indexed parameter also binds the whole value"
     "def FormuraeInternalDefinition3 X :="
@@ -214,9 +322,13 @@ main = do
   assertContains "fixed indexed parameter checks whole-value metadata"
     "indexed parameter X_i metadata mismatch in fixedIdentity"
     parameterUnit
-  assertContains "body append-index syntax is preserved"
-    "def FormuraeInternalDefinition2 X := Formurae.attachExplicitVariances [\"down\"] (withSymbols [i, j, k, l, m, n] (X..._i))"
+  assertContains "metadata-preserving tensor scaling remains a user function"
+    "withSymbols [i, j, k, l, m, n] (2 * X)"
     parameterUnit
+  assertContains "body append-index syntax is preserved"
+    "withSymbols [i, j, k, l, m, n] (X..._i)"
+    parameterUnit
+  assertAbsent parameterUnit "Formurae.attachExplicitVariances"
   assertAbsent parameterUnit "FormuraeInternalDefinition2 X..."
   assertAbsent parameterUnit "FormuraeInternalDefinition3 X_i"
 
@@ -231,9 +343,13 @@ main = do
     "FormuraeInternalOrderedDerivative [| 1, 1, 2 |] u" quotedUnit
   assertContains "generic quote remains raw Egison"
     "`(u * u)" quotedUnit
-  assertContains "literal result suffix supplies explicit variance metadata"
-    "def FormuraeInternalDefinition5 u := Formurae.attachExplicitVariances [\"up\"]"
-    quotedUnit
+
+  upperLiteralModel <- parseModel "pre-upper-literal-result.fme"
+    "pre-upper-literal-result" upperLiteralResultSource
+  upperLiteralUnit <- requireRight =<<
+    emitNormalizationUnit manifestId upperLiteralModel
+  assertContains "definition result expressions are left to Egison"
+    "[| u, u |]~i" upperLiteralUnit
 
   conservativeSource <- readFile
     "tests/fixtures/pre_fec_conservative_local.fme"
@@ -365,7 +481,6 @@ decAliasSource = unlines
   , "axes x, y"
   , "field A : 1-form"
   , "def ext X = d X"
-  , "def musical X = flat X + sharp X"
   , "step:"
   , "  A' = A"
   ]
@@ -499,9 +614,33 @@ userOperatorSource = unlines
   , "field A_i"
   , "field Y_i"
   , "def curl X = withSymbols [i, j, k] (epsilon_i~j~k . ∂_j X_k)"
-  , "def raise A = withSymbols [i, j] (g~i~j . A_j)"
   , "step:"
   , "  Y' = curl X"
+  ]
+
+raisedResultSource :: String
+raisedResultSource = unlines
+  [ "mode collocated"
+  , "dimension 2"
+  , "axes x, y"
+  , "metric g"
+  , "field A_i"
+  , "def raise A = withSymbols [i, j] (g~i~j . A_j)"
+  , "step:"
+  , "  A' = A"
+  ]
+
+mixedResultSource :: String
+mixedResultSource = unlines
+  [ "mode collocated"
+  , "dimension 2"
+  , "axes x, y"
+  , "metric g"
+  , "field A_i"
+  , "field B_i"
+  , "def mixed A B = withSymbols [i, j, k] (g~i~j . A_j . B_k)"
+  , "step:"
+  , "  A' = A"
   ]
 
 shadowSource :: String
@@ -554,8 +693,9 @@ parameterSource = unlines
   , "def rankIdentity X... = X"
   , "def appendIndex X... = X..._i"
   , "def fixedIdentity X_i = X"
+  , "def scale X... = 2 * X"
   , "step:"
-  , "  X' = fixedIdentity (rankIdentity X)"
+  , "  X' = scale (fixedIdentity (rankIdentity X))"
   ]
 
 quotedDerivativeSource :: String
@@ -568,9 +708,19 @@ quotedDerivativeSource = unlines
   , "def quotedSingle u = `(d_r (u * u))"
   , "def quotedMulti u = `(d_s (`(d_r (`(d_r u)))))"
   , "def genericQuote u = `(u * u)"
-  , "def literal u = [| u, u |]~i"
   , "step:"
   , "  u' = ordinary u + quotedSingle u + quotedMulti u + genericQuote u"
+  ]
+
+upperLiteralResultSource :: String
+upperLiteralResultSource = unlines
+  [ "mode collocated"
+  , "dimension 2"
+  , "axes x, y"
+  , "field u : scalar"
+  , "def literal u = [| u, u |]~i"
+  , "step:"
+  , "  u' = u"
   ]
 
 invalidQuotedAxisSource :: String

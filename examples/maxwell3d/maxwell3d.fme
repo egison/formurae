@@ -24,5 +24,5 @@ init:
   B_i = [| 0, 0, gauss1(i*dx) |]_i
 
 step:
-  E' = E + dt * curl B
-  B' = B - dt * curl E'
+  E'_i = E_i + dt * (curl B)..._i
+  B'_i = B_i - dt * (curl E')..._i

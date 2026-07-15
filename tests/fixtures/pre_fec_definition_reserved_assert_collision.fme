@@ -1,0 +1,7 @@
+mode collocated
+dimension 1
+axes x
+field u : scalar
+def assert value = value
+step:
+  u' = u

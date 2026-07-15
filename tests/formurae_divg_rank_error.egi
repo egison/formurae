@@ -1,0 +1,15 @@
+declare symbol x, y, z
+
+def coordinates : Vector MathValue := [|x, y, z|]
+def dimension : Integer := 3
+def feGeometryScales : Vector MathValue := [|1, 1, 1|]
+def feGeometryId : Integer := 1
+def epsilon : Tensor Integer := ε dimension
+def fePrimitiveManifestId : String :=
+  Formurae.Primitives.primitiveManifestV1Id
+
+def T := generateTensor (\[i, j] -> function (x, y, z)) [3, 3]
+
+assertEqual "rank-two input is outside vector divergence's domain"
+  (Formurae.divg T)
+  0

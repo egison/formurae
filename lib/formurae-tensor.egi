@@ -24,7 +24,7 @@ def FE.symbolicBinary
   functionSymbol name [lhs, rhs]
 
 def norm2 {Ring a} (a: Tensor a) : a :=
-  withSymbols [i] (a~i . a_i)
+  foldl (\acc component -> acc + component ^ 2) 0 (tensorToList a)
 
 -- Canonical full-tensor view of a differential form.  Degree zero generates a
 -- rank-zero tensor, whose sole component Egison returns directly as a scalar.

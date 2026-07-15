@@ -21,25 +21,3 @@ assertEqual "orthogonal Hodge uses volume over source scale squares"
 assertEqual "orthogonal Hodge square keeps the orientation sign"
   (FE.formComponents (Formurae.hodge (Formurae.hodge formDx)))
   [-1, 0]
-
-assertEqual "orthogonal flat is one metric contraction"
-  (Formurae.flat [|x, y|])
-  [|4 * x, 9 * y|]
-
-assertEqual "flat result carries covector metadata"
-  (tensorVariances (Formurae.flat [|x, y|]),
-   dfOrder (Formurae.flat [|x, y|]))
-  (["down"], 0)
-
-assertEqual "orthogonal sharp is one inverse-metric contraction"
-  (Formurae.sharp [|x, y|])
-  [|x / 4, y / 9|]
-
-assertEqual "sharp result carries contravariant vector metadata"
-  (tensorVariances (Formurae.sharp [|x, y|]),
-   dfOrder (Formurae.sharp [|x, y|]))
-  (["up"], 0)
-
-assertEqual "orthogonal musical maps are inverses"
-  (Formurae.sharp (Formurae.flat [|x, y|]))
-  [|x, y|]

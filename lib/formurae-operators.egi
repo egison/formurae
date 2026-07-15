@@ -236,8 +236,12 @@ def Formurae.dGrad
     (!Formurae.diff X)
 
 def Formurae.divg
-      (X: Tensor MathValue) : MathValue :=
-  trace (!Formurae.diff X)
+      (X: Vector MathValue) : MathValue :=
+  match assert "divg requires coordinates and a vector of the same dimension"
+               (tensorShape coordinates = [dimension]
+                && tensorShape X = [dimension])
+        as bool with
+    | #True -> trace (!Formurae.diff X)
 
 def Formurae.curl
       (X: Vector MathValue) : Vector MathValue :=
@@ -266,21 +270,6 @@ def Formurae.metric : Tensor MathValue :=
 def Formurae.inverseMetric : Tensor MathValue :=
   FE.inverseDiagonalMetricTensor
     dimension Formurae.geometryScale
-
--- Orthogonal musical maps remain ordinary tensor contractions.  No
--- placement callback or component enumeration is part of the public
--- operator definition.
-def Formurae.flat
-      (X: Vector MathValue) : Vector MathValue :=
-  Formurae.attachExplicitVariances ["down"]
-    (withSymbols [i, j]
-      ((Formurae.metric)_i_j . X~j))
-
-def Formurae.sharp
-      (A: Vector MathValue) : Vector MathValue :=
-  Formurae.attachExplicitVariances ["up"]
-    (withSymbols [i, j]
-      ((Formurae.inverseMetric)~i~j . A_j))
 
 def Formurae.d
       (A: Tensor MathValue) : Tensor MathValue :=

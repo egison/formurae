@@ -1,0 +1,13 @@
+mode collocated
+dimension 2
+axes x, y
+
+field A_i
+field u : scalar
+
+def hiddenRaise A =
+  let raised := flipIndices A
+   in norm2 raised
+
+step:
+  u' = hiddenRaise A

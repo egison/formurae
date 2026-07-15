@@ -22,7 +22,13 @@ import Data.List (find, intercalate, nub, sort)
 import qualified Formurae.FEIR.PrimitiveBindings as Primitives
 import Formurae.FEIR.PrimitiveManifest
 import Formurae.FEIR.Syntax (VersionedOpId(..))
-import Formurae.Common (isReservedNormalizationCapability)
+import Formurae.Common
+  ( egisonIdentifiers
+  , egisonIndexedIdentifiers
+  , egisonOperators
+  , isReservedNormalizationCapability
+  , maskEgisonNonCode
+  )
 import Formurae.Index
   ( derivativeOpParts
   , ixSuffix
@@ -276,15 +282,15 @@ analyzeRawEgisonDefinition environment source = do
 -- these names as ordinary continuum-pure data.
 rejectReservedDefinitionConstruction
     :: EffectEnvironment -> String -> Either EffectError ()
-rejectReservedDefinitionConstruction environment source =
-  case fst <$> find isReservedConstructor identifiers of
+rejectReservedDefinitionConstruction _environment source =
+  case find isReservedConstructor identifiers of
     Just name -> effectFailure (InvalidEffectExpression
       ("user definition cannot access reserved normalization capability "
        ++ name))
     Nothing -> pure ()
   where
-    identifiers = rawEgisonIdentifiers environment source
-    isReservedConstructor (name, _) =
+    identifiers = egisonIdentifiers (maskEgisonNonCode source)
+    isReservedConstructor name =
       name /= "FormuraeInternalKroneckerDelta"
       && isReservedNormalizationCapability name
 
@@ -296,27 +302,12 @@ rejectReservedDefinitionConstruction environment source =
 rawEgisonIdentifiers :: EffectEnvironment -> String -> [(String, [IxPart])]
 rawEgisonIdentifiers environment source = nub (identifiers ++ dotIdentifier)
   where
-    tokens = tokenize (maskStrings source)
-    identifiers =
-      [parseIndexedIdent name | TId name _ <- tokens]
+    masked = maskEgisonNonCode source
+    identifiers = map parseIndexedIdent (egisonIndexedIdentifiers masked)
     dotIdentifier
       | "." `elem` environmentAllDefinitions environment
-      , any isDot tokens = [(".", [])]
+      , "." `elem` egisonOperators masked = [(".", [])]
       | otherwise = []
-    isDot (TC '.') = True
-    isDot _ = False
-
-maskStrings :: String -> String
-maskStrings = normal
-  where
-    normal [] = []
-    normal ('"' : rest) = ' ' : quoted rest
-    normal (char : rest) = char : normal rest
-
-    quoted [] = []
-    quoted ('\\' : _ : rest) = ' ' : ' ' : quoted rest
-    quoted ('"' : rest) = ' ' : normal rest
-    quoted (_ : rest) = ' ' : quoted rest
 
 -- Raw Egison can spell a bridge call with its qualified library name.  The
 -- shallow scanner sees the final component after `Formurae.`, so include the

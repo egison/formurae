@@ -62,6 +62,7 @@ done
 
 "$ROOT/tools/run_formurae_normalization.sh" "$EGISON_DIR" -t \
   "$ROOT/tests/formurae_operators_lib.egi" >/dev/null
+sh tests/formurae_operator_errors.sh
 
 "$ROOT/tools/run_formurae_normalization.sh" "$EGISON_DIR" -t \
   "$ROOT/tests/formurae_form_operators_lib.egi" >/dev/null

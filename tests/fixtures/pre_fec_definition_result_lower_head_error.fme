@@ -1,0 +1,10 @@
+mode collocated
+dimension 2
+axes x, y
+
+field A_i
+
+def lower_i A = A
+
+step:
+  A' = A

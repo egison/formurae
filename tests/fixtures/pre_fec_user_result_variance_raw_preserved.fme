@@ -1,0 +1,13 @@
+mode collocated
+dimension 2
+axes x, y
+
+field X~i
+field Y~i
+
+def rawIdentity X =
+  let result := X
+   in result
+
+step:
+  Y' = rawIdentity X

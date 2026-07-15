@@ -1,0 +1,14 @@
+mode collocated
+dimension 2
+axes x, y
+metric g
+
+field A_i
+field X~i
+
+def raiseRaw A =
+  let raised := withSymbols [i, j] (g~i~j . A_j)
+   in raised
+
+step:
+  X' = raiseRaw A
