@@ -36,7 +36,7 @@ def inverseMetric~i~j := feGeometryInverseMetric~i~j
 def volume := feGeometryVolume
 def epsilon : Tensor Integer := ε dimension
 def FormuraeInternalKroneckerDelta : Tensor Integer := FE.kroneckerDelta dimension
-def FormuraeInternalDiff value := Formurae.diff value
+def FormuraeInternalDiff value := Formurae.gridDiff value
 
 def E := (generateTensor (\[i] -> function (x, y, z)) [3])_formuraeTensorIndex1
 def E' := (generateTensor (\[i] -> function (x, y, z)) [3])_formuraeTensorIndex1

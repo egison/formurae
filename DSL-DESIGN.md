@@ -121,6 +121,24 @@ operand純粋性(`GridDerivativeOfDiscrete`、radius≥2も同様に強化)+coor
 `∂/∂`に解析バリア(`AnalyticDerivativeOfDiscrete`)を割り当てる。
 lib/FEIR encoderのradius>1検査はradius≥1へ緩和。
 
+**v2.7(2026-07-16): 記号添字∂の離散化 — 「添字つき∂は常に離散」の完成** —
+v2.6の残課題だった記号添字`∂_i`(解析テンソル微分)も離散へ統一し、
+「解析は`∂/∂`(とそれを使うライブラリ演算子)だけ、添字つき∂は添字の種類によらず常に離散」
+という規則を完成させた。記号添字`∂_i e`は**軸ごとのplacement誘導radius-1要求
+(`derivative.grid-whole@1`)を並べたテンソル**に下り、導入した添字の自動縮約・自由添字の
+扱いは従来機構をそのまま流用する(emit形`contractWith (+) (FormuraeInternalDiff e)..._i`は不変で、
+ブリッジ本体だけ`Formurae.diff`(解析)→`Formurae.gridDiff`に交換)。`Formurae.gridDiff`は
+`∂/∂`と同一のテンソル配管(`tensorMap2`+`flipIndices`)でカーネルだけ
+`gridWholeDerivative`に差し替えた定義。placement誘導が本質で、centered限定にすると
+elastic3dの半セルYee差分(∂_y σ^xy: [half,half,int]→[half,int,int])が書けない。
+**検証: elastic3d(33微分葉が33 grid-wholeノードに1:1置換)とmaxwell3d(ユーザ定義curl、
+12ノード)の.fmr/Cがbyte-identical+driver緑**。ライブラリ(grad/divg/curl/d/δ/Δ)は
+`Formurae.diff`(`∂/∂ value coordinates`)を使い続けるため解析のままで、d²=0ゲート・
+profile駆動の精度切替(highorder4)は無傷。effectは記号レイヤも格子要求
+(grid-whole効果+operand純粋性)になり、入れ子の添字∂は「離散の離散」として
+エラー(`local`で実体化するかΔ/hessianを使う)。残るStage 2候補=具体軸∂のplacement誘導化と
+クォートの順序チェーン専用化。
+
 **v1.36(2026-07-11): runtime tensor lowering と Phase 7 完了** —
 標準6演算子だけでなく、一般の indexed equation、implicit vector equation、rank-1/rank-2
 indexed `let`、indexed CAS initializer を、成分別 Haskell 式へ展開せず whole runtime tensor として

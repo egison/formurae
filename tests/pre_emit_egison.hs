@@ -27,8 +27,10 @@ main = do
   assertContains "prior higher-order user definition receives the ambient operator"
     "FormuraeInternalDefinition1 FormuraeInternalLap u"
     first
-  assertContains "indexed analytic derivative contracts repeated indices"
+  assertContains "indexed derivative contracts repeated indices"
     "contractWith (+) (FormuraeInternalDiff X~i)..._i" first
+  assertContains "indexed derivative bridges to per-axis grid requests"
+    "def FormuraeInternalDiff value := Formurae.gridDiff value" first
   assertContains "coordinate derivative is an explicit radius-one request"
     "FormuraeInternalCoordinateWideDerivative 1 2 1 u" first
   assertContains "surface ∂/∂ is the analytic coordinate derivative"

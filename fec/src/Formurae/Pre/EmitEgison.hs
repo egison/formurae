@@ -1041,7 +1041,7 @@ renderUnit model registry geometryDeclarations definitions dynamics program = un
          ]
     operatorDeclarations = concat
       [ whenUsed "FormuraeInternalDiff"
-          ["def FormuraeInternalDiff value := Formurae.diff value"]
+          ["def FormuraeInternalDiff value := Formurae.gridDiff value"]
       , whenUsed "FormuraeInternalGrad"
           ["def FormuraeInternalGrad u := Formurae.grad u"]
       , whenUsed "FormuraeInternalDGrad"

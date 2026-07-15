@@ -226,6 +226,17 @@ def Formurae.diff
       (value: Tensor MathValue) : Tensor MathValue :=
   ∂/∂ value coordinates
 
+-- Discrete counterpart of Formurae.diff for the surface indexed ∂: one
+-- placement-directed radius-one request per axis.  The derivative axis is
+-- arranged exactly as in ∂/∂ (tensorMap2 against a flipped axis vector),
+-- so index appending and introduced-index contraction behave identically.
+def Formurae.gridDiff
+      (value: Tensor MathValue) : Tensor MathValue :=
+  tensorMap2
+    (\component axisId -> Formurae.gridWholeDerivative axisId component)
+    value
+    (flipIndices (generateTensor (\[axisId] -> axisId) [dimension]))
+
 def Formurae.grad
       (u: MathValue) : Tensor MathValue :=
   Formurae.attachExplicitVariances ["down"] (Formurae.diff u)

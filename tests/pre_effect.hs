@@ -363,6 +363,12 @@ main = do
     (expressionEffect manifest baseModel (EffectSummary [])
       "analytic coordinate derivative"
       (parseTensorExpr "FormuraeInternalAnalyticDerivative (u * u / 2) x"))
+  assertEqual "symbolic indexed derivative is a per-axis grid request"
+    (Right (DiscreteFunction
+      [VersionedOpId "derivative.grid-whole@1"]))
+    (expressionEffect manifest baseModel (EffectSummary [])
+      "indexed derivative"
+      (parseTensorExpr "d_i (u * u)"))
   assertEqual "grid-whole derivative is manifest-backed"
     (Right (DiscreteFunction
       [VersionedOpId "derivative.grid-whole@1"]))

@@ -407,8 +407,9 @@ analyzeExpression environment expression
       mapM_ (rejectHigherOrder environment "disjoint product") parts
       mergeMany <$> mapM (analyzeExpression environment) parts
     -- Layers apply innermost-last, matching the emit-side lowering: a
-    -- concrete-axis subscript is an explicit-radius grid request; a
-    -- symbolic-index subscript is the analytic tensor derivative.
+    -- concrete-axis subscript is an explicit-radius centered request; a
+    -- symbolic-index subscript enumerates axes into placement-directed
+    -- radius-one requests.  Both are grid requests over pure operands.
     TEDerivative parts body -> do
       bodyEffect <- analyzeExpression environment body
       foldM applyDerivativeLayer bodyEffect (reverse parts)
@@ -440,17 +441,14 @@ analyzeExpression environment expression
       mergeMany <$> mapM (analyzeExpression environment) [lhs, rhs]
     TEGroup body -> analyzeExpression environment body
   where
-    requireAnalytic PureFunction = pure PureFunction
-    requireAnalytic (DiscreteFunction operations) =
-      effectFailure (AnalyticDerivativeOfDiscrete operations)
-    applyDerivativeLayer effect part
-      | ixName part `elem` modelAxisNames =
-          case effect of
-            PureFunction -> primitiveEffect environment
-              Primitives.derivativeCoordinateWideV1OpId
-            DiscreteFunction operations ->
-              effectFailure (GridDerivativeOfDiscrete operations)
-      | otherwise = requireAnalytic effect
+    applyDerivativeLayer effect part =
+      case effect of
+        PureFunction -> primitiveEffect environment
+          (if ixName part `elem` modelAxisNames
+             then Primitives.derivativeCoordinateWideV1OpId
+             else Primitives.derivativeGridWholeV1OpId)
+        DiscreteFunction operations ->
+          effectFailure (GridDerivativeOfDiscrete operations)
     modelAxisNames =
       mAxes (environmentModel environment)
       ++ internalCoordNames (environmentModel environment)
