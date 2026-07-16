@@ -592,6 +592,50 @@ if grep -E 'codiff\.metric|opaque-discrete' "$WORK/metric-forms.fmr" >/dev/null;
   exit 1
 fi
 
+# The ambient volume/metric bindings are user-facing: under a quoted
+# embedding they must be unquoted before user step expressions reach the
+# FEIR scalar encoder.  The hand-written conservative torus Laplacian reads
+# `volume` at both the flux faces and the cell update.
+cabal run -v0 -j1 pre-fec -- \
+  "$ROOT/tests/fixtures/pre_fec_embedded_volume.fme" \
+  > "$WORK/embedded-volume.egi"
+grep -F 'def volume := FEIR.unquoteAll feGeometryVolume' \
+  "$WORK/embedded-volume.egi" >/dev/null
+run_machine "$WORK/embedded-volume.egi" "$WORK/embedded-volume.feir"
+if grep -F '(quote ' "$WORK/embedded-volume.feir" >/dev/null; then
+  printf 'embedded volume FEIR retained a quote node\n' >&2
+  exit 1
+fi
+cabal run -v0 -j1 post-fec -- "$WORK/embedded-volume.feir" \
+  > "$WORK/embedded-volume.fmr"
+grep -F 'q_down1[i,j,k] = 2 * (u[i+1,j,k] + (-1) * u[i,j,k]) / dtheta + (u[i+1,j,k] + (-1) * u[i,j,k]) / dtheta * cos(dtheta * ((1 / 2) + i))' \
+  "$WORK/embedded-volume.fmr" >/dev/null
+grep -F 'q_down2[i,j,k] = (u[i,j+1,k] + (-1) * u[i,j,k]) / dphi / (2 + cos(dtheta * i))' \
+  "$WORK/embedded-volume.fmr" >/dev/null
+grep -F "u'[i,j,k] = (2 * u[i,j,k] + dt * (q_down1[i,j,k] + (-1) * q_down1[i-1,j,k]) / dtheta + dt * (q_down2[i,j,k] + (-1) * q_down2[i,j-1,k]) / dphi + dt * (q_down3[i,j,k] + (-1) * q_down3[i,j,k-1]) / dz + u[i,j,k] * cos(dtheta * i)) / (2 + cos(dtheta * i))" \
+  "$WORK/embedded-volume.fmr" >/dev/null
+compile_generated embedded-volume metric_torus "$WORK/embedded-volume.fmr"
+
+cabal run -v0 -j1 pre-fec -- \
+  "$ROOT/tests/fixtures/pre_fec_embedded_ambient_metric.fme" \
+  > "$WORK/embedded-ambient-metric.egi"
+grep -F 'def metric_i_j := FEIR.unquoteAll feGeometryMetric_i_j' \
+  "$WORK/embedded-ambient-metric.egi" >/dev/null
+grep -F 'def inverseMetric~i~j := FEIR.unquoteAll feGeometryInverseMetric~i~j' \
+  "$WORK/embedded-ambient-metric.egi" >/dev/null
+run_machine "$WORK/embedded-ambient-metric.egi" \
+  "$WORK/embedded-ambient-metric.feir"
+if grep -F '(quote ' "$WORK/embedded-ambient-metric.feir" >/dev/null; then
+  printf 'embedded ambient metric FEIR retained a quote node\n' >&2
+  exit 1
+fi
+cabal run -v0 -j1 post-fec -- "$WORK/embedded-ambient-metric.feir" \
+  > "$WORK/embedded-ambient-metric.fmr"
+grep -F "B_up2'[i,j,k] = A_down2[i,j,k] / (4 + 4 * cos(dtheta * i) + cos(dtheta * i)**2)" \
+  "$WORK/embedded-ambient-metric.fmr" >/dev/null
+grep -F "A_down2'[i,j,k] = 4 * B_up2[i,j,k] + 4 * B_up2[i,j,k] * cos(dtheta * i) + B_up2[i,j,k] * cos(dtheta * i)**2" \
+  "$WORK/embedded-ambient-metric.fmr" >/dev/null
+
 # The cutover surface keeps an ordered nested quoted derivative, explicit
 # resampling, and typed local storage.  The removed conservative-divergence
 # and expression-materialization bridges are not involved.

@@ -1,0 +1,24 @@
+-- Conservative torus Laplacian written by hand against the ambient
+-- geometry: the step references `volume` directly under a quoted
+-- embedding, so the emitted ambient binding must be quote-free before
+-- the FEIR scalar encoder sees the step expressions.
+
+mode collocated
+dimension 3
+axes θ, φ, z
+
+param dt = 0.0005
+
+embedding [ `(2 + cos θ) * cos φ, `(2 + cos θ) * sin φ, sin θ, z ]
+
+field u : scalar @ primal
+
+init:
+  u := exp (cos θ + cos φ - 2)
+
+step:
+  local q_i @ primal =
+    [| volume * ∂_θ u,
+       (1 / volume) * ∂_φ u,
+       volume * ∂_z u |]_i
+  u' = u + dt * (divg q) / volume

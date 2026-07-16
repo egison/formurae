@@ -14,7 +14,11 @@ main = do
   renamed <- emit "ambient-coordinate-string.fme" renamedCoordinateSource
   publicAliases <- emit "ambient-metric-public.fme" publicAliasSource
 
-  mapM_ assertPublicEnvironment [euclidean, scaled, embedded, publicAliases]
+  -- Euclidean ambient values are quote-free by construction; variable
+  -- geometry (scale/embedding) must strip rule-suppression quotes before
+  -- user step expressions read these bindings.
+  mapM_ (assertPublicEnvironment "") [euclidean, publicAliases]
+  mapM_ (assertPublicEnvironment "FEIR.unquoteAll ") [scaled, embedded]
   mapM_ assertNamedMetric [euclidean, scaled, embedded]
   assertContains "indexed equations can use the reserved covariant metric"
     "metric_i_j . X~j" publicAliases
@@ -52,18 +56,19 @@ emit path source = do
   model <- parseModel path "ambient-metric" source
   requireRight =<< emitNormalizationUnit manifestId model
 
-assertPublicEnvironment :: String -> IO ()
-assertPublicEnvironment unit = do
+assertPublicEnvironment :: String -> String -> IO ()
+assertPublicEnvironment unquote unit = do
   assertContains "dimension is a public ambient value"
     "def dimension : Integer := feDimension" unit
   assertContains "coordinates are a public ambient value"
     "def coordinates : Vector MathValue := feCoordinates" unit
   assertContains "the public metric is covariant"
-    "def metric_i_j := feGeometryMetric_i_j" unit
+    ("def metric_i_j := " ++ unquote ++ "feGeometryMetric_i_j") unit
   assertContains "the public inverse metric is contravariant"
-    "def inverseMetric~i~j := feGeometryInverseMetric~i~j" unit
+    ("def inverseMetric~i~j := " ++ unquote ++ "feGeometryInverseMetric~i~j")
+    unit
   assertContains "volume is a public ambient value"
-    "def volume := feGeometryVolume" unit
+    ("def volume := " ++ unquote ++ "feGeometryVolume") unit
   assertContains "epsilon is derived from the public dimension"
     "def epsilon : Tensor Integer := ε dimension" unit
 

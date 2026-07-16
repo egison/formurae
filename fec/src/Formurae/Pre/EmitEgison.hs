@@ -1039,9 +1039,10 @@ renderUnit model registry geometryDeclarations definitions dynamics program = un
       , "def feGeometryId : Integer := 1"
       , "def fePrimitiveManifestId : String := "
           ++ show (primitiveManifestText (FEIR.feProgramPrimitiveManifestId program))
-      , "def metric_i_j := feGeometryMetric_i_j"
-      , "def inverseMetric~i~j := feGeometryInverseMetric~i~j"
-      , "def volume := feGeometryVolume"
+      , "def metric_i_j := " ++ ambientGeometryValue "feGeometryMetric_i_j"
+      , "def inverseMetric~i~j := "
+          ++ ambientGeometryValue "feGeometryInverseMetric~i~j"
+      , "def volume := " ++ ambientGeometryValue "feGeometryVolume"
       , "def epsilon : Tensor Integer := ε dimension"
       , "def FormuraeInternalKroneckerDelta : Tensor Integer := FE.kroneckerDelta dimension"
       ]
@@ -1127,6 +1128,13 @@ renderUnit model registry geometryDeclarations definitions dynamics program = un
           ["FEIR.unquoteAll (feGeometryScale " ++ show axis ++ ")"
           | axis <- [1 .. Surface.mDim model]]
       | otherwise = replicate (Surface.mDim model) "1"
+    -- User step expressions read these ambient values directly, so the
+    -- rule-suppression quotes of a quoted embedding/scale must be stripped
+    -- here, as for feGeometryScales above; only the GeometryNF dynamics keep
+    -- quotes until their own FEIR encode boundary.
+    ambientGeometryValue value
+      | variableGeometry = "FEIR.unquoteAll " ++ value
+      | otherwise = value
     localDeclarations = concatMap localFieldDeclarations
       [ Surface.localDeclAsField local
       | step <- Surface.mSteps model

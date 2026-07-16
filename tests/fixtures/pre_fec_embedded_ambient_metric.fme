@@ -1,0 +1,24 @@
+-- Ambient metric components in user step expressions under a quoted
+-- embedding: the named-metric musical contractions read the public
+-- metric_i_j / inverseMetric~i~j bindings, which must be quote-free.
+
+mode collocated
+dimension 3
+axes θ, φ, z
+
+metric g
+
+param dt = 0.0005
+
+embedding [ `(2 + cos θ) * cos φ, `(2 + cos θ) * sin φ, sin θ, z ]
+
+field A_j
+field B~i
+
+init:
+  A_j = [| 0, 0, 0 |]_j
+  B~i = [| 0, 0, 0 |]~i
+
+step:
+  B'~i = withSymbols [j] (g~i~j . A_j)
+  A'_j = withSymbols [k] (g_j_k . B~k)
