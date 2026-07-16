@@ -15,7 +15,7 @@ param dt = 0.00002
 
 metric scale [ 1 / (1 + y), 1 / (1 + y), 1 ]
 
-field u : scalar
+field u : scalar @ primal
 
 init:
   u := exp (cos x - 1) * exp (0 - 4 * (y - 1 / 2) ^ 2)

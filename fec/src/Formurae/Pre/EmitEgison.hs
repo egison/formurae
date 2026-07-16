@@ -960,6 +960,8 @@ continuumOperators =
   , ("dExterior", "FormuraeInternalDExterior")
   , ("dHodge", "FormuraeInternalDHodge")
   , ("dFlux", "FormuraeInternalDFlux")
+  , ("dFluxWeights", "FormuraeInternalDFluxWeights")
+  , ("dFluxScale", "FormuraeInternalDFluxScale")
   , ("dFluxDiv", "FormuraeInternalDFluxDiv")
   ]
 
@@ -1099,6 +1101,12 @@ renderUnit model registry geometryDeclarations definitions dynamics program = un
           ["def FormuraeInternalDFlux A := Formurae.dFluxWith "
              ++ geometryVolumeValue ++ " " ++ geometryInverseMetricValue
              ++ " A"]
+      , whenUsed "FormuraeInternalDFluxWeights"
+          ["def FormuraeInternalDFluxWeights A := Formurae.dFluxWeightsWith "
+             ++ geometryVolumeValue ++ " " ++ geometryInverseMetricValue
+             ++ " A"]
+      , whenUsed "FormuraeInternalDFluxScale"
+          ["def FormuraeInternalDFluxScale weights A := Formurae.dFluxScale weights A"]
       , whenUsed "FormuraeInternalDFluxDiv"
           ["def FormuraeInternalDFluxDiv w := Formurae.dFluxDivWith "
              ++ geometryVolumeValue ++ " " ++ geometryMetricValue ++ " w"]
@@ -1221,14 +1229,22 @@ renderUnit model registry geometryDeclarations definitions dynamics program = un
           fieldVersionDeclarations model field "" "Current" ++ [""]
     -- The reader bindings of a deferred local take their shape and metadata
     -- from the writer's value; the components stay opaque grid functions
-    -- exactly as in the declared paths.
+    -- exactly as in the declared paths.  The component constructor is
+    -- emitted per local: each `function (...)` occurrence mints its own
+    -- opaque identities, and sharing one occurrence between two locals
+    -- would make their registry entries ambiguous.
     deferredLocalDeclarations field valueRef =
-      [ "def " ++ fieldRawName field "Current"
-          ++ " := FormuraeInternalDeferredComponents " ++ valueRef
+      [ "def " ++ deferredRawName field
+          ++ " := if tensorShape " ++ valueRef ++ " = []"
+          ++ " then " ++ deferredOpaqueFunction
+          ++ " else generateTensor (\\_ -> " ++ deferredOpaqueFunction
+          ++ ") (tensorShape " ++ valueRef ++ ")"
       , "def " ++ Surface.fdName field
           ++ " := FormuraeInternalDeferredView " ++ valueRef ++ " "
-          ++ fieldRawName field "Current"
+          ++ deferredRawName field
       ]
+    deferredOpaqueFunction =
+      "function (" ++ intercalate ", " (internalCoordNames model) ++ ")"
     -- One entry per deferred local: (field id, (name, policy tag, origin
     -- id, writer value reference)).
     deferredSplices =
@@ -1279,16 +1295,10 @@ renderUnit model registry geometryDeclarations definitions dynamics program = un
           , "    else FEIR.list [FEIR.atom \"tensor-value\", FEIR.encodeTensorWithMetadata feParameters feCoordinatesRegistry feFields feIntrinsics feAnalytics (Formurae.logicalTensorVariances value) (dfOrder value) value]"
           , ""
           ]
-    -- The reader constructors precede the interleaved reader definitions;
-    -- the components stay opaque grid functions of the model coordinates,
-    -- exactly as in the declared paths.
+    -- The shared reader combinator carries no opaque `function`
+    -- occurrences of its own; those are minted per local above.
     deferredHelperDeclarations =
-      [ "def FormuraeInternalDeferredComponents value :="
-      , "  if tensorShape value = []"
-      , "    then " ++ opaqueFunction
-      , "    else generateTensor (\\_ -> " ++ opaqueFunction
-          ++ ") (tensorShape value)"
-      , "def FormuraeInternalDeferredView value raw :="
+      [ "def FormuraeInternalDeferredView value raw :="
       , "  if tensorShape value = []"
       , "    then raw"
       , "    else if dfOrder value > 0"
@@ -1296,9 +1306,6 @@ renderUnit model registry geometryDeclarations definitions dynamics program = un
       , "      else Formurae.attachExplicitVariances (Formurae.logicalTensorVariances value) raw"
       , ""
       ]
-      where
-        opaqueFunction =
-          "function (" ++ intercalate ", " (internalCoordNames model) ++ ")"
 
 -- The machine runner resolves the last active origin when Egison aborts
 -- before a FEIR value exists.  Human-readable provenance lives in comments,
@@ -1448,6 +1455,13 @@ fieldRawName field slot =
   "FormuraeInternalField" ++ show (Surface.fdSourceLine field)
   ++ slot ++ "Raw"
 
+-- Deferred locals key their reader storage by name, not source line:
+-- macro-lifted locals share their template's line, while their hygienic
+-- names are unique.
+deferredRawName :: Surface.FieldDecl -> String
+deferredRawName field =
+  "FormuraeInternalDeferred" ++ Surface.fdName field ++ "Raw"
+
 registryDeclarations
   :: Surface.Model -> PreRegistry -> [DeferredSplice] -> [String]
 registryDeclarations model registry deferredSplices =
@@ -1463,7 +1477,7 @@ registryDeclarations model registry deferredSplices =
     -- value during normalization; the static table cannot know them.
     deferredFieldRegistry = concat
       [ " ++ FEIR.deferredFieldEntries " ++ show fieldIdInt ++ " "
-          ++ fieldRawName localField "Current" ++ " " ++ valueRef
+          ++ deferredRawName localField ++ " " ++ valueRef
       | (fieldIdInt, (name, _, _, valueRef)) <- deferredSplices
       , localField <- take 1
           [candidate | candidate <- localFields

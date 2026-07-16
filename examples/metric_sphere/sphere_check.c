@@ -14,12 +14,12 @@
 
 static double ru[NX][NY], rn[NX][NY], f1[NX + 1][NY];
 
+/* Analytic volume weight of the declared embedding, sqrt(g) = sin(theta). */
 static double H(Formura_Navi n) {
   double s = 0;
   for (int i = n.lower_theta; i < n.upper_theta; i++)
     for (int j = n.lower_phi; j < n.upper_phi; j++)
-      s += formura_data.FormuraeInternalMetricVolume[i][j][1]
-           * formura_data.u[i][j][1];
+      s += sin(1.0 + i * n.space_interval_theta) * formura_data.u[i][j][1];
   return s;
 }
 

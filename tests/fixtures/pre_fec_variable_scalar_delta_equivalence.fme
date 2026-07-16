@@ -6,7 +6,7 @@ discretization collocated derivative 1 centered accuracy 4
 
 metric scale [1 + x]
 
-field u : scalar
+field u : scalar @ primal
 field direct : scalar
 field exact : scalar
 

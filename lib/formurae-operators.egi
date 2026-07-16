@@ -412,6 +412,41 @@ def Formurae.dFluxWith
             * FE.tensorComponentAt A basis)
           dimension (dfOrder A)
 
+-- The flux weights alone, shaped like the operand: W_I = V * prod g^ii.
+-- Only the operand's degree is read, so the components are pure geometry
+-- and a materializing local holding them carries no field references.
+def Formurae.dFluxWeightsWith
+      (volumeValue: MathValue) (inverseMetricValue: Tensor MathValue)
+      (A: Tensor MathValue) : Tensor MathValue :=
+  match assert "flux weights require a scalar or differential form value"
+               (Formurae.isDifferentialForm A)
+        as bool with
+    | #True ->
+        FE.canonicalFormTensor
+          (\basis ->
+            volumeValue
+            * foldl (*) 1
+                (map (\axis ->
+                       FE.tensorComponentAt inverseMetricValue [axis, axis])
+                     basis))
+          dimension (dfOrder A)
+
+-- Componentwise product of a weight form and an operand form of the same
+-- degree, rebuilt canonically so the differential-form metadata survives.
+def Formurae.dFluxScale
+      (weights: Tensor MathValue) (A: Tensor MathValue) : Tensor MathValue :=
+  match assert "flux scaling requires differential form values of equal degree"
+               (Formurae.isDifferentialForm weights
+                && Formurae.isDifferentialForm A
+                && dfOrder weights = dfOrder A)
+        as bool with
+    | #True ->
+        FE.canonicalFormTensor
+          (\basis ->
+            FE.tensorComponentAt weights basis
+            * FE.tensorComponentAt A basis)
+          dimension (dfOrder A)
+
 -- Signed adjoint divergence of a weighted flux: contract the leading slot
 -- with the placement-directed grid derivative and undo the target's
 -- weights,

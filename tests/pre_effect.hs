@@ -13,38 +13,37 @@ main = do
   source <- readFile "spec/feir-primitives-v1.sexp"
   manifest <- either (fail . show) pure (parsePrimitiveManifest source)
 
+  -- Canonical Δ/δ on declared geometry are prelude macro expansions, so
+  -- the effect layer never sees them there; discrete effects propagate
+  -- through definitions from the grid operators themselves.
   summary <- either (fail . show) pure
-    (inferModelEffects manifest variableMetricModel
+    (inferModelEffects manifest baseModel
       { mDefs =
           [ definition "smooth" ["u"] "lap u"
-          , definition "weighted" ["u"] "Δ u"
+          , definition "weighted" ["u"] "pd1r1_x u"
           , definition "nested" ["u"] "weighted u + smooth u"
           ]
       , mSteps = [step "u" "nested u"]
       })
   assertEqual "definition effect propagation"
     [ ("smooth", PureFunction)
-    , ("weighted", DiscreteFunction [VersionedOpId "lb.orthogonal@1"])
-    , ("nested", DiscreteFunction [VersionedOpId "lb.orthogonal@1"])
+    , ("weighted", DiscreteFunction [VersionedOpId "derivative.grid-whole@1"])
+    , ("nested", DiscreteFunction [VersionedOpId "derivative.grid-whole@1"])
     ]
     (effectSummaryDefinitions summary)
 
-  assertEqual "variable-metric scalar Delta selects the conservative lb plan"
-    (Right (DiscreteFunction [VersionedOpId "lb.orthogonal@1"]))
-    (expressionEffect manifest variableMetricModel (EffectSummary [])
-      "canonical scalar Delta" (parseTensorExpr "Δ u"))
-  assertEqual "the exact scalar identity selects the same lb plan"
-    (Right (DiscreteFunction [VersionedOpId "lb.orthogonal@1"]))
-    (expressionEffect manifest variableMetricModel (EffectSummary [])
-      "canonical scalar identity" (parseTensorExpr "0 - δ (d u)"))
   assertEqual "constant-geometry scalar Delta remains continuum-pure"
     (Right PureFunction)
     (expressionEffect manifest baseModel (EffectSummary [])
       "constant scalar Delta" (parseTensorExpr "Δ u"))
-  assertEqual "variable-metric DEC codifferential selects codiff.metric"
-    (Right (DiscreteFunction [VersionedOpId "codiff.metric@1"]))
+  assertEqual "the discrete exterior derivative is a grid-whole operation"
+    (Right (DiscreteFunction [VersionedOpId "derivative.grid-whole@1"]))
+    (expressionEffect manifest variableMetricModel (EffectSummary [])
+      "discrete exterior derivative" (parseTensorExpr "dExterior u"))
+  assertEqual "the adjoint flux divergence is a grid-whole operation"
+    (Right (DiscreteFunction [VersionedOpId "derivative.grid-whole@1"]))
     (expressionEffect manifest variableMetricDecModel (EffectSummary [])
-      "canonical codifferential" (parseTensorExpr "δ u"))
+      "adjoint flux divergence" (parseTensorExpr "dFluxDiv u"))
   assertEqual "constant-geometry Hodge Laplacian remains continuum-pure"
     (Right PureFunction)
     (expressionEffect manifest decModel (EffectSummary [])

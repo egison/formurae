@@ -691,7 +691,7 @@ parseModel sourceFile name txt = do
                 , mDefs = reverse (mDefs m)
                 , mDiscretizationDecls = reverse (mDiscretizationDecls m)
                 }
-          mUse <- expandMacros ms ordered
+          mUse <- expandMacros (ms ++ activePreludeMacros ordered) ordered
           validateValueBindingNames mUse
           validateMetricName mUse
           validateDimensionFeatures mUse
@@ -1601,6 +1601,61 @@ data PreMacro = PreMacro
   , pmResult :: (Int, String)
   , pmLine   :: Int
   }
+
+-- On declared geometry the canonical Δ and δ are prelude macros: the
+-- weighted flux is materialized by a lifted step local (on the staggered
+-- lattice, exactly where the conservative scheme stores it) and the
+-- signed adjoint divergence closes the form.  This replaces the opaque
+-- scheduled requests lb.orthogonal@1 and codiff.metric@1 with ordinary
+-- expansions of public operators; constant geometry keeps the analytic
+-- operator path.  Users cannot collide with these names: 'δ' and 'Δ'
+-- are not valid surface macro names.
+-- A user binding of the same name shadows the prelude, exactly as user
+-- definitions shadow the canonical operators.
+activePreludeMacros :: Model -> [PreMacro]
+activePreludeMacros model =
+  [ prelude
+  | prelude <- preludeMacros model
+  , pmName prelude `notElem` boundNames
+  ]
+  where
+    boundNames =
+      mAxes model
+      ++ map fst (mParams model)
+      ++ map fdName (mFieldDecls model)
+      ++ map defName (mDefs model)
+      ++ map sNm (mSteps model)
+      ++ maybe [] (: []) (mMetricName model)
+
+-- The weights local carries only geometry (dFluxWeights reads its operand
+-- solely for the degree), so the backend can freeze it into an init-time
+-- coefficient field; the flux local then contains no position-dependent
+-- arithmetic, exactly the shape the shifting-frame code generator expects.
+preludeMacros :: Model -> [PreMacro]
+preludeMacros model
+  | mMetric model == Nothing && mEmbed model == Nothing = []
+  | otherwise =
+      [ PreMacro
+          { pmName = "δ"
+          , pmParams = ["A"]
+          , pmLocals =
+              [ (0, "codiffCoeff : tensor @ primal = dFluxWeights A")
+              , (0, "codiffFlux : tensor @ primal = dFluxScale codiffCoeff A")
+              ]
+          , pmResult = (0, "dFluxDiv codiffFlux")
+          , pmLine = 0
+          }
+      , PreMacro
+          { pmName = "Δ"
+          , pmParams = ["u"]
+          , pmLocals =
+              [ (0, "deltaCoeff : tensor @ primal = dFluxWeights (dExterior u)")
+              , (0, "deltaFlux : tensor @ primal = dFluxScale deltaCoeff (dExterior u)")
+              ]
+          , pmResult = (0, "0 - dFluxDiv deltaFlux")
+          , pmLine = 0
+          }
+      ]
 
 macroBalance :: String -> Int
 macroBalance t =

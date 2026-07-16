@@ -20,7 +20,7 @@ param dt = 0.0005
 
 embedding [ `(2 + cos θ) * cos φ, `(2 + cos θ) * sin φ, sin θ, z ]
 
-field u : scalar
+field u : scalar @ primal
 
 init:
   u := exp (cos θ + cos φ - 2)

@@ -119,7 +119,7 @@ compileProgram program = do
     (compileBackendInitializer initialEnvironment) backendState
   backendCarryAssignments <- mapM
     (compileBackendCarry initialEnvironment) backendState
-  (bindings, stepAssignments) <-
+  (bindings, frozenInitializers, stepAssignments, frozenStateNames) <-
     compileActions initialEnvironment (feProgramStepActions program)
   let _ = bindings
       parameters =
@@ -141,7 +141,8 @@ compileProgram program = do
           ++ concatMap auxiliaryFunctionIds
             (Backend.backendStepSchedule backendPlan))
       rawHelpers = map rawHelperText (feProgramRawHelpers program)
-      allInitializers = initializerAssignments ++ backendInitializerAssignments
+      allInitializers = initializerAssignments ++ frozenInitializers
+        ++ backendInitializerAssignments
       allStepAssignments = stepAssignments ++ backendCarryAssignments
   ensureUniqueTargets (allInitializers ++ allStepAssignments)
   Right FProgram
@@ -149,7 +150,8 @@ compileProgram program = do
     , fProgramAxes = map axisDeclSourceName (feProgramAxes program)
     , fProgramParameters = parameters
     , fProgramHelpers = externalHelpers ++ rawHelpers
-    , fProgramStateStorage = userStateStorage ++ backendStateNames
+    , fProgramStateStorage =
+        userStateStorage ++ frozenStateNames ++ backendStateNames
     , fProgramInitializers = allInitializers
     , fProgramStepAssignments = allStepAssignments
     }
@@ -163,19 +165,26 @@ compileProgram program = do
 compileActions
     :: CompileEnvironment
     -> [FEAction]
-    -> Either PostError ([(NodeId, FEValue)], [FAssignment])
-compileActions environment actions = go environment [] [] [] actions
+    -> Either PostError
+         ( [(NodeId, FEValue)]
+         , [FAssignment]
+         , [FAssignment]
+         , [String]
+         )
+compileActions environment actions = go environment [] [] ([], [], []) actions
   where
     -- Backend auxiliaries are scheduled immediately before the FEIR action
     -- that first consumes them.  Materializations and updates then enter the
     -- same stream in source order; separating them would change the meaning
-    -- of references to earlier NextTime values.
-    go _current bindings scheduled assignments [] =
+    -- of references to earlier NextTime values.  Frozen materializations
+    -- (geometry-only locals) contribute initializer assignments and state
+    -- names on the side.
+    go _current bindings scheduled (initializers, assignments, frozenState) [] =
       case [key | key <- allPlannedKeys, key `notElem` scheduled] of
-        [] -> Right (reverse bindings, assignments)
+        [] -> Right (reverse bindings, initializers, assignments, frozenState)
         remaining -> Left (PostInvalidAuxiliaryPlan
           ("unscheduled opaque requests: " ++ show remaining))
-    go current bindings scheduled assignments (action : rest) = do
+    go current bindings scheduled (initializers, assignments, frozenState) (action : rest) = do
       let needed = actionOpaqueSemanticKeys action
           origin = actionOriginId action
       (nextScheduled, backendAssignments) <- withPostOrigin origin
@@ -185,17 +194,25 @@ compileActions environment actions = go environment [] [] [] actions
           let nextEnvironment = current
                 { compileBindings = (nodeId, value) : compileBindings current }
           in go nextEnvironment ((nodeId, value) : bindings) nextScheduled
-               (assignments ++ backendAssignments) rest
+               (initializers, assignments ++ backendAssignments, frozenState)
+               rest
         Materialize fieldId value materializeOrigin -> do
-          materializationAssignments <- withPostOrigin materializeOrigin $ do
-            field <- lookupField current fieldId
-            compileMaterialization current field value
+          (frozenInitializers, materializationAssignments, frozenNames) <-
+            withPostOrigin materializeOrigin $ do
+              field <- lookupField current fieldId
+              compileMaterialization current field value
           go current bindings nextScheduled
-            (assignments ++ backendAssignments ++ materializationAssignments) rest
+            ( initializers ++ frozenInitializers
+            , assignments ++ backendAssignments ++ materializationAssignments
+            , frozenState ++ frozenNames
+            ) rest
         UpdateField equation -> do
           updateAssignments <- compileEquation current StepEquation equation
           go current bindings nextScheduled
-            (assignments ++ backendAssignments ++ updateAssignments) rest
+            ( initializers
+            , assignments ++ backendAssignments ++ updateAssignments
+            , frozenState
+            ) rest
 
     allPlannedKeys =
       concatMap fst (plannedBackendRequests (compileBackendPlan environment))
@@ -418,28 +435,99 @@ compileEquation environment stage equation = withPostOrigin
         StepEquation ->
           Right (FAssignment (StepUpdateTarget name) (normalizeExpr expression))
 
+-- A materialization splits by what its value references.  Components that
+-- reference field state are step bindings recomputed every step.  A value
+-- built purely from geometry (no field jets, no discrete operations, no
+-- step references) is frozen instead: it becomes persistent state,
+-- initialized once from the coordinates and carried unchanged through the
+-- step, exactly like the geometry coefficient fields of the backend
+-- request plans.  Persistence also gives it the declared boundary
+-- treatment (mirror and fixed walls reflect state arrays), which a
+-- per-step recomputation from the raw grid index cannot express.
 compileMaterialization
     :: CompileEnvironment
     -> LogicalFieldDecl
     -> FEValue
-    -> Either PostError [FAssignment]
+    -> Either PostError ([FAssignment], [FAssignment], [String])
 compileMaterialization environment field value = do
   bases <- mapFMRError (independentBases (programDimension environment) field)
-  mapM compileBasis bases
+  if valueIsGeometryOnly value
+    then do
+      frozen <- mapM compileFrozenBasis bases
+      Right ( [initializer | (initializer, _, _) <- frozen]
+            , [carry | (_, carry, _) <- frozen]
+            , [name | (_, _, name) <- frozen]
+            )
+    else do
+      assignments <- mapM compileBasis bases
+      Right ([], assignments, [])
   where
+    componentScalar basis =
+      case value of
+        ScalarValue expression
+          | basis == Basis [] -> Right expression
+          | otherwise -> Left (PostNonScalarComponent basis [])
+        TensorValue tensor -> tensorComponent basis tensor
     compileBasis basis = do
       targetPlacement <- mapLocationError
         (componentPlacement (programDimension environment)
           (logicalFieldPolicy field) basis)
-      scalar <-
-        case value of
-          ScalarValue expression
-            | basis == Basis [] -> Right expression
-            | otherwise -> Left (PostNonScalarComponent basis [])
-          TensorValue tensor -> tensorComponent basis tensor
+      scalar <- componentScalar basis
       expression <- lowerScalar environment targetPlacement scalar
       name <- mapFMRError (storageName field basis)
       Right (FAssignment (StepBindingTarget name) (normalizeExpr expression))
+    compileFrozenBasis basis = do
+      targetPlacement <- mapLocationError
+        (componentPlacement (programDimension environment)
+          (logicalFieldPolicy field) basis)
+      scalar <- componentScalar basis
+      expression <- lowerScalar environment targetPlacement scalar
+      name <- mapFMRError (storageName field basis)
+      indices <- indexNames environment
+      reference <- gridReference environment name
+        (replicate (programDimension environment) 0)
+      Right ( FAssignment (InitialTarget name indices)
+                (normalizeExpr expression)
+            , FAssignment (StepUpdateTarget name) reference
+            , name
+            )
+
+valueIsGeometryOnly :: FEValue -> Bool
+valueIsGeometryOnly value =
+  case value of
+    ScalarValue scalar -> scalarIsGeometryOnly scalar
+    TensorValue tensor ->
+      all (scalarIsGeometryOnly . snd) (tensorNFComponents tensor)
+
+scalarIsGeometryOnly :: ScalarNF -> Bool
+scalarIsGeometryOnly scalar =
+  case scalar of
+    Exact _ _ -> True
+    NamedConstant _ -> True
+    Parameter _ -> True
+    Coordinate _ -> True
+    Add terms -> all recurse terms
+    Mul factors -> all recurse factors
+    Div numerator denominator -> recurse numerator && recurse denominator
+    Pow base exponentValue -> recurse base && recurse exponentValue
+    Intrinsic _ arguments -> all recurse arguments
+    AnalyticCall _ arguments -> all recurse arguments
+    Select predicate yes no ->
+      predicateIsGeometryOnly predicate && recurse yes && recurse no
+    FieldJet _ -> False
+    OpaqueDiscrete _ -> False
+    Ref _ -> False
+  where
+    recurse = scalarIsGeometryOnly
+
+predicateIsGeometryOnly :: PredicateNF -> Bool
+predicateIsGeometryOnly predicate =
+  case predicate of
+    BoolExact _ -> True
+    Compare _ lhs rhs -> scalarIsGeometryOnly lhs && scalarIsGeometryOnly rhs
+    Not body -> predicateIsGeometryOnly body
+    And bodies -> all predicateIsGeometryOnly bodies
+    Or bodies -> all predicateIsGeometryOnly bodies
 
 compileBackendInitializer
     :: CompileEnvironment

@@ -6,23 +6,20 @@ double :: dt = 0.00002
 extern function :: cos
 extern function :: exp
 
-begin function (u,FormuraeInternalMetricCoefficient1,FormuraeInternalMetricCoefficient2,FormuraeInternalMetricCoefficient3,FormuraeInternalMetricVolume) = init()
-  double [] :: u, FormuraeInternalMetricCoefficient1, FormuraeInternalMetricCoefficient2, FormuraeInternalMetricCoefficient3, FormuraeInternalMetricVolume
+begin function (u,deltaCoeff_1,deltaCoeff_2,deltaCoeff_3) = init()
+  double [] :: u, deltaCoeff_1, deltaCoeff_2, deltaCoeff_3
   u[i,j,k] = exp((-2) + (-4) * (dy * j)**2 + 4 * dy * j + cos(dx * i))
-  FormuraeInternalMetricCoefficient1[i,j,k] = 1 / (1 + 2 * dy * j + (dy * j)**2) / (1 / (1 + dy * j))**2
-  FormuraeInternalMetricCoefficient2[i,j,k] = 1 / (1 + 2 * dy * ((1 / 2) + j) + (dy * ((1 / 2) + j))**2) / (1 / (1 + dy * ((1 / 2) + j)))**2
-  FormuraeInternalMetricCoefficient3[i,j,k] = 1 / (1 + 2 * dy * j + (dy * j)**2)
-  FormuraeInternalMetricVolume[i,j,k] = 1 / (1 + 2 * dy * j + (dy * j)**2)
+  deltaCoeff_1[i,j,k] = 1
+  deltaCoeff_2[i,j,k] = 1
+  deltaCoeff_3[i,j,k] = 1 / (1 + 2 * dy * j + (dy * j)**2)
 end function
 
-begin function (u',FormuraeInternalMetricCoefficient1',FormuraeInternalMetricCoefficient2',FormuraeInternalMetricCoefficient3',FormuraeInternalMetricVolume') = step(u,FormuraeInternalMetricCoefficient1,FormuraeInternalMetricCoefficient2,FormuraeInternalMetricCoefficient3,FormuraeInternalMetricVolume)
-  FormuraeInternalLb1Flux1[i,j,k] = FormuraeInternalMetricCoefficient1[i,j,k] * (u[i+1,j,k] + (-1) * u[i,j,k]) / dx
-  FormuraeInternalLb1Flux2[i,j,k] = FormuraeInternalMetricCoefficient2[i,j,k] * (u[i,j+1,k] + (-1) * u[i,j,k]) / dy
-  FormuraeInternalLb1Flux3[i,j,k] = FormuraeInternalMetricCoefficient3[i,j,k] * (u[i,j,k+1] + (-1) * u[i,j,k]) / dz
-  FormuraeInternalLb1Result[i,j,k] = ((FormuraeInternalLb1Flux1[i,j,k] + (-1) * FormuraeInternalLb1Flux1[i-1,j,k]) / dx + (FormuraeInternalLb1Flux2[i,j,k] + (-1) * FormuraeInternalLb1Flux2[i,j-1,k]) / dy + (FormuraeInternalLb1Flux3[i,j,k] + (-1) * FormuraeInternalLb1Flux3[i,j,k-1]) / dz) / FormuraeInternalMetricVolume[i,j,k]
-  u'[i,j,k] = u[i,j,k] + dt * FormuraeInternalLb1Result[i,j,k]
-  FormuraeInternalMetricCoefficient1'[i,j,k] = FormuraeInternalMetricCoefficient1[i,j,k]
-  FormuraeInternalMetricCoefficient2'[i,j,k] = FormuraeInternalMetricCoefficient2[i,j,k]
-  FormuraeInternalMetricCoefficient3'[i,j,k] = FormuraeInternalMetricCoefficient3[i,j,k]
-  FormuraeInternalMetricVolume'[i,j,k] = FormuraeInternalMetricVolume[i,j,k]
+begin function (u',deltaCoeff_1',deltaCoeff_2',deltaCoeff_3') = step(u,deltaCoeff_1,deltaCoeff_2,deltaCoeff_3)
+  deltaCoeff_1'[i,j,k] = deltaCoeff_1[i,j,k]
+  deltaCoeff_2'[i,j,k] = deltaCoeff_2[i,j,k]
+  deltaCoeff_3'[i,j,k] = deltaCoeff_3[i,j,k]
+  deltaFlux_1[i,j,k] = deltaCoeff_1[i,j,k] * (u[i+1,j,k] + (-1) * u[i,j,k]) / dx
+  deltaFlux_2[i,j,k] = deltaCoeff_2[i,j,k] * (u[i,j+1,k] + (-1) * u[i,j,k]) / dy
+  deltaFlux_3[i,j,k] = deltaCoeff_3[i,j,k] * (u[i,j,k+1] + (-1) * u[i,j,k]) / dz
+  u'[i,j,k] = u[i,j,k] + 2 * dt * dy * j * (deltaFlux_1[i,j,k] + (-1) * deltaFlux_1[i-1,j,k]) / dx + 2 * dt * dy * j * (deltaFlux_2[i,j,k] + (-1) * deltaFlux_2[i,j-1,k]) / dy + 2 * dt * dy * j * (deltaFlux_3[i,j,k] + (-1) * deltaFlux_3[i,j,k-1]) / dz + dt * (deltaFlux_1[i,j,k] + (-1) * deltaFlux_1[i-1,j,k]) / dx + dt * (deltaFlux_1[i,j,k] + (-1) * deltaFlux_1[i-1,j,k]) / dx * (dy * j)**2 + dt * (deltaFlux_2[i,j,k] + (-1) * deltaFlux_2[i,j-1,k]) / dy + dt * (deltaFlux_2[i,j,k] + (-1) * deltaFlux_2[i,j-1,k]) / dy * (dy * j)**2 + dt * (deltaFlux_3[i,j,k] + (-1) * deltaFlux_3[i,j,k-1]) / dz + dt * (deltaFlux_3[i,j,k] + (-1) * deltaFlux_3[i,j,k-1]) / dz * (dy * j)**2
 end function

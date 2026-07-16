@@ -2,8 +2,6 @@ mode collocated
 dimension 1
 axes x
 metric scale [1 + x]
-field u : scalar
-def weighted q = Δ q
-def bad q = pd1r1_x (weighted q)
+field u : scalar @ primal
 step:
-  u' = u
+  u' = pd1r1_x (Δ u)

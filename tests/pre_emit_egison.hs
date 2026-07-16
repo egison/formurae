@@ -60,26 +60,31 @@ main = do
     "pre-variable-scalar-delta" variableScalarSource
   variableScalarUnit <- requireRight =<<
     emitNormalizationUnit manifestId variableScalarModel
-  assertContains "variable direct Delta lowers through the scalar bridge"
-    "withSymbols [i, j, k, l, m, n] (FormuraeInternalScalarDelta u)"
+  -- Canonical Δ on declared geometry is a prelude macro: the weighted flux
+  -- is materialized by deferred locals and the signed adjoint divergence
+  -- closes the conservative form.  The lb.orthogonal request is gone.
+  assertContains "variable Delta materializes the flux weights"
+    "def FormuraeInternalDFluxWeights A := Formurae.dFluxWeightsWith"
     variableScalarUnit
-  assertContains "the exact 0-delta(d u) identity uses the same scalar bridge"
-    "def FormuraeInternalDefinition2 u := withSymbols"
+  assertContains "variable Delta closes with the adjoint divergence"
+    "def FormuraeInternalDFluxDiv w := Formurae.dFluxDivWith"
     variableScalarUnit
-  assertContains "variable scalar bridge is the lb.orthogonal request"
-    "def FormuraeInternalScalarDelta u := Formurae.lbOrthogonal u"
-    variableScalarUnit
+  assertContains "the lifted flux locals read back as deferred fields"
+    "FormuraeInternalDeferredView" variableScalarUnit
+  assertAbsent variableScalarUnit "Formurae.lbOrthogonal"
   assertAbsent variableScalarUnit "FormuraeInternalCodiff"
 
   variableCodiffModel <- parseModel "pre-variable-codiff.fme"
     "pre-variable-codiff" variableCodiffSource
   variableCodiffUnit <- requireRight =<<
     emitNormalizationUnit manifestId variableCodiffModel
-  assertContains "variable DEC delta lowers through codiff.metric"
-    "def FormuraeInternalCodiff A := Formurae.metricCodiff A"
+  assertContains "variable DEC delta materializes the flux weights"
+    "def FormuraeInternalDFluxWeights A := Formurae.dFluxWeightsWith"
     variableCodiffUnit
-  assertContains "canonical delta call uses the codifferential bridge"
-    "FormuraeInternalCodiff A" variableCodiffUnit
+  assertContains "variable DEC delta closes with the adjoint divergence"
+    "def FormuraeInternalDFluxDiv w := Formurae.dFluxDivWith"
+    variableCodiffUnit
+  assertAbsent variableCodiffUnit "Formurae.metricCodiff"
 
   constantHodgeModel <- parseModel "pre-constant-hodge-laplacian.fme"
     "pre-constant-hodge-laplacian" constantHodgeSource
@@ -119,11 +124,15 @@ main = do
     canonicalShadowUnit
   assertAbsent canonicalShadowUnit "FormuraeInternalScalarDelta"
 
+  -- A near-miss of the exact scalar-Δ identity is not fused; on declared
+  -- geometry the δ prelude macro expands instead, in any mode.
   nearMissModel <- parseModel "pre-canonical-near-miss.fme"
     "pre-canonical-near-miss" canonicalNearMissSource
-  nearMissResult <- emitNormalizationUnit manifestId nearMissModel
-  assertLeft "a near-miss identity is not scalar-Delta lowering"
-    (isModeMessage "canonical δ requires mode dec") nearMissResult
+  nearMissUnit <- requireRight =<<
+    emitNormalizationUnit manifestId nearMissModel
+  assertContains "a near-miss identity expands the codifferential macro"
+    "def FormuraeInternalDFluxDiv w := Formurae.dFluxDivWith" nearMissUnit
+  assertAbsent nearMissUnit "FormuraeInternalScalarDelta"
 
   kroneckerModel <- parseModel "pre-kronecker-delta.fme"
     "pre-kronecker-delta" kroneckerSource
@@ -432,7 +441,7 @@ main = do
     "withSymbols [i, j, k, l, m, n] ((1 / 100000000000000000000) * u)"
     decimalUnit
   assertContains "integral decimal literal collapses to an integer"
-    "(1 * u) + (dt * FormuraeInternalScalarDelta u)" decimalUnit
+    "(1 * u) + (dt * (0 - FormuraeInternalDFluxDiv deltaFlux))" decimalUnit
   assertContains "raw Egison definition body keeps its Float literal"
     "let y := u * 0.75 in y" decimalUnit
   assertAbsent decimalUnit "0.25"
@@ -503,11 +512,9 @@ variableScalarSource = unlines
   , "dimension 1"
   , "axes x"
   , "metric scale [1 + x]"
-  , "field u : scalar"
-  , "def direct u = Δ u"
-  , "def identity u = 0 - δ (d u)"
+  , "field u : scalar @ primal"
   , "step:"
-  , "  u' = direct u + identity u"
+  , "  u' = u + Δ u"
   ]
 
 variableCodiffSource :: String
@@ -517,9 +524,8 @@ variableCodiffSource = unlines
   , "axes x, y"
   , "metric scale [1 + x, 1]"
   , "field A : 1-form"
-  , "def co A = δ A"
   , "step:"
-  , "  A' = co A"
+  , "  A' = δ A"
   ]
 
 constantHodgeSource :: String
@@ -587,10 +593,9 @@ canonicalNearMissSource = unlines
   , "dimension 1"
   , "axes x"
   , "metric scale [1 + x]"
-  , "field u : scalar"
-  , "def identity u = 1 - δ (d u)"
+  , "field u : scalar @ primal"
   , "step:"
-  , "  u' = identity u"
+  , "  u' = 1 - δ (d u)"
   ]
 
 kroneckerSource :: String
@@ -791,7 +796,7 @@ decimalLiteralSource = unlines
   , "axes x, y"
   , "param dt = 0.0003"
   , "embedding [ sin (0.25 + x), cos (0.25 + x), y ]"
-  , "field u : scalar"
+  , "field u : scalar @ primal"
   , "def half u = 0.5 * u"
   , "def tiny u = 1e-20 * u"
   , "def rawQuarter u = let y := u * 0.75 in y"

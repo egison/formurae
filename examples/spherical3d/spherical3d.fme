@@ -15,7 +15,7 @@ param dt = 0.0002
 
 embedding [ `(1 + r) * sin (1 + θ) * cos φ, `(1 + r) * sin (1 + θ) * sin φ, `(1 + r) * cos (1 + θ) ]
 
-field u : scalar
+field u : scalar @ primal
 
 init:
   u := exp (0 - 4 * (r - 1 / 2) ^ 2) * exp (0 - 4 * (θ - 1 / 2) ^ 2) * exp (cos φ - 1)

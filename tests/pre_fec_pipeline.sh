@@ -561,13 +561,20 @@ cabal run -v0 -j1 pre-fec -- "$ROOT/tests/fixtures/pre_fec_metric_forms.fme" \
   > "$WORK/metric-forms.egi"
 grep -F 'FEIR.unquoteAll (feGeometryScale 1)' "$WORK/metric-forms.egi" >/dev/null
 grep -F 'FormuraeInternalHodge A' "$WORK/metric-forms.egi" >/dev/null
-grep -F 'FormuraeInternalCodiff A' "$WORK/metric-forms.egi" >/dev/null
+# Canonical δ on declared geometry expands through the prelude macro: the
+# weighted flux is a lifted deferred local and the adjoint divergence
+# closes the form, with no scheduled codiff.metric request left behind.
+grep -F 'FormuraeInternalDFluxWeights A' "$WORK/metric-forms.egi" >/dev/null
+grep -F 'FormuraeInternalDFluxDiv codiffFlux' "$WORK/metric-forms.egi" >/dev/null
 if grep -F 'expandAll' "$WORK/metric-forms.egi" >/dev/null; then
   printf 'metric form normalization contains forbidden expandAll\n' >&2
   exit 1
 fi
 run_machine "$WORK/metric-forms.egi" "$WORK/metric-forms.feir"
-grep -F '(op-id "codiff.metric@1")' "$WORK/metric-forms.feir" >/dev/null
+if grep -F '(op-id "codiff.metric@1")' "$WORK/metric-forms.feir" >/dev/null; then
+  printf 'metric form FEIR still schedules the retired codiff.metric request\n' >&2
+  exit 1
+fi
 if grep -F '(quote ' "$WORK/metric-forms.feir" >/dev/null; then
   printf 'metric form FEIR retained a quote node\n' >&2
   exit 1
@@ -577,14 +584,13 @@ grep -F "H_1'[i,j] = (-1) * dx * i * A_2[i,j] + (-1) * A_2[i,j]" \
   "$WORK/metric-forms.fmr" >/dev/null
 grep -F "H_2'[i,j] = A_1[i,j] / (1 + dx * ((1 / 2) + i))" \
   "$WORK/metric-forms.fmr" >/dev/null
-flux_line=$(grep -n 'FormuraeInternalCodiff1BScalarFlux1\[i,j\] =' \
+coeff_line=$(grep -n 'codiffCoeff_1\[i,j\] =' \
   "$WORK/metric-forms.fmr" | cut -d: -f1)
-result_line=$(grep -n 'FormuraeInternalCodiff1BScalarResult\[i,j\] =' \
+flux_line=$(grep -n 'codiffFlux_1\[i,j\] = ' \
   "$WORK/metric-forms.fmr" | cut -d: -f1)
-consumer_line=$(grep -n "D'\[i,j\] = FormuraeInternalCodiff1BScalarResult" \
-  "$WORK/metric-forms.fmr" | cut -d: -f1)
-if [ "$flux_line" -ge "$result_line" ] || [ "$result_line" -ge "$consumer_line" ]; then
-  printf 'metric codifferential auxiliary schedule is not topological\n' >&2
+consumer_line=$(grep -n "D'\[i,j\] = " "$WORK/metric-forms.fmr" | cut -d: -f1)
+if [ "$coeff_line" -ge "$flux_line" ] || [ "$flux_line" -ge "$consumer_line" ]; then
+  printf 'macro codifferential schedule is not topological\n' >&2
   exit 1
 fi
 if grep -E 'codiff\.metric|opaque-discrete' "$WORK/metric-forms.fmr" >/dev/null; then
@@ -688,45 +694,39 @@ if grep -E 'opaque-discrete|derivative\.ordered|resample\.explicit|flux\.conserv
   exit 1
 fi
 
-# On variable orthogonal geometry, canonical scalar Delta and its exact
-# differential-form identity normalize to the same Laplace--Beltrami request.
-# Post-fec shares that request and keeps the conservative nearest-neighbor
-# flux stencil even when the ordinary derivative profile requests accuracy 4.
+# On declared geometry, canonical Delta and the spelled-out 0 - delta(d u)
+# both expand through the prelude macros.  They are no longer one shared
+# opaque request: Delta uses the all-discrete exterior derivative while
+# delta(d u) discretizes the analytic gradient through the profile, and
+# each call lifts its own hygienically named coefficient and flux locals.
 cabal run -v0 -j1 pre-fec -- \
   "$ROOT/tests/fixtures/pre_fec_variable_scalar_delta_equivalence.fme" \
   > "$WORK/scalar-delta-equivalence.egi"
-delta_count=$(grep -c ' := FormuraeInternalScalarDelta u' \
-  "$WORK/scalar-delta-equivalence.egi")
-if [ "$delta_count" -ne 2 ]; then
-  printf 'canonical Delta and exact delta(d u) did not share scalar lowering\n' >&2
+if grep -F 'FormuraeInternalScalarDelta' \
+     "$WORK/scalar-delta-equivalence.egi" >/dev/null; then
+  printf 'declared-geometry Delta still used the retired scalar bridge\n' >&2
   exit 1
 fi
 run_machine "$WORK/scalar-delta-equivalence.egi" \
   "$WORK/scalar-delta-equivalence.feir"
-lb_count=$(grep -o '(op-id "lb.orthogonal@1")' \
-  "$WORK/scalar-delta-equivalence.feir" | wc -l | tr -d ' ')
-if [ "$lb_count" -ne 2 ]; then
-  printf 'expected two equivalent lb.orthogonal FEIR occurrences, got %s\n' \
-    "$lb_count" >&2
+if grep -F '(op-id "lb.orthogonal@1")' \
+     "$WORK/scalar-delta-equivalence.feir" >/dev/null; then
+  printf 'declared-geometry Delta still scheduled lb.orthogonal\n' >&2
   exit 1
 fi
 grep -F '(accuracy 4)' "$WORK/scalar-delta-equivalence.feir" >/dev/null
 cabal run -v0 -j1 post-fec -- "$WORK/scalar-delta-equivalence.feir" \
   > "$WORK/scalar-delta-equivalence.fmr"
-grep -F 'FormuraeInternalLb1Flux1[i] = FormuraeInternalMetricCoefficient1[i] * (u[i+1] + (-1) * u[i]) / dx' \
-  "$WORK/scalar-delta-equivalence.fmr" >/dev/null
-grep -F 'FormuraeInternalLb1Result[i] = (FormuraeInternalLb1Flux1[i] + (-1) * FormuraeInternalLb1Flux1[i-1]) / dx / FormuraeInternalMetricVolume[i]' \
-  "$WORK/scalar-delta-equivalence.fmr" >/dev/null
-grep -F "direct'[i] = FormuraeInternalLb1Result[i]" \
-  "$WORK/scalar-delta-equivalence.fmr" >/dev/null
-grep -F "exact'[i] = FormuraeInternalLb1Result[i]" \
-  "$WORK/scalar-delta-equivalence.fmr" >/dev/null
-lb_plan_count=$(grep -Ec '^  FormuraeInternalLb[0-9]+Flux1\[i\] =' \
-  "$WORK/scalar-delta-equivalence.fmr")
-if [ "$lb_plan_count" -ne 1 ]; then
-  printf 'equivalent scalar Laplacians did not share one Post plan\n' >&2
-  exit 1
-fi
+for lifted in deltaCoeff_1 deltaFlux_1 codiffCoeff_1 codiffFlux_1; do
+  count=$(grep -c "^  $lifted\[i\] =" "$WORK/scalar-delta-equivalence.fmr")
+  if [ "$count" -ne 1 ]; then
+    printf 'expected one %s local in the macro expansion, got %s\n' \
+      "$lifted" "$count" >&2
+    exit 1
+  fi
+done
+grep -F "direct'[i] = " "$WORK/scalar-delta-equivalence.fmr" >/dev/null
+grep -F "exact'[i] = " "$WORK/scalar-delta-equivalence.fmr" >/dev/null
 if grep -E 'u\[i[-+]2\]' "$WORK/scalar-delta-equivalence.fmr" >/dev/null; then
   printf 'variable-metric scalar Laplacian inherited a wide profile stencil\n' >&2
   exit 1
@@ -745,10 +745,17 @@ compile_and_check maxwell_dec dec_check.c "$WORK/maxwell-dec.fmr"
 while read -r geometry check_source; do
   cabal run -v0 -j1 pre-fec -- "$ROOT/examples/$geometry/$geometry.fme" \
     > "$WORK/$geometry.egi"
-  grep -F 'def FormuraeInternalScalarDelta u := Formurae.lbOrthogonal' \
+  # Canonical Delta expands through the prelude macros: the flux weights
+  # and adjoint divergence replace the retired lb.orthogonal request.
+  grep -F 'def FormuraeInternalDFluxWeights A := Formurae.dFluxWeightsWith' \
     "$WORK/$geometry.egi" >/dev/null
-  grep -F 'FormuraeInternalScalarDelta u' \
+  grep -F 'def FormuraeInternalDFluxDiv w := Formurae.dFluxDivWith' \
     "$WORK/$geometry.egi" >/dev/null
+  if grep -F 'Formurae.lbOrthogonal' "$WORK/$geometry.egi" >/dev/null; then
+    printf 'geometry unit still uses the retired lb bridge: %s\n' \
+      "$geometry" >&2
+    exit 1
+  fi
   grep -F 'embedding/metric must be symbolically orthogonal' \
     "$WORK/$geometry.egi" >/dev/null
   if grep -F 'expandAll' "$WORK/$geometry.egi" >/dev/null; then
@@ -758,7 +765,10 @@ while read -r geometry check_source; do
   fi
   run_machine "$WORK/$geometry.egi" "$WORK/$geometry.feir"
   grep -F '(orthogonality-verified true)' "$WORK/$geometry.feir" >/dev/null
-  grep -F '(op-id "lb.orthogonal@1")' "$WORK/$geometry.feir" >/dev/null
+  if grep -F '(op-id "lb.orthogonal@1")' "$WORK/$geometry.feir" >/dev/null; then
+    printf 'geometry FEIR still schedules lb.orthogonal: %s\n' "$geometry" >&2
+    exit 1
+  fi
   cabal run -v0 -j1 post-fec -- "$WORK/$geometry.feir" > "$WORK/$geometry.fmr"
   if grep -E 'field-jet|opaque|lb\.orthogonal' "$WORK/$geometry.fmr" >/dev/null; then
     printf 'geometry FMR retained an FEIR/request marker: %s\n' "$geometry" >&2

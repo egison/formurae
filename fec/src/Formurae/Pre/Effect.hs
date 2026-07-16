@@ -509,6 +509,14 @@ surfacePrimitiveOperation :: String -> Maybe VersionedOpId
 surfacePrimitiveOperation name
   | name == "resample" =
       Just Primitives.resampleExplicitV1OpId
+  -- The discrete exterior derivative and the adjoint divergence carry
+  -- placement-directed grid derivatives, so the derivative-nesting rules
+  -- that guarded the canonical operators keep applying to their
+  -- prelude-macro expansions.
+  | name == "dExterior" =
+      Just Primitives.derivativeGridWholeV1OpId
+  | name == "dFluxDiv" =
+      Just Primitives.derivativeGridWholeV1OpId
   | otherwise = Nothing
 
 -- Summarize only the canonical metric operators whose analytic composition

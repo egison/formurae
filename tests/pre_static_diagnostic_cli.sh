@@ -57,12 +57,15 @@ expect_success() {
 }
 
 cd "$ROOT"
+# Canonical Δ/δ on declared geometry are prelude macro expansions; the
+# derivative-nesting rules now report the grid-whole operations of the
+# expanded flux divergence, and def bodies cannot wrap the macros at all.
 expect_failure pre_fec_effect_derivative_error \
-  '7:13: grid derivative contains nested discrete operation: lb.orthogonal@1'
-expect_failure pre_fec_effect_function_alias_error \
-  '8:13: grid derivative contains nested discrete operation: lb.orthogonal@1'
+  '7:8: grid derivative contains nested discrete operation: derivative.grid-whole@1'
+expect_parse_failure pre_fec_effect_function_alias_error \
+  "macro 'Δ' expands to step statements; it cannot be used in def weighted"
 expect_failure pre_fec_effect_analytic_derivative_error \
-  '7:13: analytic derivative contains discrete operation: lb.orthogonal@1'
+  '7:8: analytic derivative contains discrete operation: derivative.grid-whole@1'
 expect_failure pre_fec_effect_contract_reducer_error \
   '8:8: contractWith receives discrete operation as a higher-order argument: resample.explicit@1'
 expect_failure pre_fec_forward_definition_error \
@@ -101,7 +104,7 @@ expect_success pre_fec_dd_kind_mismatch
 expect_parse_failure pre_fec_metric_kind_mismatch \
   'metric scale expression requires a scalar value, but received ordinary tensor'
 expect_parse_failure pre_fec_embedding_canonical_value_error \
-  'canonical δ cannot be used as a first-class value; apply it directly to one statically typed operand'
+  "macro 'δ' expands to step statements; it cannot be used in embedding expression"
 expect_parse_failure pre_fec_raw_opaque_forge_error \
   "reserved normalization capability 'functionSymbol' cannot be used in Formurae source (line 5)"
 expect_parse_failure pre_fec_char_literal_opaque_forge_error \

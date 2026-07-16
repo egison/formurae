@@ -231,44 +231,11 @@ static int checkLayout(Formura_Navi n) {
   return 1;
 }
 
-static int checkGeometry(const Formura_Grid_Struct *grid) {
-  double layerDifference = 0.0;
-  int nonfinite = 0;
-  for (int i = 0; i < NTH; i++)
-    for (int j = 0; j < NPH; j++)
-      for (int k = 0; k < NZ; k++) {
-        double v[4] = {
-          grid->FormuraeInternalMetricCoefficient1[i][j][k],
-          grid->FormuraeInternalMetricCoefficient2[i][j][k],
-          grid->FormuraeInternalMetricCoefficient3[i][j][k],
-          grid->FormuraeInternalMetricVolume[i][j][k]
-        };
-        double v0[4] = {
-          grid->FormuraeInternalMetricCoefficient1[i][j][0],
-          grid->FormuraeInternalMetricCoefficient2[i][j][0],
-          grid->FormuraeInternalMetricCoefficient3[i][j][0],
-          grid->FormuraeInternalMetricVolume[i][j][0]
-        };
-        for (int q = 0; q < 4; q++) {
-          if (!isfinite(v[q])) {
-            nonfinite++;
-          } else if (isfinite(v0[q])) {
-            double dz = fabs(v[q] - v0[q]);
-            if (dz > layerDifference) layerDifference = dz;
-          }
-        }
-      }
-  if (nonfinite != 0) {
-    fprintf(stderr, "geometry contains %d non-finite metric value(s)\n", nonfinite);
-    return 0;
-  }
-  printf("metric k-slice uniformity: %.2e\n", layerDifference);
-  if (layerDifference > LAYER_UNIFORMITY_TOL) {
-    fprintf(stderr, "metric fields unexpectedly depend on dummy z\n");
-    return 0;
-  }
-  return 1;
-}
+/* The compiler no longer materializes geometry arrays: the metric
+ * coefficients are inlined into the generated flux stencils, so their
+ * finiteness and z-uniformity are exercised implicitly by the field
+ * evolution checks below. */
+
 
 static int checkTransform(void) {
   /* Analytic anchors make the oracle independent of both implementations
@@ -446,8 +413,7 @@ int main(int argc, char **argv) {
   h = n.space_interval_theta;
   ph0 = PH0;
 
-  int setupOk = checkLayout(n) && checkGeometry(&formura_data) &&
-                checkTransform() && buildTable();
+  int setupOk = checkLayout(n) && checkTransform() && buildTable();
   if (!setupOk) {
     Formura_Finalize();
     return 1;

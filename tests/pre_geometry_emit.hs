@@ -34,11 +34,14 @@ main = do
     "FEIR.unquoteTensor FormuraeInternalValue" embeddedUnit
   assertContains "quotes are removed only at FEIR scalar boundary"
     "FEIR.unquoteAll FormuraeInternalValue" embeddedUnit
-  assertContains "canonical scalar Delta remains an lb opaque boundary"
-    "FormuraeInternalScalarDelta u"
+  -- Canonical Delta on declared geometry expands through the prelude
+  -- macros: the flux weights and adjoint divergence take the unquoted
+  -- geometry values as arguments.
+  assertContains "variable scalar Delta materializes the flux weights"
+    "def FormuraeInternalDFluxWeights A := Formurae.dFluxWeightsWith (FEIR.unquoteAll feGeometryVolume) (FEIR.unquoteTensor feGeometryInverseMetric) A"
     embeddedUnit
-  assertContains "variable scalar Delta selects lb.orthogonal"
-    "def FormuraeInternalScalarDelta u := Formurae.lbOrthogonal u"
+  assertContains "variable scalar Delta closes with the adjoint divergence"
+    "def FormuraeInternalDFluxDiv w := Formurae.dFluxDivWith (FEIR.unquoteAll feGeometryVolume) (FEIR.unquoteTensor feGeometryMetric) w"
     embeddedUnit
   assertAbsent "ambient operators do not construct a context"
     "Formurae.operatorContext" embeddedUnit
@@ -55,12 +58,11 @@ scaleSource = unlines
   , "dimension 3"
   , "axes x, y, z"
   , "metric scale [1 / (1 + y), 1 / (1 + y), 1]"
-  , "field u : scalar"
-  , "def Delta u = Δ u"
+  , "field u : scalar @ primal"
   , "init:"
   , "  u := exp (cos x - 1)"
   , "step:"
-  , "  u' = u + Delta u"
+  , "  u' = u + Δ u"
   ]
 
 embeddedSource :: String
@@ -69,12 +71,11 @@ embeddedSource = unlines
   , "dimension 3"
   , "axes theta, phi, z"
   , "embedding [`(2 + cos theta) * cos phi, `(2 + cos theta) * sin phi, sin theta, z]"
-  , "field u : scalar"
-  , "def Delta u = Δ u"
+  , "field u : scalar @ primal"
   , "init:"
   , "  u := exp (cos theta + cos phi - 2)"
   , "step:"
-  , "  u' = u + Delta u"
+  , "  u' = u + Δ u"
   ]
 
 requireRegistry :: Either RegistryError a -> IO a

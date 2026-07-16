@@ -25,7 +25,7 @@ param dt = 0.0003
 
 embedding [ sin (5 * π / 24 + θ) * cos (φ - 19 * π / 24), sin (5 * π / 24 + θ) * sin (φ - 19 * π / 24), cos (5 * π / 24 + θ), z ]
 
-field u : scalar
+field u : scalar @ primal
 
 init:
   u := cos (5 * π / 24 + θ)

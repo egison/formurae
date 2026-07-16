@@ -13,12 +13,14 @@
 
 static double ru[NX][NY], rn[NX][NY], f2[NX][NY + 1];
 
+/* Analytic volume weight of the declared metric, sqrt(g) = 1/(1+y)^2. */
 static double H(Formura_Navi n) {
   double s = 0;
   for (int i = n.lower_x; i < n.upper_x; i++)
-    for (int j = n.lower_y; j < n.upper_y; j++)
-      s += formura_data.FormuraeInternalMetricVolume[i][j][1]
-           * formura_data.u[i][j][1];
+    for (int j = n.lower_y; j < n.upper_y; j++) {
+      double yp = 1.0 + j * n.space_interval_y;
+      s += formura_data.u[i][j][1] / (yp * yp);
+    }
   return s;
 }
 

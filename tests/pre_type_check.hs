@@ -135,12 +135,9 @@ main = do
     "metric scale expression requires a scalar value, but received ordinary tensor"
     (validateModelOperatorTypes metricKindMismatch)
 
-  metricCanonicalOperand <- model "metric-canonical-operand"
-    metricCanonicalOperandSource
-  assertLeft "metric expressions traverse canonical operands"
-    "scalar Δ requires a scalar operand, but received ordinary tensor"
-    (validateModelOperatorTypes metricCanonicalOperand)
-
+  -- Canonical Δ/δ on declared geometry are prelude macros, so their use
+  -- inside metric/embedding expressions is rejected during parsing;
+  -- tests/pre_static_diagnostic_cli.sh covers those messages.
   genericGeometryQuote <- model "generic-geometry-quote"
     genericGeometryQuoteSource
   assertEqual "generic CAS quotes remain valid in geometry expressions"
@@ -151,12 +148,6 @@ main = do
   assertLeft "raw geometry fallback cannot hide a canonical operator"
     "canonical hodge cannot be used inside an untyped metric scale expression; rewrite it as a structured expression"
     (validateModelOperatorTypes rawGeometryCanonical)
-
-  embeddingCanonicalValue <- model "embedding-canonical-value"
-    embeddingCanonicalValueSource
-  assertLeft "embedding expressions reject first-class canonical values"
-    "canonical δ cannot be used as a first-class value; apply it directly to one statically typed operand"
-    (validateModelOperatorTypes embeddingCanonicalValue)
 
   continuumDDKindMismatch <- model "continuum-dd-kind-mismatch"
     continuumDDKindMismatchSource
@@ -446,17 +437,6 @@ metricKindMismatchSource = unlines
   , "  V'_i = V_i"
   ]
 
-metricCanonicalOperandSource :: String
-metricCanonicalOperandSource = unlines
-  [ "mode collocated"
-  , "dimension 1"
-  , "axes x"
-  , "field V_i"
-  , "metric scale [Δ V]"
-  , "step:"
-  , "  V'_i = V_i"
-  ]
-
 genericGeometryQuoteSource :: String
 genericGeometryQuoteSource = unlines
   [ "mode collocated"
@@ -477,17 +457,6 @@ rawGeometryCanonicalSource = unlines
   , "metric scale [`(hodge A)]"
   , "step:"
   , "  A' = A"
-  ]
-
-embeddingCanonicalValueSource :: String
-embeddingCanonicalValueSource = unlines
-  [ "mode dec"
-  , "dimension 1"
-  , "axes x"
-  , "field u : scalar"
-  , "embedding [δ]"
-  , "step:"
-  , "  u' = u"
   ]
 
 continuumDDKindMismatchSource :: String

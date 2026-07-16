@@ -12,12 +12,17 @@
 #define NX 128
 #define NY 128
 
+/* The volume weight is the analytic sqrt(g) of the declared embedding;
+ * the compiler no longer materializes geometry arrays, it inlines the
+ * coefficients into the generated flux stencils. */
 static double H(Formura_Navi n) {
-  double s = 0;
-  for (int i = n.lower_theta; i < n.upper_theta; i++)
+  double s = 0, h = 6.283185307179586 / 128;
+  for (int i = n.lower_theta; i < n.upper_theta; i++) {
+    int ci = ((i + n.offset_theta) % NX + NX) % NX;
+    double sg = 2.0 + cos(ci * h);
     for (int j = n.lower_phi; j < n.upper_phi; j++)
-      s += formura_data.FormuraeInternalMetricVolume[i][j][1]
-           * formura_data.u[i][j][1];
+      s += sg * formura_data.u[i][j][1];
+  }
   return s;
 }
 
