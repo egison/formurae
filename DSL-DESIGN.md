@@ -168,6 +168,34 @@ ambient tensorとして静的環境に登録)。gradLike系のfixture 3本と論
 解析綴りへ更新(境界診断の位置・文言は不変を実測)。これで表層は
 「解析=∂/∂(単一座標またはcoordinatesベクトル)/添字∂=常に離散」の対称形になった。
 
+**v2.10(2026-07-16): surface macro — let-insertion による文の生成** —
+`def`(式=Egison が値に評価)と対になる **`macro`(文列=pre-fec が展開)** を導入した。
+
+```
+macro Δc u =
+  local q~i @ primal = withSymbols [j] (volume * (inverseMetric~i~j . ∂_j u))
+  in (divg q) / volume
+
+step:
+  u' = u + dt * Δc u
+```
+
+呼び出しは step 式の中に書け、展開は **parse 直後・全解析の前**に行われる:
+本体の `local` 束縛は fresh 名(空いていれば元名を保持、衝突時は q2, q3, …)で
+呼び出し元 step の直前へ持ち上げられ(let-insertion; MetaOCaml genlet /
+Kameyama–Kiselyov–Shan / LMS の系譜)、呼び出し位置には `in` 式が入る。
+下流(effect・kind・placement 検査、emit)はマクロを一切知らず、展開結果に
+既存の全検査と展開トレース機構がそのまま働く。持ち上げ先が常に enclosing step
+先頭で制御フローも高階束縛もないため、一般の let-insertion の難所
+(scope extrusion)は生じない。v1 の制約: マクロは step 式専用(init・def・
+metric/embedding 内はエラー)/引数は添字なしの出現のみ/再帰は深さ 32 で
+エラー/本体の withSymbols 束縛子が引数の添字と衝突する呼び出しはエラー
+(暗黙捕獲の拒否)。**検証: マクロ版トーラス Δc の生成 .fmr が手書き展開形と
+完全一致**(tests/pre_macro_expansion.sh)+衛生(2 呼び出しで q/q2)+
+エラー4種の CLI 検査。これで「lb.orthogonal はこのマクロ機構の不在を
+post-fec への直書きで代替したもの」という位置づけが実装で裏づけられ、
+Δ/δ のライブラリマクロ化(scheduled 要求の解消)への道が開いた。
+
 **v1.36(2026-07-11): runtime tensor lowering と Phase 7 完了** —
 標準6演算子だけでなく、一般の indexed equation、implicit vector equation、rank-1/rank-2
 indexed `let`、indexed CAS initializer を、成分別 Haskell 式へ展開せず whole runtime tensor として

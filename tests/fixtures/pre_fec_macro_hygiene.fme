@@ -1,0 +1,22 @@
+mode collocated
+dimension 2
+axes x, y
+
+param dt = 0.1
+
+metric scale [1, 1]
+
+macro smooth u =
+  local q~i @ primal = withSymbols [j] (inverseMetric~i~j . ∂_j u)
+  in divg q
+
+field u : scalar @ primal
+field v : scalar @ primal
+
+init:
+  u = 0.0
+  v = 0.0
+
+step:
+  u' = u + dt * smooth u
+  v' = v + dt * smooth v

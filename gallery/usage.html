@@ -258,6 +258,26 @@ step:
 従いません(maxwell3dのcurlは意図的にこの離散形で、既定profileでは解析経由と同じCに落ちる
 ことを実測済み)。</p>
 
+<h3>macro — 文列に展開されるテンプレート</h3>
+
+<p><code>def</code>が「式」(Egisonが値に評価)なのに対し、<code>macro</code>は「文列」
+(pre-fecが展開)を定義します。本体は<code>local</code>束縛の列と<code>in</code>式で、
+呼び出しはstep式の中に書けます:</p>
+
+<pre>macro Δc u =
+  local q~i @ primal = withSymbols [j] (volume * (inverseMetric~i~j . ∂_j u))
+  in (divg q) / volume
+
+step:
+  u' = u + dt * Δc u</pre>
+
+<p>展開はparse直後・全解析の前に行われ、<code>local</code>は fresh 名で呼び出し元stepの
+直前へ持ち上げられ(let-insertion)、呼び出し位置には<code>in</code>式が入ります。
+下流の効果・placement・kind検査は展開結果にそのまま働きます。上の<code>Δc</code>は
+宣言された直交計量の保存形Laplacianそのもので、生成される.fmrは手書き展開形と
+一致します(tests/pre_macro_expansion.sh で検査)。マクロはstep式専用で、
+init・def・幾何宣言内での使用はエラーです。</p>
+
 <p><code>gradLike</code>を出たanonymous rank-1軸にはfreshな下添字が補われます。
 pre-fecはfunction名やbodyからresult varianceを推論せず、ordinary covectorのequation targetへ
 直接代入したときだけ、そのanonymous down軸をtargetの下添字へ対応付けます。

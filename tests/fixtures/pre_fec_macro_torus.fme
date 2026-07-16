@@ -1,0 +1,21 @@
+mode collocated
+dimension 3
+axes θ, φ, z
+
+param dt = 0.0005
+
+extern exp
+
+metric scale [1, 2 + cos θ, 1]
+
+macro Δc u =
+  local q~i @ primal = withSymbols [j] (volume * (inverseMetric~i~j . ∂_j u))
+  in (divg q) / volume
+
+field u : scalar @ primal
+
+init:
+  u := exp (cos θ + cos φ - 2)
+
+step:
+  u' = u + dt * Δc u

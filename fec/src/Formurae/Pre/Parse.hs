@@ -1,3 +1,4 @@
+{-# LANGUAGE PatternSynonyms #-}
 -- Parse and validate Formurae's mathematical surface language.
 --
 -- This is intentionally only a front-end parser.  It preserves analytic
@@ -7,12 +8,22 @@ module Formurae.Pre.Parse
   ( parseModel
   ) where
 
+import Control.Monad (foldM, when)
 import Data.Char (isAlpha, isAlphaNum, isDigit, isSpace)
 import Data.List (dropWhileEnd, intercalate, nub, sort, stripPrefix, isSuffixOf)
 
 import Formurae.Common
 import Formurae.Index
 import Formurae.Syntax
+import Formurae.TensorExpr
+  ( pattern TENumber, pattern TEIdent, pattern TEUnary, pattern TECall
+  , pattern TEApply, pattern TEIf, pattern TEAppendIndexed
+  , pattern TEWithSymbols, pattern TEContractWith, pattern TETensorMap
+  , pattern TESubrefs, pattern TETranspose, pattern TEDisjoint
+  , pattern TEDerivative, pattern TEGridDerivativeChain
+  , pattern TETensorLiteral, pattern TEDot, pattern TEBinary, pattern TEGroup
+  , parseTensorExprEither, renderTensorExpr
+  )
 
 -- Names provided by the continuum normalization libraries.  They are reserved
 -- tensor operators or values and cannot be reused by surface value bindings.
@@ -567,7 +578,7 @@ parseModel :: FilePath -> String -> String -> IO Model
 parseModel sourceFile name txt = do
   mapM_ rejectInternalOperatorSpelling numberedMaskedLines
   mapM_ rejectNormalizationCapability numberedMaskedLines
-  go STop initialModel
+  go STop [] initialModel
     [(lineNumber, transliterate raw, raw) | (lineNumber, raw) <- numberedLines]
   where
     -- Strip line comments once for the complete file.  The scanner keeps
@@ -629,7 +640,7 @@ parseModel sourceFile name txt = do
     -- dimension and axes are required: they fix the coordinate frame
     -- that gives the operators their meaning (which axis ∂_theta is,
     -- what an index letter in ∂_j ranges over)
-    go _ m []
+    go _ ms m []
       | mDim m == 0 = fatal "dimension declaration is required (dimension 1, 2, or 3)"
       | null (mAxes m) = fatal "axes declaration is required (e.g. axes x, y, z)"
       | any (not . validSurfaceName) (mAxes m) =
@@ -657,7 +668,20 @@ parseModel sourceFile name txt = do
                  ++ " names for dimension " ++ show (mDim m))
       | mMode m == Nothing = fatal "mode declaration is required (mode collocated or mode dec)"
       | otherwise = do
-          let mUse = m
+          let ordered = m
+                { mParams = reverse (mParams m)
+                , mParamSourceLines = reverse (mParamSourceLines m)
+                , mHelp = reverse (mHelp m)
+                , mHelpKinds = reverse (mHelpKinds m)
+                , mHelpSourceLines = reverse (mHelpSourceLines m)
+                , mFieldDecls = reverse (mFieldDecls m)
+                , mInits = reverse (mInits m)
+                , mInitSourceTexts = reverse (mInitSourceTexts m)
+                , mSteps = reverse (mSteps m)
+                , mDefs = reverse (mDefs m)
+                , mDiscretizationDecls = reverse (mDiscretizationDecls m)
+                }
+          mUse <- expandMacros ms ordered
           validateValueBindingNames mUse
           validateMetricName mUse
           validateDimensionFeatures mUse
@@ -678,30 +702,35 @@ parseModel sourceFile name txt = do
                 (mSteps mUse)
           mapM_ (checkInitUse mUse) (mInits mUse)
           return mUse
-            { mParams = reverse (mParams mUse)
-            , mParamSourceLines = reverse (mParamSourceLines mUse)
-            , mHelp = reverse (mHelp mUse)
-            , mHelpKinds = reverse (mHelpKinds mUse)
-            , mHelpSourceLines = reverse (mHelpSourceLines mUse)
-            , mFieldDecls = reverse (mFieldDecls mUse)
-            , mInits = reverse (mInits mUse)
-            , mInitSourceTexts = reverse (mInitSourceTexts mUse)
-            , mSteps = reverse (mSteps mUse)
-            , mDefs = reverse (mDefs mUse)
-            , mDiscretizationDecls = reverse (mDiscretizationDecls mUse)
-            }
 
-    go sec m ((ln, raw, originalRaw):rest) = do
+    go sec ms m ((ln, raw, originalRaw):rest) = do
       let code = rstrip raw
           originalCode = rstrip originalRaw
           s = strip code
-      if null s then go sec m rest else do
+      if null s then go sec ms m rest else do
         case s of
-          "init:" -> go SInit m rest
-          "step:" -> go SStep m rest
+          "init:" -> go SInit ms m rest
+          "step:" -> go SStep ms m rest
           _ -> do
             let sec' = if take 1 code /= " " then STop else sec
             case sec' of
+              STop
+                | Just macroHead <- stripPrefix "macro " s ->
+                    if definitionNeedsContinuation macroHead
+                      then do
+                        let (bodyLines, rest') = takeDefinitionBody rest
+                        newMacro <- parseMacroDeclaration ln macroHead
+                          [ (lineNumber, strip (rstrip translated))
+                          | (lineNumber, translated, _) <- bodyLines
+                          , not (null (strip translated)) ]
+                        when (pmName newMacro `elem` map pmName ms) (fatal
+                          ("macro '" ++ pmName newMacro
+                           ++ "' is declared more than once (line "
+                           ++ show ln ++ ")"))
+                        go STop (ms ++ [newMacro]) m rest'
+                      else fatal ("macro body must be an indented block of \
+                                  \local bindings ending with 'in <expression>' (line "
+                                  ++ show ln ++ ")")
               STop
                 | Just definitionHead <- stripPrefix "def " s
                 , definitionNeedsContinuation definitionHead ->
@@ -720,23 +749,23 @@ parseModel sourceFile name txt = do
                            in addDefinition ln
                                 (sourceTextForContinuationLines originalBodyLines)
                                 combinedHead m
-                              >>= \m' -> go STop m' rest'
-              STop -> top ln originalCode s m >>= \m' -> go STop m' rest
+                              >>= \m' -> go STop ms m' rest'
+              STop -> top ln originalCode s m >>= \m' -> go STop ms m' rest
               -- an init line may continue over following lines until its
               -- brackets balance (tensor initializers span rows)
               SInit | bal s > 0 ->
                 let (more, moreSourceLines, rest') = grab (bal s) rest
                 in ini ((ln, originalCode) : moreSourceLines)
                        (s ++ " " ++ more) m
-                     >>= \m' -> go SInit m' rest'
-              SInit -> ini [(ln, originalCode)] s m >>= \m' -> go SInit m' rest
+                     >>= \m' -> go SInit ms m' rest'
+              SInit -> ini [(ln, originalCode)] s m >>= \m' -> go SInit ms m' rest
               SStep | stepNeedsContinuation s ->
                 let (more, moreSourceLines, rest') = grab (bal s) rest
                     sourceLines = (ln, originalCode) : moreSourceLines
                 in stp sourceLines (s ++ " " ++ more) m
-                     >>= \m' -> go SStep m' rest'
+                     >>= \m' -> go SStep ms m' rest'
               SStep -> stp [(ln, originalCode)] code m
-                >>= \m' -> go SStep m' rest
+                >>= \m' -> go SStep ms m' rest
 
     bal t = sum [1 :: Int | c <- t, c `elem` "(["] - sum [1 | c <- t, c `elem` ")]"]
 
@@ -1545,3 +1574,382 @@ transliterateWithMap = go 1
     tr '\948' = "δ"        -- δ remains distinct from ASCII delta
     tr '\8722' = "-"       -- − (minus sign)
     tr c = [c]
+
+
+-- === Surface macros =========================================================
+--
+-- A macro is a generation-time template: zero or more local bindings and one
+-- result expression.  A call inside a step expression expands before any
+-- other analysis; the locals are lifted, with fresh names, to just before
+-- the enclosing step action (let-insertion), and the call is replaced by the
+-- result expression.  Downstream passes never see macros.
+
+data PreMacro = PreMacro
+  { pmName   :: String
+  , pmParams :: [String]
+  , pmLocals :: [(Int, String)]
+  , pmResult :: (Int, String)
+  , pmLine   :: Int
+  }
+
+macroBalance :: String -> Int
+macroBalance t =
+  sum [1 :: Int | c <- t, c `elem` "(["] - sum [1 | c <- t, c `elem` ")]"]
+
+-- Join physical body lines into logical lines: a line whose brackets stay
+-- open continues on the next line, exactly as step equations do.
+macroLogicalLines :: [(Int, String)] -> [(Int, String)]
+macroLogicalLines [] = []
+macroLogicalLines ((ln0, t0) : rest0) = collect ln0 t0 (macroBalance t0) rest0
+  where
+    collect ln acc depth rest
+      | depth <= 0 = (ln, acc) : macroLogicalLines rest
+      | otherwise = case rest of
+          [] -> [(ln, acc)]
+          (_, t) : rest' -> collect ln (acc ++ " " ++ t) (depth + macroBalance t) rest'
+
+parseMacroDeclaration :: Int -> String -> [(Int, String)] -> IO PreMacro
+parseMacroDeclaration ln headSource bodyLines = do
+  (name, parameters) <- case break (== '=') headSource of
+    (before, '=' : after) | null (strip after) ->
+      case words before of
+        name : parameters -> pure (name, parameters)
+        [] -> fatal ("macro needs a name (line " ++ show ln ++ ")")
+    _ -> fatal ("bad macro head (line " ++ show ln ++ ")")
+  when (not (validSurfaceName name))
+    (fatal ("bad macro name: " ++ name ++ " (line " ++ show ln ++ ")"))
+  rejectReservedName ln name
+  mapM_ (\parameter -> do
+          when (not (validSurfaceName parameter))
+            (fatal ("bad macro parameter: " ++ parameter
+                    ++ " (line " ++ show ln ++ ")"))
+          rejectReservedName ln parameter)
+    parameters
+  when (length (nub parameters) /= length parameters)
+    (fatal ("macro parameters must be distinct (line " ++ show ln ++ ")"))
+  (locals, result) <- splitBody [] (macroLogicalLines bodyLines)
+  pure PreMacro
+    { pmName = name
+    , pmParams = parameters
+    , pmLocals = locals
+    , pmResult = result
+    , pmLine = ln
+    }
+  where
+    splitBody accumulated ((lineNumber, line) : rest)
+      | Just localSource <- stripPrefix "local " line =
+          splitBody (accumulated ++ [(lineNumber, strip localSource)]) rest
+      | Just resultSource <- stripPrefix "in " line =
+          case rest of
+            [] -> pure (accumulated, (lineNumber, strip resultSource))
+            _ -> fatal ("macro body must end with its 'in <expression>' line (line "
+                        ++ show lineNumber ++ ")")
+      | otherwise = fatal
+          ("macro body lines must be 'local <binding>' or 'in <expression>': "
+           ++ line ++ " (line " ++ show lineNumber ++ ")")
+    splitBody _ [] = fatal
+      ("macro body needs a final 'in <expression>' line (line " ++ show ln ++ ")")
+
+-- Expand every macro call in the step expressions of an ordered model.
+expandMacros :: [PreMacro] -> Model -> IO Model
+expandMacros [] model = pure model
+expandMacros macros model = do
+  mapM_ rejectValueCollision macros
+  mapM_ rejectNonStepUse nonStepContexts
+  (_, expandedSteps) <- foldM expandStep (initialUsed, []) (mSteps model)
+  pure model { mSteps = concat (reverse expandedSteps) }
+  where
+    macrosByName = [(pmName mc, mc) | mc <- macros]
+
+    modelValueNames =
+      mAxes model
+      ++ internalCoordNames model
+      ++ map fst (mParams model)
+      ++ map fdName (mFieldDecls model)
+      ++ map defName (mDefs model)
+      ++ map sNm (mSteps model)
+      ++ maybe [] (: []) (mMetricName model)
+
+    initialUsed = nub
+      (modelValueNames
+       ++ map pmName macros
+       ++ standardNames ++ scalarIntrinsics ++ egisonReservedWords
+       ++ generatedIndexNames ++ generatedNormalizationNames
+       ++ normalizationDependencies)
+
+    rejectValueCollision mc =
+      when (pmName mc `elem` modelValueNames) (fatal
+        ("macro name '" ++ pmName mc
+         ++ "' conflicts with another value binding (line "
+         ++ show (pmLine mc) ++ ")"))
+
+    nonStepContexts =
+      [("def " ++ defName df, defBody df) | df <- mDefs model]
+      ++ [("init expression", text) | it <- mInits model, text <- initTexts it]
+      ++ [("metric scale expression", text)
+         | text <- maybe [] id (mMetric model)]
+      ++ [("embedding expression", text) | text <- maybe [] id (mEmbed model)]
+      ++ [("assert-dd-zero expression", text)
+         | text <- maybe [] (: []) (mDd model)]
+
+    initTexts it = case it of
+      IRaw _ text -> [text]
+      IVec _ texts -> texts
+      ISym _ texts -> texts
+      IAnti _ texts -> texts
+      ITensor2 _ texts -> texts
+      ICas _ text -> [text]
+      ICasIndex _ _ text -> [text]
+
+    rejectNonStepUse (context, text) =
+      case [name | name <- egisonIdentifiers text
+                 , name `elem` map pmName macros] of
+        name : _ -> fatal
+          ("macro '" ++ name ++ "' expands to step statements; it cannot be "
+           ++ "used in " ++ context)
+        [] -> pure ()
+
+    expandStep (used, expanded) step = do
+      ast <- case parseTensorExprEither (sEx step) of
+        Right value -> pure value
+        Left message -> fatal
+          ("macro expansion cannot parse step expression: " ++ sEx step
+           ++ " (" ++ message ++ ")")
+      (used', lifted, ast') <- expandNode 0 (callSiteOf step) used ast
+      let step'
+            | null lifted = step
+            | otherwise = step
+                { sEx = renderTensorExpr ast'
+                , sSourceText = syntheticSource (callSiteOf step)
+                    (renderTensorExpr ast')
+                }
+      pure (used', (lifted ++ [step']) : expanded)
+
+    callSiteOf step =
+      ( sourcePath (sSourceText step)
+      , sourceLine (sSourceText step)
+      , sourceColumn (sSourceText step)
+      )
+
+    syntheticSource (path, line, column) text = SourceText
+      { sourcePath = path
+      , sourceLine = line
+      , sourceColumn = column
+      , sourceOriginal = text
+      , sourceTranslated = text
+      , sourcePositionMap = [SourcePosition line column | _ <- text]
+      }
+
+    freshName used base = go' (base : [base ++ show k | k <- [(2 :: Int) ..]])
+      where
+        go' (candidate : rest)
+          | candidate `notElem` used && validSurfaceName candidate = candidate
+          | otherwise = go' rest
+        go' [] = base
+
+    -- Bottom-up expansion: children first, then this node if it is a call.
+    expandNode depth site used expression = do
+      when (depth > 32) (fatal
+        "macro expansion did not terminate; recursive macros are not supported")
+      case expression of
+        TEApply (TEIdent name []) arguments
+          | Just mc <- lookup name macrosByName ->
+              expandCall depth site used mc arguments
+        TECall (TEIdent name []) arguments
+          | Just mc <- lookup name macrosByName ->
+              expandCall depth site used mc arguments
+        _ -> descend expression
+      where
+        descend node = case node of
+          TENumber _ -> pure (used, [], node)
+          TEIdent _ _ -> pure (used, [], node)
+          TEUnary op body -> wrap1 (TEUnary op) body
+          TECall f args -> wrapN TECall f args
+          TEApply f args -> wrapN TEApply f args
+          TEIf c t e -> do
+            (u1, l1, c') <- expandNode depth site used c
+            (u2, l2, t') <- expandNode depth site u1 t
+            (u3, l3, e') <- expandNode depth site u2 e
+            pure (u3, l1 ++ l2 ++ l3, TEIf c' t' e')
+          TEAppendIndexed body parts -> wrap1 (\b -> TEAppendIndexed b parts) body
+          TEWithSymbols names body -> wrap1 (TEWithSymbols names) body
+          TEContractWith reducer body -> wrap1 (TEContractWith reducer) body
+          TETensorMap f body -> do
+            (u1, l1, f') <- expandNode depth site used f
+            (u2, l2, body') <- expandNode depth site u1 body
+            pure (u2, l1 ++ l2, TETensorMap f' body')
+          TESubrefs body parts -> wrap1 (\b -> TESubrefs b parts) body
+          TETranspose names body -> wrap1 (TETranspose names) body
+          TEDisjoint parts -> wrapList TEDisjoint parts
+          TEDerivative parts body -> wrap1 (TEDerivative parts) body
+          TEGridDerivativeChain parts body ->
+            wrap1 (TEGridDerivativeChain parts) body
+          TETensorLiteral elements parts ->
+            wrapList (\es -> TETensorLiteral es parts) elements
+          TEDot parts -> wrapList TEDot parts
+          TEBinary op lhs rhs -> do
+            (u1, l1, lhs') <- expandNode depth site used lhs
+            (u2, l2, rhs') <- expandNode depth site u1 rhs
+            pure (u2, l1 ++ l2, TEBinary op lhs' rhs')
+          TEGroup body -> wrap1 TEGroup body
+          _ -> pure (used, [], node)
+        wrap1 rebuild body = do
+          (u1, l1, body') <- expandNode depth site used body
+          pure (u1, l1, rebuild body')
+        wrapN rebuild f args = do
+          (u1, l1, f') <- expandNode depth site used f
+          (u2, l2, args') <- foldM
+            (\(u, ls, done) a -> do
+              (u', l', a') <- expandNode depth site u a
+              pure (u', ls ++ l', done ++ [a']))
+            (u1, [], []) args
+            >>= \(u, ls, done) -> pure (u, ls, done)
+          pure (u2, l1 ++ l2, rebuild f' args')
+        wrapList rebuild parts = do
+          (u2, l2, parts') <- foldM
+            (\(u, ls, done) a -> do
+              (u', l', a') <- expandNode depth site u a
+              pure (u', ls ++ l', done ++ [a']))
+            (used, [], []) parts
+          pure (u2, l2, rebuild parts')
+
+    expandCall depth site used mc arguments = do
+      -- arguments first, innermost lifts first
+      (used1, argumentLifts, arguments') <- foldM
+        (\(u, ls, done) a -> do
+          (u', l', a') <- expandNode depth site u a
+          pure (u', ls ++ l', done ++ [a']))
+        (used, [], []) arguments
+      when (length arguments' /= length (pmParams mc)) (fatal
+        ("macro '" ++ pmName mc ++ "' expects "
+         ++ show (length (pmParams mc)) ++ " argument(s), got "
+         ++ show (length arguments')))
+      checkBinderCapture mc arguments'
+      let parameterSubst = zip (pmParams mc) arguments'
+      (used2, localLifts, renames) <- foldM
+        (\(u, ls, rns) (localLine, localText) -> do
+          (declaration, target, rhsText) <- localForm localLine localText
+          let fresh = freshName u (indexedTargetName target)
+          rhsAst <- parseMacroPiece mc rhsText
+          rhsAst' <- substituteIdents mc parameterSubst rns rhsAst
+          (u', innerLifts, rhsAst'') <-
+            expandNode (depth + 1) site (fresh : u) rhsAst'
+          let liftedStep = Step
+                { sk = KLocal
+                , sTarget = target { indexedTargetName = fresh }
+                , sLocalDecl = Just declaration { ldName = fresh }
+                , sEx = renderTensorExpr rhsAst''
+                , sSourceText = syntheticSource site
+                    (renderTensorExpr rhsAst'')
+                }
+          pure (u', ls ++ innerLifts ++ [liftedStep]
+               , rns ++ [(indexedTargetName target, fresh)]))
+        (used1, [], []) (pmLocals mc)
+      resultAst <- parseMacroPiece mc (snd (pmResult mc))
+      resultAst' <- substituteIdents mc parameterSubst renames resultAst
+      (used3, resultLifts, resultAst'') <-
+        expandNode (depth + 1) site used2 resultAst'
+      pure ( used3
+           , argumentLifts ++ localLifts ++ resultLifts
+           , TEGroup resultAst''
+           )
+
+    parseMacroPiece mc text = case parseTensorExprEither text of
+      Right value -> pure value
+      Left message -> fatal
+        ("bad expression in macro '" ++ pmName mc ++ "' (line "
+         ++ show (pmLine mc) ++ "): " ++ message)
+
+    -- v1 hygiene guard: a macro body may bind index symbols with
+    -- withSymbols; reject arguments that mention those symbols instead of
+    -- silently capturing them.
+    checkBinderCapture mc arguments = do
+      binders <- collectBinders
+      let argumentIndexNames = nub (concatMap indexNames arguments)
+          captured = [b | b <- binders, b `elem` argumentIndexNames]
+      case captured of
+        b : _ -> fatal
+          ("macro '" ++ pmName mc ++ "' binds index symbol '" ++ b
+           ++ "' that also appears in an argument; rename the index at the "
+           ++ "call site")
+        [] -> pure ()
+      where
+        collectBinders = do
+          localRhs <- mapM
+            (\(localLine, localText) -> do
+              (_, _, rhsText) <- localForm localLine localText
+              pure rhsText)
+            (pmLocals mc)
+          pieces <- mapM (parseMacroPiece mc)
+            (localRhs ++ [snd (pmResult mc)])
+          pure (nub (concatMap withSymbolBinders pieces))
+        withSymbolBinders node = case node of
+          TEWithSymbols names body -> names ++ withSymbolBinders body
+          _ -> concatMap withSymbolBinders (childrenOf node)
+        indexNames node =
+          [nm | IxPart _ nm <- partsOf node]
+          ++ concatMap indexNames (childrenOf node)
+        partsOf node = case node of
+          TEIdent _ parts -> parts
+          TEAppendIndexed _ parts -> parts
+          TESubrefs _ parts -> parts
+          TEDerivative parts _ -> parts
+          TEGridDerivativeChain parts _ -> parts
+          TETensorLiteral _ parts -> parts
+          _ -> []
+        childrenOf node = case node of
+          TEUnary _ b -> [b]
+          TECall f args -> f : args
+          TEApply f args -> f : args
+          TEIf c t e -> [c, t, e]
+          TEAppendIndexed b _ -> [b]
+          TEWithSymbols _ b -> [b]
+          TEContractWith _ b -> [b]
+          TETensorMap f b -> [f, b]
+          TESubrefs b _ -> [b]
+          TETranspose _ b -> [b]
+          TEDisjoint parts -> parts
+          TEDerivative _ b -> [b]
+          TEGridDerivativeChain _ b -> [b]
+          TETensorLiteral elements _ -> elements
+          TEDot parts -> parts
+          TEBinary _ lhs rhs -> [lhs, rhs]
+          TEGroup b -> [b]
+          _ -> []
+
+    substituteIdents mc parameterSubst renames = rewrite
+      where
+        rewrite node = case node of
+          TEIdent name parts
+            | Just replacement <- lookup name parameterSubst ->
+                if null parts
+                  then pure (TEGroup replacement)
+                  else fatal
+                    ("macro parameter '" ++ name ++ "' of '" ++ pmName mc
+                     ++ "' cannot take index suffixes; bind it with a local "
+                     ++ "first")
+            | Just fresh <- lookup name renames ->
+                pure (TEIdent fresh parts)
+            | otherwise -> pure node
+          TENumber _ -> pure node
+          TEUnary op b -> TEUnary op <$> rewrite b
+          TECall f args -> TECall <$> rewrite f <*> mapM rewrite args
+          TEApply f args -> TEApply <$> rewrite f <*> mapM rewrite args
+          TEIf c t e -> TEIf <$> rewrite c <*> rewrite t <*> rewrite e
+          TEAppendIndexed b parts ->
+            (\b' -> TEAppendIndexed b' parts) <$> rewrite b
+          TEWithSymbols names b -> TEWithSymbols names <$> rewrite b
+          TEContractWith reducer b -> TEContractWith reducer <$> rewrite b
+          TETensorMap f b -> TETensorMap <$> rewrite f <*> rewrite b
+          TESubrefs b parts -> (\b' -> TESubrefs b' parts) <$> rewrite b
+          TETranspose names b -> TETranspose names <$> rewrite b
+          TEDisjoint parts -> TEDisjoint <$> mapM rewrite parts
+          TEDerivative parts b -> TEDerivative parts <$> rewrite b
+          TEGridDerivativeChain parts b ->
+            TEGridDerivativeChain parts <$> rewrite b
+          TETensorLiteral elements parts ->
+            (\es -> TETensorLiteral es parts) <$> mapM rewrite elements
+          TEDot parts -> TEDot <$> mapM rewrite parts
+          TEBinary op lhs rhs -> TEBinary op <$> rewrite lhs <*> rewrite rhs
+          TEGroup b -> TEGroup <$> rewrite b
+          _ -> pure node

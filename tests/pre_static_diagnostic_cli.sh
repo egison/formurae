@@ -134,6 +134,14 @@ expect_parse_failure pre_fec_definition_let_collision \
   "definition name 'helper' conflicts with let value binding (definition line 5, let line 7)"
 expect_parse_failure pre_fec_duplicate_definition \
   "definition name 'helper' is declared more than once (lines 5, 6)"
+expect_parse_failure pre_fec_macro_init_error \
+  "macro 'half' expands to step statements; it cannot be used in init expression"
+expect_parse_failure pre_fec_macro_arity_error \
+  "macro 'half' expects 1 argument(s), got 2"
+expect_parse_failure pre_fec_macro_duplicate_error \
+  "macro 'half' is declared more than once (line 11)"
+expect_parse_failure pre_fec_macro_body_error \
+  "macro body lines must be 'local <binding>' or 'in <expression>': let z = u (line 8)"
 expect_parse_failure pre_fec_definition_metric_collision \
   "definition name 'g' conflicts with generated metric value 'g' (line 6)"
 expect_parse_failure pre_fec_axis_value_collision \

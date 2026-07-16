@@ -1,0 +1,20 @@
+mode collocated
+dimension 1
+axes x
+
+param dt = 0.1
+
+macro half u =
+  local q @ primal = ∂_x u
+  in q
+
+field u : scalar @ primal
+
+init:
+  u = 0.0
+
+init:
+  u := half u
+
+step:
+  u' = u
