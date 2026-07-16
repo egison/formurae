@@ -283,12 +283,27 @@ def Formurae.inverseMetric : Tensor MathValue :=
   FE.inverseDiagonalMetricTensor
     dimension Formurae.geometryScale
 
+-- Canonical form operators guard their operands here, during normalization:
+-- a genuine k-form value carries dfOrder equal to its rank, while an
+-- ordinary tensor reports dfOrder zero, so without this check Egison's
+-- degree-zero branches would silently misread it (for example δ would
+-- collapse a plain vector to zero).  The static layer only separates scalar
+-- from tensor, so this value-level guard is the authoritative form check.
+def Formurae.isDifferentialForm (A: Tensor MathValue) : Bool :=
+  dfOrder A = length (tensorShape A)
+
 def Formurae.d
       (A: Tensor MathValue) : Tensor MathValue :=
-  let degree := dfOrder A + 1
-   in degree
-      * dfNormalize
-          (!(flip ∂/∂) coordinates A)
+  let degree := dfOrder A
+   in match assert "canonical d requires a scalar or differential form value"
+                   (Formurae.isDifferentialForm A)
+           && assert "canonical d is undefined on a top-degree form"
+                     (degree < dimension)
+            as bool with
+        | #True ->
+            (degree + 1)
+            * dfNormalize
+                (!(flip ∂/∂) coordinates A)
 
 -- Orthogonal-metric Hodge star.  The scale vector is the same symbolic value
 -- serialized into GeometryNF; post-fec therefore samples each coefficient at
@@ -298,8 +313,10 @@ def Formurae.d
 def Formurae.hodge
       (A: Tensor MathValue) : Tensor MathValue :=
   let degree := dfOrder A
-   in match assert "Euclidean Hodge star needs a form degree in 0..dimension"
-                   (0 <= degree && degree <= dimension)
+   in match assert "Euclidean Hodge star requires a scalar or differential form value"
+                   (Formurae.isDifferentialForm A)
+           && assert "Euclidean Hodge star needs a form degree in 0..dimension"
+                     (0 <= degree && degree <= dimension)
             as bool with
         | #True ->
             FE.canonicalFormTensor
@@ -314,6 +331,118 @@ def Formurae.hodge
                     * FE.tensorComponentAt A sourceBasis)
               dimension (dimension - degree)
 
+-- Discrete counterparts of d and the weighted Hodge star, for writing the
+-- weighted discrete adjoint (codifferential) as a user macro: the star is
+-- pure per-component algebra over the ambient volume and (diagonal)
+-- inverse metric, and the exterior derivative antisymmetrizes the
+-- placement-directed grid derivative instead of expanding analytically.
+--   (dA)_{i0..ik} = sum_p (-1)^p gridD_{ip} A_{i0..(ip omitted)..ik}
+-- The alternation walks the ordered basis structurally, so no integer
+-- arithmetic is needed on the way.
+def Formurae.alternatingGridSum
+      (sign: MathValue) (before: [Integer]) (after: [Integer])
+      (A: Tensor MathValue) : MathValue :=
+  match after as list integer with
+    | [] -> 0
+    | $axis :: $rest ->
+        sign * Formurae.gridWholeDerivative axis
+                 (FE.tensorComponentAt A (before ++ rest))
+        + Formurae.alternatingGridSum (0 - sign) (before ++ [axis]) rest A
+
+def Formurae.dExterior
+      (A: Tensor MathValue) : Tensor MathValue :=
+  let degree := dfOrder A
+   in match assert "discrete exterior derivative requires a scalar or differential form value"
+                   (Formurae.isDifferentialForm A)
+           && assert "discrete exterior derivative is undefined on a top-degree form"
+                     (degree < dimension)
+            as bool with
+        | #True ->
+            FE.canonicalFormTensor
+              (\targetBasis ->
+                Formurae.alternatingGridSum 1 [] targetBasis A)
+              dimension (degree + 1)
+
+-- The geometry values arrive as arguments so this stays a pure library
+-- function: the generated unit applies it to its ambient (unquoted)
+-- volume and inverse metric.  Component convention matches Formurae.hodge:
+--   (*A)_J = sign(I ++ J) (V * product(i in I, g^ii)) A_I.
+def Formurae.dHodgeWith
+      (volumeValue: MathValue) (inverseMetricValue: Tensor MathValue)
+      (A: Tensor MathValue) : Tensor MathValue :=
+  let degree := dfOrder A
+   in match assert "weighted Hodge star requires a scalar or differential form value"
+                   (Formurae.isDifferentialForm A)
+           && assert "weighted Hodge star needs a form degree in 0..dimension"
+                     (0 <= degree && degree <= dimension)
+            as bool with
+        | #True ->
+            FE.canonicalFormTensor
+              (\targetBasis ->
+                let sourceBasis :=
+                      FE.complementFormBasis dimension targetBasis
+                 in FE.formBasisSign (sourceBasis ++ targetBasis)
+                    * volumeValue
+                    * foldl (*) 1
+                        (map (\axis ->
+                               FE.tensorComponentAt inverseMetricValue
+                                 [axis, axis])
+                             sourceBasis)
+                    * FE.tensorComponentAt A sourceBasis)
+              dimension (dimension - degree)
+
+-- Placement-consistent weighted flux: w_I = V * product(i in I, g^ii) A_I.
+-- Unlike the Hodge star this keeps every component on its own index set,
+-- so on a staggered lattice the materialized value sits exactly at the
+-- parity its basis dictates.
+def Formurae.dFluxWith
+      (volumeValue: MathValue) (inverseMetricValue: Tensor MathValue)
+      (A: Tensor MathValue) : Tensor MathValue :=
+  match assert "weighted flux requires a scalar or differential form value"
+               (Formurae.isDifferentialForm A)
+        as bool with
+    | #True ->
+        FE.canonicalFormTensor
+          (\basis ->
+            volumeValue
+            * foldl (*) 1
+                (map (\axis ->
+                       FE.tensorComponentAt inverseMetricValue [axis, axis])
+                     basis)
+            * FE.tensorComponentAt A basis)
+          dimension (dfOrder A)
+
+-- Signed adjoint divergence of a weighted flux: contract the leading slot
+-- with the placement-directed grid derivative and undo the target's
+-- weights,
+--   (δ-div w)_K = -(product(k in K, g_kk) / V) * sum_i gridD_i w_{i K}.
+-- With the derivative index in the leading slot the codifferential sign
+-- (-1)^(n(k+1)+1) collapses to this single minus for every degree;
+-- antisymmetry makes w_{i K} vanish for i in K and supplies the
+-- alternating signs through the canonical component lookup.
+def Formurae.dFluxDivWith
+      (volumeValue: MathValue) (metricValue: Tensor MathValue)
+      (w: Tensor MathValue) : Tensor MathValue :=
+  let degree := dfOrder w
+   in match assert "adjoint divergence requires a differential form value of positive degree"
+                   (Formurae.isDifferentialForm w && 1 <= degree
+                    && degree <= dimension)
+            as bool with
+        | #True ->
+            FE.canonicalFormTensor
+              (\targetBasis ->
+                (0 - foldl (*) 1
+                       (map (\axis ->
+                              FE.tensorComponentAt metricValue [axis, axis])
+                            targetBasis))
+                / volumeValue
+                * foldl (+) 0
+                    (map (\axis ->
+                           Formurae.gridWholeDerivative axis
+                             (FE.tensorComponentAt w (axis :: targetBasis)))
+                         (between 1 dimension)))
+              dimension (degree - 1)
+
 -- Variable-metric codifferential is a discrete adjoint boundary.  Each
 -- result component carries the complete source form in canonical tensor
 -- order so post-fec can apply the weighted whole-expression derivative
@@ -321,10 +450,12 @@ def Formurae.hodge
 def Formurae.metricCodiff
       (A: Tensor MathValue) : Tensor MathValue :=
   let degree := dfOrder A
-   in if degree = 0
+   in if Formurae.isDifferentialForm A && degree = 0
         then 0
-        else match assert "metric codifferential needs a form degree in 1..dimension"
-                          (degree <= dimension && i.> feGeometryId 0)
+        else match assert "metric codifferential requires a scalar or differential form value"
+                          (Formurae.isDifferentialForm A)
+                   && assert "metric codifferential needs a form degree in 1..dimension"
+                             (degree <= dimension && i.> feGeometryId 0)
                    && Formurae.requireOpaqueManifest
              as bool with
           | #True ->
@@ -345,11 +476,15 @@ def Formurae.metricCodiff
 def Formurae.codiff
       (A: Tensor MathValue) : Tensor MathValue :=
   let degree := dfOrder A
-   in if degree = 0
+   in if Formurae.isDifferentialForm A && degree = 0
         then 0
-        else (-1) ^ (dimension * (degree + 1) + 1)
-             * Formurae.hodge
-                 (Formurae.d (Formurae.hodge A))
+        else match assert "canonical codifferential requires a scalar or differential form value"
+                          (Formurae.isDifferentialForm A)
+             as bool with
+          | #True ->
+              (-1) ^ (dimension * (degree + 1) + 1)
+              * Formurae.hodge
+                  (Formurae.d (Formurae.hodge A))
 
 -- PDE-sign scalar Laplacian under the selected codifferential convention:
 --   Delta u = -delta(d u).
@@ -368,8 +503,10 @@ def Formurae.scalarLaplacian
 def Formurae.hodgeLaplacian
       (A: Tensor MathValue) : Tensor MathValue :=
   let degree := dfOrder A
-   in match assert "Hodge Laplacian needs a form degree in 0..dimension"
-                   (0 <= degree && degree <= dimension)
+   in match assert "Hodge Laplacian requires a scalar or differential form value"
+                   (Formurae.isDifferentialForm A)
+           && assert "Hodge Laplacian needs a form degree in 0..dimension"
+                     (0 <= degree && degree <= dimension)
             as bool with
         | #True ->
             (if degree = 0

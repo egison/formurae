@@ -87,6 +87,8 @@ sh tests/pre_tensor_metadata.sh
 sh tests/pre_static_diagnostic_cli.sh
 sh tests/pre_user_definitions.sh
 sh tests/pre_macro_expansion.sh
+sh tests/pre_deferred_local.sh
+sh tests/pre_generic_codiff.sh
 sh tests/post_diagnostic_cli.sh
 sh tests/pre_provenance_e2e.sh
 # Includes the typed conservative-local FEIR check in

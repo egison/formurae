@@ -603,6 +603,10 @@ logicalFieldFromSurface model identifier origin lifetime field =
       Surface.SymM -> FEIR.SymmetricLayout
       Surface.AntiM -> FEIR.AntisymmetricLayout
       Surface.Tensor2 -> FEIR.FullLayout
+      -- Placeholder only: a deferred local's authoritative declaration is
+      -- spliced into the emitted unit from its computed value, so this
+      -- record merely reserves the id, name, policy, lifetime, and origin.
+      Surface.TensorAny -> FEIR.ScalarLayout
 
 mapVariance :: Surface.Variance -> FEIR.Variance
 mapVariance Surface.VUp = FEIR.VarianceUp

@@ -16,15 +16,16 @@ main = do
     "scalar Δ requires a scalar operand, but received ordinary tensor"
     (validateModelOperatorTypes deltaTensor)
 
+  -- The static layer tracks only scalar versus tensor: form-degree checks
+  -- (non-form operands, top-degree d) happen during normalization from the
+  -- value's dfOrder, so these operands pass the static layer.
   codiffTensor <- model "codiff-tensor" codiffTensorSource
-  assertLeft "codifferential requires a differential form"
-    "canonical δ requires a scalar or differential form, but received ordinary tensor"
-    (validateModelOperatorTypes codiffTensor)
+  assertEqual "codifferential defers form checks to normalization"
+    (Right ()) (validateModelOperatorTypes codiffTensor)
 
   topDegree <- model "top-degree" topDegreeSource
-  assertLeft "exterior derivative rejects a top-degree form"
-    "canonical d is undefined on a top-degree 2-form in dimension 2"
-    (validateModelOperatorTypes topDegree)
+  assertEqual "top-degree d defers to the normalization guard"
+    (Right ()) (validateModelOperatorTypes topDegree)
 
   unknownDefinition <- model "unknown-definition" unknownDefinitionSource
   assertLeft "untyped helper parameters cannot hide a scalar-only boundary"
@@ -37,15 +38,13 @@ main = do
     (validateModelOperatorTypes rawDefinition)
 
   shadowedIntrinsic <- model "shadowed-intrinsic" shadowedIntrinsicSource
-  assertLeft "user-shadowed intrinsics do not retain builtin result kinds"
-    "canonical δ requires a statically known scalar or differential form; untyped definition parameters cannot cross this operator boundary"
-    (validateModelOperatorTypes shadowedIntrinsic)
+  assertEqual "form operators accept statically unknown operands"
+    (Right ()) (validateModelOperatorTypes shadowedIntrinsic)
 
   rankUnknownDivergence <- model "rank-unknown-divergence"
     rankUnknownDivergenceSource
-  assertLeft "higher-rank divg cannot be assumed scalar"
-    "canonical δ requires a statically known scalar or differential form; untyped definition parameters cannot cross this operator boundary"
-    (validateModelOperatorTypes rankUnknownDivergence)
+  assertEqual "form operators accept rank-unknown operands"
+    (Right ()) (validateModelOperatorTypes rankUnknownDivergence)
 
   wrongArity <- model "wrong-arity" wrongAritySource
   assertLeft "canonical operators are always unary"
@@ -67,10 +66,11 @@ main = do
   assertEqual "raw bodies respect user-definition canonical shadowing"
     (Right ()) (validateModelOperatorTypes rawShadow)
 
+  -- A 0-form is a rank-zero value, so at scalar/tensor granularity it may
+  -- cross scalar-only operator boundaries.
   formZeroScalarMix <- model "form-zero-scalar-mix" formZeroScalarMixSource
-  assertLeft "0-form arithmetic does not erase form kind"
-    "quoted derivative requires a scalar operand, but received 0-form"
-    (validateModelOperatorTypes formZeroScalarMix)
+  assertEqual "0-forms check as scalars"
+    (Right ()) (validateModelOperatorTypes formZeroScalarMix)
 
   scalarDeltaIdentity <- model "scalar-delta-identity"
     scalarDeltaIdentitySource
@@ -83,15 +83,15 @@ main = do
     "local q declares scalar, but its RHS has ordinary tensor kind"
     (validateModelOperatorTypes scalarLocalMismatch)
 
+  -- Both sides are tensors at this granularity; the declared degree is
+  -- validated against the value's dfOrder at the encode boundary.
   formLocalMismatch <- model "form-local-mismatch" formLocalMismatchSource
-  assertLeft "form locals reject a known ordinary tensor RHS"
-    "local q declares 1-form, but its RHS has ordinary tensor kind"
-    (validateModelOperatorTypes formLocalMismatch)
+  assertEqual "form locals defer degree checks to the encode boundary"
+    (Right ()) (validateModelOperatorTypes formLocalMismatch)
 
   dotShadow <- model "dot-shadow-kind" dotShadowKindSource
-  assertLeft "a user-defined dot has no builtin contraction result kind"
-    "canonical δ requires a statically known scalar or differential form; untyped definition parameters cannot cross this operator boundary"
-    (validateModelOperatorTypes dotShadow)
+  assertEqual "form operators accept shadowed-dot operands"
+    (Right ()) (validateModelOperatorTypes dotShadow)
 
   mapM_ (\(label, expression) -> do
       nested <- model label (nestedTraversalSource expression)
@@ -116,15 +116,13 @@ main = do
 
   updateKindMismatch <- model "update-kind-mismatch"
     updateKindMismatchSource
-  assertLeft "field updates cannot wash a 0-form into a scalar"
-    "field u declares scalar, but its RHS has 0-form kind"
-    (validateModelOperatorTypes updateKindMismatch)
+  assertEqual "a 0-form updates a scalar field at this granularity"
+    (Right ()) (validateModelOperatorTypes updateKindMismatch)
 
   initializerKindMismatch <- model "initializer-kind-mismatch"
     initializerKindMismatchSource
-  assertLeft "CAS initializers cannot wash a 0-form into a scalar"
-    "field u declares scalar, but its RHS has 0-form kind"
-    (validateModelOperatorTypes initializerKindMismatch)
+  assertEqual "a 0-form initializes a scalar field at this granularity"
+    (Right ()) (validateModelOperatorTypes initializerKindMismatch)
 
   formUpdateFromScalar <- model "form-update-from-scalar"
     formUpdateFromScalarSource
@@ -162,15 +160,13 @@ main = do
 
   continuumDDKindMismatch <- model "continuum-dd-kind-mismatch"
     continuumDDKindMismatchSource
-  assertLeft "assert-dd-zero checks the operand of its internal d(d value)"
-    "assert-dd-zero internally applies canonical d and requires a scalar or differential form, but received ordinary tensor"
-    (validateModelOperatorTypes continuumDDKindMismatch)
+  assertEqual "assert-dd-zero defers form checks to the library d guard"
+    (Right ()) (validateModelOperatorTypes continuumDDKindMismatch)
 
   continuumDDTopDegree <- model "continuum-dd-top-degree"
     continuumDDTopDegreeSource
-  assertLeft "assert-dd-zero checks both internal exterior derivatives"
-    "canonical d is undefined on a top-degree 2-form in dimension 2"
-    (validateModelOperatorTypes continuumDDTopDegree)
+  assertEqual "assert-dd-zero defers top-degree checks to the library d guard"
+    (Right ()) (validateModelOperatorTypes continuumDDTopDegree)
 
   symbolicPi <- model "symbolic-pi" symbolicPiSource
   assertEqual "symbolic pi is a statically known scalar"

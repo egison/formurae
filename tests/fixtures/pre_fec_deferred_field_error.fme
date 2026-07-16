@@ -1,0 +1,6 @@
+mode collocated
+dimension 1
+axes x
+field u : tensor
+step:
+  u' = u

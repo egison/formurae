@@ -1,0 +1,21 @@
+mode collocated
+dimension 3
+axes θ, φ, z
+
+param dt = 0.0005
+
+extern exp
+
+metric scale [1, 2 + cos θ, 1]
+
+macro δc A =
+  local w : tensor @ primal = dFlux A
+  in dFluxDiv w
+
+field u : scalar @ primal
+
+init:
+  u := exp (cos θ + cos φ - 2)
+
+step:
+  u' = u + dt * (0 - δc (dExterior u))

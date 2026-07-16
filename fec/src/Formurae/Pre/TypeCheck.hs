@@ -5,6 +5,13 @@
 -- lifting.  The normalizer remains responsible for full tensor algebra, but
 -- these checks run before it so a scalar-only quoted derivative or scalar
 -- Laplacian cannot silently turn into a componentwise tensor operation.
+--
+-- The static layer distinguishes only scalar and tensor values.  Form
+-- degrees are runtime data carried by the value itself (dfOrder): the
+-- canonical-operator library guards them during normalization and the FEIR
+-- encode boundary re-checks declared metadata, both reporting through the
+-- origin table, so a fixed macro body can instantiate at every degree
+-- without the checker having to know which one.
 module Formurae.Pre.TypeCheck
   ( StaticKind(..)
   , OperatorTypeError(..)
@@ -21,7 +28,6 @@ import Formurae.TensorExpr
 data StaticKind
   = StaticScalar
   | StaticTensor
-  | StaticForm Int
   | StaticUnknown
   deriving (Eq, Ord, Show)
 
@@ -112,10 +118,11 @@ validateModelOperatorTypes model = do
           requireGeometryScalar Nothing context actual
 
     checkContinuumDD expressionSource = do
-      actual <- inferExpression definitionNames baseEnvironment Nothing
+      -- assert-dd-zero applies canonical d twice during normalization, where
+      -- the library guards the operand's form degree from its dfOrder; the
+      -- static layer only validates the expression itself.
+      _ <- inferExpression definitionNames baseEnvironment Nothing
         expressionSource
-      _ <- exteriorKindForAssertion Nothing (mDim model) actual
-        >>= exteriorKindForAssertion Nothing (mDim model)
       pure ()
 
     checkFieldAssignment name source expressionSource = do
@@ -166,11 +173,18 @@ validateModelOperatorTypes model = do
 kindFromSurface :: Kind -> StaticKind
 kindFromSurface kind = case kind of
   Scalar -> StaticScalar
-  Form degree -> StaticForm degree
+  -- A 0-form is a rank-zero value, so at scalar/tensor granularity it is a
+  -- scalar; positive degrees are rank >= 1.  The declared degree itself is
+  -- validated against the value's dfOrder at the encode boundary.
+  Form 0 -> StaticScalar
+  Form _ -> StaticTensor
   Vector -> StaticTensor
   SymM -> StaticTensor
   AntiM -> StaticTensor
   Tensor2 -> StaticTensor
+  -- A deferred local declares nothing statically; its metadata is read
+  -- from the value during normalization.
+  TensorAny -> StaticUnknown
 
 definitionParameterBase :: String -> String
 definitionParameterBase = takeWhile isAlphaNum
@@ -272,7 +286,6 @@ infer model shadowed environment source expression
     TEGroup body -> inferHere body
   where
     inferHere = infer model shadowed environment source
-    dimension = mDim model
     operatorScope = OperatorScope shadowed
 
     lookupValue name =
@@ -304,50 +317,31 @@ infer model shadowed environment source expression
         , canonicalOperatorIsVisible operatorScope operator -> Just operator
       _ -> Nothing
 
+    -- Form operators accept every operand at scalar/tensor granularity: the
+    -- degree lives in the value (dfOrder) and the library rejects non-form
+    -- operands and out-of-range degrees during normalization.  Only rank
+    -- facts that are exact at this granularity are recorded below.
     inferCanonical operator operandKind = case operator of
       CanonicalScalarLaplacian -> do
         requireScalar "scalar Δ" operandKind
         pure StaticScalar
       CanonicalExteriorD -> case operandKind of
-        StaticScalar -> exteriorResult 0
-        StaticForm degree -> exteriorResult degree
-        StaticTensor -> wrongForm "d" operandKind
-        StaticUnknown -> unknownForm "d"
+        -- d of a rank-zero value is a rank-one form.
+        StaticScalar -> pure StaticTensor
+        other -> pure other
       CanonicalHodge -> case operandKind of
-        StaticScalar -> pure (StaticForm dimension)
-        StaticForm degree
-          | validDegree degree -> pure (StaticForm (dimension - degree))
-          | otherwise -> invalidDegree "hodge" degree
-        StaticTensor -> wrongForm "hodge" operandKind
-        StaticUnknown -> unknownForm "hodge"
+        -- hodge of a rank-zero value is the rank-`dimension` volume form.
+        StaticScalar -> pure StaticTensor
+        -- hodge of a top-degree form is rank zero, so the rank of a tensor
+        -- operand's result is unknown without its degree.
+        _ -> pure StaticUnknown
       CanonicalCodifferential -> case operandKind of
+        -- δ on degree zero is zero.
         StaticScalar -> pure StaticScalar
-        StaticForm degree
-          | not (validDegree degree) -> invalidDegree "δ" degree
-          | degree == 0 -> pure (StaticForm 0)
-          | otherwise -> pure (StaticForm (degree - 1))
-        StaticTensor -> wrongForm "δ" operandKind
-        StaticUnknown -> unknownForm "δ"
-      CanonicalHodgeLaplacian -> case operandKind of
-        StaticScalar -> pure StaticScalar
-        StaticForm degree
-          | validDegree degree -> pure (StaticForm degree)
-          | otherwise -> invalidDegree "Δ_H" degree
-        StaticTensor -> wrongForm "Δ_H" operandKind
-        StaticUnknown -> unknownForm "Δ_H"
-
-    exteriorResult degree
-      | not (validDegree degree) = invalidDegree "d" degree
-      | degree >= dimension = typeFailure source
-          ("canonical d is undefined on a top-degree " ++ show degree
-           ++ "-form in dimension " ++ show dimension)
-      | otherwise = pure (StaticForm (degree + 1))
-
-    validDegree degree = degree >= 0 && degree <= dimension
-
-    invalidDegree operator degree = typeFailure source
-      ("canonical " ++ operator ++ " received form degree " ++ show degree
-       ++ " outside 0.." ++ show dimension)
+        -- δ of a 1-form is rank zero; higher degrees keep tensor rank.
+        _ -> pure StaticUnknown
+      -- Δ_H preserves both degree and rank.
+      CanonicalHodgeLaplacian -> pure operandKind
 
     requireScalar operator operandKind = case operandKind of
       StaticScalar -> pure ()
@@ -357,15 +351,6 @@ infer model shadowed environment source expression
       _ -> typeFailure source
         (operator ++ " requires a scalar operand, but received "
          ++ describeKind operandKind)
-
-    wrongForm operator operandKind = typeFailure source
-      ("canonical " ++ operator ++ " requires a scalar or differential form, "
-       ++ "but received " ++ describeKind operandKind)
-
-    unknownForm operator = typeFailure source
-      ("canonical " ++ operator
-       ++ " requires a statically known scalar or differential form; "
-       ++ "untyped definition parameters cannot cross this operator boundary")
 
     ordinaryApplicationKind function argumentKinds =
       case ungroup function of
@@ -417,25 +402,15 @@ combineBinary operator lhs rhs
   | operator `elem` ["==", "!=", "<", ">", "<=", ">=", "&&", "||"] =
       StaticScalar
   | lhs == rhs = lhs
-  | isScalarLike lhs && isScalarLike rhs =
-      if lhs == StaticForm 0 || rhs == StaticForm 0
-        then StaticForm 0
-        else StaticScalar
   | operator `elem` ["*", "/"] && lhs == StaticScalar = rhs
   | operator == "*" && rhs == StaticScalar = lhs
   | lhs == StaticUnknown || rhs == StaticUnknown = StaticUnknown
   | otherwise = StaticUnknown
 
-isScalarLike :: StaticKind -> Bool
-isScalarLike StaticScalar = True
-isScalarLike (StaticForm 0) = True
-isScalarLike _ = False
-
 describeKind :: StaticKind -> String
 describeKind kind = case kind of
   StaticScalar -> "scalar"
   StaticTensor -> "ordinary tensor"
-  StaticForm degree -> show degree ++ "-form"
   StaticUnknown -> "an unknown value"
 
 requireLocalKind
@@ -445,6 +420,7 @@ requireLocalKind
   -> Either OperatorTypeError ()
 requireLocalKind source local actual
   | actual == StaticUnknown = pure ()
+  | declared == StaticUnknown = pure ()
   | localKindsCompatible declared actual = pure ()
   | otherwise = typeFailure source
       ("local " ++ ldName local ++ " declares " ++ describeKind declared
@@ -477,34 +453,8 @@ requireGeometryScalar source context actual = typeFailure source
   (context ++ " expression requires a scalar value, but received "
    ++ describeKind actual)
 
-exteriorKindForAssertion
-  :: Maybe SourceText
-  -> Int
-  -> StaticKind
-  -> Either OperatorTypeError StaticKind
-exteriorKindForAssertion _ _ StaticUnknown = pure StaticUnknown
-exteriorKindForAssertion source _ StaticTensor = typeFailure source
-  ("assert-dd-zero internally applies canonical d and requires a scalar or "
-   ++ "differential form, but received ordinary tensor")
-exteriorKindForAssertion source dimension StaticScalar =
-  exteriorKindForAssertion source dimension (StaticForm 0)
-exteriorKindForAssertion source dimension (StaticForm degree)
-  | degree < 0 || degree > dimension = typeFailure source
-      ("canonical d received form degree " ++ show degree
-       ++ " outside 0.." ++ show dimension)
-  | degree >= dimension = typeFailure source
-      ("canonical d is undefined on a top-degree " ++ show degree
-       ++ "-form in dimension " ++ show dimension)
-  | otherwise = pure (StaticForm (degree + 1))
-
 localKindsCompatible :: StaticKind -> StaticKind -> Bool
-localKindsCompatible declared actual
-  | declared == actual = True
-  -- A literal or declared scalar can initialize a rank-zero differential
-  -- form.  The reverse direction is not implicit: retaining StaticForm 0 is
-  -- what keeps a stored 0-form from crossing a scalar-only operator boundary.
-  | declared == StaticForm 0 && actual == StaticScalar = True
-  | otherwise = False
+localKindsCompatible declared actual = declared == actual
 
 dropNextPrime :: String -> String
 dropNextPrime name = case reverse name of

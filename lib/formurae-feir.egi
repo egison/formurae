@@ -1133,3 +1133,60 @@ def FEIR.encodeTensorWithMetadata
         , FEIR.field "df-order" (FEIR.int differentialFormOrder)
         , FEIR.field "components" (FEIR.list components)
         ]
+
+-- ----------------------------------------------------------------- deferred
+-- A step local declared `: tensor` defers its rank, variances, and form
+-- degree to the value computed during normalization.  These builders
+-- reproduce exactly the declaration and reader entries pre-fec would have
+-- emitted had the metadata been written, so downstream FEIR consumers see
+-- a fully concrete field.
+
+-- Differential forms store their ordered independent components; every
+-- other tensor stores the full component grid.
+def FEIR.deferredComponentBases (value: Tensor MathValue) : [[Integer]] :=
+  let shape := tensorShape value
+   in if dfOrder value > 0
+        then FE.chooseAxes (length shape) (between 1 (head shape))
+        else FEIR.fullBases shape
+
+def FEIR.deferredLayoutTag (value: Tensor MathValue) : String :=
+  let rank := length (tensorShape value)
+   in if rank = 0
+        then "scalar"
+        else if dfOrder value = rank
+          then "form"
+          else if rank = 1
+            then "vector"
+            else "full"
+
+def FEIR.deferredLocalFieldDecl
+      (fieldId: Integer) (sourceName: String) (policyTag: String)
+      (originId: Integer) (value: Tensor MathValue) : FEIRSExpr :=
+  let shape := tensorShape value
+      variances := Formurae.logicalTensorVariances value
+   in FEIR.record "field"
+        [ FEIR.field "id" (FEIR.int fieldId)
+        , FEIR.field "source-name" (FEIR.string sourceName)
+        , FEIR.field "policy" (FEIR.atom policyTag)
+        , FEIR.field "tensor-type"
+            (FEIR.record "tensor-type"
+              [ FEIR.field "shape" (FEIR.list (map FEIR.int shape))
+              , FEIR.field "variances"
+                  (FEIR.list (map FEIR.varianceAtom variances))
+              , FEIR.field "df-order" (FEIR.int (dfOrder value))
+              ])
+        , FEIR.field "layout" (FEIR.atom (FEIR.deferredLayoutTag value))
+        , FEIR.field "declared-variances"
+            (FEIR.list (map (\_ -> FEIR.list [FEIR.atom "none"]) shape))
+        , FEIR.field "lifetime" (FEIR.atom "step-local")
+        , FEIR.field "origin" (FEIR.int originId)
+        ]
+
+def FEIR.deferredFieldEntries
+      (fieldId: Integer) (raw: Tensor MathValue) (value: Tensor MathValue)
+      : [(MathValue, Integer, String, [Integer])] :=
+  if tensorShape value = []
+    then [FEIR.fieldEntry fieldId "current" [] raw]
+    else map (\basis -> FEIR.fieldEntry fieldId "current" basis
+                          (FE.tensorComponentAt raw basis))
+             (FEIR.deferredComponentBases value)

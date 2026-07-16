@@ -196,6 +196,52 @@ metric/embedding 内はエラー)/引数は添字なしの出現のみ/再帰は
 post-fec への直書きで代替したもの」という位置づけが実装で裏づけられ、
 Δ/δ のライブラリマクロ化(scheduled 要求の解消)への道が開いた。
 
+**v2.11(2026-07-16): scalar/tensor 静的検査への縮約・遅延 local・汎用 codiff マクロ** —
+静的 kind 検査から form 次数の追跡を撤去し、**scalar / tensor(/unknown)だけを
+検査する**仕様に縮約した。次数の正は Egison と同じく値自身(`dfOrder`)にあり、
+既存の encode 境界 assert(宣言 metadata と実測の突き合わせ)と FEIR Validate が
+正規化時に検査する。canonical d/⋆/δ/Δ_H は静的には全 operand を受け、
+非 form への適用はライブラリの実行時ガード
+(`Formurae.isDifferentialForm` = `dfOrder = rank`;δ が通常テンソルを黙って 0 に
+潰す事故をエラー化)が origin 経由の source 位置つきで落とす。scalar 専用検査
+(quoted ∂・scalar Δ)は componentwise lift 事故防止のため静的なまま残す。
+
+この上に **遅延 local(`local w : tensor @ policy = …`)** を導入した。宣言は
+rank・variance・次数を書かず、writer の値から正規化時に決める: FEIR field 宣言は
+値駆動で構築され(`FEIR.deferredLocalFieldDecl`)、reader 束縛・fieldEntry 列挙も
+値の shape/dfOrder から生成される。registry fingerprint は schema 2 で
+**step-local を identity から除外**した(local は runtime equations の
+materialization 対象であり、equations は元々 identity の対象外という宣言に整合;
+遅延宣言の placeholder/解決後の不一致も根治)。ゲート: 宣言版と桁を揃えた遅延版の
+FEIR が identity マスク後に byte 一致(2-form / vector / scalar、
+tests/pre_deferred_local.sh)。
+
+最後に次数汎用のライブラリ部品
+**`dFlux`(重みつき flux: w_I = V·∏_{i∈I}g^{ii}·A_I、同一添字集合なので staggered
+parity と整合)/ `dFluxDiv`(符号込み随伴発散:
+(δ-div w)_K = −(∏_{k∈K}g_kk/V)·Σ_i gridD_i w_{iK}。微分添字を先頭スロットに置く
+規約で δ の次数依存符号 (−1)^{n(k+1)+1} は全次数で単一の − に潰れる)/
+`dExterior`(placement 誘導 grid ∂ の交代和)/ `dHodge`(⋆ そのもの;
+成分が補集合へ移るため materialize 用ではなく診断・flat 用)** を追加し、
+**codifferential が 1 本のマクロ**になった:
+
+```
+macro δc A =
+  local w : tensor @ primal = dFlux A
+  in dFluxDiv w
+```
+
+次数分岐はどこにも書かれない — `dFlux`/`dFluxDiv` が `dfOrder` を読み、遅延 local が
+その次数で実体化する。ゲート(tests/pre_generic_codiff.sh): (1) トーラス
+(可変計量・staggered)で `u' = u + dt*(0 − δc (dExterior u))` の .fmr が
+検証済み手書き保存形と **local 名を除いて byte 一致**; (2) maxwell_dec
+(flat Yee)で `δc B`(2-form!)が組み込み `δ B` と、恒等 flux local の代入と
+−(a−b)=(b−a) の正規化だけで .fmr 一致、**C 実行出力は bit 一致**。⋆ を
+materialize しない理由も記録する: ⋆ は成分を補集合 basis へ移すため、staggered
+格子では材料化した瞬間に basis parity と値の parity が食い違う。musical
+重みづけ(dFlux)は添字集合を保つので parity 整合であり、これが「保存形は
+flux 形で書く」ことの型・配置レベルの説明になっている。
+
 **v1.36(2026-07-11): runtime tensor lowering と Phase 7 完了** —
 標準6演算子だけでなく、一般の indexed equation、implicit vector equation、rank-1/rank-2
 indexed `let`、indexed CAS initializer を、成分別 Haskell 式へ展開せず whole runtime tensor として

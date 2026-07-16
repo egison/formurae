@@ -298,6 +298,10 @@ componentRank (Form k) = k
 componentRank SymM = 2
 componentRank AntiM = 2
 componentRank Tensor2 = 2
+-- A deferred local has no declared rank; the registry carries a rank-zero
+-- placeholder and the emitted unit derives the authoritative declaration
+-- from the value during normalization.
+componentRank TensorAny = 0
 
 choose :: Int -> [a] -> [[a]]
 choose 0 _ = [[]]
@@ -321,6 +325,9 @@ componentIndices dim (Form k) = choose k [1 .. dim]
 componentIndices dim SymM = symComponentIndices dim
 componentIndices dim AntiM = antiComponentIndices dim
 componentIndices dim Tensor2 = [[a, b] | a <- [1 .. dim], b <- [1 .. dim]]
+-- Deferred locals enumerate their component bases during normalization
+-- (FEIR.deferredFieldEntries); the static table contributes nothing.
+componentIndices _ TensorAny = []
 
 rank2Pairs :: [[Int]] -> [(Int, Int)]
 rank2Pairs = map pairOf

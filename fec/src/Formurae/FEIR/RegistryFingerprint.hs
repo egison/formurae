@@ -26,7 +26,7 @@ registryIdMatches program =
 registryFingerprintPayload :: FEProgram -> SExpr
 registryFingerprintPayload program = List
   [ Atom "logical-registry"
-  , List [Atom "schema", Atom "formurae-logical-registry", Atom "1"]
+  , List [Atom "schema", Atom "formurae-logical-registry", Atom "2"]
   , named "mode" (programField "mode")
   , named "dimension" (programField "dimension")
   , named "axes" (programField "axes")
@@ -37,7 +37,18 @@ registryFingerprintPayload program = List
   , named "raw-helpers" (programField "raw-helpers")
   ]
   where
+    -- Step locals are materialization targets of the runtime equations,
+    -- which are deliberately outside this identity: their declarations
+    -- follow the step stream (and, for deferred locals, the normalized
+    -- value), so only user-state storage participates.  Schema 2 records
+    -- this narrowing.
     encoded = encodeFEProgram program
+      { feProgramFields =
+          [ field
+          | field <- feProgramFields program
+          , logicalFieldLifetime field == UserStateLifetime
+          ]
+      }
     programField name =
       case encoded of
         List (_tag : _version : fields) ->

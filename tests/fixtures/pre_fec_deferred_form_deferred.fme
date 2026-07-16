@@ -1,0 +1,15 @@
+mode dec
+dimension 2
+axes x, y
+
+field A : 1-form @ primal
+field B : 2-form @ primal
+
+init:
+  A = [| 0, 0 |]
+  B = [| 0 |]
+
+step:
+  local omega : tensor @ primal = d A
+  B' = omega
+  A' = A

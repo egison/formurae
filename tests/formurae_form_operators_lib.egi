@@ -121,3 +121,37 @@ assertEqual "Hodge Laplacian omits d delta on a zero-form"
 assertEqual "Hodge Laplacian omits delta d on a top form"
   (Formurae.hodgeLaplacian formVolume)
   (Formurae.d (Formurae.codiff formVolume))
+
+-- Discrete counterparts used by the generic codifferential macro.  On the
+-- flat identity geometry the weighted star coincides with the analytic
+-- hodge and the weighted flux is the identity on components, while the
+-- discrete exterior derivative antisymmetrizes the placement-directed
+-- grid derivative instead of producing analytic jets.
+def flatIdentityMetric : Tensor MathValue :=
+  generateTensor (\[i, j] -> if i = j then 1 else 0) [3, 3]
+
+assertEqual "flat weighted star matches the analytic hodge on a 1-form"
+  (FE.formComponents (Formurae.dHodgeWith 1 flatIdentityMetric formX))
+  (FE.formComponents (Formurae.hodge formX))
+
+assertEqual "flat weighted star matches the analytic hodge on a 2-form"
+  (FE.formComponents (Formurae.dHodgeWith 1 flatIdentityMetric formB))
+  (FE.formComponents (Formurae.hodge formB))
+
+assertEqual "flat weighted flux is the identity on components"
+  (FE.formComponents (Formurae.dFluxWith 1 flatIdentityMetric formB))
+  (FE.formComponents formB)
+
+assertEqual "discrete exterior derivative antisymmetrizes the grid derivative"
+  (FE.formComponents (Formurae.dExterior formX))
+  [ Formurae.gridWholeDerivative 1 formX2 - Formurae.gridWholeDerivative 2 formX1
+  , Formurae.gridWholeDerivative 1 formX3 - Formurae.gridWholeDerivative 3 formX1
+  , Formurae.gridWholeDerivative 2 formX3 - Formurae.gridWholeDerivative 3 formX2
+  ]
+
+assertEqual "discrete exterior derivative of a scalar is the grid gradient"
+  (FE.formComponents (Formurae.dExterior formU))
+  [ Formurae.gridWholeDerivative 1 formU
+  , Formurae.gridWholeDerivative 2 formU
+  , Formurae.gridWholeDerivative 3 formU
+  ]

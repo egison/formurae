@@ -1,0 +1,16 @@
+mode collocated
+dimension 2
+axes x, y
+
+field u : scalar
+field w : scalar
+
+init:
+  u := sin (x) * cos (y)
+  w := u
+
+step:
+  local v : vector @ primal = grad u
+  local energy : scalar = u * u
+  w' = energy + withSymbols [i] (v~i . v_i)
+  u' = u

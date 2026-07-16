@@ -8,7 +8,12 @@ data Mode = CollocatedMode | DecMode
 data GridPolicy = Collocated | Primal | Dual
   deriving (Eq, Show)
 
-data Kind = Scalar | Vector | Form Int | SymM | AntiM | Tensor2
+-- TensorAny is the deferred kind of a step local declared as `: tensor`:
+-- rank, variances, and form degree are read from the computed value during
+-- normalization instead of being declared, so one macro body can
+-- materialize intermediates of different degrees.  It is local-only; field
+-- storage is part of the model interface and stays fully declared.
+data Kind = Scalar | Vector | Form Int | SymM | AntiM | Tensor2 | TensorAny
   deriving (Eq, Show)
 
 data Variance = VUp | VDown deriving (Eq, Show)

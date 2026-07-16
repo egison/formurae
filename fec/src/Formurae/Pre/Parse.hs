@@ -328,7 +328,7 @@ renderIndexedTargetError line targetName problem =
     varianceLabel VDown = "a subscript"
 
 parseFieldDecl :: Int -> String -> IO FieldDecl
-parseFieldDecl = parseStorageDecl Primal
+parseFieldDecl = parseStorageDecl False Primal
 
 -- Field declarations historically default differential forms to Primal.
 -- Locals deliberately do not: every omitted local policy is Collocated,
@@ -336,10 +336,10 @@ parseFieldDecl = parseStorageDecl Primal
 -- @dual explicitly.
 parseLocalDecl :: Int -> String -> IO LocalDecl
 parseLocalDecl ln source =
-  localDeclFromField <$> parseStorageDecl Collocated ln source
+  localDeclFromField <$> parseStorageDecl True Collocated ln source
 
-parseStorageDecl :: GridPolicy -> Int -> String -> IO FieldDecl
-parseStorageDecl defaultFormPolicy ln r =
+parseStorageDecl :: Bool -> GridPolicy -> Int -> String -> IO FieldDecl
+parseStorageDecl deferredAllowed defaultFormPolicy ln r =
   case break (== ':') r of
     (nm0, ':':k0) -> withKind (strip nm0) (strip k0)
     _ -> indexed
@@ -359,6 +359,16 @@ parseStorageDecl defaultFormPolicy ln r =
             "symmetric" : attrs -> do
               policy <- parsePolicyAttrs Collocated attrs
               return (FieldDecl nm Nothing policy SymM ln)
+            -- `: tensor` defers rank, variances, and form degree to the
+            -- value computed during normalization.  Only step locals may
+            -- defer: user-state fields are the model interface.
+            "tensor" : attrs
+              | deferredAllowed -> do
+                  policy <- parsePolicyAttrs Collocated attrs
+                  return (FieldDecl nm Nothing policy TensorAny ln)
+              | otherwise -> fatal
+                  ("deferred tensor kind is only available on local "
+                   ++ "declarations (line " ++ show ln ++ ")")
             form : attrs | Just deg <- formKind form -> do
               policy <- parsePolicyAttrs defaultFormPolicy attrs
               return (FieldDecl nm Nothing policy (Form deg) ln)

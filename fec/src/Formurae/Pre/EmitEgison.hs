@@ -43,6 +43,9 @@ data EmitError
 data DynamicEncoding
   = EncodeScalar
   | EncodeTensor FEIR.TensorType FEIR.Layout
+  -- A deferred local: shape, variances, and form degree are read from the
+  -- normalized value at the encode boundary instead of from a declaration.
+  | EncodeDeferred
   deriving (Eq, Ord, Show)
 
 data DynamicValue = DynamicValue
@@ -319,10 +322,15 @@ prepareActions model registry state0 =
                { buildNextNode = buildNextNode state + 1 })
         Surface.KLocal -> do
           field <- fieldNamed registry (Surface.sNm step)
-          let tensorType = FEIR.logicalFieldTensorType field
-              encoding = case FEIR.logicalFieldLayout field of
-                FEIR.ScalarLayout -> EncodeScalar
-                layout -> EncodeTensor tensorType layout
+          let deferredLocal = case Surface.sLocalDecl step of
+                Just local -> Surface.ldKind local == Surface.TensorAny
+                Nothing -> False
+              tensorType = FEIR.logicalFieldTensorType field
+              encoding
+                | deferredLocal = EncodeDeferred
+                | otherwise = case FEIR.logicalFieldLayout field of
+                    FEIR.ScalarLayout -> EncodeScalar
+                    layout -> EncodeTensor tensorType layout
               (dynamic, nextState) = addDynamic
                 (Surface.sEx step) encoding (Surface.sIdx step) Nothing False
                 (Just origin) (Just (Surface.sSourceText step)) state
@@ -366,6 +374,10 @@ markerValue EncodeScalar identifier =
   FEIR.ScalarValue (scalarMarker identifier)
 markerValue (EncodeTensor tensorType _layout) identifier =
   FEIR.TensorValue (tensorMarker tensorType identifier)
+-- The scalar-style reference is only a skeleton marker; renderWire replaces
+-- it with the value-driven encoder call.
+markerValue EncodeDeferred identifier =
+  FEIR.ScalarValue (scalarMarker identifier)
 
 scalarMarker :: Int -> FEIR.ScalarNF
 scalarMarker identifier = FEIR.Ref (FEIR.NodeId (negate identifier))
@@ -945,6 +957,10 @@ continuumOperators =
   , ("hodge", "FormuraeInternalHodge")
   , ("δ", "FormuraeInternalCodiff")
   , ("ΔH", "FormuraeInternalHodgeLaplacian")
+  , ("dExterior", "FormuraeInternalDExterior")
+  , ("dHodge", "FormuraeInternalDHodge")
+  , ("dFlux", "FormuraeInternalDFlux")
+  , ("dFluxDiv", "FormuraeInternalDFluxDiv")
   ]
 
 canonicalInternalName :: CanonicalOperator -> String
@@ -997,12 +1013,10 @@ renderUnit model registry geometryDeclarations definitions dynamics program = un
   ++ ambientOperatorDeclarations
   ++ concatMap (fieldDeclarations model) (Surface.mFieldDecls model)
   ++ localDeclarations
-  ++ registryDeclarations model registry
-  ++ definitionDeclarations (Surface.mDim model) definitions
-  ++ dynamicDeclarations dynamics
-  ++ encoderDeclarations
+  ++ orderedTailDeclarations
   ++ continuumAssertionDeclarations model
-  ++ [ "def feProgram := " ++ renderWire dynamics (encodeFEProgram program)
+  ++ [ "def feProgram := "
+         ++ renderWire dynamics deferredSplices (encodeFEProgram program)
      , ""
      , mainDeclaration model
      ]
@@ -1075,6 +1089,19 @@ renderUnit model registry geometryDeclarations definitions dynamics program = un
           ["def FormuraeInternalD A := Formurae.d A"]
       , whenUsed "FormuraeInternalHodge"
           ["def FormuraeInternalHodge A := Formurae.hodge A"]
+      , whenUsed "FormuraeInternalDExterior"
+          ["def FormuraeInternalDExterior A := Formurae.dExterior A"]
+      , whenUsed "FormuraeInternalDHodge"
+          ["def FormuraeInternalDHodge A := Formurae.dHodgeWith "
+             ++ geometryVolumeValue ++ " " ++ geometryInverseMetricValue
+             ++ " A"]
+      , whenUsed "FormuraeInternalDFlux"
+          ["def FormuraeInternalDFlux A := Formurae.dFluxWith "
+             ++ geometryVolumeValue ++ " " ++ geometryInverseMetricValue
+             ++ " A"]
+      , whenUsed "FormuraeInternalDFluxDiv"
+          ["def FormuraeInternalDFluxDiv w := Formurae.dFluxDivWith "
+             ++ geometryVolumeValue ++ " " ++ geometryMetricValue ++ " w"]
       , whenUsed "FormuraeInternalCodiff" codiffDeclarations
       , whenUsed "FormuraeInternalHodgeLaplacian"
           ["def FormuraeInternalHodgeLaplacian A := Formurae.hodgeLaplacian A"]
@@ -1135,13 +1162,91 @@ renderUnit model registry geometryDeclarations definitions dynamics program = un
     ambientGeometryValue value
       | variableGeometry = "FEIR.unquoteAll " ++ value
       | otherwise = value
+    -- Whole-value geometry references for library operators that take the
+    -- geometry as arguments; the indexed ambient views (metric_i_j and
+    -- friends) do not bind the bare tensor names.
+    geometryVolumeValue
+      | variableGeometry = "(FEIR.unquoteAll feGeometryVolume)"
+      | otherwise = "feGeometryVolume"
+    geometryMetricValue
+      | variableGeometry = "(FEIR.unquoteTensor feGeometryMetric)"
+      | otherwise = "feGeometryMetric"
+    geometryInverseMetricValue
+      | variableGeometry = "(FEIR.unquoteTensor feGeometryInverseMetric)"
+      | otherwise = "feGeometryInverseMetric"
+    -- Egison type-checks definitions sequentially, so every reference must
+    -- point backwards.  Without deferred locals the historical order stands
+    -- (and keeps existing emitted units byte-stable); with them, the
+    -- deferred readers are interleaved directly after their writer values,
+    -- and the registry (whose feFields references those readers) moves
+    -- after the dynamics block.
+    orderedTailDeclarations
+      | null deferredSplices =
+          registryDeclarations model registry deferredSplices
+          ++ definitionDeclarations (Surface.mDim model) definitions
+          ++ dynamicDeclarations dynamics
+          ++ encoderDeclarations
+      | otherwise =
+          deferredHelperDeclarations
+          ++ definitionDeclarations (Surface.mDim model) definitions
+          ++ dynamicAndReaderDeclarations
+          ++ registryDeclarations model registry deferredSplices
+          ++ encoderDeclarations
+    dynamicAndReaderDeclarations =
+      concatMap withReaders dynamics ++ [""]
+      where
+        withReaders dynamic =
+          dynamicDeclarationLines dynamic
+          ++ concat
+            [ deferredLocalDeclarations localField valueRef
+            | (_, (name, _, _, valueRef)) <- deferredSplices
+            , valueRef == dynamicName dynamic
+            , localField <- take 1
+                [ Surface.localDeclAsField local
+                | step <- Surface.mSteps model
+                , Just local <- [Surface.sLocalDecl step]
+                , Surface.ldName local == name
+                ]
+            ]
     localDeclarations = concatMap localFieldDeclarations
       [ Surface.localDeclAsField local
       | step <- Surface.mSteps model
       , Just local <- [Surface.sLocalDecl step]
       ]
-    localFieldDeclarations field =
-      fieldVersionDeclarations model field "" "Current" ++ [""]
+    localFieldDeclarations field
+      -- Deferred readers are emitted after their writer's value; see
+      -- dynamicAndReaderDeclarations.
+      | Surface.fdKind field == Surface.TensorAny = []
+      | otherwise =
+          fieldVersionDeclarations model field "" "Current" ++ [""]
+    -- The reader bindings of a deferred local take their shape and metadata
+    -- from the writer's value; the components stay opaque grid functions
+    -- exactly as in the declared paths.
+    deferredLocalDeclarations field valueRef =
+      [ "def " ++ fieldRawName field "Current"
+          ++ " := FormuraeInternalDeferredComponents " ++ valueRef
+      , "def " ++ Surface.fdName field
+          ++ " := FormuraeInternalDeferredView " ++ valueRef ++ " "
+          ++ fieldRawName field "Current"
+      ]
+    -- One entry per deferred local: (field id, (name, policy tag, origin
+    -- id, writer value reference)).
+    deferredSplices =
+      [ (fieldIdInt, (Surface.ldName local, policyTag, originIdInt
+                     , dynamicName dynamic))
+      | (step, origin) <- zip (Surface.mSteps model)
+          (preRegistryStepOrigins registry)
+      , Just local <- [Surface.sLocalDecl step]
+      , Surface.ldKind local == Surface.TensorAny
+      , Right fieldDecl <- [fieldNamed registry (Surface.ldName local)]
+      , let FEIR.FieldId fieldIdInt = FEIR.logicalFieldId fieldDecl
+      , let FEIR.OriginId originIdInt = FEIR.logicalFieldOrigin fieldDecl
+      , let policyTag = case FEIR.logicalFieldPolicy fieldDecl of
+              FEIR.CollocatedPolicy -> "collocated"
+              FEIR.PrimalPolicy -> "primal"
+              FEIR.DualPolicy -> "dual"
+      , Just dynamic <- [find ((== Just origin) . dynamicOrigin) dynamics]
+      ]
     encoderDeclarations =
       [ "def FormuraeInternalAtOrigin marker thunk :="
       , "  io $ do print marker"
@@ -1161,6 +1266,39 @@ renderUnit model registry geometryDeclarations definitions dynamics program = un
       , "        | #True -> FEIR.encodeTensorWithMetadata feParameters feCoordinatesRegistry feFields feIntrinsics feAnalytics variances degree value"
       , ""
       ]
+      ++ deferredEncoderDeclarations
+    -- Deferred locals have no declared metadata to assert against: the
+    -- value itself is authoritative, so its variances and degree are read
+    -- and encoded directly.
+    deferredEncoderDeclarations
+      | null deferredSplices = []
+      | otherwise =
+          [ "def FormuraeInternalEncodeTensorFromValue value :="
+          , "  if tensorShape value = []"
+          , "    then FEIR.list [FEIR.atom \"scalar\", FEIR.encodeScalar feParameters feCoordinatesRegistry feFields feIntrinsics feAnalytics value]"
+          , "    else FEIR.list [FEIR.atom \"tensor-value\", FEIR.encodeTensorWithMetadata feParameters feCoordinatesRegistry feFields feIntrinsics feAnalytics (Formurae.logicalTensorVariances value) (dfOrder value) value]"
+          , ""
+          ]
+    -- The reader constructors precede the interleaved reader definitions;
+    -- the components stay opaque grid functions of the model coordinates,
+    -- exactly as in the declared paths.
+    deferredHelperDeclarations =
+      [ "def FormuraeInternalDeferredComponents value :="
+      , "  if tensorShape value = []"
+      , "    then " ++ opaqueFunction
+      , "    else generateTensor (\\_ -> " ++ opaqueFunction
+          ++ ") (tensorShape value)"
+      , "def FormuraeInternalDeferredView value raw :="
+      , "  if tensorShape value = []"
+      , "    then raw"
+      , "    else if dfOrder value > 0"
+      , "      then FE.canonicalFormTensor (FE.tensorComponentAt raw) feDimension (dfOrder value)"
+      , "      else Formurae.attachExplicitVariances (Formurae.logicalTensorVariances value) raw"
+      , ""
+      ]
+      where
+        opaqueFunction =
+          "function (" ++ intercalate ", " (internalCoordNames model) ++ ")"
 
 -- The machine runner resolves the last active origin when Egison aborts
 -- before a FEIR value exists.  Human-readable provenance lives in comments,
@@ -1247,6 +1385,11 @@ fieldVersionDeclarations model field primes slot =
               ++ " (FE.tensorComponentAt " ++ rawName ++ ") feDimension "
               ++ show degree
           ]
+    -- Deferred locals never reach the declared reader path: renderUnit
+    -- routes them to deferredLocalDeclarations, and fields cannot defer.
+    Surface.TensorAny -> error
+      ("fieldVersionDeclarations: deferred kind for "
+       ++ Surface.fdName field)
   where
     publicName = Surface.fdName field ++ primes
     rawName = fieldRawName field slot
@@ -1306,16 +1449,26 @@ fieldRawName field slot =
   ++ slot ++ "Raw"
 
 registryDeclarations
-  :: Surface.Model -> PreRegistry -> [String]
-registryDeclarations model registry =
+  :: Surface.Model -> PreRegistry -> [DeferredSplice] -> [String]
+registryDeclarations model registry deferredSplices =
   [ "def feParameters := " ++ renderParameterRegistry
   , "def feCoordinatesRegistry := " ++ renderCoordinateRegistry
-  , "def feFields := " ++ renderFieldRegistry
+  , "def feFields := " ++ renderFieldRegistry ++ deferredFieldRegistry
   , "def feIntrinsics := " ++ renderIntrinsicRegistry
   , "def feAnalytics := []"
   , ""
   ]
   where
+    -- Deferred locals enumerate their reader entries from the writer's
+    -- value during normalization; the static table cannot know them.
+    deferredFieldRegistry = concat
+      [ " ++ FEIR.deferredFieldEntries " ++ show fieldIdInt ++ " "
+          ++ fieldRawName localField "Current" ++ " " ++ valueRef
+      | (fieldIdInt, (name, _, _, valueRef)) <- deferredSplices
+      , localField <- take 1
+          [candidate | candidate <- localFields
+                     , Surface.fdName candidate == name]
+      ]
     renderParameterRegistry = renderList
       ["(" ++ FEIR.parameterDeclSourceName parameter ++ ", "
         ++ show identifier ++ ")"
@@ -1490,16 +1643,18 @@ definitionParameterBase :: String -> String
 definitionParameterBase = takeWhile isAlphaNum
 
 dynamicDeclarations :: [DynamicValue] -> [String]
-dynamicDeclarations dynamics = concatMap declarations dynamics ++ [""]
-  where
-    declarations dynamic =
-      ["def " ++ dynamicDefinitionHead dynamic
-        ++ dynamicDefinitionType dynamic ++ " := "
-        ++ dynamicSource dynamic]
-      ++ ["def " ++ binding ++ renderIndexParts (dynamicResultIndices dynamic)
-            ++ " := " ++ dynamicName dynamic
-            ++ renderIndexParts (dynamicResultIndices dynamic)
-         | Just binding <- [dynamicBinding dynamic]]
+dynamicDeclarations dynamics =
+  concatMap dynamicDeclarationLines dynamics ++ [""]
+
+dynamicDeclarationLines :: DynamicValue -> [String]
+dynamicDeclarationLines dynamic =
+  ["def " ++ dynamicDefinitionHead dynamic
+    ++ dynamicDefinitionType dynamic ++ " := "
+    ++ dynamicSource dynamic]
+  ++ ["def " ++ binding ++ renderIndexParts (dynamicResultIndices dynamic)
+        ++ " := " ++ dynamicName dynamic
+        ++ renderIndexParts (dynamicResultIndices dynamic)
+     | Just binding <- [dynamicBinding dynamic]]
 
 dynamicDefinitionHead :: DynamicValue -> String
 dynamicDefinitionHead dynamic =
@@ -1537,8 +1692,13 @@ withIndexSymbols :: String -> String
 withIndexSymbols source =
   "withSymbols [" ++ intercalate ", " indexNames ++ "] (" ++ source ++ ")"
 
-renderWire :: [DynamicValue] -> SExpr -> String
-renderWire dynamics expression
+-- Deferred local splice: the registry only reserved the field id, so the
+-- authoritative declaration is built during normalization from the writer's
+-- value.  Keyed by field id; the payload carries the already-static parts.
+type DeferredSplice = (Int, (String, String, Int, String))
+
+renderWire :: [DynamicValue] -> [DeferredSplice] -> SExpr -> String
+renderWire dynamics deferredSplices expression
   | isTensorRecord expression
   , [identifier] <- nub (sort (negativeMarkers expression))
   , Just dynamic <- dynamicById identifier
@@ -1555,10 +1715,28 @@ renderWire dynamics expression
   , EncodeScalar <- dynamicEncoding dynamic =
       atOrigin dynamic
         ("FormuraeInternalEncodeScalar " ++ scalarBoundaryValue dynamic)
+  -- A deferred marker is always the scalar-wrapped reference; the encoder
+  -- rebuilds the complete (scalar ...)/(tensor-value ...) wrapper from the
+  -- value's actual rank.
+  | List [Atom "scalar", List [Atom "ref", Atom identifierText]] <- expression
+  , Just negativeIdentifier <- readMaybe identifierText
+  , negativeIdentifier < (0 :: Int)
+  , Just dynamic <- dynamicById (negate negativeIdentifier)
+  , EncodeDeferred <- dynamicEncoding dynamic =
+      atOrigin dynamic
+        ("FormuraeInternalEncodeTensorFromValue "
+         ++ dynamicBoundaryReference dynamic)
+  | List (Atom "field" : List [Atom "id", Atom idText] : _) <- expression
+  , Just fieldIdInt <- readMaybe idText
+  , Just (name, policyTag, originId, valueRef) <-
+      lookup fieldIdInt deferredSplices =
+      "FEIR.deferredLocalFieldDecl " ++ show (fieldIdInt :: Int) ++ " "
+      ++ show name ++ " " ++ show policyTag ++ " "
+      ++ show originId ++ " " ++ valueRef
   | Atom value <- expression = "FEIR.atom " ++ show value
   | StringAtom value <- expression = "FEIR.string " ++ show value
   | List values <- expression =
-      "FEIR.list " ++ renderList (map (renderWire dynamics) values)
+      "FEIR.list " ++ renderList (map (renderWire dynamics deferredSplices) values)
   where
     dynamicById identifier = find ((== identifier) . dynamicId) dynamics
     atOrigin dynamic value =
