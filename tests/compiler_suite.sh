@@ -41,12 +41,10 @@ for test in \
   post_backend_plan \
   post_backend_remaining_primitives \
   post_compile \
-  post_compile_lb \
   post_compile_wide \
   post_compile_grid_whole \
   post_compile_ordered_resample \
   post_compile_explicit_effects \
-  post_compile_metric_codiff \
   post_diagnostic
 do
   cabal exec -v0 runghc -- -ifec/src "tests/$test.hs"

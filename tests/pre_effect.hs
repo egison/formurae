@@ -192,21 +192,21 @@ main = do
   assertLeft "coordinate derivative rejects a direct discrete request"
     isGridDerivativeBarrier
     (inferModelEffects manifest variableMetricModel
-      { mDefs = [definition "bad" ["u"] "pd1r1_x (Δ u)"] })
+      { mDefs = [definition "bad" ["u"] "pd1r1_x (d_x u)"] })
 
   assertLeft "analytic ∂/∂ rejects a discrete operand"
     isDerivativeBarrier
     (inferModelEffects manifest variableMetricModel
       { mDefs =
           [definition "bad" ["u"]
-            "FormuraeInternalAnalyticDerivative (Δ u) x"]
+            "FormuraeInternalAnalyticDerivative (d_x u) x"]
       })
 
   assertLeft "coordinate derivative rejects a transitive discrete request"
     isGridDerivativeBarrier
     (inferModelEffects manifest variableMetricModel
       { mDefs =
-          [ definition "weighted" ["u"] "Δ u"
+          [ definition "weighted" ["u"] "d_x u"
           , definition "bad" ["u"] "pd1r1_x (weighted u)"
           ]
       })
@@ -215,7 +215,7 @@ main = do
     isGridDerivativeBarrier
     (inferModelEffects manifest variableMetricModel
       { mDefs =
-          [ definition "weighted" ["u"] "Δ u"
+          [ definition "weighted" ["u"] "d_x u"
           , definition "alias" ["ignored"] "weighted"
           , definition "bad" ["u"] "pd1r1_x (alias 0 u)"
           ]
@@ -225,7 +225,7 @@ main = do
     isGridDerivativeBarrier
     (inferModelEffects manifest variableMetricModel
       { mDefs =
-          [ definition "weighted" ["u"] "Δ u"
+          [ definition "weighted" ["u"] "d_x u"
           , definition "choose" ["flag"] "if flag then weighted else lap"
           , definition "bad" ["u"] "pd1r1_x (choose 1 u)"
           ]
@@ -235,7 +235,7 @@ main = do
     isHigherOrderError
     (inferModelEffects manifest variableMetricModel
       { mDefs =
-          [ definition "weighted" ["u"] "Δ u"
+          [ definition "weighted" ["u"] "d_x u"
           , definition "bad" ["u"] "apply weighted u"
           ]
       })
@@ -291,7 +291,7 @@ main = do
     isHigherOrderError
     (inferModelEffects manifest variableMetricModel
       { mDefs =
-          [ definition "weighted" ["u"] "Δ u"
+          [ definition "weighted" ["u"] "d_x u"
           , definition "alias" ["ignored"] "weighted"
           , definition "bad" ["u"] "apply alias u"
           ]
@@ -301,7 +301,7 @@ main = do
     isHigherOrderError
     (inferModelEffects manifest variableMetricModel
       { mDefs =
-          [ definition "weighted" ["u"] "Δ u"
+          [ definition "weighted" ["u"] "d_x u"
           , definition "bad" ["flag", "u"]
               "apply (if flag then weighted else lap) u"
           ]

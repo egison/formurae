@@ -1145,16 +1145,13 @@ renderUnit model registry geometryDeclarations definitions dynamics program = un
       | Surface.TId name _ <- Surface.tokenize source
       , let (base, parts) = parseIndexedIdent name
       , null parts]
-    scalarDeltaDeclarations
-      | variableGeometry =
-          ["def FormuraeInternalScalarDelta u := Formurae.lbOrthogonal u"]
-      | otherwise =
-          ["def FormuraeInternalScalarDelta u := Formurae.scalarLaplacian u"]
-    codiffDeclarations
-      | variableGeometry =
-          ["def FormuraeInternalCodiff A := Formurae.metricCodiff A"]
-      | otherwise =
-          ["def FormuraeInternalCodiff A := Formurae.codiff A"]
+    -- On declared geometry the canonical Δ/δ never reach these bridges:
+    -- they are prelude macros expanded during parsing, so the analytic
+    -- compositions here serve constant geometry only.
+    scalarDeltaDeclarations =
+      ["def FormuraeInternalScalarDelta u := Formurae.scalarLaplacian u"]
+    codiffDeclarations =
+      ["def FormuraeInternalCodiff A := Formurae.codiff A"]
     variableGeometry = case (Surface.mMetric model, Surface.mEmbed model) of
       (Nothing, Nothing) -> False
       _ -> True

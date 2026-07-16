@@ -1,22 +1,17 @@
 assertEqual "generated primitive manifest ID"
-  "sha256:f4623af0a5cebbf8ce86d8871b52335ae8ae7db95eaa0f25224d9bad35512c3b"
+  "sha256:15edbc55825f7b9ff02836c67d852b46635f34d7b94a0397d750243b555aa9fb"
   Formurae.Primitives.primitiveManifestV1Id
 
 assertEqual "generated primitive operation IDs"
-  [ "codiff.metric@1"
-  , "derivative.coordinate-wide@1"
+  [ "derivative.coordinate-wide@1"
   , "derivative.grid-whole@1"
   , "derivative.ordered@1"
-  , "lb.orthogonal@1"
   , "resample.explicit@1"
   ]
   Formurae.Primitives.operationIds
 
 assertEqual "generated full primitive signatures"
-  [ ("codiff.metric@1", "codiff.metric", 1, ["form"], "form", "dual-adjoint",
-      "needs-materialization", ["coefficient", "flux", "result", "volume"],
-      "ordered")
-  , ("derivative.coordinate-wide@1", "derivative.coordinate-wide", 1,
+  [ ("derivative.coordinate-wide@1", "derivative.coordinate-wide", 1,
       ["scalar"], "scalar",
       "derivative-target", "pure-local", [], "ordered")
   , ("derivative.grid-whole@1", "derivative.grid-whole", 1,
@@ -25,10 +20,6 @@ assertEqual "generated full primitive signatures"
   , ("derivative.ordered@1", "derivative.ordered", 1,
       ["scalar"], "scalar",
       "derivative-target", "pure-local", [], "ordered")
-  , ("lb.orthogonal@1", "lb.orthogonal", 1, ["scalar"], "scalar",
-      "conservative-cell",
-      "needs-materialization", ["coefficient", "flux", "result", "volume"],
-      "declared-commutative")
   , ("resample.explicit@1", "resample.explicit", 1,
       ["scalar"], "scalar", "explicit-target",
       "pure-local", [], "ordered")

@@ -1605,11 +1605,9 @@ data PreMacro = PreMacro
 -- On declared geometry the canonical Δ and δ are prelude macros: the
 -- weighted flux is materialized by a lifted step local (on the staggered
 -- lattice, exactly where the conservative scheme stores it) and the
--- signed adjoint divergence closes the form.  This replaces the opaque
--- scheduled requests lb.orthogonal@1 and codiff.metric@1 with ordinary
--- expansions of public operators; constant geometry keeps the analytic
--- operator path.  Users cannot collide with these names: 'δ' and 'Δ'
--- are not valid surface macro names.
+-- signed adjoint divergence closes the form; constant geometry keeps
+-- the analytic operator path.  Users cannot collide with these names:
+-- 'δ' and 'Δ' are not valid surface macro names.
 -- A user binding of the same name shadows the prelude, exactly as user
 -- definitions shadow the canonical operators.
 activePreludeMacros :: Model -> [PreMacro]

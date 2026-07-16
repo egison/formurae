@@ -105,8 +105,9 @@ matchScalarDeltaExpression scope expression = do
 -- | Recognize the mathematical composition @hodge (d (hodge A))@ modulo
 -- grouping and call syntax.  On a variable metric this must not be expanded
 -- as ordinary pointwise Egison algebra: doing so loses the weighted discrete
--- adjoint represented by @codiff.metric@.  Callers either lower a canonical
--- codifferential or reject this explicit composition before normalization.
+-- adjoint that the canonical codifferential lowers to.  Callers either lower
+-- a canonical codifferential or reject this explicit composition before
+-- normalization.
 matchHodgeExteriorHodge :: OperatorScope -> TensorExpr -> Maybe TensorExpr
 matchHodgeExteriorHodge scope expression = do
   exteriorApplication <- matchCanonicalUnary scope CanonicalHodge expression

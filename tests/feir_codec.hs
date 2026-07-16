@@ -195,8 +195,8 @@ fixtureJet = FieldJetValue (FieldId 2) CurrentTime (Basis [1])
 
 fixtureOpaque :: OpaqueDiscrete
 fixtureOpaque = OpaqueDiscreteCall
-  (VersionedOpId "lb.orthogonal@1") (SemanticKey "lb-key-17")
-  (RequestGroupId "lb17") (Basis [])
+  (VersionedOpId "test.opaque@1") (SemanticKey "opaque-key-17")
+  (RequestGroupId "opaque17") (Basis [])
   [ ScalarValue (FieldJet fixtureJet)
   , TensorValue (scalarTensor (Exact 1 2))
   ]

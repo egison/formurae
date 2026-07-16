@@ -13,17 +13,11 @@
 declare mathfunc formuraeOpaqueBarrier
 declare symbol formuraeTensorIndex1, formuraeTensorIndex2, formuraeTensorIndex3
 
-def Formurae.opaqueLbHead : String :=
-  "FormuraeInternalOpaqueLbOrthogonalV1"
-
 def Formurae.opaqueCoordinateWideHead : String :=
   "FormuraeInternalOpaqueCoordinateWideV1"
 
 def Formurae.opaqueGridWholeHead : String :=
   "FormuraeInternalOpaqueGridWholeV1"
-
-def Formurae.opaqueMetricCodiffHead : String :=
-  "FormuraeInternalOpaqueMetricCodiffV1"
 
 def Formurae.opaqueOrderedDerivativeHead : String :=
   "FormuraeInternalOpaqueOrderedDerivativeV1"
@@ -140,21 +134,6 @@ def Formurae.predicateOr
 def Formurae.select
       (predicate: MathValue) (yes: MathValue) (no: MathValue) : MathValue :=
   functionSymbol "FormuraeInternalSelectV1" [predicate, yes, no]
-
--- Orthogonal variable-metric Laplace--Beltrami is a conservative discrete
--- boundary, not an analytic composition.  Its geometry ID comes from the
--- generated model environment and the v1 source policy is collocated; neither
--- choice is reconstructed by pre-fec or supplied by user syntax.
-def Formurae.lbOrthogonal
-      (value: MathValue) : MathValue :=
-  match assert "lb.orthogonal geometry ID must be positive"
-               (i.> feGeometryId 0)
-        && Formurae.requireOpaqueManifest
-        as bool with
-    | #True ->
-        formuraeOpaqueBarrier
-          (functionSymbol Formurae.opaqueLbHead
-            [value, feGeometryId, 1])
 
 -- Every subscripted ∂ is an explicit-radius centered request (radius =
 -- primes + 1), independent of the model discretization profile.  Its axis,
@@ -478,32 +457,6 @@ def Formurae.dFluxDivWith
                          (between 1 dimension)))
               dimension (degree - 1)
 
--- Variable-metric codifferential is a discrete adjoint boundary.  Each
--- result component carries the complete source form in canonical tensor
--- order so post-fec can apply the weighted whole-expression derivative
--- without distributing it analytically through metric coefficients.
-def Formurae.metricCodiff
-      (A: Tensor MathValue) : Tensor MathValue :=
-  let degree := dfOrder A
-   in if Formurae.isDifferentialForm A && degree = 0
-        then 0
-        else match assert "metric codifferential requires a scalar or differential form value"
-                          (Formurae.isDifferentialForm A)
-                   && assert "metric codifferential needs a form degree in 1..dimension"
-                             (degree <= dimension && i.> feGeometryId 0)
-                   && Formurae.requireOpaqueManifest
-             as bool with
-          | #True ->
-              FE.canonicalFormTensor
-                (\targetBasis ->
-                  formuraeOpaqueBarrier
-                    (functionSymbol Formurae.opaqueMetricCodiffHead
-                      ([ feGeometryId
-                       , dimension
-                       , degree
-                       ] ++ tensorToList A ++ targetBasis)))
-                dimension (degree - 1)
-
 -- Codifferential convention fixed by the FEIR design:
 --   δ A = (-1)^(n(k+1)+1) * d * A.
 -- Degree-zero forms map to zero directly, avoiding an artificial (n+1)-form
@@ -526,7 +479,8 @@ def Formurae.codiff
 -- Egison returns the sole component of a generated rank-zero tensor directly,
 -- so this composition is already a scalar and needs no component extraction.
 -- This constant-geometry path is a mathematical composition and contains no
--- stencil or grid callback.  Declared geometry uses lbOrthogonal instead.
+-- stencil or grid callback.  Declared geometry expands the prelude macro
+-- pipeline (dFluxWeights / dFluxScale / dFluxDiv) instead.
 def Formurae.scalarLaplacian
       (u: MathValue) : MathValue :=
   0 - Formurae.codiff (Formurae.d u)

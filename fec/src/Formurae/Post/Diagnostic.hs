@@ -23,7 +23,6 @@ import qualified Formurae.Post.BackendPlan as Backend
 import Formurae.Post.Compile
   ( DerivativeMetadataError(..)
   , GridWholeDerivativeError(..)
-  , MetricCodifferentialError(..)
   , PostError(..)
   , WideDerivativeError(..)
   )
@@ -174,8 +173,6 @@ postErrorOriginIds program postError =
       (locatedOpaqueOrigin <$> findLocatedOpaqueByKey program semanticKey)
     PostGridWholeDerivativeError semanticKey _ -> maybeToList
       (locatedOpaqueOrigin <$> findLocatedOpaqueByKey program semanticKey)
-    PostMetricCodifferentialError semanticKey _ -> maybeToList
-      (locatedOpaqueOrigin <$> findLocatedOpaqueByKey program semanticKey)
     PostPrimitiveContractError semanticKey _ -> maybeToList
       (locatedOpaqueOrigin <$> findLocatedOpaqueByKey program semanticKey)
     PostExplicitStencilError semanticKey _ -> maybeToList
@@ -199,23 +196,6 @@ backendErrorOriginIds program backendError =
     Backend.ConflictingOpaqueRequestGroup group -> maybeToList
       (locatedOpaqueOrigin <$> findLocatedOpaqueByGroup program group)
     Backend.UnsupportedEffectfulOperation _ _ origin -> [origin]
-    Backend.LbNeedsOrthogonalMetric _ origin -> [origin]
-    Backend.LbUnverifiedOrthogonalMetric _ origin -> [origin]
-    Backend.LbMissingScaleFactor _ origin -> [origin]
-    Backend.LbNonSampleableGeometry _ origin -> [origin]
-    Backend.LbInvalidResultBasis _ origin -> [origin]
-    Backend.LbInvalidOperands origin -> [origin]
-    Backend.LbUnknownSourceField _ origin -> [origin]
-    Backend.LbSourceMustBeScalar _ origin -> [origin]
-    Backend.LbSourceMustBeCollocated _ _ origin -> [origin]
-    Backend.LbSourceMustUseCanonicalCoordinates _ origin -> [origin]
-    Backend.MissingOpaqueAttribute _ _ origin -> [origin]
-    Backend.DuplicateOpaqueAttribute _ _ origin -> [origin]
-    Backend.InvalidOpaqueAttribute _ _ _ origin -> [origin]
-    Backend.OpaqueGeometryMismatch _ _ origin -> [origin]
-    Backend.BackendPlanningLocationError _ origin -> [origin]
-    Backend.MetricCodifferentialPlanError _ origin -> [origin]
-    Backend.ExplicitPrimitivePlanError _ _ _ origin -> [origin]
 
 fmrErrorOriginIds :: FEProgram -> FMRError -> [OriginId]
 fmrErrorOriginIds program fmrError =
@@ -714,8 +694,6 @@ postErrorMessage postError =
     PostWideDerivativeError _ wideError -> wideDerivativeErrorMessage wideError
     PostGridWholeDerivativeError _ gridError ->
       gridWholeDerivativeErrorMessage gridError
-    PostMetricCodifferentialError _ metricError ->
-      metricCodifferentialErrorMessage metricError
     PostPrimitiveContractError _ contractError ->
       "explicit primitive contract error: " ++ show contractError
     PostExplicitStencilError _ stencilError ->
@@ -760,15 +738,6 @@ gridWholeDerivativeErrorMessage gridError =
     GridWholeStencilFailure stencilError ->
       "grid-whole derivative stencil error: " ++ show stencilError
 
-metricCodifferentialErrorMessage :: MetricCodifferentialError -> String
-metricCodifferentialErrorMessage metricError =
-  case metricError of
-    MetricCodifferentialContractError reason ->
-      "metric codifferential contract error: " ++ reason
-    MetricCodifferentialLocationError locationError ->
-      "metric codifferential placement error: "
-      ++ locationErrorMessage locationError
-
 derivativeMetadataErrorMessage
     :: String -> DerivativeMetadataError -> String
 derivativeMetadataErrorMessage operation metadata =
@@ -804,51 +773,6 @@ backendErrorMessage backendError =
     Backend.UnsupportedEffectfulOperation opId key _ ->
       "effectful operation " ++ show opId ++ " (" ++ show key
       ++ ") is not supported by this post-fec"
-    Backend.LbNeedsOrthogonalMetric geometryId _ ->
-      "Laplace--Beltrami request needs an orthogonal metric; geometry "
-      ++ show geometryId ++ " is Euclidean/default"
-    Backend.LbUnverifiedOrthogonalMetric geometryId _ ->
-      "Laplace--Beltrami geometry " ++ show geometryId
-      ++ " is not verified orthogonal"
-    Backend.LbMissingScaleFactor axisId _ ->
-      "Laplace--Beltrami geometry has no scale factor for " ++ show axisId
-    Backend.LbNonSampleableGeometry axisId _ ->
-      "Laplace--Beltrami coefficient for " ++ show axisId
-      ++ " is not sampleable"
-    Backend.LbInvalidResultBasis basis _ ->
-      "Laplace--Beltrami result must be scalar, got basis " ++ show basis
-    Backend.LbInvalidOperands _ ->
-      "Laplace--Beltrami expects one scalar field operand"
-    Backend.LbUnknownSourceField fieldId _ ->
-      "Laplace--Beltrami refers to unknown field " ++ show fieldId
-    Backend.LbSourceMustBeScalar fieldId _ ->
-      "Laplace--Beltrami field " ++ show fieldId
-      ++ " must be an unindexed scalar"
-    Backend.LbSourceMustBeCollocated fieldId policy _ ->
-      "Laplace--Beltrami field " ++ show fieldId
-      ++ " must be collocated, got " ++ show policy
-    Backend.LbSourceMustUseCanonicalCoordinates fieldId _ ->
-      "Laplace--Beltrami field " ++ show fieldId
-      ++ " must use the canonical coordinate vector"
-    Backend.MissingOpaqueAttribute key attributeIdentifier _ ->
-      "opaque request " ++ show key ++ " is missing attribute "
-      ++ show attributeIdentifier
-    Backend.DuplicateOpaqueAttribute key attributeIdentifier _ ->
-      "opaque request " ++ show key ++ " duplicates attribute "
-      ++ show attributeIdentifier
-    Backend.InvalidOpaqueAttribute key attributeIdentifier value _ ->
-      "opaque request " ++ show key ++ " has invalid attribute "
-      ++ show attributeIdentifier ++ " = " ++ show value
-    Backend.OpaqueGeometryMismatch expected actual _ ->
-      "opaque request geometry mismatch: expected " ++ show expected
-      ++ ", got " ++ show actual
-    Backend.BackendPlanningLocationError locationError _ ->
-      locationErrorMessage locationError
-    Backend.MetricCodifferentialPlanError reason _ ->
-      "metric codifferential plan error: " ++ reason
-    Backend.ExplicitPrimitivePlanError operation key reason _ ->
-      "explicit primitive plan error for " ++ show operation
-      ++ " (" ++ show key ++ "): " ++ reason
 
 fmrErrorMessage :: FMRError -> String
 fmrErrorMessage fmrError =

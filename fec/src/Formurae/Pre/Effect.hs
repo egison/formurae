@@ -315,20 +315,13 @@ rawEgisonIdentifiers environment source = nub (identifiers ++ dotIdentifier)
 -- shallow scanner sees the final component after `Formurae.`, so include the
 -- bridge implementation names as well as the ordinary surface aliases.
 rawPrimitiveOperation :: Model -> String -> Maybe VersionedOpId
-rawPrimitiveOperation model name
-  | hasVariableGeometry model
-  , name == "FormuraeInternalCodiff" =
-      Just Primitives.codiffMetricV1OpId
-  | hasVariableGeometry model
-  , name == "FormuraeInternalScalarDelta" =
-      Just Primitives.lbOrthogonalV1OpId
-  | otherwise = case lookup name directBridgeOperations of
-      Just operation -> Just operation
-      Nothing -> surfacePrimitiveOperation name
+rawPrimitiveOperation _model name =
+  case lookup name directBridgeOperations of
+    Just operation -> Just operation
+    Nothing -> surfacePrimitiveOperation name
   where
     directBridgeOperations =
-      [ ("lbOrthogonal", Primitives.lbOrthogonalV1OpId)
-      , ("coordinateWideDerivative",
+      [ ("coordinateWideDerivative",
           Primitives.derivativeCoordinateWideV1OpId)
       , ("FormuraeInternalCoordinateWideDerivative",
           Primitives.derivativeCoordinateWideV1OpId)
@@ -341,7 +334,6 @@ rawPrimitiveOperation model name
       , ("resampleExplicit", Primitives.resampleExplicitV1OpId)
       , ("FormuraeInternalResampleExplicit",
           Primitives.resampleExplicitV1OpId)
-      , ("metricCodiff", Primitives.codiffMetricV1OpId)
       ]
 
 mapErrorContext :: String -> Either EffectError a -> Either EffectError a
@@ -670,12 +662,9 @@ canonicalOperatorEffect environment operator =
       | operator == CanonicalHodgeLaplacian
       , hasVariableGeometry (environmentModel environment) ->
           effectFailure VariableMetricHodgeLaplacianUnsupported
-      | operator == CanonicalScalarLaplacian
-      , hasVariableGeometry (environmentModel environment) ->
-          primitiveEffect environment Primitives.lbOrthogonalV1OpId
-      | operator == CanonicalCodifferential
-      , hasVariableGeometry (environmentModel environment) ->
-          primitiveEffect environment Primitives.codiffMetricV1OpId
+      -- Canonical Δ/δ on declared geometry are prelude macros expanded
+      -- during parsing, so only their constant-geometry analytic
+      -- compositions can reach this classification.
       | otherwise -> pure PureFunction
 
 primitiveEffect

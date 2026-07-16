@@ -209,9 +209,6 @@ def FEIR.attributeAxis (axisId: Integer) : FEIRSExpr :=
 def FEIR.attributeGeometry (geometryId: Integer) : FEIRSExpr :=
   FEIR.list [FEIR.atom "geometry", FEIR.int geometryId]
 
-def FEIR.attributeGridPolicy (policy: String) : FEIRSExpr :=
-  FEIR.list [FEIR.atom "grid-policy", FEIR.atom policy]
-
 def FEIR.attributeValues (values: [FEIRSExpr]) : FEIRSExpr :=
   FEIR.list [FEIR.atom "values", FEIR.list values]
 
@@ -327,20 +324,6 @@ def FEIR.requirePositiveInteger (label: String) (value: MathValue) : Integer :=
                   False
              then 0
              else 0
-
-def FEIR.gridPolicyName (policyCodeValue: MathValue) : String :=
-  let policyCode := FEIR.requirePositiveInteger "grid policy code" policyCodeValue
-   in if policyCode = 1
-        then "collocated"
-        else if policyCode = 2
-          then "primal"
-          else if policyCode = 3
-            then "dual"
-            else if assert
-                      "FEIR scalar encoder: unknown opaque grid policy code"
-                      False
-                 then "invalid"
-                 else "invalid"
 
 -- Remove rule-suppression Quote atoms at the final FEIR boundary without
 -- asking the CAS to expand the whole expression.  Reconstruction uses the
@@ -497,31 +480,6 @@ def FEIR.encodeExact (value: MathValue) : FEIRSExpr :=
            ]
     else FEIR.unsupportedScalar "expected an exact rational"
 
-def FEIR.encodeLbOpaque
-      (parameters: [(MathValue, Integer)])
-      (coordinates: [(MathValue, Integer)])
-      (fields: [(MathValue, Integer, String, [Integer])])
-      (intrinsics: [(String, Integer)])
-      (analytics: [(MathValue, Integer)])
-      (arguments: [MathValue]) : FEIRSExpr :=
-  match arguments as list mathValue with
-    | $operand :: $geometryValue :: $policyValue :: [] ->
-        let geometryId :=
-              FEIR.requirePositiveInteger "lb geometry ID" geometryValue
-            policyName := FEIR.gridPolicyName policyValue
-            operandNF :=
-              FEIR.scalarValue
-                (FEIR.encodeScalar parameters coordinates fields intrinsics analytics
-                  operand)
-         in FEIR.opaqueNode Formurae.Primitives.lbOrthogonalV1OpId
-              [] [operandNF] [
-                FEIR.attribute "metric"
-                  (FEIR.attributeGeometry geometryId)
-              , FEIR.attribute "source-policy"
-                  (FEIR.attributeGridPolicy policyName)
-              ]
-    | _ -> FEIR.unsupportedScalar "lb opaque payload must be (operand, geometry, policy)"
-
 def FEIR.encodeCoordinateWideOpaque
       (parameters: [(MathValue, Integer)])
       (coordinates: [(MathValue, Integer)])
@@ -639,90 +597,6 @@ def FEIR.encodeResampleOpaque
     | _ -> FEIR.unsupportedScalar
              "resample payload needs one operand and absolute placement bits"
 
-def FEIR.encodeTensorValues
-      (parameters: [(MathValue, Integer)])
-      (coordinates: [(MathValue, Integer)])
-      (fields: [(MathValue, Integer, String, [Integer])])
-      (intrinsics: [(String, Integer)])
-      (analytics: [(MathValue, Integer)])
-      (dimension: Integer) (degree: Integer)
-      (values: [MathValue]) : FEIRSExpr :=
-  let shape := map (\_ -> dimension) (between 1 degree)
-      bases := FEIR.fullBases shape
-      tensorFields :=
-        [ FEIR.field "shape" (FEIR.list (map FEIR.int shape))
-        , FEIR.field "variances"
-            (FEIR.list
-              (map (\_ -> FEIR.atom "down") (between 1 degree)))
-        , FEIR.field "df-order" (FEIR.int degree)
-        , FEIR.field "components"
-            (FEIR.list
-              (map
-                (\(basis, value) ->
-                  FEIR.record "component"
-                    [ FEIR.field "basis" (FEIR.basis basis)
-                    , FEIR.field "value"
-                        (FEIR.encodeScalar parameters coordinates fields
-                          intrinsics analytics value)
-                    ])
-                (zip bases values)))
-        ]
-   in if assert "metric codifferential operand tensor has the wrong component count"
-                (length values = length bases)
-        then FEIR.record "tensor" tensorFields
-        else FEIR.scalarTensor (FEIR.exactInteger 0)
-
-def FEIR.encodeMetricCodiffOpaque
-      (parameters: [(MathValue, Integer)])
-      (coordinates: [(MathValue, Integer)])
-      (fields: [(MathValue, Integer, String, [Integer])])
-      (intrinsics: [(String, Integer)])
-      (analytics: [(MathValue, Integer)])
-      (arguments: [MathValue]) : FEIRSExpr :=
-  match arguments as list mathValue with
-    | $geometryValue :: $dimensionValue :: $degreeValue :: $payload ->
-        let geometryId :=
-              FEIR.requirePositiveInteger "metric codifferential geometry ID"
-                geometryValue
-            dimension :=
-              FEIR.requirePositiveInteger "metric codifferential dimension"
-                dimensionValue
-            degree :=
-              FEIR.requirePositiveInteger "metric codifferential source degree"
-                degreeValue
-            componentCount :=
-              product (map (\_ -> dimension) (between 1 degree))
-            sourceValues := take componentCount payload
-            targetValues := drop componentCount payload
-            targetBasis :=
-              map
-                (FEIR.requirePositiveInteger
-                  "metric codifferential result basis axis")
-                targetValues
-            operand :=
-              FEIR.tensorValue
-                (FEIR.encodeTensorValues parameters coordinates fields
-                  intrinsics analytics dimension degree sourceValues)
-         in if assert "metric codifferential result basis must be canonical"
-                      (degree <= dimension
-                       && length targetBasis = degree - 1
-                       && targetBasis = sort targetBasis
-                       && length (unique targetBasis) = length targetBasis
-                       && all (\axis -> i.<= axis dimension) targetBasis)
-              then FEIR.opaqueNode Formurae.Primitives.codiffMetricV1OpId
-                     targetBasis [operand] [
-                     FEIR.attribute "metric"
-                       (FEIR.attributeGeometry geometryId)
-                   , FEIR.attribute "dimension"
-                       (FEIR.attributeNatural dimension)
-                   , FEIR.attribute "source-degree"
-                       (FEIR.attributeNatural degree)
-                   ]
-              else FEIR.unsupportedScalar
-                     "metric codifferential payload has an invalid result basis"
-    | _ -> FEIR.unsupportedScalar
-             "metric codifferential payload needs geometry, dimension, degree, components, and result basis"
-
 def FEIR.encodeOpaqueRef
       (parameters: [(MathValue, Integer)])
       (coordinates: [(MathValue, Integer)])
@@ -736,19 +610,15 @@ def FEIR.encodeOpaqueRef
           | symbol $name _ ->
               if not (symbolIndices headValue = [])
                 then FEIR.unsupportedScalar "indexed opaque reference is invalid"
-                else if name = "FormuraeInternalOpaqueLbOrthogonalV1"
-                  then FEIR.encodeLbOpaque parameters coordinates fields intrinsics analytics arguments
-                  else if name = "FormuraeInternalOpaqueCoordinateWideV1"
-                    then FEIR.encodeCoordinateWideOpaque parameters coordinates fields intrinsics analytics arguments
-                    else if name = "FormuraeInternalOpaqueGridWholeV1"
-                      then FEIR.encodeGridWholeOpaque parameters coordinates fields intrinsics analytics arguments
-                      else if name = "FormuraeInternalOpaqueMetricCodiffV1"
-                        then FEIR.encodeMetricCodiffOpaque parameters coordinates fields intrinsics analytics arguments
-                        else if name = "FormuraeInternalOpaqueOrderedDerivativeV1"
-                          then FEIR.encodeOrderedDerivativeOpaque parameters coordinates fields intrinsics analytics arguments
-                          else if name = "FormuraeInternalOpaqueResampleV1"
-                            then FEIR.encodeResampleOpaque parameters coordinates fields intrinsics analytics arguments
-                            else FEIR.unsupportedScalar "unknown reserved opaque head"
+                else if name = "FormuraeInternalOpaqueCoordinateWideV1"
+                  then FEIR.encodeCoordinateWideOpaque parameters coordinates fields intrinsics analytics arguments
+                  else if name = "FormuraeInternalOpaqueGridWholeV1"
+                    then FEIR.encodeGridWholeOpaque parameters coordinates fields intrinsics analytics arguments
+                    else if name = "FormuraeInternalOpaqueOrderedDerivativeV1"
+                      then FEIR.encodeOrderedDerivativeOpaque parameters coordinates fields intrinsics analytics arguments
+                      else if name = "FormuraeInternalOpaqueResampleV1"
+                        then FEIR.encodeResampleOpaque parameters coordinates fields intrinsics analytics arguments
+                        else FEIR.unsupportedScalar "unknown reserved opaque head"
           | _ -> FEIR.unsupportedScalar "opaque payload head must be a symbol"
     | _ -> FEIR.unsupportedScalar "opaque barrier must contain FunctionData"
 

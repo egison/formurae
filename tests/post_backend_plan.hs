@@ -1,72 +1,28 @@
 module Main where
 
 import Formurae.FEIR.Codec (setProfileFingerprint)
+import qualified Formurae.FEIR.PrimitiveBindings as Primitives
 import Formurae.FEIR.Syntax
 import Formurae.Post.BackendPlan
-import Formurae.Post.Location
+
+-- planBackendEffects is program-level validation of the opaque
+-- occurrences: occurrences of one semantic key must agree on their
+-- payloads, request groups must agree on their group payloads, and every
+-- v1 operation is pure-local, so requests are also permitted in
+-- initializers.  There is no auxiliary-field planning left to test.
 
 main :: IO ()
 main = do
-  testLbPlan
   testSemanticDeduplication
-  testDistinctSources
-  testInitializerRejection
-  testGeometryDiagnostics
-  testSourceContract
-  testRequestContract
+  testSemanticKeyConflict
+  testRequestGroupConflict
+  testPureLocalInitializer
   putStrLn "post backend plan tests: ok"
-
-testLbPlan :: IO ()
-testLbPlan = do
-  plan <- assertRight "plan lb" (planBackendEffects fixture)
-  assertEqual "shared metric auxiliaries"
-    [ OrthogonalCoefficientRole (AxisId 1)
-    , OrthogonalCoefficientRole (AxisId 2)
-    , OrthogonalVolumeRole
-    ]
-    (map auxiliaryFieldRole (backendGeometryInitializers plan))
-  assertEqual "metric sampling placements"
-    [ Placement [HalfPoint, IntegerPoint]
-    , Placement [IntegerPoint, HalfPoint]
-    , Placement [IntegerPoint, IntegerPoint]
-    ]
-    (map auxiliaryFieldPlacement (backendGeometryInitializers plan))
-  assertEqual "one logical lb request" 1 (length (backendLbRequests plan))
-  request <- case backendLbRequests plan of
-    [value] -> pure value
-    values -> fail ("expected one lb request, got " ++ show values)
-  assertEqual "flux/result topological schedule"
-    [ LbFluxRole (RequestGroupId "lb-u") (AxisId 1)
-    , LbFluxRole (RequestGroupId "lb-u") (AxisId 2)
-    , LbResultRole (RequestGroupId "lb-u")
-    ]
-    (map auxiliaryFieldRole (backendStepSchedule plan))
-  assertEqual "lb flux placements"
-    [ Placement [HalfPoint, IntegerPoint]
-    , Placement [IntegerPoint, HalfPoint]
-    ]
-    (map auxiliaryFieldPlacement (lbRequestFluxFields request))
-  assertEqual "lb result placement" (Placement [IntegerPoint, IntegerPoint])
-    (auxiliaryFieldPlacement (lbRequestResultField request))
-  assertEqual "opaque result replacement"
-    (Just "FormuraeInternalLb1Result")
-    (lookupOpaqueResult plan (SemanticKey "lb-u-key"))
-  case map auxiliaryFieldComputation (backendGeometryInitializers plan) of
-    [ SampleGeometry coefficient1
-      , SampleGeometry coefficient2
-      , SampleGeometry volume
-      ] -> do
-        assertEqual "axis-one coefficient" (Div volume (Pow (Exact 1 1) (Exact 2 1)))
-          coefficient1
-        assertEqual "axis-two coefficient"
-          (Div volume (Pow (Coordinate (AxisId 2)) (Exact 2 1)))
-          coefficient2
-    other -> fail ("unexpected geometry computations: " ++ show other)
 
 testSemanticDeduplication :: IO ()
 testSemanticDeduplication = do
-  let opaque = lbOpaque (FieldId 1) (SemanticKey "same")
-        (RequestGroupId "same-group")
+  let opaque = orderedOpaque (SemanticKey "same") (RequestGroupId "same-group")
+        (FieldId 1)
       firstEquation = stepEquation (OpaqueDiscrete opaque)
       secondEquation = firstEquation
         { feEquationId = EquationId 3
@@ -76,122 +32,51 @@ testSemanticDeduplication = do
         { feProgramStepActions =
             [UpdateField firstEquation, UpdateField secondEquation]
         }
-  plan <- assertRight "deduplicate identical semantic request"
+  assertRight "identical semantic occurrences deduplicate"
     (planBackendEffects repeated)
-  assertEqual "same request has one bundle" 1 (length (backendLbRequests plan))
-  assertEqual "dedup retains every source occurrence"
-    [(SemanticKey "same", [OriginId 1, OriginId 2])]
-    (backendOpaqueOrigins plan)
 
-testDistinctSources :: IO ()
-testDistinctSources = do
-  let first = scalarField (FieldId 1) "u" CollocatedPolicy
-      second = scalarField (FieldId 2) "v" CollocatedPolicy
-      expression = Add
-        [ OpaqueDiscrete (lbOpaque (FieldId 1)
-            (SemanticKey "u-key") (RequestGroupId "u-group"))
-        , OpaqueDiscrete (lbOpaque (FieldId 2)
-            (SemanticKey "v-key") (RequestGroupId "v-group"))
+testSemanticKeyConflict :: IO ()
+testSemanticKeyConflict = do
+  let expression = Add
+        [ OpaqueDiscrete (orderedOpaque (SemanticKey "shared")
+            (RequestGroupId "first-group") (FieldId 1))
+        , OpaqueDiscrete (orderedOpaque (SemanticKey "shared")
+            (RequestGroupId "second-group") (FieldId 2))
         ]
-      program = fixture
-        { feProgramFields = [first, second]
-        , feProgramStepActions = [UpdateField (stepEquation expression)]
-        }
-  plan <- assertRight "distinct lb sources" (planBackendEffects program)
-  assertEqual "distinct requests get independent bundles" 2
-    (length (backendLbRequests plan))
-  assertEqual "each bundle schedules two fluxes and a result" 6
-    (length (backendStepSchedule plan))
-  assertEqual "deterministic distinct result names"
-    [ "FormuraeInternalLb1Result"
-    , "FormuraeInternalLb2Result"
-    ]
-    (map (auxiliaryFieldName . lbRequestResultField)
-      (backendLbRequests plan))
-
-testInitializerRejection :: IO ()
-testInitializerRejection = do
-  let program = fixture
-        { feProgramInitializers =
-            [AnalyticInitializer (initialEquation
-              (OpaqueDiscrete defaultLbOpaque))]
-        }
-  assertLeft "effectful initializer"
+      program = twoFieldFixture
+        { feProgramStepActions = [UpdateField (stepEquation expression)] }
+  assertLeft "one semantic key with two payloads"
     (\err -> case err of
-      EffectfulRequestInInitializer op _ _ -> op == lbOperationId
+      ConflictingOpaqueSemanticKey (SemanticKey "shared") -> True
       _ -> False)
     (planBackendEffects program)
 
-testGeometryDiagnostics :: IO ()
-testGeometryDiagnostics = do
-  let euclidean = fixture
-        { feProgramGeometry = GeometryDecl (GeometryId 1) Nothing Nothing
-            EuclideanGeometry
+testRequestGroupConflict :: IO ()
+testRequestGroupConflict = do
+  let expression = Add
+        [ OpaqueDiscrete (orderedOpaque (SemanticKey "first-key")
+            (RequestGroupId "shared-group") (FieldId 1))
+        , OpaqueDiscrete (orderedOpaque (SemanticKey "second-key")
+            (RequestGroupId "shared-group") (FieldId 2))
+        ]
+      program = twoFieldFixture
+        { feProgramStepActions = [UpdateField (stepEquation expression)] }
+  assertLeft "one request group with two payloads"
+    (\err -> case err of
+      ConflictingOpaqueRequestGroup (RequestGroupId "shared-group") -> True
+      _ -> False)
+    (planBackendEffects program)
+
+testPureLocalInitializer :: IO ()
+testPureLocalInitializer = do
+  let program = fixture
+        { feProgramInitializers =
+            [AnalyticInitializer (initialEquation
+              (OpaqueDiscrete (orderedOpaque (SemanticKey "init-key")
+                (RequestGroupId "init-group") (FieldId 1))))]
         }
-  assertLeft "lb needs variable orthogonal metric"
-    (\err -> case err of
-      LbNeedsOrthogonalMetric (GeometryId 1) _ -> True
-      _ -> False)
-    (planBackendEffects euclidean)
-
-  let geometry = feProgramGeometry fixture
-      unverifiedKind = case geometryDeclKind geometry of
-        OrthogonalScaleGeometry scales normalForm ->
-          OrthogonalScaleGeometry scales
-            (normalForm { geometryOrthogonalityVerified = False })
-        other -> other
-      unverified = fixture
-        { feProgramGeometry = geometry { geometryDeclKind = unverifiedKind } }
-  assertLeft "unverified geometry"
-    (\err -> case err of
-      LbUnverifiedOrthogonalMetric (GeometryId 1) _ -> True
-      _ -> False)
-    (planBackendEffects unverified)
-
-testSourceContract :: IO ()
-testSourceContract = do
-  let primal = fixture
-        { feProgramFields = [scalarField (FieldId 1) "u" PrimalPolicy] }
-  assertLeft "lb source must be collocated"
-    (\err -> case err of
-      LbSourceMustBeCollocated (FieldId 1) PrimalPolicy _ -> True
-      _ -> False)
-    (planBackendEffects primal)
-
-  let badJet = (fieldJet (FieldId 1))
-        { fieldJetArguments = [Coordinate (AxisId 2), Coordinate (AxisId 1)] }
-      badCoordinates = withOpaque fixture
-        (defaultLbOpaque
-          { opaqueDiscreteOperands = [ScalarValue (FieldJet badJet)] })
-  assertLeft "canonical coordinate vector"
-    (\err -> case err of
-      LbSourceMustUseCanonicalCoordinates (FieldId 1) _ -> True
-      _ -> False)
-    (planBackendEffects badCoordinates)
-
-testRequestContract :: IO ()
-testRequestContract = do
-  let missingMetric = withOpaque fixture
-        (defaultLbOpaque
-          { opaqueDiscreteAttributes =
-              [Attribute (AttributeId "source-policy")
-                (AttributeGridPolicy CollocatedPolicy)] })
-  assertLeft "metric attribute is required"
-    (\err -> case err of
-      MissingOpaqueAttribute _ (AttributeId "metric") _ -> True
-      _ -> False)
-    (planBackendEffects missingMetric)
-
-  let codiff = defaultLbOpaque
-        { opaqueDiscreteOpId = metricCodifferentialOperationId
-        , opaqueDiscreteSemanticKey = SemanticKey "delta-key"
-        , opaqueDiscreteRequestGroup = RequestGroupId "delta-group"
-        }
-  assertLeft "metric codifferential validates its form payload"
-    (\err -> case err of
-      MetricCodifferentialPlanError _ _ -> True
-      _ -> False)
-    (planBackendEffects (withOpaque fixture codiff))
+  assertRight "pure-local request in an initializer"
+    (planBackendEffects program)
 
 fixture :: FEProgram
 fixture = FEProgram
@@ -204,43 +89,33 @@ fixture = FEProgram
       (DiscretizationProfile
         (VersionedProfileId "formurae-discretization@1")
         (Fingerprint "") [] FixedAxisOrder)
-  , feProgramMode = DecMode
+  , feProgramMode = CollocatedMode
   , feProgramDimension = 2
   , feProgramAxes =
       [ AxisDecl (AxisId 1) "x" "x" (OriginId 1)
       , AxisDecl (AxisId 2) "y" "y" (OriginId 1)
       ]
-  , feProgramGeometry = orthogonalGeometry
+  , feProgramGeometry = GeometryDecl (GeometryId 1) Nothing Nothing
+      EuclideanGeometry
   , feProgramParameters = []
   , feProgramFunctions = []
   , feProgramFields = [scalarField (FieldId 1) "u" CollocatedPolicy]
   , feProgramInitializers = []
   , feProgramStepActions =
-      [UpdateField (stepEquation (OpaqueDiscrete defaultLbOpaque))]
+      [UpdateField (stepEquation (OpaqueDiscrete (orderedOpaque
+        (SemanticKey "u-key") (RequestGroupId "u-group") (FieldId 1))))]
   , feProgramRawHelpers = []
   , feProgramOrigins = OriginTable [(OriginId 1, origin)]
   , feProgramProvenance = ProvenanceTable []
   }
 
-orthogonalGeometry :: GeometryDecl
-orthogonalGeometry = GeometryDecl (GeometryId 1) (Just "g")
-  (Just (OriginId 1))
-  (OrthogonalScaleGeometry scales geometryNF)
-  where
-    scales =
-      [ (AxisId 1, Exact 1 1)
-      , (AxisId 2, Coordinate (AxisId 2))
+twoFieldFixture :: FEProgram
+twoFieldFixture = fixture
+  { feProgramFields =
+      [ scalarField (FieldId 1) "u" CollocatedPolicy
+      , scalarField (FieldId 2) "v" CollocatedPolicy
       ]
-    geometryNF = GeometryNF identityTensor identityTensor scales
-      (Coordinate (AxisId 2)) True
-
-identityTensor :: TensorNF
-identityTensor = TensorNF [2, 2] [VarianceDown, VarianceDown] 0
-  [ (Basis [1, 1], Exact 1 1)
-  , (Basis [1, 2], Exact 0 1)
-  , (Basis [2, 1], Exact 0 1)
-  , (Basis [2, 2], Exact 1 1)
-  ]
+  }
 
 scalarField :: FieldId -> String -> GridPolicy -> LogicalFieldDecl
 scalarField fieldId name policy = LogicalFieldDecl fieldId name policy
@@ -250,23 +125,15 @@ fieldJet :: FieldId -> FieldJet
 fieldJet fieldId = FieldJetValue fieldId CurrentTime (Basis [])
   [Coordinate (AxisId 1), Coordinate (AxisId 2)] []
 
-defaultLbOpaque :: OpaqueDiscrete
-defaultLbOpaque = lbOpaque (FieldId 1)
-  (SemanticKey "lb-u-key") (RequestGroupId "lb-u")
-
-lbOpaque :: FieldId -> SemanticKey -> RequestGroupId -> OpaqueDiscrete
-lbOpaque fieldId key group = OpaqueDiscreteCall
-  lbOperationId key group (Basis [])
+orderedOpaque :: SemanticKey -> RequestGroupId -> FieldId -> OpaqueDiscrete
+orderedOpaque key group fieldId = OpaqueDiscreteCall
+  Primitives.derivativeOrderedV1OpId key group (Basis [])
   [ScalarValue (FieldJet (fieldJet fieldId))]
-  [ Attribute (AttributeId "metric") (AttributeGeometry (GeometryId 1))
-  , Attribute (AttributeId "source-policy")
-      (AttributeGridPolicy CollocatedPolicy)
+  [ Attribute (AttributeId "order") (AttributeNatural 1)
+  , Attribute (AttributeId "ordered-axes")
+      (AttributeValues [AttributeAxis (AxisId 1)])
+  , Attribute (AttributeId "radius") (AttributeNatural 1)
   ]
-
-withOpaque :: FEProgram -> OpaqueDiscrete -> FEProgram
-withOpaque program opaque = program
-  { feProgramStepActions =
-      [UpdateField (stepEquation (OpaqueDiscrete opaque))] }
 
 stepEquation :: ScalarNF -> FEEquation
 stepEquation scalar = FEEquation (EquationId 1)
@@ -295,9 +162,3 @@ assertLeft label predicate result =
     Left err | predicate err -> pure ()
     Left _ -> fail (label ++ ": unexpected error")
     Right _ -> fail (label ++ ": expected Left")
-
-assertEqual :: (Eq a, Show a) => String -> a -> a -> IO ()
-assertEqual label expected actual
-  | expected == actual = pure ()
-  | otherwise = fail
-      (label ++ ": expected " ++ show expected ++ ", got " ++ show actual)

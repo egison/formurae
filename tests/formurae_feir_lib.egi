@@ -193,8 +193,8 @@ def feirDerivativeFixture :=
 def feirOpaqueFixture :=
   FEIR.encodeOpaqueRef feirParameters feirCoordinates feirFields
     feirIntrinsics feirAnalytics
-    (functionSymbol "FormuraeInternalOpaqueLbOrthogonalV1"
-      [feirFieldU, 1, 1])
+    (functionSymbol "FormuraeInternalOpaqueOrderedDerivativeV1"
+      [feirFieldU, 1, 2])
 
 def feirWideOpaqueFixture :=
   FEIR.encodeOpaqueRef feirParameters feirCoordinates feirFields

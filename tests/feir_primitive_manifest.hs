@@ -20,25 +20,31 @@ main = do
   assertEqual
     "required v1 operation IDs"
     (map VersionedOpId
-      [ "codiff.metric@1"
-      , "derivative.coordinate-wide@1"
+      [ "derivative.coordinate-wide@1"
       , "derivative.grid-whole@1"
       , "derivative.ordered@1"
-      , "lb.orthogonal@1"
       , "resample.explicit@1"
       ])
     (map primitiveSignatureOpId (primitiveManifestSignatures manifest))
 
-  lb <- expectJust "lb signature"
-    (find ((== VersionedOpId "lb.orthogonal@1") . primitiveSignatureOpId)
-      (primitiveManifestSignatures manifest))
-  assertEqual "lb placement" ConservativeCellPlacement
-    (primitiveSignaturePlacement lb)
+  -- No v1 operation materializes any more, but the manifest grammar keeps
+  -- the vocabulary; a synthetic entry checks placement, role parsing, and
+  -- the canonical role order.
+  materializing <- expectRight "parse materializing grammar"
+    (parsePrimitiveManifest materializingManifest)
+  synthetic <- expectJust "synthetic materializing signature"
+    (find ((== VersionedOpId "test.materializing@1")
+      . primitiveSignatureOpId)
+      (primitiveManifestSignatures materializing))
+  assertEqual "materializing placement" ConservativeCellPlacement
+    (primitiveSignaturePlacement synthetic)
   assertEqual
-    "lb materialization roles"
+    "materialization roles are canonically ordered"
     (NeedsMaterialization
       [CoefficientRole, FluxRole, ResultRole, VolumeRole])
-    (primitiveSignatureEffect lb)
+    (primitiveSignatureEffect synthetic)
+  assertEqual "declared-commutative semantics" DeclaredCommutative
+    (primitiveSignatureCommutation synthetic)
 
   gridWhole <- expectJust "grid-whole derivative signature"
     (find ((== VersionedOpId "derivative.grid-whole@1")
@@ -80,7 +86,7 @@ main = do
   assertEqual
     "canonical fingerprint"
     (Fingerprint
-      "sha256:f4623af0a5cebbf8ce86d8871b52335ae8ae7db95eaa0f25224d9bad35512c3b")
+      "sha256:15edbc55825f7b9ff02836c67d852b46635f34d7b94a0397d750243b555aa9fb")
     (primitiveManifestFingerprint manifest)
   assertEqual
     "manifest ID is its fingerprint"
@@ -138,6 +144,17 @@ validPrimitive = unlines
   , "    (effects pure-local)"
   , "    (commutation ordered))"
   ]
+
+materializingManifest :: String
+materializingManifest = manifestEnvelope (unlines
+  [ "  (primitive"
+  , "    (op test.materializing 1)"
+  , "    (inputs scalar)"
+  , "    (output scalar)"
+  , "    (placement conservative-cell)"
+  , "    (effects needs-materialization volume coefficient result flux)"
+  , "    (commutation declared-commutative))"
+  ])
 
 validEffects :: String
 validEffects = "(effects pure-local)"

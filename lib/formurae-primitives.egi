@@ -2,10 +2,7 @@
 -- Run tools/generate-feir-primitives.hs; do not edit it directly.
 
 def Formurae.Primitives.primitiveManifestV1Id : String :=
-  "sha256:f4623af0a5cebbf8ce86d8871b52335ae8ae7db95eaa0f25224d9bad35512c3b"
-
-def Formurae.Primitives.codiffMetricV1OpId : String :=
-  "codiff.metric@1"
+  "sha256:15edbc55825f7b9ff02836c67d852b46635f34d7b94a0397d750243b555aa9fb"
 
 def Formurae.Primitives.derivativeCoordinateWideV1OpId : String :=
   "derivative.coordinate-wide@1"
@@ -16,19 +13,14 @@ def Formurae.Primitives.derivativeGridWholeV1OpId : String :=
 def Formurae.Primitives.derivativeOrderedV1OpId : String :=
   "derivative.ordered@1"
 
-def Formurae.Primitives.lbOrthogonalV1OpId : String :=
-  "lb.orthogonal@1"
-
 def Formurae.Primitives.resampleExplicitV1OpId : String :=
   "resample.explicit@1"
 
 def Formurae.Primitives.signatures
       : [(String, String, Integer, [String], String, String, String, [String], String)] :=
-  [ (Formurae.Primitives.codiffMetricV1OpId, "codiff.metric", 1, ["form"], "form", "dual-adjoint", "needs-materialization", ["coefficient", "flux", "result", "volume"], "ordered")
-  , (Formurae.Primitives.derivativeCoordinateWideV1OpId, "derivative.coordinate-wide", 1, ["scalar"], "scalar", "derivative-target", "pure-local", [], "ordered")
+  [ (Formurae.Primitives.derivativeCoordinateWideV1OpId, "derivative.coordinate-wide", 1, ["scalar"], "scalar", "derivative-target", "pure-local", [], "ordered")
   , (Formurae.Primitives.derivativeGridWholeV1OpId, "derivative.grid-whole", 1, ["scalar"], "scalar", "derivative-target", "pure-local", [], "ordered")
   , (Formurae.Primitives.derivativeOrderedV1OpId, "derivative.ordered", 1, ["scalar"], "scalar", "derivative-target", "pure-local", [], "ordered")
-  , (Formurae.Primitives.lbOrthogonalV1OpId, "lb.orthogonal", 1, ["scalar"], "scalar", "conservative-cell", "needs-materialization", ["coefficient", "flux", "result", "volume"], "declared-commutative")
   , (Formurae.Primitives.resampleExplicitV1OpId, "resample.explicit", 1, ["scalar"], "scalar", "explicit-target", "pure-local", [], "ordered")
   ]
 

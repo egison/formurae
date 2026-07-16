@@ -33,20 +33,4 @@
     (output scalar)
     (placement explicit-target)
     (effects pure-local)
-    (commutation ordered))
-
-  (primitive
-    (op lb.orthogonal 1)
-    (inputs scalar)
-    (output scalar)
-    (placement conservative-cell)
-    (effects needs-materialization coefficient volume flux result)
-    (commutation declared-commutative))
-
-  (primitive
-    (op codiff.metric 1)
-    (inputs form)
-    (output form)
-    (placement dual-adjoint)
-    (effects needs-materialization coefficient volume flux result)
     (commutation ordered)))

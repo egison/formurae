@@ -3,7 +3,6 @@ module Formurae.Post.Compile
   , DerivativeMetadataError(..)
   , WideDerivativeError(..)
   , GridWholeDerivativeError(..)
-  , MetricCodifferentialError(..)
   , wideDerivativeOperationId
   , gridWholeDerivativeOperationId
   , orderedDerivativeOperationId
@@ -11,8 +10,7 @@ module Formurae.Post.Compile
   , compileProgram
   ) where
 
-import Control.Monad (foldM)
-import Data.List (find, nub, sort)
+import Data.List (find)
 import qualified Data.Ratio as Ratio
 
 import qualified Formurae.FEIR.PrimitiveBindings as Primitives
@@ -55,11 +53,6 @@ data GridWholeDerivativeError
   | GridWholeStencilFailure StencilError
   deriving (Eq, Show)
 
-data MetricCodifferentialError
-  = MetricCodifferentialContractError String
-  | MetricCodifferentialLocationError LocationError
-  deriving (Eq, Show)
-
 wideDerivativeOperationId :: VersionedOpId
 wideDerivativeOperationId = Primitives.derivativeCoordinateWideV1OpId
 
@@ -89,7 +82,6 @@ data PostError
   | PostUnsupportedOpaque VersionedOpId
   | PostWideDerivativeError SemanticKey WideDerivativeError
   | PostGridWholeDerivativeError SemanticKey GridWholeDerivativeError
-  | PostMetricCodifferentialError SemanticKey MetricCodifferentialError
   | PostPrimitiveContractError SemanticKey PrimitiveContractError
   | PostExplicitStencilError SemanticKey ExplicitStencilError
   | PostDerivativeLatticeMismatch SemanticKey LatticeClass LatticeClass
@@ -102,23 +94,19 @@ data PostError
 
 data CompileEnvironment = CompileEnvironment
   { compileProgramInput :: FEProgram
-  , compileBackendPlan :: Backend.BackendPlan
   , compileBindings :: [(NodeId, FEValue)]
   }
 
 compileProgram :: FEProgram -> Either PostError FProgram
 compileProgram program = do
-  backendPlan <- mapBackendPlanError (Backend.planBackendEffects program)
-  let initialEnvironment = CompileEnvironment program backendPlan []
-      backendState = Backend.backendGeometryInitializers backendPlan
-      backendStateNames = map Backend.auxiliaryFieldName backendState
+  -- No FEIR operation carries a materializing storage effect any more;
+  -- the plan step remains as program-level validation of the opaque
+  -- occurrences (pure-local requests only, no effects in initializers).
+  mapBackendPlanError (Backend.planBackendEffects program)
+  let initialEnvironment = CompileEnvironment program []
   userStateStorage <- concatMapM (fieldStorage program) stateFields
   initializerAssignments <- concatMapM (compileInitializer initialEnvironment)
     (feProgramInitializers program)
-  backendInitializerAssignments <- mapM
-    (compileBackendInitializer initialEnvironment) backendState
-  backendCarryAssignments <- mapM
-    (compileBackendCarry initialEnvironment) backendState
   (bindings, frozenInitializers, stepAssignments, frozenStateNames) <-
     compileActions initialEnvironment (feProgramStepActions program)
   let _ = bindings
@@ -135,23 +123,17 @@ compileProgram program = do
                 && (functionDeclId function `elem` usedFunctionIds
                     || functionDeclOrigin function /= Nothing))
           ])
-      usedFunctionIds = uniqueValues
-        (programFunctionIds program
-          ++ concatMap auxiliaryFunctionIds backendState
-          ++ concatMap auxiliaryFunctionIds
-            (Backend.backendStepSchedule backendPlan))
+      usedFunctionIds = uniqueValues (programFunctionIds program)
       rawHelpers = map rawHelperText (feProgramRawHelpers program)
       allInitializers = initializerAssignments ++ frozenInitializers
-        ++ backendInitializerAssignments
-      allStepAssignments = stepAssignments ++ backendCarryAssignments
+      allStepAssignments = stepAssignments
   ensureUniqueTargets (allInitializers ++ allStepAssignments)
   Right FProgram
     { fProgramDimension = feProgramDimension program
     , fProgramAxes = map axisDeclSourceName (feProgramAxes program)
     , fProgramParameters = parameters
     , fProgramHelpers = externalHelpers ++ rawHelpers
-    , fProgramStateStorage =
-        userStateStorage ++ frozenStateNames ++ backendStateNames
+    , fProgramStateStorage = userStateStorage ++ frozenStateNames
     , fProgramInitializers = allInitializers
     , fProgramStepAssignments = allStepAssignments
     }
@@ -171,152 +153,38 @@ compileActions
          , [FAssignment]
          , [String]
          )
-compileActions environment actions = go environment [] [] ([], [], []) actions
+compileActions environment actions = go environment [] ([], [], []) actions
   where
-    -- Backend auxiliaries are scheduled immediately before the FEIR action
-    -- that first consumes them.  Materializations and updates then enter the
-    -- same stream in source order; separating them would change the meaning
-    -- of references to earlier NextTime values.  Frozen materializations
-    -- (geometry-only locals) contribute initializer assignments and state
-    -- names on the side.
-    go _current bindings scheduled (initializers, assignments, frozenState) [] =
-      case [key | key <- allPlannedKeys, key `notElem` scheduled] of
-        [] -> Right (reverse bindings, initializers, assignments, frozenState)
-        remaining -> Left (PostInvalidAuxiliaryPlan
-          ("unscheduled opaque requests: " ++ show remaining))
-    go current bindings scheduled (initializers, assignments, frozenState) (action : rest) = do
-      let needed = actionOpaqueSemanticKeys action
-          origin = actionOriginId action
-      (nextScheduled, backendAssignments) <- withPostOrigin origin
-        (scheduleOpaqueRequests current scheduled needed)
+    -- Materializations and updates enter one stream in source order;
+    -- separating them would change the meaning of references to earlier
+    -- NextTime values.  Frozen materializations (geometry-only locals)
+    -- contribute initializer assignments and state names on the side.
+    go _current bindings (initializers, assignments, frozenState) [] =
+      Right (reverse bindings, initializers, assignments, frozenState)
+    go current bindings (initializers, assignments, frozenState) (action : rest) =
       case action of
         BindValue nodeId value _ ->
           let nextEnvironment = current
                 { compileBindings = (nodeId, value) : compileBindings current }
-          in go nextEnvironment ((nodeId, value) : bindings) nextScheduled
-               (initializers, assignments ++ backendAssignments, frozenState)
-               rest
+          in go nextEnvironment ((nodeId, value) : bindings)
+               (initializers, assignments, frozenState) rest
         Materialize fieldId value materializeOrigin -> do
           (frozenInitializers, materializationAssignments, frozenNames) <-
             withPostOrigin materializeOrigin $ do
               field <- lookupField current fieldId
               compileMaterialization current field value
-          go current bindings nextScheduled
+          go current bindings
             ( initializers ++ frozenInitializers
-            , assignments ++ backendAssignments ++ materializationAssignments
+            , assignments ++ materializationAssignments
             , frozenState ++ frozenNames
             ) rest
         UpdateField equation -> do
           updateAssignments <- compileEquation current StepEquation equation
-          go current bindings nextScheduled
+          go current bindings
             ( initializers
-            , assignments ++ backendAssignments ++ updateAssignments
+            , assignments ++ updateAssignments
             , frozenState
             ) rest
-
-    allPlannedKeys =
-      concatMap fst (plannedBackendRequests (compileBackendPlan environment))
-
-scheduleOpaqueRequests
-    :: CompileEnvironment
-    -> [SemanticKey]
-    -> [SemanticKey]
-    -> Either PostError ([SemanticKey], [FAssignment])
-scheduleOpaqueRequests environment initialScheduled needed =
-  foldM scheduleOne (initialScheduled, []) needed
-  where
-    requests = plannedBackendRequests (compileBackendPlan environment)
-    scheduleOne (scheduled, assignments) key
-      | key `elem` scheduled = Right (scheduled, assignments)
-      | otherwise =
-          case find (elem key . fst) requests of
-            Nothing -> Right (scheduled, assignments)
-            Just (requestKeys, requestSchedule) -> do
-              compiled <- mapM (compileBackendStep environment) requestSchedule
-              Right
-                ( uniqueValues (scheduled ++ requestKeys)
-                , assignments ++ compiled
-                )
-
-plannedBackendRequests
-    :: Backend.BackendPlan
-    -> [([SemanticKey], [Backend.AuxiliaryFieldPlan])]
-plannedBackendRequests plan =
-  [ ([Backend.lbRequestSemanticKey request], backendRequestSchedule request)
-  | request <- Backend.backendLbRequests plan
-  ]
-  ++
-  [ (metricRequestKeys request, metricBackendRequestSchedule request)
-  | request <- Backend.backendMetricCodifferentialRequests plan
-  ]
-
-backendRequestSchedule :: Backend.LbRequestPlan -> [Backend.AuxiliaryFieldPlan]
-backendRequestSchedule request =
-  Backend.lbRequestFluxFields request ++ [Backend.lbRequestResultField request]
-
-metricBackendRequestSchedule
-    :: Backend.MetricCodifferentialRequestPlan
-    -> [Backend.AuxiliaryFieldPlan]
-metricBackendRequestSchedule request = concatMap
-  (\component -> Backend.metricCodifferentialComponentFluxFields component
-    ++ [Backend.metricCodifferentialComponentResultField component])
-  (Backend.metricCodifferentialComponents request)
-
-metricRequestKeys
-    :: Backend.MetricCodifferentialRequestPlan -> [SemanticKey]
-metricRequestKeys request = map
-  Backend.metricCodifferentialComponentSemanticKey
-  (Backend.metricCodifferentialComponents request)
-
-actionOpaqueSemanticKeys :: FEAction -> [SemanticKey]
-actionOpaqueSemanticKeys action = uniqueValues $ case action of
-  BindValue _ value _ -> valueOpaqueSemanticKeys value
-  Materialize _ value _ -> valueOpaqueSemanticKeys value
-  UpdateField equation -> tensorOpaqueSemanticKeys (feEquationRhs equation)
-
-valueOpaqueSemanticKeys :: FEValue -> [SemanticKey]
-valueOpaqueSemanticKeys value =
-  case value of
-    ScalarValue scalar -> scalarOpaqueSemanticKeys scalar
-    TensorValue tensor -> tensorOpaqueSemanticKeys tensor
-
-tensorOpaqueSemanticKeys :: TensorNF -> [SemanticKey]
-tensorOpaqueSemanticKeys tensor = concatMap
-  (scalarOpaqueSemanticKeys . snd) (tensorNFComponents tensor)
-
-scalarOpaqueSemanticKeys :: ScalarNF -> [SemanticKey]
-scalarOpaqueSemanticKeys scalar =
-  case scalar of
-    Exact _ _ -> []
-    NamedConstant _ -> []
-    Parameter _ -> []
-    Coordinate _ -> []
-    Add terms -> concatMap recurse terms
-    Mul factors -> concatMap recurse factors
-    Div numerator denominator -> recurse numerator ++ recurse denominator
-    Pow base exponentValue -> recurse base ++ recurse exponentValue
-    Intrinsic _ arguments -> concatMap recurse arguments
-    AnalyticCall _ arguments -> concatMap recurse arguments
-    Select predicate yes no ->
-      predicateOpaqueSemanticKeys predicate ++ recurse yes ++ recurse no
-    FieldJet _ -> []
-    OpaqueDiscrete opaque ->
-      concatMap valueOpaqueSemanticKeys (opaqueDiscreteOperands opaque)
-      ++ [opaqueDiscreteSemanticKey opaque]
-    Ref _ -> []
-  where
-    recurse = scalarOpaqueSemanticKeys
-
-predicateOpaqueSemanticKeys :: PredicateNF -> [SemanticKey]
-predicateOpaqueSemanticKeys predicate =
-  case predicate of
-    BoolExact _ -> []
-    Compare _ lhs rhs -> recurse lhs ++ recurse rhs
-    Not body -> predicateOpaqueSemanticKeys body
-    And bodies -> concatMap predicateOpaqueSemanticKeys bodies
-    Or bodies -> concatMap predicateOpaqueSemanticKeys bodies
-  where
-    recurse = scalarOpaqueSemanticKeys
 
 programFunctionIds :: FEProgram -> [FunctionId]
 programFunctionIds program =
@@ -335,16 +203,6 @@ actionFunctionIds action =
     BindValue _ value _ -> valueFunctionIds value
     Materialize _ value _ -> valueFunctionIds value
     UpdateField equation -> tensorFunctionIds (feEquationRhs equation)
-
-auxiliaryFunctionIds :: Backend.AuxiliaryFieldPlan -> [FunctionId]
-auxiliaryFunctionIds auxiliary =
-  case Backend.auxiliaryFieldComputation auxiliary of
-    Backend.SampleGeometry scalar -> scalarFunctionIds scalar
-    Backend.ComputeLbFlux {} -> []
-    Backend.ComputeLbResult {} -> []
-    Backend.ComputeMetricCodifferentialFlux operand _ _ _ _ _ ->
-      scalarFunctionIds operand
-    Backend.ComputeMetricCodifferentialResult {} -> []
 
 valueFunctionIds :: FEValue -> [FunctionId]
 valueFunctionIds value =
@@ -529,180 +387,6 @@ predicateIsGeometryOnly predicate =
     And bodies -> all predicateIsGeometryOnly bodies
     Or bodies -> all predicateIsGeometryOnly bodies
 
-compileBackendInitializer
-    :: CompileEnvironment
-    -> Backend.AuxiliaryFieldPlan
-    -> Either PostError FAssignment
-compileBackendInitializer environment auxiliary =
-  case ( Backend.auxiliaryFieldLifetime auxiliary
-       , Backend.auxiliaryFieldComputation auxiliary
-       ) of
-    (Backend.PersistentAuxiliary, Backend.SampleGeometry scalar) -> do
-      expression <- lowerScalar environment
-        (Backend.auxiliaryFieldPlacement auxiliary) scalar
-      indices <- indexNames environment
-      Right (FAssignment
-        (InitialTarget (Backend.auxiliaryFieldName auxiliary) indices)
-        (normalizeExpr expression))
-    _ -> Left (PostInvalidAuxiliaryPlan
-      ("invalid persistent auxiliary "
-        ++ Backend.auxiliaryFieldName auxiliary))
-
-compileBackendCarry
-    :: CompileEnvironment
-    -> Backend.AuxiliaryFieldPlan
-    -> Either PostError FAssignment
-compileBackendCarry environment auxiliary
-  | Backend.auxiliaryFieldLifetime auxiliary /= Backend.PersistentAuxiliary =
-      Left (PostInvalidAuxiliaryPlan
-        ("cannot carry non-persistent auxiliary "
-          ++ Backend.auxiliaryFieldName auxiliary))
-  | otherwise = do
-      reference <- gridReference environment
-        (Backend.auxiliaryFieldName auxiliary)
-        (replicate (programDimension environment) 0)
-      Right (FAssignment
-        (StepUpdateTarget (Backend.auxiliaryFieldName auxiliary)) reference)
-
-compileBackendStep
-    :: CompileEnvironment
-    -> Backend.AuxiliaryFieldPlan
-    -> Either PostError FAssignment
-compileBackendStep environment auxiliary = do
-  if Backend.auxiliaryFieldLifetime auxiliary == Backend.StepAuxiliary
-    then Right ()
-    else Left (PostInvalidAuxiliaryPlan
-      ("step schedule contains persistent auxiliary "
-        ++ Backend.auxiliaryFieldName auxiliary))
-  expression <-
-    case Backend.auxiliaryFieldComputation auxiliary of
-      Backend.ComputeLbFlux source axis coefficientName ->
-        lowerLbFlux environment source axis coefficientName
-      Backend.ComputeLbResult fluxNames volumeName ->
-        lowerLbResult environment fluxNames volumeName
-      Backend.ComputeMetricCodifferentialFlux
-          operand axis sourcePlacement policy coefficientName sign ->
-        lowerMetricCodifferentialFlux environment operand axis
-          sourcePlacement policy coefficientName sign
-          (Backend.auxiliaryFieldPlacement auxiliary)
-      Backend.ComputeMetricCodifferentialResult
-          fluxNames coefficientName sign ->
-        lowerMetricCodifferentialResult environment fluxNames
-          coefficientName sign
-      Backend.SampleGeometry _ -> Left (PostInvalidAuxiliaryPlan
-        ("step auxiliary samples geometry: "
-          ++ Backend.auxiliaryFieldName auxiliary))
-  Right (FAssignment
-    (StepBindingTarget (Backend.auxiliaryFieldName auxiliary))
-    (normalizeExpr expression))
-
-lowerMetricCodifferentialFlux
-    :: CompileEnvironment
-    -> ScalarNF
-    -> AxisId
-    -> Placement
-    -> GridPolicy
-    -> String
-    -> Integer
-    -> Placement
-    -> Either PostError FExpr
-lowerMetricCodifferentialFlux environment operand axisId@(AxisId axisNumber)
-    sourcePlacement policy coefficientName termSign targetPlacement = do
-  naturalTarget <- case policy of
-    CollocatedPolicy -> Right sourcePlacement
-    PrimalPolicy -> mapLocationError (togglePlacement axisId sourcePlacement)
-    DualPolicy -> mapLocationError (togglePlacement axisId sourcePlacement)
-  if naturalTarget == targetPlacement
-    then Right ()
-    else Left (PostInvalidReferencePlacement targetPlacement naturalTarget)
-  weights <- case policy of
-    CollocatedPolicy -> do
-      stencil <- either
-        (Left . PostInvalidAuxiliaryPlan .
-          ("metric codifferential stencil: " ++) . show)
-        Right (centeredTaylorAtRadius 1 2 1)
-      Right (centeredWeights stencil)
-    PrimalPolicy -> yeeFirstWeights sourcePlacement axisNumber
-    DualPolicy -> yeeFirstWeights sourcePlacement axisNumber
-  samples <- mapM lowerSample weights
-  step <- axisStep environment axisId
-  Right (normalizeExpr (FMul
-    [ FExact termSign 1
-    , normalizeExpr (FDiv (normalizeExpr (FAdd samples)) step)
-    ]))
-  where
-    zeroOffsets = replicate (programDimension environment) 0
-    lowerSample (offset, coefficient) = do
-      let offsets = adjustOffset axisNumber offset zeroOffsets
-      coefficientValue <- gridReference environment coefficientName offsets
-      operandValue <- lowerScalarShifted environment sourcePlacement offsets operand
-      Right (normalizeExpr (FMul
-        [exactExpr coefficient, coefficientValue, operandValue]))
-
-lowerMetricCodifferentialResult
-    :: CompileEnvironment
-    -> [String]
-    -> String
-    -> Integer
-    -> Either PostError FExpr
-lowerMetricCodifferentialResult environment fluxNames coefficientName sign = do
-  let zeroOffsets = replicate (programDimension environment) 0
-  fluxes <- mapM (\name -> gridReference environment name zeroOffsets) fluxNames
-  coefficient <- gridReference environment coefficientName zeroOffsets
-  Right (normalizeExpr (FMul
-    [FExact sign 1, coefficient, normalizeExpr (FAdd fluxes)]))
-
--- The opaque lb primitive deliberately bypasses the model derivative profile.
--- Its v1 contract is a conservative Yee pair: cell-to-face forward gradient,
--- materialized face flux, then face-to-cell backward divergence.
-lowerLbFlux
-    :: CompileEnvironment
-    -> FieldJet
-    -> AxisId
-    -> String
-    -> Either PostError FExpr
-lowerLbFlux environment source axisId@(AxisId axisNumber) coefficientName = do
-  field <- lookupField environment (fieldJetFieldId source)
-  sourceName <- mapFMRError (storageName field (fieldJetBasis source))
-  let storage = case fieldJetTimeSlot source of
-        CurrentTime -> sourceName
-        NextTime -> sourceName ++ "'"
-      zeroOffsets = replicate (programDimension environment) 0
-      forwardOffsets = adjustOffset axisNumber 1 zeroOffsets
-  sourceHere <- gridReference environment storage zeroOffsets
-  sourceForward <- gridReference environment storage forwardOffsets
-  coefficient <- gridReference environment coefficientName zeroOffsets
-  step <- axisStep environment axisId
-  let gradient = FDiv
-        (FAdd
-          [ sourceForward
-          , FMul [FExact (-1) 1, sourceHere]
-          ])
-        step
-  Right (FMul [coefficient, gradient])
-
-lowerLbResult
-    :: CompileEnvironment
-    -> [(AxisId, String)]
-    -> String
-    -> Either PostError FExpr
-lowerLbResult environment fluxNames volumeName = do
-  divergences <- mapM divergence fluxNames
-  volume <- gridReference environment volumeName zeroOffsets
-  Right (FDiv (FAdd divergences) volume)
-  where
-    zeroOffsets = replicate (programDimension environment) 0
-    divergence (axisId@(AxisId axisNumber), fluxName) = do
-      fluxHere <- gridReference environment fluxName zeroOffsets
-      fluxPrevious <- gridReference environment fluxName
-        (adjustOffset axisNumber (-1) zeroOffsets)
-      step <- axisStep environment axisId
-      Right (FDiv
-        (FAdd
-          [ fluxHere
-          , FMul [FExact (-1) 1, fluxPrevious]
-          ])
-        step)
 
 gridReference
     :: CompileEnvironment -> String -> [Int] -> Either PostError FExpr
@@ -780,19 +464,6 @@ lowerOpaqueShifted
     -> OpaqueDiscrete
     -> Either PostError FExpr
 lowerOpaqueShifted environment targetPlacement sampleOffsets opaque
-  | opaqueDiscreteOpId opaque == Backend.lbOperationId =
-      case find matchingRequest
-           (Backend.backendLbRequests (compileBackendPlan environment)) of
-        Nothing -> Left (PostUnsupportedOpaque (opaqueDiscreteOpId opaque))
-        Just request -> do
-          let result = Backend.lbRequestResultField request
-              resultPlacement = Backend.auxiliaryFieldPlacement result
-          if resultPlacement /= targetPlacement
-            then Left (PostInvalidReferencePlacement
-              targetPlacement resultPlacement)
-            else gridReference environment
-              (Backend.auxiliaryFieldName result)
-              sampleOffsets
   | opaqueDiscreteOpId opaque == wideDerivativeOperationId =
       lowerWideDerivative environment targetPlacement sampleOffsets opaque
   | opaqueDiscreteOpId opaque == gridWholeDerivativeOperationId =
@@ -801,22 +472,7 @@ lowerOpaqueShifted environment targetPlacement sampleOffsets opaque
       lowerOrderedDerivative environment targetPlacement sampleOffsets opaque
   | opaqueDiscreteOpId opaque == resampleOperationId =
       lowerResample environment targetPlacement sampleOffsets opaque
-  | opaqueDiscreteOpId opaque == Backend.metricCodifferentialOperationId = do
-      location <- inferMetricCodifferentialLocation environment opaque
-      actual <- mapLocationError
-        (demandCapability targetPlacement (scalarLocationCapability location))
-      if actual == targetPlacement
-        then Right ()
-        else Left (PostInvalidReferencePlacement targetPlacement actual)
-      case Backend.lookupOpaqueResult (compileBackendPlan environment)
-           (opaqueDiscreteSemanticKey opaque) of
-        Just resultName -> gridReference environment resultName sampleOffsets
-        Nothing -> Left (PostUnsupportedOpaque (opaqueDiscreteOpId opaque))
   | otherwise = Left (PostUnsupportedOpaque (opaqueDiscreteOpId opaque))
-  where
-    matchingRequest request =
-      Backend.lbRequestSemanticKey request
-        == opaqueDiscreteSemanticKey opaque
 
 lowerOrderedDerivative
     :: CompileEnvironment
@@ -912,14 +568,6 @@ data CoordinateDerivativeRequest = CoordinateDerivativeRequest
   , derivativeRequestOperand :: ScalarNF
   }
 
-data MetricCodifferentialRequest = MetricCodifferentialRequest
-  { metricCodifferentialDimension :: Int
-  , metricCodifferentialDegree :: Int
-  , metricCodifferentialGeometry :: GeometryId
-  , metricCodifferentialOperand :: TensorNF
-  , metricCodifferentialResultBasis :: Basis
-  }
-
 data ScalarLocationInfo = ScalarLocationInfo
   { scalarLocationCapability :: Capability
   , scalarLocationLattice :: Maybe LatticeClass
@@ -1009,220 +657,6 @@ lowerGridWholeDerivative environment targetPlacement sampleOffsets opaque = do
       sample <- lowerScalarShifted environment sourcePlacement offsets
         (derivativeRequestOperand request)
       Right (normalizeExpr (FMul [exactExpr coefficient, sample]))
-
-parseMetricCodifferentialRequest
-    :: CompileEnvironment
-    -> OpaqueDiscrete
-    -> Either PostError MetricCodifferentialRequest
-parseMetricCodifferentialRequest environment opaque = do
-  let attributes = opaqueDiscreteAttributes opaque
-      expectedAttributes =
-        [AttributeId "dimension", AttributeId "metric", AttributeId "source-degree"]
-      actualAttributes = map attributeId attributes
-  case firstDuplicate actualAttributes of
-    Just duplicate -> metricFailure
-      ("duplicate attribute " ++ show duplicate)
-    Nothing -> Right ()
-  case [identifier | identifier <- actualAttributes,
-                     identifier `notElem` expectedAttributes] of
-    unknown : _ -> metricFailure ("unknown attribute " ++ show unknown)
-    [] -> Right ()
-  dimensionValue <- requireMetricAttribute opaque (AttributeId "dimension")
-  degreeValue <- requireMetricAttribute opaque (AttributeId "source-degree")
-  geometryValue <- requireMetricAttribute opaque (AttributeId "metric")
-  dimension <- metricNatural opaque "dimension" dimensionValue
-  degree <- metricNatural opaque "source-degree" degreeValue
-  geometry <- case geometryValue of
-    AttributeGeometry identifier -> Right identifier
-    _ -> metricFailure "metric attribute must be a GeometryId"
-  operand <- case opaqueDiscreteOperands opaque of
-    [TensorValue tensor] -> Right tensor
-    _ -> metricFailure "codifferential needs one TensorValue operand"
-  let resultBasis@(Basis resultAxes) = opaqueDiscreteResultBasis opaque
-      expectedShape = replicate degree dimension
-  if dimension == programDimension environment
-    then Right ()
-    else metricFailure "codifferential dimension does not match the program"
-  if degree >= 1 && degree <= dimension
-    then Right ()
-    else metricFailure "source degree must be in 1..dimension"
-  if tensorNFShape operand == expectedShape
-      && tensorNFVariances operand == replicate degree VarianceDown
-      && tensorNFDfOrder operand == degree
-    then Right ()
-    else metricFailure "codifferential operand is not the declared differential form"
-  if length resultAxes == degree - 1
-      && resultAxes == sort resultAxes
-      && length resultAxes == length (nub resultAxes)
-      && all (\axis -> axis >= 1 && axis <= dimension) resultAxes
-    then Right ()
-    else metricFailure ("invalid codifferential result basis " ++ show resultBasis)
-  Right MetricCodifferentialRequest
-    { metricCodifferentialDimension = dimension
-    , metricCodifferentialDegree = degree
-    , metricCodifferentialGeometry = geometry
-    , metricCodifferentialOperand = operand
-    , metricCodifferentialResultBasis = resultBasis
-    }
-  where
-    metricFailure = mapMetricError opaque . Left . MetricCodifferentialContractError
-
-requireMetricAttribute
-    :: OpaqueDiscrete -> AttributeId -> Either PostError AttributeValue
-requireMetricAttribute opaque identifier =
-  case [attributeValue attribute
-       | attribute <- opaqueDiscreteAttributes opaque
-       , attributeId attribute == identifier] of
-    [value] -> Right value
-    [] -> mapMetricError opaque (Left (MetricCodifferentialContractError
-      ("missing attribute " ++ show identifier)))
-    _ -> mapMetricError opaque (Left (MetricCodifferentialContractError
-      ("duplicate attribute " ++ show identifier)))
-
-metricNatural
-    :: OpaqueDiscrete -> String -> AttributeValue -> Either PostError Int
-metricNatural opaque label value =
-  case value of
-    AttributeNatural natural
-      | integer > 0 && integer <= toInteger (maxBound :: Int) ->
-          Right (fromInteger integer)
-      where integer = toInteger natural
-    _ -> mapMetricError opaque (Left (MetricCodifferentialContractError
-      (label ++ " must be a positive natural")))
-
-metricCodifferentialGeometryNF
-    :: CompileEnvironment
-    -> OpaqueDiscrete
-    -> MetricCodifferentialRequest
-    -> Either PostError GeometryNF
-metricCodifferentialGeometryNF environment opaque request = do
-  let geometry = feProgramGeometry (compileProgramInput environment)
-  if geometryDeclId geometry == metricCodifferentialGeometry request
-    then Right ()
-    else mapMetricError opaque (Left (MetricCodifferentialContractError
-      "codifferential metric attribute does not match the program geometry"))
-  normalForm <- case geometryDeclKind geometry of
-    OrthogonalScaleGeometry _ value -> Right value
-    EmbeddedOrthogonalGeometry _ value -> Right value
-    EuclideanGeometry -> mapMetricError opaque
-      (Left (MetricCodifferentialContractError
-        "metric codifferential requires variable orthogonal geometry"))
-  if geometryOrthogonalityVerified normalForm
-    then Right normalForm
-    else mapMetricError opaque (Left (MetricCodifferentialContractError
-      "metric codifferential requires symbolically verified orthogonality"))
-
-inferMetricCodifferentialPolicy
-    :: CompileEnvironment
-    -> OpaqueDiscrete
-    -> MetricCodifferentialRequest
-    -> Either PostError GridPolicy
-inferMetricCodifferentialPolicy environment opaque request = do
-  policies <- fmap (nub . concat) $ mapM
-    (scalarGridPolicies environment . snd)
-    (tensorNFComponents (metricCodifferentialOperand request))
-  policy <- case policies of
-    [value] -> Right value
-    [] -> mapMetricError opaque (Left (MetricCodifferentialContractError
-      "codifferential operand has no logical field placement"))
-    _ -> mapMetricError opaque (Left (MetricCodifferentialContractError
-      "codifferential operand mixes grid policies"))
-  mapM_ (validateComponent policy) (canonicalBases
-    (metricCodifferentialDimension request)
-    (metricCodifferentialDegree request))
-  Right policy
-  where
-    validateComponent policy basis = do
-      scalar <- mapMetricError opaque (maybeToMetric
-        ("missing canonical component " ++ show basis)
-        (lookup basis (tensorNFComponents (metricCodifferentialOperand request))))
-      expected <- mapMetricLocation opaque
-        (componentPlacement (metricCodifferentialDimension request) policy basis)
-      location <- inferScalarLocation environment
-        (opaqueDiscreteSemanticKey opaque) scalar
-      _ <- mapMetricLocation opaque
-        (demandCapability expected (scalarLocationCapability location))
-      Right ()
-
-scalarGridPolicies
-    :: CompileEnvironment -> ScalarNF -> Either PostError [GridPolicy]
-scalarGridPolicies environment scalar =
-  case scalar of
-    Exact _ _ -> Right []
-    NamedConstant _ -> Right []
-    Parameter _ -> Right []
-    Coordinate _ -> Right []
-    Add values -> concatMapM (scalarGridPolicies environment) values
-    Mul values -> concatMapM (scalarGridPolicies environment) values
-    Div lhs rhs -> concatMapM (scalarGridPolicies environment) [lhs, rhs]
-    Pow lhs rhs -> concatMapM (scalarGridPolicies environment) [lhs, rhs]
-    Intrinsic _ values -> concatMapM (scalarGridPolicies environment) values
-    AnalyticCall _ values -> concatMapM (scalarGridPolicies environment) values
-    Select predicate yes no -> do
-      predicatePolicies <- predicateGridPolicies environment predicate
-      branchPolicies <- concatMapM (scalarGridPolicies environment) [yes, no]
-      Right (predicatePolicies ++ branchPolicies)
-    FieldJet jet -> do
-      field <- lookupField environment (fieldJetFieldId jet)
-      Right [logicalFieldPolicy field]
-    OpaqueDiscrete nested -> concatMapM valuePolicies
-      (opaqueDiscreteOperands nested)
-    Ref nodeId -> do
-      value <- lookupBinding environment nodeId
-      valuePolicies value
-  where
-    valuePolicies (ScalarValue value) = scalarGridPolicies environment value
-    valuePolicies (TensorValue tensor) = concatMapM
-      (scalarGridPolicies environment . snd) (tensorNFComponents tensor)
-
-predicateGridPolicies
-    :: CompileEnvironment -> PredicateNF -> Either PostError [GridPolicy]
-predicateGridPolicies environment predicate =
-  case predicate of
-    BoolExact _ -> Right []
-    Compare _ lhs rhs -> concatMapM (scalarGridPolicies environment) [lhs, rhs]
-    Not body -> predicateGridPolicies environment body
-    And bodies -> concatMapM (predicateGridPolicies environment) bodies
-    Or bodies -> concatMapM (predicateGridPolicies environment) bodies
-
-inferMetricCodifferentialLocation
-    :: CompileEnvironment -> OpaqueDiscrete -> Either PostError ScalarLocationInfo
-inferMetricCodifferentialLocation environment opaque = do
-  request <- parseMetricCodifferentialRequest environment opaque
-  _ <- metricCodifferentialGeometryNF environment opaque request
-  policy <- inferMetricCodifferentialPolicy environment opaque request
-  placement <- mapMetricLocation opaque
-    (componentPlacement (metricCodifferentialDimension request) policy
-      (metricCodifferentialResultBasis request))
-  Right ScalarLocationInfo
-    { scalarLocationCapability = LocatedCapability placement
-    , scalarLocationLattice = Just (latticeClassOfPolicy policy)
-    }
-
-canonicalBases :: Int -> Int -> [Basis]
-canonicalBases dimension degree = map Basis (choose degree [1 .. dimension])
-  where
-    choose 0 _ = [[]]
-    choose _ [] = []
-    choose count (value : rest) =
-      map (value :) (choose (count - 1) rest) ++ choose count rest
-
-maybeToMetric :: String -> Maybe value -> Either MetricCodifferentialError value
-maybeToMetric message = maybe
-  (Left (MetricCodifferentialContractError message)) Right
-
-mapMetricLocation
-    :: OpaqueDiscrete -> Either LocationError value -> Either PostError value
-mapMetricLocation opaque = mapMetricError opaque .
-  mapLeft MetricCodifferentialLocationError
-
-mapMetricError
-    :: OpaqueDiscrete
-    -> Either MetricCodifferentialError value
-    -> Either PostError value
-mapMetricError opaque = either
-  (Left . PostMetricCodifferentialError
-    (opaqueDiscreteSemanticKey opaque)) Right
 
 gridWholeWeights
     :: OpaqueDiscrete
@@ -1381,8 +815,6 @@ inferScalarLocation environment semanticKey scalar =
         >>= (\joined -> joinScalarLocations semanticKey joined noLocation)
     FieldJet jet -> inferFieldJetLocation environment jet
     OpaqueDiscrete opaque
-      | opaqueDiscreteOpId opaque == Backend.lbOperationId ->
-          inferLbLocation environment opaque
       | opaqueDiscreteOpId opaque == wideDerivativeOperationId ->
           inferWideLocation environment opaque
       | opaqueDiscreteOpId opaque == gridWholeDerivativeOperationId ->
@@ -1391,8 +823,6 @@ inferScalarLocation environment semanticKey scalar =
           inferOrderedDerivativeLocation environment opaque
       | opaqueDiscreteOpId opaque == resampleOperationId ->
           inferResampleLocation environment opaque
-      | opaqueDiscreteOpId opaque == Backend.metricCodifferentialOperationId ->
-          inferMetricCodifferentialLocation environment opaque
       | otherwise -> Left (PostUnsupportedOpaque (opaqueDiscreteOpId opaque))
     Ref nodeId -> do
       value <- lookupBinding environment nodeId
@@ -1441,23 +871,6 @@ inferFieldJetLocation environment jet = do
     , scalarLocationLattice = Just
         (latticeClassOfPolicy (logicalFieldPolicy field))
     }
-
-inferLbLocation
-    :: CompileEnvironment
-    -> OpaqueDiscrete
-    -> Either PostError ScalarLocationInfo
-inferLbLocation environment opaque =
-  case find matchingRequest
-       (Backend.backendLbRequests (compileBackendPlan environment)) of
-    Nothing -> Left (PostUnsupportedOpaque (opaqueDiscreteOpId opaque))
-    Just request -> Right ScalarLocationInfo
-      { scalarLocationCapability = LocatedCapability
-          (Backend.auxiliaryFieldPlacement (Backend.lbRequestResultField request))
-      , scalarLocationLattice = Just CollocatedLattice
-      }
-  where
-    matchingRequest request =
-      Backend.lbRequestSemanticKey request == opaqueDiscreteSemanticKey opaque
 
 inferWideLocation
     :: CompileEnvironment
@@ -1915,13 +1328,6 @@ mapBackendPlanError = either (Left . PostBackendPlanError) Right
 
 withPostOrigin :: OriginId -> Either PostError a -> Either PostError a
 withPostOrigin origin = either (Left . PostAtOrigin origin) Right
-
-actionOriginId :: FEAction -> OriginId
-actionOriginId action =
-  case action of
-    BindValue _ _ origin -> origin
-    Materialize _ _ origin -> origin
-    UpdateField equation -> feEquationOrigin equation
 
 concatMapM :: (a -> Either e [b]) -> [a] -> Either e [b]
 concatMapM function values = concat <$> mapM function values

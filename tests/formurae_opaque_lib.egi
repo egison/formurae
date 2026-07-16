@@ -12,22 +12,10 @@ def opaqueU := function (x, y)
 def opaqueCoordinates := [(x, 1), (y, 2)]
 def opaqueFields := [FEIR.fieldEntry 1 "current" [] opaqueU]
 
-def opaqueA1 := function (x, y)
-def opaqueA2 := function (x, y)
-def opaqueA :=
-  FE.canonicalFormTensor
-    (\basis -> if basis = [1] then opaqueA1 else opaqueA2) 2 1
-def opaqueMetricFields :=
-  [ FEIR.fieldEntry 2 "current" [1] opaqueA1
-  , FEIR.fieldEntry 2 "current" [2] opaqueA2
-  ]
 def encodeOpaqueFixture value :=
   FEIR.encodeScalar [] opaqueCoordinates opaqueFields [] [] value
 
 def encodedOpaqueU := encodeOpaqueFixture opaqueU
-
-def lbRequest :=
-  Formurae.lbOrthogonal opaqueU
 
 def wideRequest :=
   Formurae.coordinateWideDerivative 2 2 2 opaqueU
@@ -36,17 +24,6 @@ def gridWholeOperand := opaqueU * opaqueU / 2
 
 def gridWholeRequest :=
   Formurae.gridWholeDerivative 1 gridWholeOperand
-
-def metricCodiffRequest :=
-  Formurae.metricCodiff opaqueA
-
-def expectedLb :=
-  FEIR.opaqueNode "lb.orthogonal@1" []
-    [FEIR.scalarValue encodedOpaqueU]
-    [ FEIR.attribute "metric" (FEIR.attributeGeometry 1)
-    , FEIR.attribute "source-policy"
-        (FEIR.attributeGridPolicy "collocated")
-    ]
 
 def expectedWide :=
   FEIR.opaqueNode "derivative.coordinate-wide@1" []
@@ -66,21 +43,6 @@ def expectedGridWhole :=
     , FEIR.attribute "radius" (FEIR.attributeNatural 1)
     ]
 
-def expectedMetricCodiff :=
-  FEIR.opaqueNode "codiff.metric@1" []
-    [ FEIR.tensorValue
-        (FEIR.encodeTensorValues [] opaqueCoordinates opaqueMetricFields [] []
-          2 1 (tensorToList opaqueA))
-    ]
-    [ FEIR.attribute "metric" (FEIR.attributeGeometry 1)
-    , FEIR.attribute "dimension" (FEIR.attributeNatural 2)
-    , FEIR.attribute "source-degree" (FEIR.attributeNatural 1)
-    ]
-
-assertEqual "lb reserved FunctionData encodes as manifest-backed OpaqueDiscrete"
-  (FEIR.render (encodeOpaqueFixture lbRequest))
-  (FEIR.render expectedLb)
-
 assertEqual "wide derivative preserves ordered axis, order, and radius"
   (FEIR.render (encodeOpaqueFixture wideRequest))
   (FEIR.render expectedWide)
@@ -88,12 +50,6 @@ assertEqual "wide derivative preserves ordered axis, order, and radius"
 assertEqual "grid-whole derivative preserves one nonlinear operand"
   (FEIR.render (encodeOpaqueFixture gridWholeRequest))
   (FEIR.render expectedGridWhole)
-
-assertEqual "variable-metric codifferential keeps the complete form opaque"
-  (FEIR.render
-    (FEIR.encodeScalar [] opaqueCoordinates opaqueMetricFields [] []
-      metricCodiffRequest))
-  (FEIR.render expectedMetricCodiff)
 
 assertEqual "grid-whole differs from analytic product-rule differentiation"
   (encodeOpaqueFixture gridWholeRequest
@@ -103,14 +59,14 @@ assertEqual "grid-whole differs from analytic product-rule differentiation"
 
 assertEqual "opaque semantic key and request group are deterministic"
   (encodeOpaqueFixture
-    (Formurae.lbOrthogonal opaqueU))
-  (encodeOpaqueFixture lbRequest)
+    (Formurae.gridWholeDerivative 1 gridWholeOperand))
+  (encodeOpaqueFixture gridWholeRequest)
 
 assertEqual "ordinary algebra retains opaque atoms"
-  (FEIR.render (encodeOpaqueFixture (2 * lbRequest + wideRequest)))
+  (FEIR.render (encodeOpaqueFixture (2 * gridWholeRequest + wideRequest)))
   (FEIR.render
     (FEIR.addNode
-      [ FEIR.mulNode [FEIR.exactInteger 2, expectedLb]
+      [ FEIR.mulNode [FEIR.exactInteger 2, expectedGridWhole]
       , expectedWide
       ]))
 

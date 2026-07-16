@@ -11,5 +11,5 @@ def fePrimitiveManifestId : String :=
 def opaqueErrorU := function (x)
 
 partialDiffMV
-  (Formurae.lbOrthogonal opaqueErrorU)
+  (Formurae.gridWholeDerivative 1 opaqueErrorU)
   x

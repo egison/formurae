@@ -6,11 +6,9 @@ module Formurae.FEIR.PrimitiveBindings
   , primitiveSignaturesV1
   , primitiveOperationIds
   , lookupPrimitiveSignatureV1
-  , codiffMetricV1OpId
   , derivativeCoordinateWideV1OpId
   , derivativeGridWholeV1OpId
   , derivativeOrderedV1OpId
-  , lbOrthogonalV1OpId
   , resampleExplicitV1OpId
   ) where
 
@@ -29,7 +27,7 @@ import Formurae.FEIR.Syntax
   )
 
 primitiveManifestV1Id :: PrimitiveManifestId
-primitiveManifestV1Id = PrimitiveManifestId "sha256:f4623af0a5cebbf8ce86d8871b52335ae8ae7db95eaa0f25224d9bad35512c3b"
+primitiveManifestV1Id = PrimitiveManifestId "sha256:15edbc55825f7b9ff02836c67d852b46635f34d7b94a0397d750243b555aa9fb"
 
 primitiveManifestV1 :: PrimitiveManifest
 primitiveManifestV1 = PrimitiveManifest 1 primitiveSignaturesV1
@@ -37,16 +35,6 @@ primitiveManifestV1 = PrimitiveManifest 1 primitiveSignaturesV1
 primitiveSignaturesV1 :: [PrimitiveSignature]
 primitiveSignaturesV1 =
   [ PrimitiveSignature
-      { primitiveSignatureOpId = codiffMetricV1OpId
-      , primitiveSignatureOpName = "codiff.metric"
-      , primitiveSignatureOpVersion = 1
-      , primitiveSignatureInputs = [FormCategory]
-      , primitiveSignatureOutput = FormCategory
-      , primitiveSignaturePlacement = DualAdjointPlacement
-      , primitiveSignatureEffect = NeedsMaterialization [CoefficientRole,FluxRole,ResultRole,VolumeRole]
-      , primitiveSignatureCommutation = Ordered
-      }
-  , PrimitiveSignature
       { primitiveSignatureOpId = derivativeCoordinateWideV1OpId
       , primitiveSignatureOpName = "derivative.coordinate-wide"
       , primitiveSignatureOpVersion = 1
@@ -77,16 +65,6 @@ primitiveSignaturesV1 =
       , primitiveSignatureCommutation = Ordered
       }
   , PrimitiveSignature
-      { primitiveSignatureOpId = lbOrthogonalV1OpId
-      , primitiveSignatureOpName = "lb.orthogonal"
-      , primitiveSignatureOpVersion = 1
-      , primitiveSignatureInputs = [ScalarCategory]
-      , primitiveSignatureOutput = ScalarCategory
-      , primitiveSignaturePlacement = ConservativeCellPlacement
-      , primitiveSignatureEffect = NeedsMaterialization [CoefficientRole,FluxRole,ResultRole,VolumeRole]
-      , primitiveSignatureCommutation = DeclaredCommutative
-      }
-  , PrimitiveSignature
       { primitiveSignatureOpId = resampleExplicitV1OpId
       , primitiveSignatureOpName = "resample.explicit"
       , primitiveSignatureOpVersion = 1
@@ -100,11 +78,9 @@ primitiveSignaturesV1 =
 
 primitiveOperationIds :: [VersionedOpId]
 primitiveOperationIds =
-  [ codiffMetricV1OpId
-  , derivativeCoordinateWideV1OpId
+  [ derivativeCoordinateWideV1OpId
   , derivativeGridWholeV1OpId
   , derivativeOrderedV1OpId
-  , lbOrthogonalV1OpId
   , resampleExplicitV1OpId
   ]
 
@@ -114,9 +90,6 @@ lookupPrimitiveSignatureV1 operationId = lookup operationId
   | signature <- primitiveSignaturesV1
   ]
 
-codiffMetricV1OpId :: VersionedOpId
-codiffMetricV1OpId = VersionedOpId "codiff.metric@1"
-
 derivativeCoordinateWideV1OpId :: VersionedOpId
 derivativeCoordinateWideV1OpId = VersionedOpId "derivative.coordinate-wide@1"
 
@@ -125,9 +98,6 @@ derivativeGridWholeV1OpId = VersionedOpId "derivative.grid-whole@1"
 
 derivativeOrderedV1OpId :: VersionedOpId
 derivativeOrderedV1OpId = VersionedOpId "derivative.ordered@1"
-
-lbOrthogonalV1OpId :: VersionedOpId
-lbOrthogonalV1OpId = VersionedOpId "lb.orthogonal@1"
 
 resampleExplicitV1OpId :: VersionedOpId
 resampleExplicitV1OpId = VersionedOpId "resample.explicit@1"

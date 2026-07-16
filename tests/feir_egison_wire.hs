@@ -23,7 +23,7 @@ checkOpaque :: FEProgram -> IO ()
 checkOpaque program =
   case opaqueCalls (feProgramStepActions program) of
     [opaque]
-      | opaqueDiscreteOpId opaque /= VersionedOpId "lb.orthogonal@1" ->
+      | opaqueDiscreteOpId opaque /= VersionedOpId "derivative.ordered@1" ->
           error ("unexpected opaque operation: " ++ show opaque)
       | opaqueDiscreteResultBasis opaque /= Basis [] ->
           error ("unexpected opaque result basis: " ++ show opaque)
@@ -114,9 +114,10 @@ baseJet = FieldJetValue
 
 expectedOpaqueAttributes :: [Attribute]
 expectedOpaqueAttributes =
-  [ Attribute (AttributeId "metric") (AttributeGeometry (GeometryId 1))
-  , Attribute (AttributeId "source-policy")
-      (AttributeGridPolicy CollocatedPolicy)
+  [ Attribute (AttributeId "order") (AttributeNatural 2)
+  , Attribute (AttributeId "ordered-axes")
+      (AttributeValues [AttributeAxis (AxisId 1), AttributeAxis (AxisId 2)])
+  , Attribute (AttributeId "radius") (AttributeNatural 1)
   ]
 
 expectedWideAttributes :: [Attribute]

@@ -59,10 +59,10 @@ testValidationActionAndOpaquePaths = do
         [ProgramPath, ActionPath 1, EquationPath (EquationId 2)]
         (InvalidTargetTime CurrentTime NextTime)))
   assertRendered "global opaque key resolves its request occurrence"
-    "/workspace/model.fme:40:3: unknown opaque operation VersionedOpId \"lb.orthogonal@1\""
+    "/workspace/model.fme:40:3: unknown opaque operation VersionedOpId \"operator.retired@1\""
     (renderValidationError fixture
       (ValidationError [ProgramPath, OpaquePath opaqueKey]
-        (UnknownOpaqueOperation Backend.lbOperationId)))
+        (UnknownOpaqueOperation retiredOperationId)))
 
 testPostIdentifierResolution :: IO ()
 testPostIdentifierResolution = do
@@ -81,8 +81,8 @@ testPostIdentifierResolution = do
     (renderPostError fixture
       (PostLocationError (InvalidDerivativeAxis (AxisId 1) 0)))
   assertRendered "opaque operation occurrence"
-    "/workspace/model.fme:40:3: unsupported opaque operation VersionedOpId \"lb.orthogonal@1\""
-    (renderPostError fixture (PostUnsupportedOpaque Backend.lbOperationId))
+    "/workspace/model.fme:40:3: unsupported opaque operation VersionedOpId \"operator.retired@1\""
+    (renderPostError fixture (PostUnsupportedOpaque retiredOperationId))
   assertRendered "wide request error keeps opaque occurrence origin"
     "/workspace/model.fme:40:3: wide derivative is missing attribute AttributeId \"radius\""
     (renderPostError fixture
@@ -103,25 +103,20 @@ testPostIdentifierResolution = do
 testBackendPlanResolution :: IO ()
 testBackendPlanResolution = do
   assertRendered "origin-bearing backend error"
-    "/workspace/model.fme:40:3: Laplace--Beltrami expects one scalar field operand"
+    "/workspace/model.fme:40:3: effectful operation VersionedOpId \"operator.retired@1\" (SemanticKey \"opaque-key\") is not supported by this post-fec"
     (renderPostError fixture
-      (PostBackendPlanError (Backend.LbInvalidOperands (OriginId 7))))
+      (PostBackendPlanError (Backend.UnsupportedEffectfulOperation
+        retiredOperationId opaqueKey (OriginId 7))))
   assertRendered "originless semantic conflict finds occurrence"
-    "/workspace/model.fme:40:3: conflicting opaque semantic key SemanticKey \"lb-key\""
+    "/workspace/model.fme:40:3: conflicting opaque semantic key SemanticKey \"opaque-key\""
     (renderPostError fixture
       (PostBackendPlanError
         (Backend.ConflictingOpaqueSemanticKey opaqueKey)))
   assertRendered "originless request-group conflict finds occurrence"
-    "/workspace/model.fme:40:3: conflicting opaque request group RequestGroupId \"lb-group\""
+    "/workspace/model.fme:40:3: conflicting opaque request group RequestGroupId \"opaque-group\""
     (renderPostError fixture
       (PostBackendPlanError
         (Backend.ConflictingOpaqueRequestGroup opaqueGroup)))
-  assertRendered "metric codifferential planner keeps request origin"
-    "/workspace/model.fme:40:3: metric codifferential plan error: operand mixes policies"
-    (renderPostError fixture
-      (PostBackendPlanError
-        (Backend.MetricCodifferentialPlanError
-          "operand mixes policies" (OriginId 7))))
 
 testProfileAndFallbackResolution :: IO ()
 testProfileAndFallbackResolution = do
@@ -205,19 +200,19 @@ fixture = FEProgram
       [(NodeId 1, [OriginId 6])]
   }
 
+retiredOperationId :: VersionedOpId
+retiredOperationId = VersionedOpId "operator.retired@1"
+
 opaqueKey :: SemanticKey
-opaqueKey = SemanticKey "lb-key"
+opaqueKey = SemanticKey "opaque-key"
 
 opaqueGroup :: RequestGroupId
-opaqueGroup = RequestGroupId "lb-group"
+opaqueGroup = RequestGroupId "opaque-group"
 
 opaque :: OpaqueDiscrete
-opaque = OpaqueDiscreteCall Backend.lbOperationId opaqueKey opaqueGroup
+opaque = OpaqueDiscreteCall retiredOperationId opaqueKey opaqueGroup
   (Basis []) [ScalarValue (FieldJet fieldJet)]
-  [ Attribute (AttributeId "metric") (AttributeGeometry (GeometryId 1))
-  , Attribute (AttributeId "source-policy")
-      (AttributeGridPolicy CollocatedPolicy)
-  ]
+  [Attribute (AttributeId "metric") (AttributeGeometry (GeometryId 1))]
 
 fieldJet :: FieldJet
 fieldJet = FieldJetValue (FieldId 1) CurrentTime (Basis [])

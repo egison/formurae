@@ -23,13 +23,9 @@ testRemovedOpaque operation =
     isUnsupported _ = False
 
 testMaterializeActionNeedsNoOpaquePlan :: IO ()
-testMaterializeActionNeedsNoOpaquePlan = do
-  plan <- assertRight "ordinary FEIR Materialize action"
+testMaterializeActionNeedsNoOpaquePlan =
+  assertRight "ordinary FEIR Materialize action"
     (planBackendEffects materializeProgram)
-  assertEqual "Materialize action adds no opaque schedule" []
-    (backendStepSchedule plan)
-  assertEqual "Materialize action adds no opaque result mapping" []
-    (backendOpaqueResults plan)
 
 withOpaqueStep :: FEProgram -> VersionedOpId -> FEProgram
 withOpaqueStep program operation = program
@@ -105,9 +101,3 @@ assertLeft label predicate result =
     Left problem | predicate problem -> pure ()
     Left problem -> fail (label ++ ": unexpected error " ++ show problem)
     Right _ -> fail (label ++ ": expected Left")
-
-assertEqual :: (Eq value, Show value) => String -> value -> value -> IO ()
-assertEqual label expected actual
-  | expected == actual = pure ()
-  | otherwise = fail (label ++ ": expected " ++ show expected
-      ++ ", got " ++ show actual)

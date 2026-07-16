@@ -934,9 +934,10 @@ step:
 6. **計量と Laplace--Beltrami の純粋な公式は Egison にある**
    induced metric、直交計量と逆計量、体積要素、Hodge coefficient、
    flux-divergence 合成は `lib/formurae-geometry.egi` が評価する。
-   `lb` の対象は構造的 `BackendRequest` として収集し、Haskell backend の
-   `LbPlan` / `AuxFieldPlan` が shared coefficient/volume fields と request ごとの flux/result
-   bundle を materialize する。複数の distinct scalar source を同じ model で schedule できる。
+   宣言幾何の canonical Δ/δ は prelude マクロで、`dFluxWeights` / `dFluxScale` /
+   `dFluxDiv` という公開演算子の展開に下ろす。幾何のみの係数 local は post-fec が
+   凍結して persistent state 化し(init 一回+恒等 carry)、専用の backend planner や
+   scheduled 要求は存在しない。複数の呼び出し部位はマクロ衛生で独立に展開される。
    metric-aware form Hodge/codiff と、policy を保つ orthogonal rank-1 `flat` / `sharp` も
    shared geometry にある。musical map は補間/de Rham/reconstruction を含まない。
 
