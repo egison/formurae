@@ -13,8 +13,7 @@
 -- origin table, so a fixed macro body can instantiate at every degree
 -- without the checker having to know which one.
 module Formurae.Pre.TypeCheck
-  ( StaticKind(..)
-  , OperatorTypeError(..)
+  ( OperatorTypeError(..)
   , validateModelOperatorTypes
   ) where
 

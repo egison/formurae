@@ -7,7 +7,6 @@
 module Formurae.TensorExpr
   ( TensorExpr
   , SourceSpan(..)
-  , noSourceSpan
   , tensorExprSpan
   , pattern TENumber
   , pattern TEIdent

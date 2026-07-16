@@ -6,7 +6,6 @@
 module Formurae.FEIR.RegistryFingerprint
   ( computeRegistryId
   , registryIdMatches
-  , registryFingerprintPayload
   ) where
 
 import Formurae.FEIR.Codec (encodeFEProgram)

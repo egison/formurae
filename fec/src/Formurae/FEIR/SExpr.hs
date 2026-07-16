@@ -2,7 +2,6 @@ module Formurae.FEIR.SExpr
   ( SExpr(..)
   , SExprError(..)
   , parseSExpr
-  , parseSExprs
   , renderSExpr
   ) where
 
@@ -33,9 +32,6 @@ parseSExpr source = do
     [form] -> Right form
     [] -> Left (errorAt rest "expected one S-expression")
     _ -> Left (SExprError 1 1 "expected exactly one S-expression")
-
-parseSExprs :: String -> Either SExprError [SExpr]
-parseSExprs source = fst <$> parseMany (Cursor source 1 1)
 
 parseMany :: Cursor -> Either SExprError ([SExpr], Cursor)
 parseMany cursor0 = go [] (skipTrivia cursor0)

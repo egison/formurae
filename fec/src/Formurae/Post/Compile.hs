@@ -5,8 +5,6 @@ module Formurae.Post.Compile
   , GridWholeDerivativeError(..)
   , wideDerivativeOperationId
   , gridWholeDerivativeOperationId
-  , orderedDerivativeOperationId
-  , resampleOperationId
   , compileProgram
   ) where
 

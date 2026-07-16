@@ -206,9 +206,6 @@ def FEIR.attributeBoolean (value: Bool) : FEIRSExpr :=
 def FEIR.attributeAxis (axisId: Integer) : FEIRSExpr :=
   FEIR.list [FEIR.atom "axis", FEIR.int axisId]
 
-def FEIR.attributeGeometry (geometryId: Integer) : FEIRSExpr :=
-  FEIR.list [FEIR.atom "geometry", FEIR.int geometryId]
-
 def FEIR.attributeValues (values: [FEIRSExpr]) : FEIRSExpr :=
   FEIR.list [FEIR.atom "values", FEIR.list values]
 
@@ -247,17 +244,6 @@ def FEIR.opaqueNode
         , FEIR.field "operands" (FEIR.list operands)
         , FEIR.field "attributes" (FEIR.list sortedAttributes)
         ]
-
-def FEIR.scalarTensor (value: FEIRSExpr) : FEIRSExpr :=
-  FEIR.record "tensor"
-    [ FEIR.field "shape" (FEIR.list [])
-    , FEIR.field "variances" (FEIR.list [])
-    , FEIR.field "df-order" (FEIR.int 0)
-    , FEIR.field "components"
-        (FEIR.list
-          [FEIR.record "component"
-            [FEIR.field "basis" (FEIR.basis []), FEIR.field "value" value]])
-    ]
 
 -- ------------------------------------------------------ structural registry
 
@@ -963,16 +949,6 @@ def FEIR.varianceAtom (variance: String) : FEIRSExpr :=
   if variance = "up" || variance = "down"
     then FEIRAtom variance
     else FEIR.unsupportedScalar (S.append "unknown tensor variance: " variance)
-
-def FEIR.encodeTensor
-      (parameters: [(MathValue, Integer)])
-      (coordinates: [(MathValue, Integer)])
-      (fields: [(MathValue, Integer, String, [Integer])])
-      (intrinsics: [(String, Integer)])
-      (analytics: [(MathValue, Integer)])
-      (tensorValue: Tensor MathValue) : FEIRSExpr :=
-  FEIR.encodeTensorWithMetadata parameters coordinates fields intrinsics analytics
-    (Formurae.logicalTensorVariances tensorValue) (dfOrder tensorValue) tensorValue
 
 -- This lower-level entry point is also used by the checked equation boundary
 -- after it has compared the structural value metadata with the target field.

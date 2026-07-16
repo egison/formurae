@@ -7,7 +7,6 @@ module Formurae.FEIR.Codec
   , computeProfileFingerprint
   , setProfileFingerprint
   , profileFingerprintMatches
-  , verifyProfileFingerprint
   , encodeScalarNF
   , decodeScalarNF
   , encodePredicateNF

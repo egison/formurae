@@ -1769,7 +1769,7 @@ expandMacros macros model = do
         Left message -> fatal
           ("macro expansion cannot parse step expression: " ++ sEx step
            ++ " (" ++ message ++ ")")
-      (used', lifted, ast') <- expandNode 0 (callSiteOf step) used ast
+      (used', lifted, ast') <- expandNode (0 :: Int) (callSiteOf step) used ast
       let step'
             | null lifted = step
             | otherwise = step
@@ -1846,7 +1846,6 @@ expandMacros macros model = do
             (u2, l2, rhs') <- expandNode depth site u1 rhs
             pure (u2, l1 ++ l2, TEBinary op lhs' rhs')
           TEGroup body -> wrap1 TEGroup body
-          _ -> pure (used, [], node)
         wrap1 rebuild body = do
           (u1, l1, body') <- expandNode depth site used body
           pure (u1, l1, rebuild body')
@@ -2006,4 +2005,3 @@ expandMacros macros model = do
           TEDot parts -> TEDot <$> mapM rewrite parts
           TEBinary op lhs rhs -> TEBinary op <$> rewrite lhs <*> rewrite rhs
           TEGroup b -> TEGroup <$> rewrite b
-          _ -> pure node

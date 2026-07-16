@@ -6,10 +6,6 @@
 -- the same rendering in tests, editors, and future library APIs.
 module Formurae.Post.Diagnostic
   ( Diagnostic(..)
-  , diagnoseValidationError
-  , diagnosePostError
-  , resolveValidationOrigin
-  , resolvePostOrigin
   , renderDiagnostic
   , renderValidationError
   , renderPostError

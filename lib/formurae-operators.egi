@@ -254,14 +254,6 @@ def Formurae.lap
       (u: MathValue) : MathValue :=
   Formurae.divg (Formurae.grad u)
 
-def Formurae.metric : Tensor MathValue :=
-  FE.diagonalMetricTensor
-    dimension Formurae.geometryScale
-
-def Formurae.inverseMetric : Tensor MathValue :=
-  FE.inverseDiagonalMetricTensor
-    dimension Formurae.geometryScale
-
 -- Canonical form operators guard their operands here, during normalization:
 -- a genuine k-form value carries dfOrder equal to its rank, while an
 -- ordinary tensor reports dfOrder zero, so without this check Egison's

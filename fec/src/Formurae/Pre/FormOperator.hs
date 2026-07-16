@@ -13,7 +13,6 @@ module Formurae.Pre.FormOperator
   , canonicalOperator
   , canonicalOperatorName
   , canonicalOperatorIsVisible
-  , matchCanonicalUnary
   , matchScalarDeltaExpression
   , matchHodgeExteriorHodge
   , canonicalOperatorModeError

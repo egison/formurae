@@ -3,8 +3,6 @@ module Formurae.FEIR.PrimitiveBindingGenerator
   , defaultGeneratedPrimitivePaths
   , checkGeneratedPrimitiveBindings
   , writeGeneratedPrimitiveBindings
-  , renderHaskellPrimitiveBindings
-  , renderEgisonPrimitiveBindings
   ) where
 
 import Data.Char (isAlphaNum, toLower, toUpper)
@@ -82,14 +80,9 @@ renderHaskellPrimitiveBindings manifest = unlines
     ++ [ "  ) where"
        , ""
        , "import Formurae.FEIR.PrimitiveManifest"
-       , "  ( AuxiliaryRole(..)"
-       , "  , Commutation(..)"
-       , "  , PlacementRule(..)"
-       , "  , PrimitiveEffect(..)"
-       , "  , PrimitiveManifest(..)"
-       , "  , PrimitiveSignature(..)"
-       , "  , ValueCategory(..)"
-       , "  )"
+       ]
+    ++ zipWith (++) ("  ( " : repeat "  , ") manifestImports
+    ++ [ "  )"
        , "import Formurae.FEIR.Syntax"
        , "  ( PrimitiveManifestId(..)"
        , "  , VersionedOpId(..)"
@@ -123,6 +116,25 @@ renderHaskellPrimitiveBindings manifest = unlines
     operations = primitiveManifestSignatures manifest
     bindingNames = map haskellBindingName operations
     PrimitiveManifestId manifestId = primitiveManifestId manifest
+
+    -- The generated Show output mentions AuxiliaryRole constructors only
+    -- when some signature materializes; an unconditional import would be
+    -- redundant for an all-pure-local manifest.
+    manifestImports =
+      [ "AuxiliaryRole(..)" | anyMaterializing ]
+      ++ [ "Commutation(..)"
+         , "PlacementRule(..)"
+         , "PrimitiveEffect(..)"
+         , "PrimitiveManifest(..)"
+         , "PrimitiveSignature(..)"
+         , "ValueCategory(..)"
+         ]
+    anyMaterializing = or
+      [ case primitiveSignatureEffect signature of
+          NeedsMaterialization _ -> True
+          PureLocal -> False
+      | signature <- operations
+      ]
 
     renderBinding signature =
       [ haskellBindingName signature ++ " :: VersionedOpId"
@@ -303,13 +315,6 @@ upperInitial (first : rest) = toUpper first : rest
 renderHaskellList :: [String] -> String
 renderHaskellList [] = "  []"
 renderHaskellList (first : rest) = intercalate "\n"
-  ( ("  [ " ++ first)
-  : map ("  , " ++) rest
-  ++ ["  ]"])
-
-renderEgisonList :: [String] -> String
-renderEgisonList [] = "  []"
-renderEgisonList (first : rest) = intercalate "\n"
   ( ("  [ " ++ first)
   : map ("  , " ++) rest
   ++ ["  ]"])

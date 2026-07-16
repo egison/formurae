@@ -13,8 +13,7 @@ module Formurae.FEIR.PrimitiveBindings
   ) where
 
 import Formurae.FEIR.PrimitiveManifest
-  ( AuxiliaryRole(..)
-  , Commutation(..)
+  ( Commutation(..)
   , PlacementRule(..)
   , PrimitiveEffect(..)
   , PrimitiveManifest(..)
