@@ -558,7 +558,6 @@ baseModel = Model
   , mInits = []
   , mInitSourceTexts = []
   , mSteps = []
-  , mDd = Nothing
   , mMetric = Nothing
   , mEmbed = Nothing
   , mDefs = []

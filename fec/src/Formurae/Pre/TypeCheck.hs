@@ -48,7 +48,6 @@ validateModelOperatorTypes model = do
     (maybe [] id (mMetric model))
   mapM_ (checkGeometryExpression "embedding")
     (maybe [] id (mEmbed model))
-  mapM_ checkContinuumDD (maybe [] (: []) (mDd model))
   mapM_ checkInitializer (zip (mInits model) (mInitSourceTexts model))
   checkSteps baseEnvironment (mSteps model)
   where
@@ -116,14 +115,6 @@ validateModelOperatorTypes model = do
           actual <- infer model definitionNames baseEnvironment Nothing
             expression
           requireGeometryScalar Nothing context actual
-
-    checkContinuumDD expressionSource = do
-      -- assert-dd-zero applies canonical d twice during normalization, where
-      -- the library guards the operand's form degree from its dfOrder; the
-      -- static layer only validates the expression itself.
-      _ <- inferExpression definitionNames baseEnvironment Nothing
-        expressionSource
-      pure ()
 
     checkFieldAssignment name source expressionSource = do
       actual <- inferExpression definitionNames baseEnvironment source

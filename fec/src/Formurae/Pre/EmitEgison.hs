@@ -1016,11 +1016,10 @@ renderUnit model registry geometryDeclarations definitions dynamics program = un
   ++ concatMap (fieldDeclarations model) (Surface.mFieldDecls model)
   ++ localDeclarations
   ++ orderedTailDeclarations
-  ++ continuumAssertionDeclarations model
   ++ [ "def feProgram := "
          ++ renderWire dynamics deferredSplices (encodeFEProgram program)
      , ""
-     , mainDeclaration model
+     , mainDeclaration
      ]
   where
     header =
@@ -1124,7 +1123,6 @@ renderUnit model registry geometryDeclarations definitions dynamics program = un
       ]
     whenUsed name declarations
       | name `elem` requiredOperatorIdentifiers = declarations
-      | name == "FormuraeInternalD", Surface.mDd model /= Nothing = declarations
       | otherwise = []
     preparedIdentifiers = nub
       [ fst (parseIndexedIdent name)
@@ -1347,24 +1345,9 @@ renderSourceLocation location =
 primitiveManifestText :: FEIR.PrimitiveManifestId -> String
 primitiveManifestText (FEIR.PrimitiveManifestId value) = value
 
-continuumAssertionDeclarations :: Surface.Model -> [String]
-continuumAssertionDeclarations model =
-  case Surface.mDd model of
-    Nothing -> []
-    Just value ->
-      [ "def feContinuumDD := foldl (\\acc component -> acc + component ^ 2) 0 (tensorToList (FormuraeInternalD (FormuraeInternalD "
-          ++ value ++ ")))"
-      , "def feContinuumAssertions : Bool := assert \"continuum identity d(d A) = 0 failed\" (feContinuumDD = 0)"
-      , ""
-      ]
-
-mainDeclaration :: Surface.Model -> String
-mainDeclaration model =
-  case Surface.mDd model of
-    Nothing ->
-      "def main (args: [String]) : IO () := print (FEIR.render feProgram)"
-    Just _ ->
-      "def main (args: [String]) : IO () := match feContinuumAssertions as bool with | #True -> print (FEIR.render feProgram)"
+mainDeclaration :: String
+mainDeclaration =
+  "def main (args: [String]) : IO () := print (FEIR.render feProgram)"
 
 fieldDeclarations :: Surface.Model -> Surface.FieldDecl -> [String]
 fieldDeclarations model field =

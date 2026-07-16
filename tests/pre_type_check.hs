@@ -149,16 +149,6 @@ main = do
     "canonical hodge cannot be used inside an untyped metric scale expression; rewrite it as a structured expression"
     (validateModelOperatorTypes rawGeometryCanonical)
 
-  continuumDDKindMismatch <- model "continuum-dd-kind-mismatch"
-    continuumDDKindMismatchSource
-  assertEqual "assert-dd-zero defers form checks to the library d guard"
-    (Right ()) (validateModelOperatorTypes continuumDDKindMismatch)
-
-  continuumDDTopDegree <- model "continuum-dd-top-degree"
-    continuumDDTopDegreeSource
-  assertEqual "assert-dd-zero defers top-degree checks to the library d guard"
-    (Right ()) (validateModelOperatorTypes continuumDDTopDegree)
-
   symbolicPi <- model "symbolic-pi" symbolicPiSource
   assertEqual "symbolic pi is a statically known scalar"
     (Right ()) (validateModelOperatorTypes symbolicPi)
@@ -455,28 +445,6 @@ rawGeometryCanonicalSource = unlines
   , "axes x"
   , "field A : 0-form @ primal"
   , "metric scale [`(hodge A)]"
-  , "step:"
-  , "  A' = A"
-  ]
-
-continuumDDKindMismatchSource :: String
-continuumDDKindMismatchSource = unlines
-  [ "mode dec"
-  , "dimension 2"
-  , "axes x, y"
-  , "field V_i"
-  , "assert-dd-zero V"
-  , "step:"
-  , "  V'_i = V_i"
-  ]
-
-continuumDDTopDegreeSource :: String
-continuumDDTopDegreeSource = unlines
-  [ "mode dec"
-  , "dimension 2"
-  , "axes x, y"
-  , "field A : 1-form @ primal"
-  , "assert-dd-zero A"
   , "step:"
   , "  A' = A"
   ]

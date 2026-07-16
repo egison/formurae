@@ -736,7 +736,6 @@ cabal run -v0 -j1 pre-fec -- "$ROOT/examples/maxwell_dec/maxwell_dec.fme" \
   > "$WORK/maxwell-dec.egi"
 grep -F 'FormuraeInternalCodiff B' "$WORK/maxwell-dec.egi" >/dev/null
 grep -F 'FormuraeInternalD E' "$WORK/maxwell-dec.egi" >/dev/null
-grep -F 'continuum identity d(d A) = 0 failed' "$WORK/maxwell-dec.egi" >/dev/null
 run_machine "$WORK/maxwell-dec.egi" "$WORK/maxwell-dec.feir"
 cabal run -v0 -j1 post-fec -- "$WORK/maxwell-dec.feir" > "$WORK/maxwell-dec.fmr"
 grep -F "B_1_2'[i,j,k] = B_1_2[i,j,k]" "$WORK/maxwell-dec.fmr" >/dev/null

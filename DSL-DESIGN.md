@@ -282,6 +282,22 @@ metric_sphere(アンカー枠・mirror)4e-16 で参照一致。6 つの宣言幾
 `field u : scalar @ primal` へ移行し(保存形は staggered flux の宣言)、check 群の
 体積重みは生成配列読みから解析式へ分離した(コンパイラ内部名への依存を除去)。
 
+**v2.13(2026-07-17): `assert-dd-zero` の撤去** —
+表層唯一の assert 文だった `assert-dd-zero` を言語から削除した。解析経路の
+well-kinded な形式に対して d(dA)=0 はライブラリの定理であり、ゲートが落ちるのは
+(1) ライブラリ回帰 — compiler suite の一般形テスト(one-form の d∘d=0 等)が既に
+カバー、(2) kind 誤り — ライブラリ d のガードとして同経路で報告される、
+(3) 離散 request を含む operand — step 側の正規化が同じ欠落微分規則エラーで先に
+落ちる — の3通りで、いずれも他所で同等以上に検出される。恒等式ごとに専用
+キーワードを増やす設計はスケールせず、「ユーザが宣言する生成時 obligation」の
+カテゴリごと撤去した(将来必要なら汎用 `assert-zero` として新規設計する)。
+実装は mDd フィールド・dec 専用ゲート・feContinuumDD/feContinuumAssertions 生成・
+main の条件分岐を全て削除し、`assert`/`main` 等の予約依存名の配管は維持。
+maxwell_dec は行削除のみで .feir/.fmr バイト不変、離散 div B ≡ 0 は check driver の
+実測で従来どおり成立。ついでに README / usage.html に残っていた v2.12 反映漏れ
+(「可変計量の δ は post-fec が補助 field を計画」等の要求時代の記述)も
+prelude マクロ+凍結の現行記述へ更新した。
+
 **v1.36(2026-07-11): runtime tensor lowering と Phase 7 完了** —
 標準6演算子だけでなく、一般の indexed equation、implicit vector equation、rank-1/rank-2
 indexed `let`、indexed CAS initializer を、成分別 Haskell 式へ展開せず whole runtime tensor として

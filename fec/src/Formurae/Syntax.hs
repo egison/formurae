@@ -172,7 +172,6 @@ data Model = Model
   , mInits  :: [Init]
   , mInitSourceTexts :: [SourceText]
   , mSteps  :: [Step]
-  , mDd     :: Maybe String
   , mMetric :: Maybe [String]
   , mEmbed  :: Maybe [String]
   , mDefs   :: [Def]

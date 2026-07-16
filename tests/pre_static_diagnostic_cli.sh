@@ -100,7 +100,6 @@ expect_success pre_fec_form_local_kind_mismatch
 expect_success pre_fec_dot_shadow_kind_error
 expect_success pre_fec_update_kind_mismatch
 expect_success pre_fec_initializer_kind_mismatch
-expect_success pre_fec_dd_kind_mismatch
 expect_parse_failure pre_fec_metric_kind_mismatch \
   'metric scale expression requires a scalar value, but received ordinary tensor'
 expect_parse_failure pre_fec_embedding_canonical_value_error \

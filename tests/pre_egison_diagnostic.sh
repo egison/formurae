@@ -107,8 +107,6 @@ expect_normalization_failure pre_fec_shadowed_intrinsic_kind_error '9:8' \
   'canonical codifferential requires a scalar or differential form value'
 expect_normalization_failure pre_fec_divg_rank_unknown_error '7:8' \
   'divg requires coordinates and a vector of the same dimension'
-expect_normalization_failure pre_fec_dd_kind_mismatch '' \
-  'canonical d requires a scalar or differential form value'
 expect_normalization_failure pre_fec_form_local_kind_mismatch '7:31' \
   'normalized equation tensor metadata mismatch'
 expect_normalization_failure pre_fec_degree_mismatch '8:8' \

@@ -189,20 +189,18 @@ field B : 2-form
 step:
   E' = E + dt * δ B
   B' = B - dt * d E'
-
-assert-dd-zero E'
 ```
 
 `mode dec`のcanonical form演算子は`d`、`hodge`、`δ`、`Δ_H`です。
 `δ`は余微分、`Δ_H A = d (δ A) + δ (d A)`はHodge--de Rham Laplacianです。
-可変計量の`δ`は、post-fecがweighted discrete adjointのHodge係数・補助field・配置とlifetimeを計画します。
+宣言幾何の`δ`はpreludeマクロとして`dFluxWeights`/`dFluxScale`/`dFluxDiv`へ展開され、幾何のみの係数localはpost-fecがinit凍結のstate配列にします。
 `Δ_H`はconstant geometryでのpureな合成をサポートし、general variable-metric formは現IRで表せないためcompile-time errorにします。
 これらのform演算子は宣言済みscalar/`k-form`だけを受け取り、ordinary tensorを暗黙にformへ変換しません。
 quoted derivativeとcollocated scalar `Δ`もscalar-onlyです。型annotationを持たないuser `def` parameterの
 kindは証明できないため、typed operatorはfield、typed `local`、またはkindが確定したstep式へ直接適用します。
 indexed `δ~i_j`は余微分とは別のKronecker tensorで、ASCII名`delta`のuser定義にも捕捉されません。
-`assert-dd-zero`は`d(d E') = 0`を
-normalization時に確認し、成立しなければFEIRを出力しません。
+`d(d A) = 0`は演算子ライブラリの定理としてcompiler suiteが検査し、離散的な
+`div B = 0`の保存は各exampleのcheck driverが実測します。
 
 ## GeometryとLaplace--Beltrami
 
@@ -217,9 +215,11 @@ step:
 ```
 
 Egisonはmetric、inverse metric、scale factor、volumeを記号的に作り、embeddingでは直交性を
-検査します。geometryを宣言した`mode collocated`の`Δ u`は、保存流束、half-cell coefficient、
-volume除算、補助fieldのlifetimeを伴うversioned requestとしてFEIRへ残ります。post-fecがそのrequestから係数field、flux、
-divergence、更新順序を計画します。同じsourceのrequestは共有され、異なるsourceは分離されます。
+検査します。geometryを宣言したモデルの`Δ u`はpreludeマクロとして、実体化した重み・flux
+localと符号付きadjoint divergenceへ展開されます。FEIRに残るのはordinaryなMaterialize
+actionとwhole-operandな`derivative.grid-whole@1` requestだけで、幾何のみの係数local
+はpost-fecが凍結してinit一回+恒等carryのpersistent stateにします(mirror/fixed壁の
+境界処理もstate配列として宣言どおりに受けます)。
 
 ## FEIR
 

@@ -27,5 +27,3 @@ init:
 step:
   E' = E + dt * δc B
   B' = B - dt * d E'
-
-assert-dd-zero E'

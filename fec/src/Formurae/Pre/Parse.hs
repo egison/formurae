@@ -76,7 +76,7 @@ generatedNormalizationNames = ambientNames ++
   , "feGeometryInverseMetricRaw", "feGeometryScales"
   , "feGeometryOrthogonalityVerified", "feGeometryMetric"
   , "feGeometryScale", "feGeometryInverseMetric", "feGeometryVolume"
-  , "feContinuumDD", "feContinuumAssertions", "main"
+  , "main"
   ]
 
 normalizationDependencies :: [String]
@@ -497,9 +497,6 @@ validateDimensionFeatures m
   | selectedMode m == CollocatedMode
   , any isFormField fieldKinds =
       fatal "differential-form fields require mode dec"
-  | selectedMode m == CollocatedMode
-  , mDd m /= Nothing =
-      fatal "assert-dd-zero requires mode dec"
   | any isAntiField fieldKinds && mDim m < 2 =
       fatal "antisymmetric rank-2 fields require dimension at least 2"
   | Just k <- firstBadFormDegree =
@@ -641,7 +638,6 @@ parseModel sourceFile name txt = do
       , mInits = []
       , mInitSourceTexts = []
       , mSteps = []
-      , mDd = Nothing
       , mMetric = Nothing
       , mEmbed = Nothing
       , mDefs = []
@@ -700,8 +696,6 @@ parseModel sourceFile name txt = do
             (maybe [] id (mEmbed mUse))
           mapM_ (checkUserSurface mUse [] "in metric scale expression")
             (maybe [] id (mMetric mUse))
-          mapM_ (checkUserSurface mUse [] "in assert-dd-zero expression")
-            (maybe [] (: []) (mDd mUse))
           mapM_ (\df ->
                     checkUserSurface mUse (map defParamBase (defParams df))
                       ("in def " ++ defName df) (defBody df))
@@ -875,7 +869,6 @@ parseModel sourceFile name txt = do
           }
       | Just r <- stripPrefix "field " s =
           parseFieldDecl ln r >>= addField
-      | Just r <- stripPrefix "assert-dd-zero " s = return m { mDd = Just (strip r) }
       | Just r <- stripPrefix "embedding " s =
           case strip r of
             ('[':r1) | last r1 == ']' ->
@@ -1752,8 +1745,6 @@ expandMacros macros model = do
       ++ [("metric scale expression", text)
          | text <- maybe [] id (mMetric model)]
       ++ [("embedding expression", text) | text <- maybe [] id (mEmbed model)]
-      ++ [("assert-dd-zero expression", text)
-         | text <- maybe [] (: []) (mDd model)]
 
     initTexts it = case it of
       IRaw _ text -> [text]
