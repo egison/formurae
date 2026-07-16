@@ -52,9 +52,7 @@ def fmr(m):
             '(%s・%d 行)</summary>\n<pre>%s</pre></details>'
             % (rel, os.path.basename(rel), n, body))
 
-for page in [INDEX, os.path.join(GALLERY, 'dsl', 'index.html')]:
-    if not os.path.exists(page):
-        continue
+for page in [INDEX]:
     s = io.open(page, encoding='utf-8').read()
     existing_feir = set(re.findall(r'data-feir="([^"]+)"', s))
 

@@ -283,12 +283,11 @@ cabal run -v0 post-fec -- /tmp/model.feir > /tmp/model.fmr
 
 ## 生成物
 
-`.fme`が編集対象です。25個のFME例では`.egi`、`.feir`、`.fmr`をreview可能な生成artifactとして
-追跡し、Makefileから再生成します。galleryは4段すべてを表示します。`mhd_ot`と`lbm_d3q19`の
-2例はhand-written Egison exampleであり、`fmrgen.egi`と`fmr-direct3d.egi`を使う独立した
-direct Egison→Formura ruleで検査します。MHDは原理的には表層で表現できます(20本のfluxは
-typed `local`+中心差分)が、LBMのstreamingは整数格子シフト(微分でない)のため、transport
-primitiveと場・式のfamily構文が入るまで表層の対象外です。
+`.fme`が編集対象です。27個のFME例では`.egi`、`.feir`、`.fmr`をreview可能な生成artifactとして
+追跡し、Makefileから再生成します。galleryは4段すべてを表示します。`mhd_ot`は19本の保存流束を
+typed `local`として物質化し、`lbm_d3q19`は中心1階・2階差分の恒等式で整数1セルpullを構成して、
+どちらも通常の`.fme -> .egi -> .feir -> .fmr`経路で検査します。LBMの19成分宣言と式を速度集合から
+自動展開する`field f : family 19`構文は、記述量をさらに減らす将来の表層機能です。
 
 ## リポジトリ構成
 

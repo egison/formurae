@@ -14,17 +14,14 @@
 EGISON_DIR ?= $(abspath ../egison)
 FORMURA    ?= $(abspath bin/formura)
 MPISTUB    := $(abspath mpistub)
-FMRGEN     := $(abspath lib/fmrgen.egi)
 FETENSOR   := $(abspath lib/formurae-tensor.egi)
 FEGEOMETRY := $(abspath lib/formurae-geometry.egi)
-FMRDIRECT3 := $(abspath lib/fmr-direct3d.egi)
 
 CC      ?= cc
 CFLAGS  ?= -O2 -std=c11
 
 PRE_FEC_RUN  = cabal run -v0 -j1 pre-fec --
 POST_FEC_RUN = cabal run -v0 -j1 post-fec --
-EGISON_RUN = cd $(EGISON_DIR) && cabal run -v0 -j1 egison --
 EGISON_STRICT = $(abspath tools/run_egison_machine.sh) $(EGISON_DIR)
 EGISON_NORMALIZE = $(abspath tools/run_formurae_normalization.sh) $(EGISON_DIR)
 
@@ -32,14 +29,10 @@ EGISON_NORMALIZE = $(abspath tools/run_formurae_normalization.sh) $(EGISON_DIR)
 #
 # FME_EXAMPLES: written in Formurae (.fme) (dir = base name; the
 # recipe compiles .fme -> .egi -> .feir -> .fmr -> C and runs the check driver).
-# EGI_EXAMPLES: intentionally remain direct embedded-Egison samples outside
-# the Formurae/FEIR compiler scope.
-
 FME_EXAMPLES := acoustic3d diffusion1d diffusion2d divergence2d diffusion3d maxwell3d maxwell3d_yee maxwell_dec kleingordon ks3d \
                 burgers3d pearson3d cahnhilliard3d tdgl3d shallowwater \
                 euler_sod highorder4 dirichlet_diffusion elastic3d \
-                metric_torus metric_sphere hyperbolic polar2d spherical3d yinyang_diffusion
-EGI_EXAMPLES := mhd_ot lbm_d3q19
+                metric_torus metric_sphere hyperbolic polar2d spherical3d yinyang_diffusion mhd_ot lbm_d3q19
 
 CHECK_diffusion1d         := diffusion1d_check.c
 CHECK_diffusion2d         := diffusion2d_check.c
@@ -88,20 +81,12 @@ $(1):
 	$$(call BUILD_AND_CHECK,$(1))
 endef
 
-define EGI_RULE
-$(1):
-	$$(EGISON_RUN) -l $$(FMRGEN) -l $$(FMRDIRECT3) $$(abspath examples/$(1)/$(1).egi) \
-	  > $$(abspath examples/$(1)/$(1).fmr)
-	$$(call BUILD_AND_CHECK,$(1))
-endef
-
 $(foreach e,$(FME_EXAMPLES),$(eval $(call FME_RULE,$(e))))
-$(foreach e,$(EGI_EXAMPLES),$(eval $(call EGI_RULE,$(e))))
 
 .PHONY: all setup clean compiler-tests formurae-geometry-tests formurae-tensor-tests formurae-operator-tests \
-	yinyang_diffusion-long $(FME_EXAMPLES) $(EGI_EXAMPLES)
+	yinyang_diffusion-long $(FME_EXAMPLES)
 
-all: $(FME_EXAMPLES) $(EGI_EXAMPLES)
+all: $(FME_EXAMPLES)
 
 # Kept out of all: yy_check runs the global x/y/z eigenmodes, so the long
 # regression is deliberately opt-in for local/CI endurance testing.
@@ -129,5 +114,5 @@ setup:
 
 clean:
 	rm -f examples/*/check examples/*/*.o examples/*/run examples/*/viz
-	rm -f $(foreach e,$(FME_EXAMPLES) $(EGI_EXAMPLES),examples/$(e)/$(e).c examples/$(e)/$(e).h)
+	rm -f $(foreach e,$(FME_EXAMPLES),examples/$(e)/$(e).c examples/$(e)/$(e).h)
 	rm -f examples/pearson3d/pearson_V.pgm examples/mhd_ot/mhd_rho.pgm

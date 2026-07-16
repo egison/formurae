@@ -1,0 +1,161 @@
+-- Lattice Boltzmann method, D3Q19 with BGK collision.
+--
+--   f_a(x + c_a, t+1) = f_a(x,t) + (feq_a(rho,u) - f_a(x,t))/tau
+--   feq_a = w_a rho (1 + 3 c.u + 9/2 (c.u)^2 - 3/2 u.u)
+--
+-- pullx/pully/pullz reconstruct an exact one-cell pull on the radius-one
+-- collocated stencil.  For c = +/-1,
+--
+--   q(x-c h) = q - c h D q + h^2 D^2 q / 2,
+--
+-- because the centered first and second differences make the unwanted two
+-- samples cancel identically.  Chaining materialized x/y/z stages therefore
+-- gives the diagonal D3Q19 streaming offsets without a backend-only shift.
+
+mode collocated
+dimension 3
+axes x, y, z
+
+param tau = 0.8
+param kk = 0.09817477042468103
+param u0c = 0.05
+param dt = 1.0
+param hx = dx
+param hy = dy
+param hz = dz
+
+extern sin
+
+def feq w cx cy cz r vx vy vz =
+  w*r*(1 + 3*(cx*vx + cy*vy + cz*vz) + (9/2)*(cx*vx + cy*vy + cz*vz)^2 - (3/2)*(vx^2 + vy^2 + vz^2))
+
+def pullx c q = q - c*hx*∂_x q + hx^2*∂^2_x q/2
+def pully c q = q - c*hy*∂_y q + hy^2*∂^2_y q/2
+def pullz c q = q - c*hz*∂_z q + hz^2*∂^2_z q/2
+
+field f0 : scalar
+field f1 : scalar
+field f2 : scalar
+field f3 : scalar
+field f4 : scalar
+field f5 : scalar
+field f6 : scalar
+field f7 : scalar
+field f8 : scalar
+field f9 : scalar
+field f10 : scalar
+field f11 : scalar
+field f12 : scalar
+field f13 : scalar
+field f14 : scalar
+field f15 : scalar
+field f16 : scalar
+field f17 : scalar
+field f18 : scalar
+
+init:
+  f0 := feq (1/3) 0 0 0 1 0 (u0c*sin(kk*x)) 0
+  f1 := feq (1/18) 1 0 0 1 0 (u0c*sin(kk*x)) 0
+  f2 := feq (1/18) (-1) 0 0 1 0 (u0c*sin(kk*x)) 0
+  f3 := feq (1/18) 0 1 0 1 0 (u0c*sin(kk*x)) 0
+  f4 := feq (1/18) 0 (-1) 0 1 0 (u0c*sin(kk*x)) 0
+  f5 := feq (1/18) 0 0 1 1 0 (u0c*sin(kk*x)) 0
+  f6 := feq (1/18) 0 0 (-1) 1 0 (u0c*sin(kk*x)) 0
+  f7 := feq (1/36) 1 1 0 1 0 (u0c*sin(kk*x)) 0
+  f8 := feq (1/36) (-1) (-1) 0 1 0 (u0c*sin(kk*x)) 0
+  f9 := feq (1/36) 1 (-1) 0 1 0 (u0c*sin(kk*x)) 0
+  f10 := feq (1/36) (-1) 1 0 1 0 (u0c*sin(kk*x)) 0
+  f11 := feq (1/36) 1 0 1 1 0 (u0c*sin(kk*x)) 0
+  f12 := feq (1/36) (-1) 0 (-1) 1 0 (u0c*sin(kk*x)) 0
+  f13 := feq (1/36) 1 0 (-1) 1 0 (u0c*sin(kk*x)) 0
+  f14 := feq (1/36) (-1) 0 1 1 0 (u0c*sin(kk*x)) 0
+  f15 := feq (1/36) 0 1 1 1 0 (u0c*sin(kk*x)) 0
+  f16 := feq (1/36) 0 (-1) (-1) 1 0 (u0c*sin(kk*x)) 0
+  f17 := feq (1/36) 0 1 (-1) 1 0 (u0c*sin(kk*x)) 0
+  f18 := feq (1/36) 0 (-1) 1 1 0 (u0c*sin(kk*x)) 0
+
+step:
+  local rho = f0 + f1 + f2 + f3 + f4 + f5 + f6 + f7 + f8 + f9 + f10 + f11 + f12 + f13 + f14 + f15 + f16 + f17 + f18
+  local ux = (f1 - f2 + f7 - f8 + f9 - f10 + f11 - f12 + f13 - f14)/rho
+  local uy = (f3 - f4 + f7 - f8 - f9 + f10 + f15 - f16 + f17 - f18)/rho
+  local uz = (f5 - f6 + f11 - f12 - f13 + f14 + f15 - f16 - f17 + f18)/rho
+
+  local g0 = f0 + (feq (1/3) 0 0 0 rho ux uy uz - f0)/tau
+  local g1 = f1 + (feq (1/18) 1 0 0 rho ux uy uz - f1)/tau
+  local g2 = f2 + (feq (1/18) (-1) 0 0 rho ux uy uz - f2)/tau
+  local g3 = f3 + (feq (1/18) 0 1 0 rho ux uy uz - f3)/tau
+  local g4 = f4 + (feq (1/18) 0 (-1) 0 rho ux uy uz - f4)/tau
+  local g5 = f5 + (feq (1/18) 0 0 1 rho ux uy uz - f5)/tau
+  local g6 = f6 + (feq (1/18) 0 0 (-1) rho ux uy uz - f6)/tau
+  local g7 = f7 + (feq (1/36) 1 1 0 rho ux uy uz - f7)/tau
+  local g8 = f8 + (feq (1/36) (-1) (-1) 0 rho ux uy uz - f8)/tau
+  local g9 = f9 + (feq (1/36) 1 (-1) 0 rho ux uy uz - f9)/tau
+  local g10 = f10 + (feq (1/36) (-1) 1 0 rho ux uy uz - f10)/tau
+  local g11 = f11 + (feq (1/36) 1 0 1 rho ux uy uz - f11)/tau
+  local g12 = f12 + (feq (1/36) (-1) 0 (-1) rho ux uy uz - f12)/tau
+  local g13 = f13 + (feq (1/36) 1 0 (-1) rho ux uy uz - f13)/tau
+  local g14 = f14 + (feq (1/36) (-1) 0 1 rho ux uy uz - f14)/tau
+  local g15 = f15 + (feq (1/36) 0 1 1 rho ux uy uz - f15)/tau
+  local g16 = f16 + (feq (1/36) 0 (-1) (-1) rho ux uy uz - f16)/tau
+  local g17 = f17 + (feq (1/36) 0 1 (-1) rho ux uy uz - f17)/tau
+  local g18 = f18 + (feq (1/36) 0 (-1) 1 rho ux uy uz - f18)/tau
+
+  local h0 = g0
+  local h1 = pullx 1 g1
+  local h2 = pullx (-1) g2
+  local h3 = g3
+  local h4 = g4
+  local h5 = g5
+  local h6 = g6
+  local h7 = pullx 1 g7
+  local h8 = pullx (-1) g8
+  local h9 = pullx 1 g9
+  local h10 = pullx (-1) g10
+  local h11 = pullx 1 g11
+  local h12 = pullx (-1) g12
+  local h13 = pullx 1 g13
+  local h14 = pullx (-1) g14
+  local h15 = g15
+  local h16 = g16
+  local h17 = g17
+  local h18 = g18
+
+  local p0 = h0
+  local p1 = h1
+  local p2 = h2
+  local p3 = pully 1 h3
+  local p4 = pully (-1) h4
+  local p5 = h5
+  local p6 = h6
+  local p7 = pully 1 h7
+  local p8 = pully (-1) h8
+  local p9 = pully (-1) h9
+  local p10 = pully 1 h10
+  local p11 = h11
+  local p12 = h12
+  local p13 = h13
+  local p14 = h14
+  local p15 = pully 1 h15
+  local p16 = pully (-1) h16
+  local p17 = pully 1 h17
+  local p18 = pully (-1) h18
+
+  f0' = p0
+  f1' = p1
+  f2' = p2
+  f3' = p3
+  f4' = p4
+  f5' = pullz 1 p5
+  f6' = pullz (-1) p6
+  f7' = p7
+  f8' = p8
+  f9' = p9
+  f10' = p10
+  f11' = pullz 1 p11
+  f12' = pullz (-1) p12
+  f13' = pullz (-1) p13
+  f14' = pullz 1 p14
+  f15' = pullz 1 p15
+  f16' = pullz (-1) p16
+  f17' = pullz (-1) p17
+  f18' = pullz 1 p18

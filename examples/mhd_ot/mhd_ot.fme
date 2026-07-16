@@ -1,0 +1,76 @@
+-- Ideal MHD, Orszag--Tang vortex, in conservative form with a
+-- Rusanov (local Lax--Friedrichs) flux and fixed wave-speed bound lambda.
+--
+--   dU/dt + div F(U) = 0,  U = (rho, m, B, en)
+--
+-- The 19 flux components are typed step-local fields.  Their spatial
+-- derivatives and the Rusanov dissipation are selected by post-fec, so the
+-- source contains the conservation law rather than explicit grid offsets.
+
+mode collocated
+dimension 3
+axes x, y, z
+
+param gam = 1.6666666666666667
+param lambda = 3.0
+param dt = 0.0004
+param nux = lambda*dx/2
+param nuy = lambda*dy/2
+param nuz = lambda*dz/2
+
+extern sin
+
+field rho : scalar
+field mx : scalar
+field my : scalar
+field mz : scalar
+field bx : scalar
+field by : scalar
+field bz : scalar
+field en : scalar
+
+init:
+  rho = 0.22104853212940622
+  mx = 0.0 - 0.22104853212940622*sin(6.283185307179586*j*dy)
+  my = 0.22104853212940622*sin(6.283185307179586*i*dx)
+  mz = 0.0
+  bx = 0.0 - 0.28209479177387814*sin(6.283185307179586*j*dy)
+  by = 0.28209479177387814*sin(12.566370614359172*i*dx)
+  bz = 0.0
+  en = 0.19894367886486917 + 0.11052426606470311*(sin(6.283185307179586*j*dy)*sin(6.283185307179586*j*dy) + sin(6.283185307179586*i*dx)*sin(6.283185307179586*i*dx)) + 0.039788735772973836*(sin(6.283185307179586*j*dy)*sin(6.283185307179586*j*dy) + sin(12.566370614359172*i*dx)*sin(12.566370614359172*i*dx))
+
+step:
+  let mm = mx^2 + my^2 + mz^2
+  let bb = bx^2 + by^2 + bz^2
+  let mB = mx*bx + my*by + mz*bz
+  local pt = (gam - 1) * (en - mm/(2*rho) - bb/2) + bb/2
+
+  local fmx1 = mx*mx/rho - bx*bx + pt
+  local fmx2 = my*mx/rho - by*bx
+  local fmx3 = mz*mx/rho - bz*bx
+  local fmy1 = mx*my/rho - bx*by
+  local fmy2 = my*my/rho - by*by + pt
+  local fmy3 = mz*my/rho - bz*by
+  local fmz1 = mx*mz/rho - bx*bz
+  local fmz2 = my*mz/rho - by*bz
+  local fmz3 = mz*mz/rho - bz*bz + pt
+
+  local fen1 = (en + pt)*mx/rho - bx*mB/rho
+  local fen2 = (en + pt)*my/rho - by*mB/rho
+  local fen3 = (en + pt)*mz/rho - bz*mB/rho
+
+  local fbx2 = (my*bx - mx*by)/rho
+  local fbx3 = (mz*bx - mx*bz)/rho
+  local fby1 = (mx*by - my*bx)/rho
+  local fby3 = (mz*by - my*bz)/rho
+  local fbz1 = (mx*bz - mz*bx)/rho
+  local fbz2 = (my*bz - mz*by)/rho
+
+  rho' = rho - dt*(∂_x mx + ∂_y my + ∂_z mz) + dt*(nux*∂^2_x rho + nuy*∂^2_y rho + nuz*∂^2_z rho)
+  mx' = mx - dt*(∂_x fmx1 + ∂_y fmx2 + ∂_z fmx3) + dt*(nux*∂^2_x mx + nuy*∂^2_y mx + nuz*∂^2_z mx)
+  my' = my - dt*(∂_x fmy1 + ∂_y fmy2 + ∂_z fmy3) + dt*(nux*∂^2_x my + nuy*∂^2_y my + nuz*∂^2_z my)
+  mz' = mz - dt*(∂_x fmz1 + ∂_y fmz2 + ∂_z fmz3) + dt*(nux*∂^2_x mz + nuy*∂^2_y mz + nuz*∂^2_z mz)
+  bx' = bx - dt*(∂_y fbx2 + ∂_z fbx3) + dt*(nux*∂^2_x bx + nuy*∂^2_y bx + nuz*∂^2_z bx)
+  by' = by - dt*(∂_x fby1 + ∂_z fby3) + dt*(nux*∂^2_x by + nuy*∂^2_y by + nuz*∂^2_z by)
+  bz' = bz - dt*(∂_x fbz1 + ∂_y fbz2) + dt*(nux*∂^2_x bz + nuy*∂^2_y bz + nuz*∂^2_z bz)
+  en' = en - dt*(∂_x fen1 + ∂_y fen2 + ∂_z fen3) + dt*(nux*∂^2_x en + nuy*∂^2_y en + nuz*∂^2_z en)

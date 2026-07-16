@@ -1,10 +1,12 @@
 dimension :: 3
 axes :: x,y,z
 
-# Orszag-Tang: gam = 5/3, rho0 = 25/36pi, p0 = 5/12pi, b0 = 1/sqrt(4pi)
 double :: gam = 1.6666666666666667
-double :: lam = 3.0
+double :: lambda = 3.0
 double :: dt = 0.0004
+double :: nux = lambda*dx/2
+double :: nuy = lambda*dy/2
+double :: nuz = lambda*dz/2
 
 extern function :: sin
 
@@ -21,31 +23,31 @@ begin function (rho,mx,my,mz,bx,by,bz,en) = init()
 end function
 
 begin function (rho',mx',my',mz',bx',by',bz',en') = step(rho,mx,my,mz,bx,by,bz,en)
-  pt = (-1)*bz[i,j,k]**2*gam/(2) + (-1)*by[i,j,k]**2*gam/(2) + (-1)*bx[i,j,k]**2*gam/(2) + (-1)*gam*mz[i,j,k]**2/(2*rho[i,j,k]) + (-1)*gam*my[i,j,k]**2/(2*rho[i,j,k]) + (-1)*gam*mx[i,j,k]**2/(2*rho[i,j,k]) + en[i,j,k]*gam + bz[i,j,k]**2 + by[i,j,k]**2 + bx[i,j,k]**2 + mz[i,j,k]**2/(2*rho[i,j,k]) + my[i,j,k]**2/(2*rho[i,j,k]) + mx[i,j,k]**2/(2*rho[i,j,k]) + (-1)*en[i,j,k]
-  fmx1 = (-1)*bx[i,j,k]**2 + pt[i,j,k] + mx[i,j,k]**2/(rho[i,j,k])
-  fmx2 = (-1)*bx[i,j,k]*by[i,j,k] + mx[i,j,k]*my[i,j,k]/(rho[i,j,k])
-  fmx3 = (-1)*bx[i,j,k]*bz[i,j,k] + mx[i,j,k]*mz[i,j,k]/(rho[i,j,k])
-  fmy1 = (-1)*bx[i,j,k]*by[i,j,k] + mx[i,j,k]*my[i,j,k]/(rho[i,j,k])
-  fmy2 = (-1)*by[i,j,k]**2 + pt[i,j,k] + my[i,j,k]**2/(rho[i,j,k])
-  fmy3 = (-1)*by[i,j,k]*bz[i,j,k] + my[i,j,k]*mz[i,j,k]/(rho[i,j,k])
-  fmz1 = (-1)*bx[i,j,k]*bz[i,j,k] + mx[i,j,k]*mz[i,j,k]/(rho[i,j,k])
-  fmz2 = (-1)*by[i,j,k]*bz[i,j,k] + my[i,j,k]*mz[i,j,k]/(rho[i,j,k])
-  fmz3 = (-1)*bz[i,j,k]**2 + pt[i,j,k] + mz[i,j,k]**2/(rho[i,j,k])
-  fen1 = (-1)*bx[i,j,k]**2*mx[i,j,k]/(rho[i,j,k]) + (-1)*bx[i,j,k]*bz[i,j,k]*mz[i,j,k]/(rho[i,j,k]) + (-1)*bx[i,j,k]*by[i,j,k]*my[i,j,k]/(rho[i,j,k]) + mx[i,j,k]*pt[i,j,k]/(rho[i,j,k]) + en[i,j,k]*mx[i,j,k]/(rho[i,j,k])
-  fen2 = (-1)*by[i,j,k]**2*my[i,j,k]/(rho[i,j,k]) + (-1)*by[i,j,k]*bz[i,j,k]*mz[i,j,k]/(rho[i,j,k]) + (-1)*bx[i,j,k]*by[i,j,k]*mx[i,j,k]/(rho[i,j,k]) + my[i,j,k]*pt[i,j,k]/(rho[i,j,k]) + en[i,j,k]*my[i,j,k]/(rho[i,j,k])
-  fen3 = (-1)*bz[i,j,k]**2*mz[i,j,k]/(rho[i,j,k]) + (-1)*by[i,j,k]*bz[i,j,k]*my[i,j,k]/(rho[i,j,k]) + (-1)*bx[i,j,k]*bz[i,j,k]*mx[i,j,k]/(rho[i,j,k]) + mz[i,j,k]*pt[i,j,k]/(rho[i,j,k]) + en[i,j,k]*mz[i,j,k]/(rho[i,j,k])
-  fbx2 = (-1)*by[i,j,k]*mx[i,j,k]/(rho[i,j,k]) + bx[i,j,k]*my[i,j,k]/(rho[i,j,k])
-  fbx3 = (-1)*bz[i,j,k]*mx[i,j,k]/(rho[i,j,k]) + bx[i,j,k]*mz[i,j,k]/(rho[i,j,k])
-  fby1 = by[i,j,k]*mx[i,j,k]/(rho[i,j,k]) + (-1)*bx[i,j,k]*my[i,j,k]/(rho[i,j,k])
-  fby3 = (-1)*bz[i,j,k]*my[i,j,k]/(rho[i,j,k]) + by[i,j,k]*mz[i,j,k]/(rho[i,j,k])
-  fbz1 = bz[i,j,k]*mx[i,j,k]/(rho[i,j,k]) + (-1)*bx[i,j,k]*mz[i,j,k]/(rho[i,j,k])
-  fbz2 = bz[i,j,k]*my[i,j,k]/(rho[i,j,k]) + (-1)*by[i,j,k]*mz[i,j,k]/(rho[i,j,k])
-  rho' = (-1)*dt*lam*rho[i,j,k]/(dz) + dt*lam*rho[i,j,k-1]/(2*dz) + dt*lam*rho[i,j,k+1]/(2*dz) + (-1)*dt*lam*rho[i,j,k]/(dy) + dt*lam*rho[i,j-1,k]/(2*dy) + dt*lam*rho[i,j+1,k]/(2*dy) + (-1)*dt*lam*rho[i,j,k]/(dx) + dt*lam*rho[i-1,j,k]/(2*dx) + dt*lam*rho[i+1,j,k]/(2*dx) + rho[i,j,k] + dt*mz[i,j,k-1]/(2*dz) + (-1)*dt*mz[i,j,k+1]/(2*dz) + dt*my[i,j-1,k]/(2*dy) + (-1)*dt*my[i,j+1,k]/(2*dy) + dt*mx[i-1,j,k]/(2*dx) + (-1)*dt*mx[i+1,j,k]/(2*dx)
-  mx' = (-1)*dt*lam*mx[i,j,k]/(dz) + dt*lam*mx[i,j,k-1]/(2*dz) + dt*lam*mx[i,j,k+1]/(2*dz) + (-1)*dt*lam*mx[i,j,k]/(dy) + dt*lam*mx[i,j-1,k]/(2*dy) + dt*lam*mx[i,j+1,k]/(2*dy) + (-1)*dt*lam*mx[i,j,k]/(dx) + dt*lam*mx[i-1,j,k]/(2*dx) + dt*lam*mx[i+1,j,k]/(2*dx) + mx[i,j,k] + dt*fmx3[i,j,k-1]/(2*dz) + (-1)*dt*fmx3[i,j,k+1]/(2*dz) + dt*fmx2[i,j-1,k]/(2*dy) + (-1)*dt*fmx2[i,j+1,k]/(2*dy) + dt*fmx1[i-1,j,k]/(2*dx) + (-1)*dt*fmx1[i+1,j,k]/(2*dx)
-  my' = (-1)*dt*lam*my[i,j,k]/(dz) + dt*lam*my[i,j,k-1]/(2*dz) + dt*lam*my[i,j,k+1]/(2*dz) + (-1)*dt*lam*my[i,j,k]/(dy) + dt*lam*my[i,j-1,k]/(2*dy) + dt*lam*my[i,j+1,k]/(2*dy) + (-1)*dt*lam*my[i,j,k]/(dx) + dt*lam*my[i-1,j,k]/(2*dx) + dt*lam*my[i+1,j,k]/(2*dx) + my[i,j,k] + dt*fmy3[i,j,k-1]/(2*dz) + (-1)*dt*fmy3[i,j,k+1]/(2*dz) + dt*fmy2[i,j-1,k]/(2*dy) + (-1)*dt*fmy2[i,j+1,k]/(2*dy) + dt*fmy1[i-1,j,k]/(2*dx) + (-1)*dt*fmy1[i+1,j,k]/(2*dx)
-  mz' = (-1)*dt*lam*mz[i,j,k]/(dz) + dt*lam*mz[i,j,k-1]/(2*dz) + dt*lam*mz[i,j,k+1]/(2*dz) + (-1)*dt*lam*mz[i,j,k]/(dy) + dt*lam*mz[i,j-1,k]/(2*dy) + dt*lam*mz[i,j+1,k]/(2*dy) + (-1)*dt*lam*mz[i,j,k]/(dx) + dt*lam*mz[i-1,j,k]/(2*dx) + dt*lam*mz[i+1,j,k]/(2*dx) + mz[i,j,k] + dt*fmz3[i,j,k-1]/(2*dz) + (-1)*dt*fmz3[i,j,k+1]/(2*dz) + dt*fmz2[i,j-1,k]/(2*dy) + (-1)*dt*fmz2[i,j+1,k]/(2*dy) + dt*fmz1[i-1,j,k]/(2*dx) + (-1)*dt*fmz1[i+1,j,k]/(2*dx)
-  bx' = (-1)*bx[i,j,k]*dt*lam/(dz) + (-1)*bx[i,j,k]*dt*lam/(dy) + (-1)*bx[i,j,k]*dt*lam/(dx) + bx[i,j,k-1]*dt*lam/(2*dz) + bx[i,j,k+1]*dt*lam/(2*dz) + bx[i,j-1,k]*dt*lam/(2*dy) + bx[i,j+1,k]*dt*lam/(2*dy) + bx[i-1,j,k]*dt*lam/(2*dx) + bx[i+1,j,k]*dt*lam/(2*dx) + dt*fbx3[i,j,k-1]/(2*dz) + (-1)*dt*fbx3[i,j,k+1]/(2*dz) + dt*fbx2[i,j-1,k]/(2*dy) + (-1)*dt*fbx2[i,j+1,k]/(2*dy) + bx[i,j,k]
-  by' = (-1)*by[i,j,k]*dt*lam/(dz) + (-1)*by[i,j,k]*dt*lam/(dy) + (-1)*by[i,j,k]*dt*lam/(dx) + by[i,j,k-1]*dt*lam/(2*dz) + by[i,j,k+1]*dt*lam/(2*dz) + by[i,j-1,k]*dt*lam/(2*dy) + by[i,j+1,k]*dt*lam/(2*dy) + by[i-1,j,k]*dt*lam/(2*dx) + by[i+1,j,k]*dt*lam/(2*dx) + dt*fby3[i,j,k-1]/(2*dz) + (-1)*dt*fby3[i,j,k+1]/(2*dz) + dt*fby1[i-1,j,k]/(2*dx) + (-1)*dt*fby1[i+1,j,k]/(2*dx) + by[i,j,k]
-  bz' = (-1)*bz[i,j,k]*dt*lam/(dz) + (-1)*bz[i,j,k]*dt*lam/(dy) + (-1)*bz[i,j,k]*dt*lam/(dx) + bz[i,j,k-1]*dt*lam/(2*dz) + bz[i,j,k+1]*dt*lam/(2*dz) + bz[i,j-1,k]*dt*lam/(2*dy) + bz[i,j+1,k]*dt*lam/(2*dy) + bz[i-1,j,k]*dt*lam/(2*dx) + bz[i+1,j,k]*dt*lam/(2*dx) + dt*fbz2[i,j-1,k]/(2*dy) + (-1)*dt*fbz2[i,j+1,k]/(2*dy) + dt*fbz1[i-1,j,k]/(2*dx) + (-1)*dt*fbz1[i+1,j,k]/(2*dx) + bz[i,j,k]
-  en' = (-1)*dt*en[i,j,k]*lam/(dz) + (-1)*dt*en[i,j,k]*lam/(dy) + (-1)*dt*en[i,j,k]*lam/(dx) + dt*en[i,j,k-1]*lam/(2*dz) + dt*en[i,j,k+1]*lam/(2*dz) + dt*en[i,j-1,k]*lam/(2*dy) + dt*en[i,j+1,k]*lam/(2*dy) + dt*en[i-1,j,k]*lam/(2*dx) + dt*en[i+1,j,k]*lam/(2*dx) + en[i,j,k] + dt*fen3[i,j,k-1]/(2*dz) + (-1)*dt*fen3[i,j,k+1]/(2*dz) + dt*fen2[i,j-1,k]/(2*dy) + (-1)*dt*fen2[i,j+1,k]/(2*dy) + dt*fen1[i-1,j,k]/(2*dx) + (-1)*dt*fen1[i+1,j,k]/(2*dx)
+  pt[i,j,k] = (-1) * en[i,j,k] + (-1 / 2) * gam * bx[i,j,k]**2 + (-1 / 2) * gam * by[i,j,k]**2 + (-1 / 2) * gam * bz[i,j,k]**2 + (-1 / 2) * gam * mx[i,j,k]**2 * rho[i,j,k]**(-1) + (-1 / 2) * gam * my[i,j,k]**2 * rho[i,j,k]**(-1) + (-1 / 2) * gam * mz[i,j,k]**2 * rho[i,j,k]**(-1) + (1 / 2) * mx[i,j,k]**2 * rho[i,j,k]**(-1) + (1 / 2) * my[i,j,k]**2 * rho[i,j,k]**(-1) + (1 / 2) * mz[i,j,k]**2 * rho[i,j,k]**(-1) + gam * en[i,j,k] + bx[i,j,k]**2 + by[i,j,k]**2 + bz[i,j,k]**2
+  fmx1[i,j,k] = pt[i,j,k] + (-1) * bx[i,j,k]**2 + mx[i,j,k]**2 * rho[i,j,k]**(-1)
+  fmx2[i,j,k] = (-1) * bx[i,j,k] * by[i,j,k] + mx[i,j,k] * my[i,j,k] * rho[i,j,k]**(-1)
+  fmx3[i,j,k] = (-1) * bx[i,j,k] * bz[i,j,k] + mx[i,j,k] * mz[i,j,k] * rho[i,j,k]**(-1)
+  fmy1[i,j,k] = (-1) * bx[i,j,k] * by[i,j,k] + mx[i,j,k] * my[i,j,k] * rho[i,j,k]**(-1)
+  fmy2[i,j,k] = pt[i,j,k] + (-1) * by[i,j,k]**2 + my[i,j,k]**2 * rho[i,j,k]**(-1)
+  fmy3[i,j,k] = (-1) * by[i,j,k] * bz[i,j,k] + my[i,j,k] * mz[i,j,k] * rho[i,j,k]**(-1)
+  fmz1[i,j,k] = (-1) * bx[i,j,k] * bz[i,j,k] + mx[i,j,k] * mz[i,j,k] * rho[i,j,k]**(-1)
+  fmz2[i,j,k] = (-1) * by[i,j,k] * bz[i,j,k] + my[i,j,k] * mz[i,j,k] * rho[i,j,k]**(-1)
+  fmz3[i,j,k] = pt[i,j,k] + (-1) * bz[i,j,k]**2 + mz[i,j,k]**2 * rho[i,j,k]**(-1)
+  fen1[i,j,k] = (-1) * bx[i,j,k] * by[i,j,k] * my[i,j,k] * rho[i,j,k]**(-1) + (-1) * bx[i,j,k] * bz[i,j,k] * mz[i,j,k] * rho[i,j,k]**(-1) + (-1) * mx[i,j,k] * bx[i,j,k]**2 * rho[i,j,k]**(-1) + en[i,j,k] * mx[i,j,k] * rho[i,j,k]**(-1) + mx[i,j,k] * pt[i,j,k] * rho[i,j,k]**(-1)
+  fen2[i,j,k] = (-1) * bx[i,j,k] * by[i,j,k] * mx[i,j,k] * rho[i,j,k]**(-1) + (-1) * by[i,j,k] * bz[i,j,k] * mz[i,j,k] * rho[i,j,k]**(-1) + (-1) * my[i,j,k] * by[i,j,k]**2 * rho[i,j,k]**(-1) + en[i,j,k] * my[i,j,k] * rho[i,j,k]**(-1) + my[i,j,k] * pt[i,j,k] * rho[i,j,k]**(-1)
+  fen3[i,j,k] = (-1) * bx[i,j,k] * bz[i,j,k] * mx[i,j,k] * rho[i,j,k]**(-1) + (-1) * by[i,j,k] * bz[i,j,k] * my[i,j,k] * rho[i,j,k]**(-1) + (-1) * mz[i,j,k] * bz[i,j,k]**2 * rho[i,j,k]**(-1) + en[i,j,k] * mz[i,j,k] * rho[i,j,k]**(-1) + mz[i,j,k] * pt[i,j,k] * rho[i,j,k]**(-1)
+  fbx2[i,j,k] = (-1) * by[i,j,k] * mx[i,j,k] * rho[i,j,k]**(-1) + bx[i,j,k] * my[i,j,k] * rho[i,j,k]**(-1)
+  fbx3[i,j,k] = (-1) * bz[i,j,k] * mx[i,j,k] * rho[i,j,k]**(-1) + bx[i,j,k] * mz[i,j,k] * rho[i,j,k]**(-1)
+  fby1[i,j,k] = (-1) * bx[i,j,k] * my[i,j,k] * rho[i,j,k]**(-1) + by[i,j,k] * mx[i,j,k] * rho[i,j,k]**(-1)
+  fby3[i,j,k] = (-1) * bz[i,j,k] * my[i,j,k] * rho[i,j,k]**(-1) + by[i,j,k] * mz[i,j,k] * rho[i,j,k]**(-1)
+  fbz1[i,j,k] = (-1) * bx[i,j,k] * mz[i,j,k] * rho[i,j,k]**(-1) + bz[i,j,k] * mx[i,j,k] * rho[i,j,k]**(-1)
+  fbz2[i,j,k] = (-1) * by[i,j,k] * mz[i,j,k] * rho[i,j,k]**(-1) + bz[i,j,k] * my[i,j,k] * rho[i,j,k]**(-1)
+  rho'[i,j,k] = rho[i,j,k] + (-1) * dt * ((-1 / 2) * mx[i-1,j,k] + (1 / 2) * mx[i+1,j,k]) / dx + (-1) * dt * ((-1 / 2) * my[i,j-1,k] + (1 / 2) * my[i,j+1,k]) / dy + (-1) * dt * ((-1 / 2) * mz[i,j,k-1] + (1 / 2) * mz[i,j,k+1]) / dz + dt * nux * (rho[i-1,j,k] + rho[i+1,j,k] + (-2) * rho[i,j,k]) / dx**2 + dt * nuy * (rho[i,j-1,k] + rho[i,j+1,k] + (-2) * rho[i,j,k]) / dy**2 + dt * nuz * (rho[i,j,k-1] + rho[i,j,k+1] + (-2) * rho[i,j,k]) / dz**2
+  mx'[i,j,k] = mx[i,j,k] + (-1) * dt * ((-1 / 2) * fmx1[i-1,j,k] + (1 / 2) * fmx1[i+1,j,k]) / dx + (-1) * dt * ((-1 / 2) * fmx2[i,j-1,k] + (1 / 2) * fmx2[i,j+1,k]) / dy + (-1) * dt * ((-1 / 2) * fmx3[i,j,k-1] + (1 / 2) * fmx3[i,j,k+1]) / dz + dt * nux * (mx[i-1,j,k] + mx[i+1,j,k] + (-2) * mx[i,j,k]) / dx**2 + dt * nuy * (mx[i,j-1,k] + mx[i,j+1,k] + (-2) * mx[i,j,k]) / dy**2 + dt * nuz * (mx[i,j,k-1] + mx[i,j,k+1] + (-2) * mx[i,j,k]) / dz**2
+  my'[i,j,k] = my[i,j,k] + (-1) * dt * ((-1 / 2) * fmy1[i-1,j,k] + (1 / 2) * fmy1[i+1,j,k]) / dx + (-1) * dt * ((-1 / 2) * fmy2[i,j-1,k] + (1 / 2) * fmy2[i,j+1,k]) / dy + (-1) * dt * ((-1 / 2) * fmy3[i,j,k-1] + (1 / 2) * fmy3[i,j,k+1]) / dz + dt * nux * (my[i-1,j,k] + my[i+1,j,k] + (-2) * my[i,j,k]) / dx**2 + dt * nuy * (my[i,j-1,k] + my[i,j+1,k] + (-2) * my[i,j,k]) / dy**2 + dt * nuz * (my[i,j,k-1] + my[i,j,k+1] + (-2) * my[i,j,k]) / dz**2
+  mz'[i,j,k] = mz[i,j,k] + (-1) * dt * ((-1 / 2) * fmz1[i-1,j,k] + (1 / 2) * fmz1[i+1,j,k]) / dx + (-1) * dt * ((-1 / 2) * fmz2[i,j-1,k] + (1 / 2) * fmz2[i,j+1,k]) / dy + (-1) * dt * ((-1 / 2) * fmz3[i,j,k-1] + (1 / 2) * fmz3[i,j,k+1]) / dz + dt * nux * (mz[i-1,j,k] + mz[i+1,j,k] + (-2) * mz[i,j,k]) / dx**2 + dt * nuy * (mz[i,j-1,k] + mz[i,j+1,k] + (-2) * mz[i,j,k]) / dy**2 + dt * nuz * (mz[i,j,k-1] + mz[i,j,k+1] + (-2) * mz[i,j,k]) / dz**2
+  bx'[i,j,k] = bx[i,j,k] + (-1) * dt * ((-1 / 2) * fbx2[i,j-1,k] + (1 / 2) * fbx2[i,j+1,k]) / dy + (-1) * dt * ((-1 / 2) * fbx3[i,j,k-1] + (1 / 2) * fbx3[i,j,k+1]) / dz + dt * nux * (bx[i-1,j,k] + bx[i+1,j,k] + (-2) * bx[i,j,k]) / dx**2 + dt * nuy * (bx[i,j-1,k] + bx[i,j+1,k] + (-2) * bx[i,j,k]) / dy**2 + dt * nuz * (bx[i,j,k-1] + bx[i,j,k+1] + (-2) * bx[i,j,k]) / dz**2
+  by'[i,j,k] = by[i,j,k] + (-1) * dt * ((-1 / 2) * fby1[i-1,j,k] + (1 / 2) * fby1[i+1,j,k]) / dx + (-1) * dt * ((-1 / 2) * fby3[i,j,k-1] + (1 / 2) * fby3[i,j,k+1]) / dz + dt * nux * (by[i-1,j,k] + by[i+1,j,k] + (-2) * by[i,j,k]) / dx**2 + dt * nuy * (by[i,j-1,k] + by[i,j+1,k] + (-2) * by[i,j,k]) / dy**2 + dt * nuz * (by[i,j,k-1] + by[i,j,k+1] + (-2) * by[i,j,k]) / dz**2
+  bz'[i,j,k] = bz[i,j,k] + (-1) * dt * ((-1 / 2) * fbz1[i-1,j,k] + (1 / 2) * fbz1[i+1,j,k]) / dx + (-1) * dt * ((-1 / 2) * fbz2[i,j-1,k] + (1 / 2) * fbz2[i,j+1,k]) / dy + dt * nux * (bz[i-1,j,k] + bz[i+1,j,k] + (-2) * bz[i,j,k]) / dx**2 + dt * nuy * (bz[i,j-1,k] + bz[i,j+1,k] + (-2) * bz[i,j,k]) / dy**2 + dt * nuz * (bz[i,j,k-1] + bz[i,j,k+1] + (-2) * bz[i,j,k]) / dz**2
+  en'[i,j,k] = en[i,j,k] + (-1) * dt * ((-1 / 2) * fen1[i-1,j,k] + (1 / 2) * fen1[i+1,j,k]) / dx + (-1) * dt * ((-1 / 2) * fen2[i,j-1,k] + (1 / 2) * fen2[i,j+1,k]) / dy + (-1) * dt * ((-1 / 2) * fen3[i,j,k-1] + (1 / 2) * fen3[i,j,k+1]) / dz + dt * nux * (en[i-1,j,k] + en[i+1,j,k] + (-2) * en[i,j,k]) / dx**2 + dt * nuy * (en[i,j-1,k] + en[i,j+1,k] + (-2) * en[i,j,k]) / dy**2 + dt * nuz * (en[i,j,k-1] + en[i,j,k+1] + (-2) * en[i,j,k]) / dz**2
 end function
