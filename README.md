@@ -25,7 +25,7 @@ model.fme
 
 user tensor operatorも同じ経路です。例えば次の`withSymbols`を出た自由な下添字は、Egisonでは
 添字を省略したtensor軸になります。省略軸には既存の明示添字とは異なるfreshな下添字が補われ、
-pre-fecは関数名や本体からresult varianceのcontractを推論・付与しません。EgisonがRHSを評価した後、
+pre-fecは関数名や本体からresult varianceのsignatureを推論・付与しません。EgisonがRHSを評価した後、
 宣言済みのequation targetまたはindexed `local`へ値を格納する時点で、targetが要求するshape、logical
 variance、`dfOrder`と実際の値を照合します。degree-zero covariant tensor targetへ代入する場合に限り、
 構造的index completionがcompatibleなanonymous down軸をtargetの下添字へ対応付けます。anonymous down軸を
@@ -45,7 +45,7 @@ step:
 pure user operatorの本体は1行に限定されません。`=`の次をindentすると、Egisonの`let`、lambda、
 `match`、`withSymbols`、`generateTensor`を含む式blockをそのままnormalizationへ渡せます。
 1行の本体とこのようなrich bodyは、どちらもEgisonが通常の式として評価します。Formuraeはuser
-definitionの式構造や計算履歴を検査してresult contractを付けません。評価結果がfield equation
+definitionの式構造や計算履歴を検査してresult signatureを付けません。評価結果がfield equation
 またはindexed `local`へ格納されるときだけ、上記のtarget metadata照合を行います。
 
 ```formurae
@@ -223,7 +223,7 @@ actionとwhole-operandな`derivative.grid-whole` requestだけで、幾何のみ
 
 ## FEIR
 
-FEIR (Formurae Egison IR) はEgisonとpost-fecのcanonical protocolです。契約の同一性は
+FEIR (Formurae Egison IR) はEgisonとpost-fecのcanonical protocolです。その同一性は
 手で振る版番号ではなくfingerprint(内容ハッシュ)が固定します。
 
 `.fme` のgeometry、`:=` analytic initializer、step、parse可能な`def`に書いた

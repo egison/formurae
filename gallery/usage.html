@@ -309,7 +309,7 @@ pre-fecはfunction名やbodyからresult varianceを推論せず、ordinary cove
 同じ軸で合成する意図は、<code>withSymbols [i] (E_i + (gradLike u)..._i)</code>のように
 call siteで下添字を明示します。</p>
 
-<p>Formuraeはuser function本体の式構造や計算履歴を解析してresult contractを付けません。
+<p>Formuraeはuser function本体の式構造や計算履歴を解析してresult signatureを付けません。
 EgisonがRHSを評価した後、equationまたはindexed <code>local</code>へ格納するときに、宣言targetの
 shape・logical variance・<code>dfOrder</code>と実際の値だけを照合します。添字の上げ下げは、上の
 <code>X'~i</code>と<code>A'_i</code>のように計量との縮約をindexed targetへ直接書くのを標準形とします。
