@@ -227,9 +227,6 @@ profileErrorOriginIds program profileError =
     InvalidProfileLatticeFamily lattice family -> ruleOrigins
       (\rule -> derivativeRuleLatticeClass rule == lattice
         && derivativeRuleFamily rule == family)
-    UnsupportedYeeFormalAccuracy accuracy -> ruleOrigins
-      (\rule -> derivativeRuleFamily rule == Yee
-        && ruleAccuracy rule == accuracy)
     UnsupportedStaggeredDerivativeOrder order -> ruleOrigins
       (\rule -> derivativeRuleLatticeClass rule == StaggeredLattice
         && (derivativeRuleOrder rule == Nothing
@@ -242,7 +239,7 @@ profileErrorOriginIds program profileError =
     DuplicateFieldJetDerivativeAxis axisId -> axisOriginIds program axisId
     NonCanonicalFieldJetDerivativeOrder -> allRuleOrigins
     FieldJetDerivativeOrderTooLarge axisId _ -> axisOriginIds program axisId
-    CenteredStencilError _ -> allRuleOrigins
+    ProfileStencilError _ -> allRuleOrigins
   where
     rules = discretizationDerivativeRules (feProgramDiscretization program)
     allRuleOrigins = map derivativeRuleOrigin rules
@@ -601,8 +598,6 @@ validationIssueMessage issue =
       "formal accuracy must be positive and even, got " ++ show accuracy
     InvalidLatticeFamily lattice family ->
       "stencil family " ++ show family ++ " is invalid for " ++ show lattice
-    UnsupportedYeeAccuracy accuracy ->
-      "Yee accuracy " ++ show accuracy ++ " is not supported in FEIR v1"
     DuplicateDerivativeRule lattice order ->
       "duplicate derivative rule for " ++ show lattice
       ++ " order " ++ maybe "default" show order
@@ -710,10 +705,6 @@ wideDerivativeErrorMessage wideError =
     WideOrderExceedsDiameter order radius ->
       "wide derivative order " ++ show order
       ++ " exceeds the diameter of radius " ++ show radius
-    WideCenteredPlacementChange axisId source target ->
-      "centered wide derivative on " ++ show axisId
-      ++ " cannot change placement from " ++ show source
-      ++ " to " ++ show target
     WideStencilFailure stencilError ->
       "wide derivative stencil error: " ++ show stencilError
 
@@ -820,8 +811,6 @@ profileErrorMessage profileError =
       ++ show accuracy
     InvalidProfileLatticeFamily lattice family ->
       "profile family " ++ show family ++ " is invalid for " ++ show lattice
-    UnsupportedYeeFormalAccuracy accuracy ->
-      "Yee formal accuracy " ++ show accuracy ++ " is unsupported"
     UnsupportedStaggeredDerivativeOrder order ->
       "staggered derivative order " ++ show order ++ " is unsupported"
     DuplicateProfileRule lattice order ->
@@ -838,8 +827,8 @@ profileErrorMessage profileError =
     FieldJetDerivativeOrderTooLarge axisId order ->
       "field jet derivative order for " ++ show axisId
       ++ " is too large: " ++ show order
-    CenteredStencilError stencilError ->
-      "centered stencil error: " ++ stencilErrorMessage stencilError
+    ProfileStencilError stencilError ->
+      "profile stencil error: " ++ stencilErrorMessage stencilError
 
 stencilErrorMessage :: StencilError -> String
 stencilErrorMessage = show

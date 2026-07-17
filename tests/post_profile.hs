@@ -1,5 +1,6 @@
 module Main where
 
+import Data.Ratio ((%))
 import Numeric.Natural (Natural)
 
 import Formurae.FEIR.Codec (setProfileFingerprint)
@@ -106,12 +107,22 @@ checkStaggered = do
     (resolveDerivativeRule profile StaggeredLattice 1)
   assertEqual "Yee order-1 family" Yee (resolvedRuleStencilFamily first)
   assertEqual "Yee order-1 radius" 1 (resolvedRuleRadius first)
+  case resolvedRuleStencil first of
+    ResolvedYeeStencil stage ->
+      assertEqual "Yee order-1 pair weights"
+        [(-1, -1), (1, 1)] (staggeredTwiceWeights stage)
+    _ -> fail "Yee order-1 rule lost its half-offset stage"
   second <- assertRight "Yee order 2"
     (resolveDerivativeRule profile StaggeredLattice 2)
   assertEqual "Yee order-2 family" Yee (resolvedRuleStencilFamily second)
   assertEqual "Yee order-2 radius" 1 (resolvedRuleRadius second)
   assertEqual "Yee class default source" (ClassDefaultSource origin3)
     (resolvedRuleSource second)
+  case resolvedRuleStencil second of
+    ResolvedCenteredStencil composed ->
+      assertEqual "Yee order-2 composes to the compact second derivative"
+        [(-1, 1), (0, -2), (1, 1)] (centeredWeights composed)
+    _ -> fail "Yee order-2 rule did not compose to a centered stencil"
   assertLeft "Yee order 3 is unsupported"
     (== UnsupportedStaggeredDerivativeOrder 3)
     (resolveDerivativeRule profile StaggeredLattice 3)
@@ -121,6 +132,34 @@ checkStaggered = do
       (fieldJet [(axisX, 1), (axisY, 2)]))
   assertEqual "mixed Yee halo remains one per axis"
     [(axisX, 1), (axisY, 1)] (fieldJetProfileHalo plan)
+
+  let wideYeeProfile = profileWith
+        [DerivativeRule StaggeredLattice Nothing Yee
+          (PositiveEven 4) origin3]
+  wideFirst <- assertRight "Yee accuracy-4 order 1"
+    (resolveDerivativeRule wideYeeProfile StaggeredLattice 1)
+  assertEqual "accuracy-4 order-1 accuracy" 4
+    (resolvedRuleFormalAccuracy wideFirst)
+  assertEqual "accuracy-4 order-1 halo" 2 (resolvedRuleRadius wideFirst)
+  case resolvedRuleStencil wideFirst of
+    ResolvedYeeStencil stage ->
+      assertEqual "accuracy-4 half-offset weights"
+        [(-3, 1 % 24), (-1, (-9) % 8), (1, 9 % 8), (3, (-1) % 24)]
+        (staggeredTwiceWeights stage)
+    _ -> fail "accuracy-4 order-1 rule lost its half-offset stage"
+  wideSecond <- assertRight "Yee accuracy-4 order 2"
+    (resolveDerivativeRule wideYeeProfile StaggeredLattice 2)
+  assertEqual "accuracy-4 order-2 accuracy" 4
+    (resolvedRuleFormalAccuracy wideSecond)
+  assertEqual "accuracy-4 order-2 halo" 3 (resolvedRuleRadius wideSecond)
+  case resolvedRuleStencil wideSecond of
+    ResolvedCenteredStencil composed ->
+      assertEqual "accuracy-4 order-2 is the composed pair"
+        [ (-3, 1 % 576), (-2, (-3) % 32), (-1, 87 % 64), (0, (-365) % 144)
+        , (1, 87 % 64), (2, (-3) % 32), (3, 1 % 576)
+        ]
+        (centeredWeights composed)
+    _ -> fail "accuracy-4 order-2 rule did not compose to a centered stencil"
 
 checkInvalidProfiles :: IO ()
 checkInvalidProfiles = do
@@ -151,8 +190,7 @@ checkInvalidProfiles = do
   let wideYee = profileWith
         [DerivativeRule StaggeredLattice Nothing Yee
           (PositiveEven 4) origin1]
-  assertLeft "Yee v1 rejects accuracy 4"
-    (== UnsupportedYeeFormalAccuracy 4)
+  assertEqual "Yee accepts every positive even accuracy" (Right ())
     (validateDiscretizationProfile wideYee)
 
   let order3Yee = profileWith

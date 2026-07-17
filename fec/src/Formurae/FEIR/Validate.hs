@@ -117,7 +117,6 @@ data ValidationIssue
   | InvalidDerivativeRuleOrder Int
   | InvalidFormalAccuracy Int
   | InvalidLatticeFamily LatticeClass StencilFamily
-  | UnsupportedYeeAccuracy Int
   | DuplicateDerivativeRule LatticeClass (Maybe Int)
   | ProfileFingerprintMismatch Fingerprint Fingerprint
   | EmptyOpaqueSemanticKey
@@ -456,9 +455,6 @@ validateProfile environment = concat
            (InvalidLatticeFamily (derivativeRuleLatticeClass rule)
              (derivativeRuleFamily rule))
         | not (validLatticeFamily rule)]
-      , let PositiveEven accuracy = derivativeRuleAccuracy rule
-        in [validationError rulePath (UnsupportedYeeAccuracy accuracy)
-           | derivativeRuleFamily rule == Yee && accuracy /= 2]
       , validateOriginReference environment rulePath
           (derivativeRuleOrigin rule)
       ]

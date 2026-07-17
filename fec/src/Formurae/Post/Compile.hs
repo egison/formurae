@@ -21,9 +21,12 @@ import Formurae.Post.Normalize (normalizeExpr)
 import Formurae.Post.PrimitiveContract
 import Formurae.Post.Profile
 import Formurae.Post.Stencil
-  ( StencilError
+  ( StaggeredStencil
+  , StencilError
   , centeredTaylorAtRadius
   , centeredWeights
+  , staggeredTaylorAtPairs
+  , staggeredTwiceWeights
   )
 
 data DerivativeMetadataError
@@ -40,7 +43,6 @@ data DerivativeMetadataError
 data WideDerivativeError
   = WideMetadataError DerivativeMetadataError
   | WideOrderExceedsDiameter Int Int
-  | WideCenteredPlacementChange AxisId Placement Placement
   | WideStencilFailure StencilError
   deriving (Eq, Show)
 
@@ -594,18 +596,31 @@ lowerWideDerivative environment targetPlacement sampleOffsets opaque = do
   if naturalTarget == targetPlacement
     then Right ()
     else Left (PostInvalidReferencePlacement targetPlacement naturalTarget)
-  if naturalTarget == sourcePlacement
-    then Right ()
-    else mapWideError opaque (Left (WideCenteredPlacementChange
-      (derivativeRequestAxis request) sourcePlacement naturalTarget))
-  let accuracy = maximalCenteredAccuracy
-        (derivativeRequestOrder request) (derivativeRequestRadius request)
-  stencil <- mapWideError opaque
-    (mapLeft WideStencilFailure
-      (centeredTaylorAtRadius
-        (derivativeRequestOrder request) accuracy (derivativeRequestRadius request)))
-  samples <- mapM (lowerSample request sourcePlacement)
-    (centeredWeights stencil)
+  weights <-
+    if naturalTarget == sourcePlacement
+      then do
+        let accuracy = maximalCenteredAccuracy
+              (derivativeRequestOrder request) (derivativeRequestRadius request)
+        stencil <- mapWideError opaque
+          (mapLeft WideStencilFailure
+            (centeredTaylorAtRadius
+              (derivativeRequestOrder request) accuracy
+              (derivativeRequestRadius request)))
+        Right (centeredWeights stencil)
+      else do
+        -- Odd staggered orders land on the toggled sub-lattice; the samples
+        -- stay on the operand's own sub-lattice, so the attribute radius
+        -- counts sample pairs and the effective radius is radius − 1/2.
+        let pairs = derivativeRequestRadius request
+            accuracy = maximalStaggeredAccuracy
+              (derivativeRequestOrder request) pairs
+        stencil <- mapWideError opaque
+          (mapLeft WideStencilFailure
+            (staggeredTaylorAtPairs
+              (derivativeRequestOrder request) accuracy pairs))
+        staggeredStorageWeights sourcePlacement
+          (derivativeRequestAxis request) stencil
+  samples <- mapM (lowerSample request sourcePlacement) weights
   step <- axisStep environment (derivativeRequestAxis request)
   let numerator = normalizeExpr (FAdd samples)
       denominator = FPow step
@@ -715,6 +730,13 @@ maximalCenteredAccuracy :: Int -> Int -> Int
 maximalCenteredAccuracy derivativeOrder radius =
   2 * radius - derivativeOrder
   + if even derivativeOrder then 2 else 1
+
+-- | Half-offset symmetric stencils are parity-matched for odd orders, so
+-- they carry the same +2 bonus as even orders on integer offsets:
+-- 2 * (pairs − 1/2) − order + 2.
+maximalStaggeredAccuracy :: Int -> Int -> Int
+maximalStaggeredAccuracy derivativeOrder pairs =
+  2 * pairs - derivativeOrder + 1
 
 parseDerivativeRequest
     :: OpaqueDiscrete
@@ -1184,10 +1206,9 @@ lowerFieldDerivativeShifted environment targetPlacement sampleOffsets jet = do
       weights <-
         case resolvedRuleStencil rule of
           ResolvedCenteredStencil stencil -> Right (centeredWeights stencil)
-          ResolvedYeeStencil 1 -> yeeFirstWeights sourcePlacement axisNumber
-          ResolvedYeeStencil 2 -> Right [(-1, 1), (0, -2), (1, 1)]
-          ResolvedYeeStencil order ->
-            Left (PostProfileError (UnsupportedStaggeredDerivativeOrder order))
+          ResolvedYeeStencil stage ->
+            staggeredStorageWeights sourcePlacement
+              (resolvedAxisId resolvedAxis) stage
       Right (axisNumber, weights)
 
 yeeFirstWeights :: Placement -> Int -> Either PostError [(Int, Rational)]
@@ -1197,6 +1218,26 @@ yeeFirstWeights (Placement bits) axisNumber =
     HalfPoint : _ -> Right [(-1, -1), (0, 1)]
     [] -> Left (PostLocationError
       (InvalidDerivativeAxis (AxisId axisNumber) (length bits)))
+
+-- | Map a staggered stencil's half-integer offsets to storage offsets on
+-- the operand's sub-lattice.  A source sample at storage offset j sits at
+-- j − 1/2 from a half-point target (integer source) and at j + 1/2 from an
+-- integer target (half source), matching the Yee pair orientation.
+staggeredStorageWeights
+    :: Placement -> AxisId -> StaggeredStencil
+    -> Either PostError [(Int, Rational)]
+staggeredStorageWeights (Placement bits) axisId@(AxisId axisNumber) stencil =
+  case drop (axisNumber - 1) bits of
+    IntegerPoint : _ -> Right
+      [ ((twiceOffset + 1) `div` 2, weight)
+      | (twiceOffset, weight) <- staggeredTwiceWeights stencil
+      ]
+    HalfPoint : _ -> Right
+      [ ((twiceOffset - 1) `div` 2, weight)
+      | (twiceOffset, weight) <- staggeredTwiceWeights stencil
+      ]
+    [] -> Left (PostLocationError
+      (InvalidDerivativeAxis axisId (length bits)))
 
 combineOffsets
     :: [([Int], Rational)]

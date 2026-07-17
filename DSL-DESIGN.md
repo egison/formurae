@@ -316,6 +316,41 @@ prelude マクロ+凍結の現行記述へ更新した。
 検証: compiler suite 全緑・make all 38/38・**全例題の .fmr はバイト不変**
 (.egi/.feir は op ID・semantic key・fingerprint の機械的差し替え)。
 
+**v2.15(2026-07-17): スタガード奇数階の半整数半径 — 幅則をパリティ整合へ一般化** —
+スタガード格子上の奇数階微分に半整数の実効半径を導入し、幅の禁止則を
+「奇数階は不可」から「半径と階数のパリティ不一致は不可」へ縮小した。一般則は
+2r ≡ m (mod 2)・点数 2r+1・形式精度 2r − m + 2(パリティ整合の対称 stencil は
+奇数階でも +2 ボーナスが効く)。
+(1) 明示半径∂(`derivative.coordinate-wide`): 自然ターゲットがトグルする場合
+(スタガード×奇数階)、radius 属性 k をペア数と読み、ターゲット中心
+±1/2…±(2k−1)/2 の半整数対称 stencil(実効半径 k − 1/2)を厳密に解く
+(`staggeredTaylorAtPairs`: 倍オフセット整数表現+exact RREF+モーメント/
+パリティ/端係数の再検証)。格納オフセットへの写像は operand の placement bit が
+向きを決める(integer source → {−k+1..k}、half source → {−k..k−1};
+`staggeredStorageWeights` = `yeeFirstWeights` の一般化)。不可能ケースが消えた
+`WideCenteredPlacementChange` は撤去。プライム読みは全格子で一様に
+「素の形 = 格子の最小 stencil、プライム 1 個 = +1 リング」になり
+(collocated `∂'_x` = r2 ↔ staggered `∂'_x` = r3/2 = FDTD(2,4) の ±9/8 ∓1/24、
+`∂''_x` = r5/2 の 6 点)、既存の有効プログラムの意味は不変(旧エラーだけが
+意味を得る)。
+(2) profile(解析 `∂/∂` 系): staggered/yee 行の accuracy 2 固定を撤廃し、任意の
+正偶数 accuracy 2k を受理(pre 検査も同時に緩和; 次数 1/2 制限は維持)。
+1 階則はペア数 k の半整数 stage を保持(`ResolvedYeeStencil` が解いた
+`StaggeredStencil` を運ぶ)、**2 階則は 1 階 stage の自己合成**
+(`composeStaggeredPair` → 半径 2k−1 の centered stencil、k=1 は [1,−2,1] に退化)。
+これで Δ = divg∘grad が全精度で恒等的に成立する因数分解形が profile の正になり
+(最小 Taylor の直接 5 点は明示 `∂'^2` の役割)、halo は 1 階 = k・2 階 = 2k−1。
+`UnsupportedYeeFormalAccuracy` は撤去、`CenteredStencilError` は
+`ProfileStencilError` に改名。**ワイヤ・manifest・fingerprint は不変**
+(radius 属性の解釈だけを post-fec で精密化)。チェーン(ordered)各段と
+grid-whole の素の∂は最小幅のままで設計不変。
+検証: staggered stencil 単体 fixture(k=1/2/3・3 階・合成 7 点
+[1/576, −3/32, 87/64, −365/144, …])+wide 両向き 4 点 lowering+profile
+accuracy-4 規則を suite に追加し全緑、make all は全例題 .fmr バイト不変。
+新例の実測: `∂'_x` → ±9/8 ∓1/24、`∂''_x` → ±75/64 ∓25/384 ±3/640、
+accuracy 4 の Δ 形と flux 形が同一の合成 7 点に合流。
+残: 3 階以上の staggered profile 則・境界の片側化は将来課題。
+
 **v1.36(2026-07-11): runtime tensor lowering と Phase 7 完了** —
 標準6演算子だけでなく、一般の indexed equation、implicit vector equation、rank-1/rank-2
 indexed `let`、indexed CAS initializer を、成分別 Haskell 式へ展開せず whole runtime tensor として

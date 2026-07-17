@@ -539,7 +539,7 @@ parseDiscretizationDecl lineNumber source =
           then fatal ("invalid discretization lattice/family pair (line "
                       ++ show lineNumber ++ ")")
           else if not (supportedV1 lattice derivativeOrder accuracy)
-            then fatal ("FEIR v1 supports Yee accuracy 2 and per-axis derivative order 1 or 2 only (line "
+            then fatal ("staggered profile rules support per-axis derivative order 1 or 2 only (line "
                         ++ show lineNumber ++ ")")
             else return DiscretizationDecl
             { discretizationLatticeClass = lattice
@@ -569,14 +569,14 @@ parseDiscretizationDecl lineNumber source =
     validPair SurfaceStaggered SurfaceYee = True
     validPair _ _ = False
 
-    supportedV1 SurfaceStaggered derivativeOrder accuracy =
-      accuracy == 2 && maybe True (<= 2) derivativeOrder
+    supportedV1 SurfaceStaggered derivativeOrder _accuracy =
+      maybe True (<= 2) derivativeOrder
     supportedV1 SurfaceCollocated _ _ = True
 
     badSyntax = fatal
       ("bad discretization declaration (line " ++ show lineNumber ++ "): "
        ++ "discretization collocated [derivative ORDER] centered accuracy EVEN, "
-       ++ "or discretization staggered [derivative ORDER] yee accuracy 2")
+       ++ "or discretization staggered [derivative ORDER] yee accuracy EVEN")
 
 -- Parse and validate the source language without expanding definitions or
 -- selecting a discrete implementation.  pre-fec emits this model to Egison

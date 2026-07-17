@@ -6,14 +6,14 @@ import Formurae.FEIR.Codec (setProfileFingerprint)
 import Formurae.FEIR.Syntax
 import Formurae.Post.Compile
 import Formurae.Post.FMR (renderProgram)
-import Formurae.Post.Location (HalfBit(..), Placement(..))
 
 main :: IO ()
 main = do
   testSecondDerivativeRadiusTwo
   testWholeNonlinearExpressionShift
   testAttributeErrors
-  testAxisAndPlacementErrors
+  testAxisErrors
+  testStaggeredOddHalfRadius
   putStrLn "post compile wide tests: ok"
 
 testSecondDerivativeRadiusTwo :: IO ()
@@ -97,35 +97,58 @@ testAttributeErrors = do
     (== WideOrderExceedsDiameter 3 1)
     (compileProgram (withUpdate fixture (OpaqueDiscrete impossibleOrder)))
 
-testAxisAndPlacementErrors :: IO ()
-testAxisAndPlacementErrors = do
+testAxisErrors :: IO ()
+testAxisErrors = do
   let unknownAxis = wideOpaque "unknown-axis" (FieldJet sourceJet)
         2 2 [AxisId 99]
   assertLeft "unknown axis has no fallback step name"
     isUnknownAxis
     (compileProgram (withUpdate fixture (OpaqueDiscrete unknownAxis)))
+  where
+    isUnknownAxis (PostAtOrigin _ nested) = isUnknownAxis nested
+    isUnknownAxis (PostUnknownAxis (AxisId 99)) = True
+    isUnknownAxis _ = False
 
-  let primalSource = (scalarField (FieldId 1) "u")
-        { logicalFieldPolicy = PrimalPolicy }
-      dualTarget = (scalarField (FieldId 2) "v")
-        { logicalFieldPolicy = DualPolicy }
+-- Odd orders on a staggered lattice land on the toggled sub-lattice, so the
+-- attribute radius r selects the half-offset stencil of effective radius
+-- r − 1/2 around the natural target: the pair orientation follows the
+-- operand's placement bit exactly as for the Yee pair.
+testStaggeredOddHalfRadius :: IO ()
+testStaggeredOddHalfRadius = do
+  integerToHalf <- compileAndRender "integer-to-half fourth-order Yee"
+    (staggeredOddProgram PrimalPolicy DualPolicy)
+  assertContains "backward outer sample" "(1 / 24) * u[i-1]" integerToHalf
+  assertContains "backward inner sample" "(-9 / 8) * u[i]" integerToHalf
+  assertContains "forward inner sample" "(9 / 8) * u[i+1]" integerToHalf
+  assertContains "forward outer sample" "(-1 / 24) * u[i+2]" integerToHalf
+  assertContains "first derivative denominator" "/ dx" integerToHalf
+
+  halfToInteger <- compileAndRender "half-to-integer fourth-order Yee"
+    (staggeredOddProgram DualPolicy PrimalPolicy)
+  assertContains "mirrored backward outer sample"
+    "(1 / 24) * u[i-2]" halfToInteger
+  assertContains "mirrored backward inner sample"
+    "(-9 / 8) * u[i-1]" halfToInteger
+  assertContains "mirrored forward inner sample"
+    "(9 / 8) * u[i]" halfToInteger
+  assertContains "mirrored forward outer sample"
+    "(-1 / 24) * u[i+1]" halfToInteger
+
+staggeredOddProgram :: GridPolicy -> GridPolicy -> FEProgram
+staggeredOddProgram sourcePolicy targetPolicy =
+  let source = (scalarField (FieldId 1) "u")
+        { logicalFieldPolicy = sourcePolicy }
+      target = (scalarField (FieldId 2) "v")
+        { logicalFieldPolicy = targetPolicy }
       oddRequest = wideOpaque "staggered-odd" (FieldJet sourceJet)
         1 2 [AxisId 1]
       equation = FEEquation (EquationId 2)
         (WholeFieldTarget (FieldId 2) NextTime)
         (scalarTensor (OpaqueDiscrete oddRequest)) (OriginId 1)
-      program = fixture
-        { feProgramFields = [primalSource, dualTarget]
-        , feProgramStepActions = [UpdateField equation]
-        }
-  assertWideError "centered integer offsets cannot change staggered placement"
-    (== WideCenteredPlacementChange (AxisId 1)
-      (Placement [IntegerPoint]) (Placement [HalfPoint]))
-    (compileProgram program)
-  where
-    isUnknownAxis (PostAtOrigin _ nested) = isUnknownAxis nested
-    isUnknownAxis (PostUnknownAxis (AxisId 99)) = True
-    isUnknownAxis _ = False
+  in fixture
+       { feProgramFields = [source, target]
+       , feProgramStepActions = [UpdateField equation]
+       }
 
 wideOpaque
     :: String -> ScalarNF -> Integer -> Integer -> [AxisId] -> OpaqueDiscrete

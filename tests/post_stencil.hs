@@ -33,6 +33,9 @@ main = do
   checkMinimality
   checkRectangularRankDiagnostics
   checkInvalidRequests
+  forM_ staggeredFixtures checkStaggeredFixture
+  checkStaggeredCompose
+  checkStaggeredInvalidRequests
   putStrLn "post stencil tests: ok"
 
 checkFixture :: ExpectedStencil -> IO ()
@@ -126,6 +129,75 @@ checkInvalidRequests = do
   stencil <- assertRight "valid stencil for negative moment test" (centeredTaylor 1 2)
   assertEqual "negative moment order"
     (Left (InvalidMomentOrder (-1))) (stencilMoment stencil (-1))
+
+data ExpectedStaggered = ExpectedStaggered
+  { expectedStaggeredOrder :: Int
+  , expectedStaggeredAccuracy :: Int
+  , expectedStaggeredPairs :: Int
+  , expectedStaggeredWeights :: [(Int, Rational)]
+  }
+
+-- Offsets are doubled: entry t weights the sample at t/2.
+staggeredFixtures :: [ExpectedStaggered]
+staggeredFixtures =
+  [ ExpectedStaggered 1 2 1 [(-1, -1), (1, 1)]
+  , ExpectedStaggered 1 4 2
+      [(-3, 1 % 24), (-1, (-9) % 8), (1, 9 % 8), (3, (-1) % 24)]
+  , ExpectedStaggered 1 6 3
+      [(-5, (-3) % 640), (-3, 25 % 384), (-1, (-75) % 64),
+       (1, 75 % 64), (3, (-25) % 384), (5, 3 % 640)]
+  , ExpectedStaggered 3 2 2
+      [(-3, -1), (-1, 3), (1, -3), (3, 1)]
+  ]
+
+checkStaggeredFixture :: ExpectedStaggered -> IO ()
+checkStaggeredFixture expected = do
+  let order = expectedStaggeredOrder expected
+      accuracy = expectedStaggeredAccuracy expected
+      pairs = expectedStaggeredPairs expected
+      label = "staggered m=" ++ show order ++ ", p=" ++ show accuracy
+  stencil <- assertRight (label ++ " derivation")
+    (staggeredTaylorAtPairs order accuracy pairs)
+  assertEqual (label ++ " order") order (staggeredDerivativeOrder stencil)
+  assertEqual (label ++ " accuracy") accuracy
+    (staggeredFormalAccuracy stencil)
+  assertEqual (label ++ " pairs") pairs (staggeredPairCount stencil)
+  assertEqual (label ++ " exact weights")
+    (expectedStaggeredWeights expected) (staggeredTwiceWeights stencil)
+  assertEqual (label ++ " invariant validation")
+    (Right ()) (validateStaggeredTaylor stencil)
+
+checkStaggeredCompose :: IO ()
+checkStaggeredCompose = do
+  compact <- assertRight "k=1 stage" (staggeredTaylorAtPairs 1 2 1)
+  composed <- assertRight "k=1 composition" (composeStaggeredPair compact)
+  assertEqual "k=1 composition is the compact second derivative"
+    [(-1, 1), (0, -2), (1, 1)] (centeredWeights composed)
+  assertEqual "k=1 composed order" 2 (centeredDerivativeOrder composed)
+  assertEqual "k=1 composed accuracy" 2 (centeredFormalAccuracy composed)
+
+  wide <- assertRight "k=2 stage" (staggeredTaylorAtPairs 1 4 2)
+  composedWide <- assertRight "k=2 composition" (composeStaggeredPair wide)
+  assertEqual "k=2 composed radius" 3 (centeredRadius composedWide)
+  assertEqual "k=2 composed accuracy" 4 (centeredFormalAccuracy composedWide)
+  assertEqual "k=2 composed weights"
+    [ (-3, 1 % 576), (-2, (-3) % 32), (-1, 87 % 64), (0, (-365) % 144)
+    , (1, 87 % 64), (2, (-3) % 32), (3, 1 % 576)
+    ]
+    (centeredWeights composedWide)
+  assertEqual "k=2 composed invariant validation"
+    (Right ()) (validateCenteredTaylor composedWide)
+
+checkStaggeredInvalidRequests :: IO ()
+checkStaggeredInvalidRequests = do
+  assertEqual "even staggered order"
+    (Left (StaggeredOrderMustBeOdd 2)) (staggeredTaylorAtPairs 2 2 1)
+  assertEqual "zero staggered order"
+    (Left (InvalidDerivativeOrder 0)) (staggeredTaylorAtPairs 0 2 1)
+  assertEqual "odd staggered accuracy"
+    (Left (InvalidFormalAccuracy 3)) (staggeredTaylorAtPairs 1 3 1)
+  assertEqual "pairs below derivative lower bound"
+    (Left (RadiusTooSmall 1 2)) (staggeredTaylorAtPairs 3 2 1)
 
 factorial :: Int -> Integer
 factorial n = product [1 .. toInteger n]
