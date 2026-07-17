@@ -170,14 +170,34 @@ checkStaggeredFixture expected = do
 checkStaggeredCompose :: IO ()
 checkStaggeredCompose = do
   compact <- assertRight "k=1 stage" (staggeredTaylorAtPairs 1 2 1)
-  composed <- assertRight "k=1 composition" (composeStaggeredPair compact)
-  assertEqual "k=1 composition is the compact second derivative"
+  composed <- assertCentered "k=1 twofold composition"
+    =<< assertRight "k=1 twofold composition" (composeStages 2 compact)
+  assertEqual "k=1 twofold composition is the compact second derivative"
     [(-1, 1), (0, -2), (1, 1)] (centeredWeights composed)
   assertEqual "k=1 composed order" 2 (centeredDerivativeOrder composed)
   assertEqual "k=1 composed accuracy" 2 (centeredFormalAccuracy composed)
 
+  onefold <- assertStaggered "k=1 onefold composition"
+    =<< assertRight "k=1 onefold composition" (composeStages 1 compact)
+  assertEqual "onefold composition is the stage itself" compact onefold
+
+  -- At the minimal width the composed and directly solved stencils
+  -- coincide for every order: the moment systems are exactly determined.
+  threefold <- assertStaggered "k=1 threefold composition"
+    =<< assertRight "k=1 threefold composition" (composeStages 3 compact)
+  direct3 <- assertRight "direct third derivative"
+    (staggeredTaylorAtPairs 3 2 2)
+  assertEqual "threefold composition equals the direct third derivative"
+    direct3 threefold
+  fourfold <- assertCentered "k=1 fourfold composition"
+    =<< assertRight "k=1 fourfold composition" (composeStages 4 compact)
+  direct4 <- assertRight "direct fourth derivative" (centeredTaylor 4 2)
+  assertEqual "fourfold composition equals the direct fourth derivative"
+    direct4 fourfold
+
   wide <- assertRight "k=2 stage" (staggeredTaylorAtPairs 1 4 2)
-  composedWide <- assertRight "k=2 composition" (composeStaggeredPair wide)
+  composedWide <- assertCentered "k=2 twofold composition"
+    =<< assertRight "k=2 twofold composition" (composeStages 2 wide)
   assertEqual "k=2 composed radius" 3 (centeredRadius composedWide)
   assertEqual "k=2 composed accuracy" 4 (centeredFormalAccuracy composedWide)
   assertEqual "k=2 composed weights"
@@ -187,6 +207,27 @@ checkStaggeredCompose = do
     (centeredWeights composedWide)
   assertEqual "k=2 composed invariant validation"
     (Right ()) (validateCenteredTaylor composedWide)
+
+  wideThird <- assertStaggered "k=2 threefold composition"
+    =<< assertRight "k=2 threefold composition" (composeStages 3 wide)
+  assertEqual "k=2 threefold order" 3 (staggeredDerivativeOrder wideThird)
+  assertEqual "k=2 threefold accuracy" 4
+    (staggeredFormalAccuracy wideThird)
+  assertEqual "k=2 threefold pairs" 5 (staggeredPairCount wideThird)
+  assertEqual "k=2 threefold edge weight"
+    (Just ((-1) % 13824)) (lookup 9 (staggeredTwiceWeights wideThird))
+  assertEqual "k=2 threefold invariant validation"
+    (Right ()) (validateStaggeredTaylor wideThird)
+
+assertCentered :: String -> ComposedStencil -> IO CenteredStencil
+assertCentered _ (ComposedCentered stencil) = return stencil
+assertCentered label (ComposedStaggered _) =
+  fail (label ++ ": expected a centered composition")
+
+assertStaggered :: String -> ComposedStencil -> IO StaggeredStencil
+assertStaggered _ (ComposedStaggered stencil) = return stencil
+assertStaggered label (ComposedCentered _) =
+  fail (label ++ ": expected a staggered composition")
 
 checkStaggeredInvalidRequests :: IO ()
 checkStaggeredInvalidRequests = do

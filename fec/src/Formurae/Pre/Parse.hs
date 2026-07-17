@@ -538,10 +538,7 @@ parseDiscretizationDecl lineNumber source =
         else if not (validPair lattice family)
           then fatal ("invalid discretization lattice/family pair (line "
                       ++ show lineNumber ++ ")")
-          else if not (supportedV1 lattice derivativeOrder accuracy)
-            then fatal ("staggered profile rules support per-axis derivative order 1 or 2 only (line "
-                        ++ show lineNumber ++ ")")
-            else return DiscretizationDecl
+          else return DiscretizationDecl
             { discretizationLatticeClass = lattice
             , discretizationDerivativeOrder = derivativeOrder
             , discretizationStencilFamily = family
@@ -568,10 +565,6 @@ parseDiscretizationDecl lineNumber source =
     validPair SurfaceCollocated SurfaceCentered = True
     validPair SurfaceStaggered SurfaceYee = True
     validPair _ _ = False
-
-    supportedV1 SurfaceStaggered derivativeOrder _accuracy =
-      maybe True (<= 2) derivativeOrder
-    supportedV1 SurfaceCollocated _ _ = True
 
     badSyntax = fatal
       ("bad discretization declaration (line " ++ show lineNumber ++ "): "

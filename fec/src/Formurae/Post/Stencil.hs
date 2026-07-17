@@ -1,5 +1,6 @@
 module Formurae.Post.Stencil
   ( CenteredStencil
+  , ComposedStencil(..)
   , StaggeredStencil
   , StencilError(..)
   , centeredDerivativeOrder
@@ -9,7 +10,7 @@ module Formurae.Post.Stencil
   , centeredTaylor
   , centeredTaylorAtRadius
   , minimalCenteredRadius
-  , composeStaggeredPair
+  , composeStages
   , staggeredDerivativeOrder
   , staggeredFormalAccuracy
   , staggeredPairCount
@@ -166,32 +167,66 @@ staggeredTaylorAtPairs derivativeOrder formalAccuracy pairs = do
       validateStaggeredTaylor stencil
       return stencil
 
--- | Compose a staggered stencil with itself.  The two Yee stages land back
--- on the operand's sub-lattice, so the result is an ordinary centered
--- stencil at radius 2k − 1 whose derivative order doubles and whose formal
--- accuracy matches the staged accuracy; the k = 1 first-derivative pair
--- composes to the classic [1, −2, 1].
-composeStaggeredPair :: StaggeredStencil -> Either StencilError CenteredStencil
-composeStaggeredPair stage = do
+-- | An n-fold self-composition of a half-offset stage: even fold counts
+-- land back on the operand's sub-lattice, odd counts stay on the dual one.
+data ComposedStencil
+  = ComposedCentered CenteredStencil
+  | ComposedStaggered StaggeredStencil
+  deriving (Eq, Show)
+
+-- | Compose an odd-order half-offset stage with itself n times.  The
+-- stages alternate orientation across the two sub-lattices, so the result
+-- is centered for even n and staggered for odd n, with derivative order
+-- n·o and the staged formal accuracy: every stage shares the symbol
+-- ∂^o·(1 + O(h^a)), so the first surviving error term of the product
+-- annihilates polynomials up to degree n·o + a − 1.  The k = 1 pair
+-- composes to [1, −2, 1] at n = 2, the four-point third derivative at
+-- n = 3, and [1, −4, 6, −4, 1] at n = 4.
+composeStages :: Int -> StaggeredStencil -> Either StencilError ComposedStencil
+composeStages count stage = do
   validateStaggeredTaylor stage
-  let composedOrder = 2 * staggeredDerivativeOrder stage
+  if count < 1
+    then Left (InvalidDerivativeOrder count)
+    else return ()
+  let composedOrder = count * staggeredDerivativeOrder stage
       formalAccuracy = staggeredFormalAccuracy stage
-      radius = 2 * staggeredPairCount stage - 1
-      terms =
-        [ ((t1 + t2) `div` 2, w1 * w2)
-        | (t1, w1) <- staggeredTwiceWeights stage
-        , (t2, w2) <- staggeredTwiceWeights stage
-        ]
-      weightAt offset = sum [w | (o, w) <- terms, o == offset]
-      stencil = CenteredStencil
-        { centeredDerivativeOrder = composedOrder
-        , centeredFormalAccuracy = formalAccuracy
-        , centeredRadius = radius
-        , centeredWeights =
-            [(offset, weightAt offset) | offset <- [negate radius .. radius]]
-        }
-  validateCenteredTaylor stencil
-  return stencil
+      stageWeights = staggeredTwiceWeights stage
+      folded = foldl convolve stageWeights
+        (replicate (count - 1) stageWeights)
+      reach = count * (2 * staggeredPairCount stage - 1)
+      weightAt twiceOffset =
+        sum [w | (o, w) <- folded, o == twiceOffset]
+  if odd count
+    then do
+      let stencil = StaggeredStencil
+            { staggeredDerivativeOrder = composedOrder
+            , staggeredFormalAccuracy = formalAccuracy
+            , staggeredPairCount = (reach + 1) `div` 2
+            , staggeredTwiceWeights =
+                [ (twiceOffset, weightAt twiceOffset)
+                | twiceOffset <- [negate reach, negate reach + 2 .. reach]
+                ]
+            }
+      validateStaggeredTaylor stencil
+      return (ComposedStaggered stencil)
+    else do
+      let stencil = CenteredStencil
+            { centeredDerivativeOrder = composedOrder
+            , centeredFormalAccuracy = formalAccuracy
+            , centeredRadius = reach `div` 2
+            , centeredWeights =
+                [ (twiceOffset `div` 2, weightAt twiceOffset)
+                | twiceOffset <- [negate reach, negate reach + 2 .. reach]
+                ]
+            }
+      validateCenteredTaylor stencil
+      return (ComposedCentered stencil)
+  where
+    convolve accumulated next =
+      [ (ta + tb, wa * wb)
+      | (ta, wa) <- accumulated
+      , (tb, wb) <- next
+      ]
 
 -- | Recheck all invariants required of a staggered Taylor stencil: canonical
 -- doubled offsets, the full formal-accuracy moment range, antisymmetric

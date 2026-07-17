@@ -25,9 +25,9 @@ data RuleSource
   | StandardV1Source
   deriving (Eq, Show)
 
--- | An order-1 Yee rule keeps its half-offset stencil: the storage offsets
+-- | An odd-order Yee rule keeps a half-offset stencil: the storage offsets
 -- depend on the operand's placement bit, which is only known at lowering.
--- An order-2 Yee rule composes the order-1 stage with itself and therefore
+-- An even-order Yee rule is an even fold of the order-1 stage and therefore
 -- resolves to an ordinary centered stencil on the operand's sub-lattice.
 data ResolvedStencil
   = ResolvedCenteredStencil CenteredStencil
@@ -59,7 +59,6 @@ data ProfileError
   = InvalidProfileDerivativeOrder Int
   | InvalidProfileFormalAccuracy Int
   | InvalidProfileLatticeFamily LatticeClass StencilFamily
-  | UnsupportedStaggeredDerivativeOrder Int
   | DuplicateProfileRule LatticeClass (Maybe Int)
   | NonCanonicalProfileRuleOrder
   | ZeroFieldJetDerivative AxisId
@@ -96,12 +95,7 @@ validateRule rule = do
     else return ()
   case (derivativeRuleLatticeClass rule, derivativeRuleFamily rule) of
     (CollocatedLattice, CenteredTaylor) -> return ()
-    (StaggeredLattice, Yee) ->
-      case derivativeRuleOrder rule of
-        Nothing -> return ()
-        Just (Positive order)
-          | order == 1 || order == 2 -> return ()
-          | otherwise -> Left (UnsupportedStaggeredDerivativeOrder order)
+    (StaggeredLattice, Yee) -> return ()
     (lattice, family) -> Left (InvalidProfileLatticeFamily lattice family)
 
 validateDuplicateRules :: [DerivativeRule] -> Either ProfileError ()
@@ -177,20 +171,20 @@ makeCenteredRule lattice derivativeOrder accuracy source = do
     , resolvedRuleStencil = ResolvedCenteredStencil stencil
     }
 
--- | Both Yee orders derive from the order-1 half-offset stage at the rule's
--- formal accuracy: order 1 keeps the stage, order 2 is the stage composed
--- with itself, so divergence-of-gradient and the order-2 rule agree exactly
--- at every accuracy.
+-- | Every Yee order is the m-fold self-composition of the order-1
+-- half-offset stage at the rule's formal accuracy, so identities like
+-- Δ = divg∘grad and ∂³ = grad∘Δ hold exactly at every accuracy: odd
+-- orders keep a half-offset stencil, even orders land back on the
+-- operand's sub-lattice as centered stencils.
 makeYeeRule :: Int -> Int -> RuleSource -> Either ProfileError ResolvedRule
 makeYeeRule derivativeOrder accuracy source = do
   stage <- mapLeft ProfileStencilError
     (staggeredTaylorAtPairs 1 accuracy (accuracy `div` 2))
-  stencil <-
-    case derivativeOrder of
-      1 -> Right (ResolvedYeeStencil stage)
-      2 -> ResolvedCenteredStencil
-        <$> mapLeft ProfileStencilError (composeStaggeredPair stage)
-      _ -> Left (UnsupportedStaggeredDerivativeOrder derivativeOrder)
+  composed <- mapLeft ProfileStencilError
+    (composeStages derivativeOrder stage)
+  let stencil = case composed of
+        ComposedStaggered staggered -> ResolvedYeeStencil staggered
+        ComposedCentered centered -> ResolvedCenteredStencil centered
   Right ResolvedRule
     { resolvedRuleLatticeClass = StaggeredLattice
     , resolvedRuleDerivativeOrder = derivativeOrder

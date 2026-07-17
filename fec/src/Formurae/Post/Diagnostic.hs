@@ -227,10 +227,6 @@ profileErrorOriginIds program profileError =
     InvalidProfileLatticeFamily lattice family -> ruleOrigins
       (\rule -> derivativeRuleLatticeClass rule == lattice
         && derivativeRuleFamily rule == family)
-    UnsupportedStaggeredDerivativeOrder order -> ruleOrigins
-      (\rule -> derivativeRuleLatticeClass rule == StaggeredLattice
-        && (derivativeRuleOrder rule == Nothing
-            || ruleOrder rule == Just order))
     DuplicateProfileRule lattice order -> dropFirst (ruleOrigins
       (\rule -> derivativeRuleLatticeClass rule == lattice
         && ruleOrder rule == order))
@@ -811,8 +807,6 @@ profileErrorMessage profileError =
       ++ show accuracy
     InvalidProfileLatticeFamily lattice family ->
       "profile family " ++ show family ++ " is invalid for " ++ show lattice
-    UnsupportedStaggeredDerivativeOrder order ->
-      "staggered derivative order " ++ show order ++ " is unsupported"
     DuplicateProfileRule lattice order ->
       "duplicate profile rule for " ++ show lattice ++ " order "
       ++ maybe "default" show order

@@ -123,9 +123,24 @@ checkStaggered = do
       assertEqual "Yee order-2 composes to the compact second derivative"
         [(-1, 1), (0, -2), (1, 1)] (centeredWeights composed)
     _ -> fail "Yee order-2 rule did not compose to a centered stencil"
-  assertLeft "Yee order 3 is unsupported"
-    (== UnsupportedStaggeredDerivativeOrder 3)
+  third <- assertRight "Yee order 3"
     (resolveDerivativeRule profile StaggeredLattice 3)
+  assertEqual "Yee order-3 halo" 2 (resolvedRuleRadius third)
+  case resolvedRuleStencil third of
+    ResolvedYeeStencil stage ->
+      assertEqual "Yee order-3 is the threefold stage"
+        [(-3, -1), (-1, 3), (1, -3), (3, 1)]
+        (staggeredTwiceWeights stage)
+    _ -> fail "Yee order-3 rule should stay on the dual sub-lattice"
+  fourth <- assertRight "Yee order 4"
+    (resolveDerivativeRule profile StaggeredLattice 4)
+  assertEqual "Yee order-4 halo" 2 (resolvedRuleRadius fourth)
+  case resolvedRuleStencil fourth of
+    ResolvedCenteredStencil composed ->
+      assertEqual "Yee order-4 is the fourfold stage"
+        [(-2, 1), (-1, -4), (0, 6), (1, -4), (2, 1)]
+        (centeredWeights composed)
+    _ -> fail "Yee order-4 rule should land on the operand's sub-lattice"
 
   plan <- assertRight "mixed staggered per-axis rules"
     (resolveFieldJetProfile profile PrimalPolicy
@@ -196,8 +211,7 @@ checkInvalidProfiles = do
   let order3Yee = profileWith
         [DerivativeRule StaggeredLattice (Just (Positive 3)) Yee
           (PositiveEven 2) origin1]
-  assertLeft "Yee v1 declaration rejects order 3"
-    (== UnsupportedStaggeredDerivativeOrder 3)
+  assertEqual "Yee accepts order-specific high-order rules" (Right ())
     (validateDiscretizationProfile order3Yee)
 
   let nonCanonical = profileWith
