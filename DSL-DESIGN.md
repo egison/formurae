@@ -7,7 +7,7 @@ Formura のラテン語風複数形で *formulae*(数式)への掛詞 — 「数
 
 **v2.0(2026-07-11): pre-fec / Egison / FEIR / post-fecへのcutover** —
 現在の責務境界は、以下のpipelineと `fec/src/Formurae/Pre/`、`fec/src/Formurae/FEIR/`、
-`fec/src/Formurae/Post/` の実装、`spec/feir-primitives-v1.sexp`、および検証testで規定する。
+`fec/src/Formurae/Post/` の実装、`spec/feir-primitives.sexp`、および検証testで規定する。
 以下のv1.36以前の節は設計履歴として残すが、旧`fec`、native marker、generated derivative callback、
 Egison-side FMR printerを現在の実装説明として読まない。
 
@@ -297,6 +297,24 @@ maxwell_dec は行削除のみで .feir/.fmr バイト不変、離散 div B ≡ 
 実測で従来どおり成立。ついでに README / usage.html に残っていた v2.12 反映漏れ
 (「可変計量の δ は post-fec が補助 field を計画」等の要求時代の記述)も
 prelude マクロ+凍結の現行記述へ更新した。
+
+**v2.14(2026-07-17): versioned 機構の撤去 — 契約同一性は fingerprint に一本化** —
+手で振る版番号を protocol から全廃した: wire ヘッダは `(feir (model ...))`
+(版数アトム削除)、op ID は `derivative.ordered` 等(`@1` 削除)、manifest の
+`(op name version)`/`(schema ... 1)` は版数なし形へ、profile の `version` フィールド
+(`formurae-discretization@1`)は削除、semantic key は `feir:`/`feir-group:` 接頭辞、
+`VersionedOpId`→`OpId`・`feProgramVersion`/`opVersion`/schema version フィールド削除、
+生成 binding の V1 命名(`primitiveManifestV1Id` 等)と内部予約ヘッドの V1 接尾辞も除去、
+`spec/feir-primitives-v1.sexp`→`feir-primitives.sexp`・`egison-normalization-v1.list`→
+`egison-normalization.list` に改名。**安全装置は fingerprint(manifest/registry/profile の
+内容ハッシュ)に一本化**: 版番号が検出できた不整合はすべて fingerprint が内容ベースで
+検出するため、独立に維持する意味がなかった(fingerprint preimage 内の schema タグは
+ハッシュ入力の曖昧性排除として維持)。移行で1件の Egison 評価の癖を踏んだ:
+版数アトム除去後の wire リテラル(`FEIR.list [atom, 巨大list, ...]`)がこの規模の unit
+で偽の数学型エラーを誘発するため、renderWire はプログラムルートだけ等価な
+`FEIR.record "feir" [...]` 綴りで出力する(レンダリング結果は同一バイト)。
+検証: compiler suite 全緑・make all 38/38・**全例題の .fmr はバイト不変**
+(.egi/.feir は op ID・semantic key・fingerprint の機械的差し替え)。
 
 **v1.36(2026-07-11): runtime tensor lowering と Phase 7 完了** —
 標準6演算子だけでなく、一般の indexed equation、implicit vector equation、rank-1/rank-2

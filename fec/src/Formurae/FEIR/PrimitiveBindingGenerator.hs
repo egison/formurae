@@ -12,7 +12,7 @@ import System.FilePath ((</>))
 import Formurae.FEIR.PrimitiveManifest
 import Formurae.FEIR.Syntax
   ( PrimitiveManifestId(..)
-  , VersionedOpId(..)
+  , OpId(..)
   )
 
 data GeneratedPrimitivePaths = GeneratedPrimitivePaths
@@ -23,7 +23,7 @@ data GeneratedPrimitivePaths = GeneratedPrimitivePaths
 
 defaultGeneratedPrimitivePaths :: FilePath -> GeneratedPrimitivePaths
 defaultGeneratedPrimitivePaths root = GeneratedPrimitivePaths
-  { generatedManifestPath = root </> "spec/feir-primitives-v1.sexp"
+  { generatedManifestPath = root </> "spec/feir-primitives.sexp"
   , generatedHaskellPath =
       root </> "fec/src/Formurae/FEIR/PrimitiveBindings.hs"
   , generatedEgisonPath = root </> "lib/formurae-primitives.egi"
@@ -67,14 +67,14 @@ writeGeneratedPrimitiveBindings paths = do
 
 renderHaskellPrimitiveBindings :: PrimitiveManifest -> String
 renderHaskellPrimitiveBindings manifest = unlines
-  ( [ "-- This file is generated from spec/feir-primitives-v1.sexp."
+  ( [ "-- This file is generated from spec/feir-primitives.sexp."
     , "-- Run tools/generate-feir-primitives.hs; do not edit it directly."
     , "module Formurae.FEIR.PrimitiveBindings"
-    , "  ( primitiveManifestV1Id"
-    , "  , primitiveManifestV1"
-    , "  , primitiveSignaturesV1"
+    , "  ( primitiveManifestId"
+    , "  , primitiveManifest"
+    , "  , primitiveSignatures"
     , "  , primitiveOperationIds"
-    , "  , lookupPrimitiveSignatureV1"
+    , "  , lookupPrimitiveSignature"
     ]
     ++ map ("  , " ++) bindingNames
     ++ [ "  ) where"
@@ -85,28 +85,28 @@ renderHaskellPrimitiveBindings manifest = unlines
     ++ [ "  )"
        , "import Formurae.FEIR.Syntax"
        , "  ( PrimitiveManifestId(..)"
-       , "  , VersionedOpId(..)"
+       , "  , OpId(..)"
        , "  )"
        , ""
-       , "primitiveManifestV1Id :: PrimitiveManifestId"
-       , "primitiveManifestV1Id = PrimitiveManifestId " ++ show manifestId
+       , "primitiveManifestId :: PrimitiveManifestId"
+       , "primitiveManifestId = PrimitiveManifestId " ++ show manifestId
        , ""
-       , "primitiveManifestV1 :: PrimitiveManifest"
-       , "primitiveManifestV1 = PrimitiveManifest 1 primitiveSignaturesV1"
+       , "primitiveManifest :: PrimitiveManifest"
+       , "primitiveManifest = PrimitiveManifest primitiveSignatures"
        , ""
-       , "primitiveSignaturesV1 :: [PrimitiveSignature]"
-       , "primitiveSignaturesV1 ="
+       , "primitiveSignatures :: [PrimitiveSignature]"
+       , "primitiveSignatures ="
        ]
     ++ renderHaskellSignatures operations
     ++ [ ""
-       , "primitiveOperationIds :: [VersionedOpId]"
+       , "primitiveOperationIds :: [OpId]"
        , "primitiveOperationIds ="
        , renderHaskellList bindingNames
        , ""
-       , "lookupPrimitiveSignatureV1 :: VersionedOpId -> Maybe PrimitiveSignature"
-       , "lookupPrimitiveSignatureV1 operationId = lookup operationId"
+       , "lookupPrimitiveSignature :: OpId -> Maybe PrimitiveSignature"
+       , "lookupPrimitiveSignature operationId = lookup operationId"
        , "  [ (primitiveSignatureOpId signature, signature)"
-       , "  | signature <- primitiveSignaturesV1"
+       , "  | signature <- primitiveSignatures"
        , "  ]"
        , ""
        ]
@@ -137,33 +137,33 @@ renderHaskellPrimitiveBindings manifest = unlines
       ]
 
     renderBinding signature =
-      [ haskellBindingName signature ++ " :: VersionedOpId"
-      , haskellBindingName signature ++ " = VersionedOpId "
+      [ haskellBindingName signature ++ " :: OpId"
+      , haskellBindingName signature ++ " = OpId "
           ++ show (versionedOpText (primitiveSignatureOpId signature))
       ]
 
 renderEgisonPrimitiveBindings :: PrimitiveManifest -> String
 renderEgisonPrimitiveBindings manifest = unlines
-  ( [ "-- This file is generated from spec/feir-primitives-v1.sexp."
+  ( [ "-- This file is generated from spec/feir-primitives.sexp."
     , "-- Run tools/generate-feir-primitives.hs; do not edit it directly."
     , ""
-    , "def Formurae.Primitives.primitiveManifestV1Id : String :="
+    , "def Formurae.Primitives.primitiveManifestId : String :="
     , "  " ++ show manifestId
     , ""
     ]
     ++ concatMap renderBinding operations
     ++ [ "def Formurae.Primitives.signatures"
-       , "      : [(String, String, Integer, [String], String, String, String, [String], String)] :="
+       , "      : [(String, String, [String], String, String, String, [String], String)] :="
        , renderEgisonSignatures operations
        , ""
        , "def Formurae.Primitives.signatureOperationId"
-       , "      (signature: (String, String, Integer, [String], String, String, String, [String], String))"
+       , "      (signature: (String, String, [String], String, String, String, [String], String))"
        , "      : String :="
-       , "  let (operationId, _, _, _, _, _, _, _, _) := signature in operationId"
+       , "  let (operationId, _, _, _, _, _, _, _) := signature in operationId"
        , ""
        , "def Formurae.Primitives.signatureFor"
        , "      (operationId: String)"
-       , "      : (String, String, Integer, [String], String, String, String, [String], String) :="
+       , "      : (String, String, [String], String, String, String, [String], String) :="
        , "  let matches :="
        , "        filter"
        , "          (\\entry ->"
@@ -204,8 +204,6 @@ renderHaskellSignatures signatures =
       , "      { primitiveSignatureOpId = " ++ haskellBindingName signature
       , "      , primitiveSignatureOpName = "
           ++ show (primitiveSignatureOpName signature)
-      , "      , primitiveSignatureOpVersion = "
-          ++ show (primitiveSignatureOpVersion signature)
       , "      , primitiveSignatureInputs = "
           ++ show (primitiveSignatureInputs signature)
       , "      , primitiveSignatureOutput = "
@@ -229,7 +227,6 @@ renderEgisonSignatures signatures = intercalate "\n"
       ++ "(" ++ intercalate ", "
         [ egisonQualifiedBindingName signature
         , show (primitiveSignatureOpName signature)
-        , show (primitiveSignatureOpVersion signature)
         , renderEgisonStrings
             (map valueCategoryText (primitiveSignatureInputs signature))
         , show (valueCategoryText (primitiveSignatureOutput signature))
@@ -282,9 +279,7 @@ staleDifference path expected actual
 
 haskellBindingName :: PrimitiveSignature -> String
 haskellBindingName signature =
-  operationStem signature
-  ++ "V" ++ show (primitiveSignatureOpVersion signature)
-  ++ "OpId"
+  operationStem signature ++ "OpId"
 
 egisonQualifiedBindingName :: PrimitiveSignature -> String
 egisonQualifiedBindingName signature =
@@ -319,5 +314,5 @@ renderHaskellList (first : rest) = intercalate "\n"
   : map ("  , " ++) rest
   ++ ["  ]"])
 
-versionedOpText :: VersionedOpId -> String
-versionedOpText (VersionedOpId value) = value
+versionedOpText :: OpId -> String
+versionedOpText (OpId value) = value

@@ -21,9 +21,6 @@ newtype RegistryId = RegistryId String
 newtype PrimitiveManifestId = PrimitiveManifestId String
   deriving (Eq, Ord, Show)
 
-newtype VersionedProfileId = VersionedProfileId String
-  deriving (Eq, Ord, Show)
-
 newtype Fingerprint = Fingerprint String
   deriving (Eq, Ord, Show)
 
@@ -54,7 +51,7 @@ newtype NodeId = NodeId Int
 newtype EquationId = EquationId Int
   deriving (Eq, Ord, Show)
 
-newtype VersionedOpId = VersionedOpId String
+newtype OpId = OpId String
   deriving (Eq, Ord, Show)
 
 newtype SemanticKey = SemanticKey String
@@ -255,8 +252,7 @@ data GeometryNF = GeometryNF
 -- --------------------------------------------------------- discretization
 
 data DiscretizationProfile = DiscretizationProfile
-  { discretizationProfileVersion     :: VersionedProfileId
-  , discretizationProfileFingerprint :: Fingerprint
+  { discretizationProfileFingerprint :: Fingerprint
   , discretizationDerivativeRules    :: [DerivativeRule]
   , discretizationMixedRule          :: MixedStencilRule
   } deriving (Eq, Ord, Show)
@@ -333,7 +329,7 @@ data FieldJet = FieldJetValue
   } deriving (Eq, Ord, Show)
 
 data OpaqueDiscrete = OpaqueDiscreteCall
-  { opaqueDiscreteOpId         :: VersionedOpId
+  { opaqueDiscreteOpId         :: OpId
   , opaqueDiscreteSemanticKey  :: SemanticKey
   , opaqueDiscreteRequestGroup :: RequestGroupId
   , opaqueDiscreteResultBasis  :: Basis
@@ -405,8 +401,7 @@ data FEInitializer
   deriving (Eq, Ord, Show)
 
 data FEProgram = FEProgram
-  { feProgramVersion             :: Int
-  , feProgramModel               :: ModelIdentity
+  { feProgramModel               :: ModelIdentity
   , feProgramRegistryId          :: RegistryId
   , feProgramPrimitiveManifestId :: PrimitiveManifestId
   , feProgramDiscretization      :: DiscretizationProfile

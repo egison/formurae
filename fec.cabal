@@ -13,9 +13,9 @@ description:
     derivative function symbols; post-fec validates that interface, selects
     stencil implementations, and emits Formura code.
 build-type:         Custom
-data-files:         spec/feir-primitives-v1.sexp
-extra-source-files: spec/feir-primitives-v1.sexp
-                  , spec/egison-normalization-v1.list
+data-files:         spec/feir-primitives.sexp
+extra-source-files: spec/feir-primitives.sexp
+                  , spec/egison-normalization.list
                   , lib/formurae-primitives.egi
                   , fec/src/Formurae/FEIR/PrimitiveBindingGenerator.hs
                   , tools/generate-feir-primitives.hs

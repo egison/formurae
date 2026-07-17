@@ -366,7 +366,7 @@ findLocatedOpaqueByGroup program group = find
   ((== group) . opaqueDiscreteRequestGroup . locatedOpaqueValue)
   (collectLocatedOpaque program)
 
-findLocatedOpaqueByOp :: FEProgram -> VersionedOpId -> Maybe LocatedOpaque
+findLocatedOpaqueByOp :: FEProgram -> OpId -> Maybe LocatedOpaque
 findLocatedOpaqueByOp program opId = find
   ((== opId) . opaqueDiscreteOpId . locatedOpaqueValue)
   (collectLocatedOpaque program)
@@ -498,9 +498,6 @@ fallbackProgramOrigin program =
 validationIssueMessage :: ValidationIssue -> String
 validationIssueMessage issue =
   case issue of
-    UnsupportedProgramVersion expected actual ->
-      "unsupported FEIR version " ++ show actual
-      ++ "; expected " ++ show expected
     EmptyIdentifier namespace ->
       identifierNamespaceName namespace ++ " must not be empty"
     NonPositiveIdentifier namespace value ->
@@ -602,8 +599,6 @@ validationIssueMessage issue =
       "derivative rule order must be positive, got " ++ show order
     InvalidFormalAccuracy accuracy ->
       "formal accuracy must be positive and even, got " ++ show accuracy
-    UnsupportedProfileVersion profileId ->
-      "unsupported discretization profile " ++ show profileId
     InvalidLatticeFamily lattice family ->
       "stencil family " ++ show family ++ " is invalid for " ++ show lattice
     UnsupportedYeeAccuracy accuracy ->

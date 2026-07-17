@@ -56,15 +56,15 @@ main = do
   let opaque = concatMap actionOpaqueCalls actions
       operationIds = map opaqueDiscreteOpId opaque
   assertEqual "two quoted component derivatives survive to FEIR"
-    [ VersionedOpId "derivative.grid-whole@1"
-    , VersionedOpId "derivative.grid-whole@1"
+    [ OpId "derivative.grid-whole"
+    , OpId "derivative.grid-whole"
     ]
     (sort operationIds)
   assert "no conservative-divergence opaque primitive"
-    (VersionedOpId "flux.conservative-divergence@1"
+    (OpId "flux.conservative-divergence"
       `notElem` operationIds)
   assert "no materialized opaque primitive"
-    (VersionedOpId "operator.materialized@1" `notElem` operationIds)
+    (OpId "operator.materialized" `notElem` operationIds)
   putStrLn "pre-fec conservative local FEIR test: ok"
 
 actionOpaqueCalls :: FEAction -> [OpaqueDiscrete]

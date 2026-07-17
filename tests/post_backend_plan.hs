@@ -80,14 +80,12 @@ testPureLocalInitializer = do
 
 fixture :: FEProgram
 fixture = FEProgram
-  { feProgramVersion = 1
-  , feProgramModel = ModelIdentity (ModelId "model") "geometry"
+  { feProgramModel = ModelIdentity (ModelId "model") "geometry"
       (SourceIdentity (SourceId "source") "geometry.fme")
   , feProgramRegistryId = RegistryId "registry"
   , feProgramPrimitiveManifestId = PrimitiveManifestId "manifest"
   , feProgramDiscretization = setProfileFingerprint
       (DiscretizationProfile
-        (VersionedProfileId "formurae-discretization@1")
         (Fingerprint "") [] FixedAxisOrder)
   , feProgramMode = CollocatedMode
   , feProgramDimension = 2
@@ -127,7 +125,7 @@ fieldJet fieldId = FieldJetValue fieldId CurrentTime (Basis [])
 
 orderedOpaque :: SemanticKey -> RequestGroupId -> FieldId -> OpaqueDiscrete
 orderedOpaque key group fieldId = OpaqueDiscreteCall
-  Primitives.derivativeOrderedV1OpId key group (Basis [])
+  Primitives.derivativeOrderedOpId key group (Basis [])
   [ScalarValue (FieldJet (fieldJet fieldId))]
   [ Attribute (AttributeId "order") (AttributeNatural 1)
   , Attribute (AttributeId "ordered-axes")

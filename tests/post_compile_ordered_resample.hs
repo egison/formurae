@@ -74,7 +74,7 @@ stripOrigin value = value
 
 orderedOpaque :: String -> FieldJet -> [AxisId] -> OpaqueDiscrete
 orderedOpaque key jet axes = OpaqueDiscreteCall
-  Primitives.derivativeOrderedV1OpId
+  Primitives.derivativeOrderedOpId
   (SemanticKey key) (RequestGroupId (key ++ "-group")) (Basis [])
   [ScalarValue (FieldJet jet)]
   [ Attribute (AttributeId "order")
@@ -86,7 +86,7 @@ orderedOpaque key jet axes = OpaqueDiscreteCall
 
 resampleOpaque :: String -> FieldJet -> [Bool] -> OpaqueDiscrete
 resampleOpaque key jet bits = OpaqueDiscreteCall
-  Primitives.resampleExplicitV1OpId
+  Primitives.resampleExplicitOpId
   (SemanticKey key) (RequestGroupId (key ++ "-group")) (Basis [])
   [ScalarValue (FieldJet jet)]
   [Attribute (AttributeId "target-placement")
@@ -103,15 +103,13 @@ update equationId fieldId scalar = UpdateField
 
 fixture :: FEProgram
 fixture = FEProgram
-  { feProgramVersion = 1
-  , feProgramModel = ModelIdentity (ModelId "ordered-resample")
+  { feProgramModel = ModelIdentity (ModelId "ordered-resample")
       "ordered-resample"
       (SourceIdentity (SourceId "source") "ordered-resample.fme")
   , feProgramRegistryId = RegistryId "registry"
   , feProgramPrimitiveManifestId = PrimitiveManifestId "manifest"
   , feProgramDiscretization = setProfileFingerprint
       (DiscretizationProfile
-        (VersionedProfileId "formurae-discretization@1")
         (Fingerprint "")
         [DerivativeRule CollocatedLattice Nothing CenteredTaylor
           (PositiveEven 4) (OriginId 1)]

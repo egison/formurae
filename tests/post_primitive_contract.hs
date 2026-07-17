@@ -12,7 +12,7 @@ main = do
 
 testOrdered :: IO ()
 testOrdered = do
-  let request = opaque Primitives.derivativeOrderedV1OpId (Basis [])
+  let request = opaque Primitives.derivativeOrderedOpId (Basis [])
         [ScalarValue source]
         [ Attribute (AttributeId "order") (AttributeNatural 3)
         , Attribute (AttributeId "ordered-axes")
@@ -40,7 +40,7 @@ testOrdered = do
 
 testResample :: IO ()
 testResample = do
-  let request = opaque Primitives.resampleExplicitV1OpId (Basis [])
+  let request = opaque Primitives.resampleExplicitOpId (Basis [])
         [ScalarValue source]
         [Attribute (AttributeId "target-placement")
           (AttributeValues [AttributeBoolean False, AttributeBoolean True])]
@@ -66,7 +66,7 @@ source = FieldJet (FieldJetValue (FieldId 1) CurrentTime (Basis [])
   [Coordinate (AxisId 1), Coordinate (AxisId 2)] [])
 
 opaque
-    :: VersionedOpId -> Basis -> [FEValue] -> [Attribute] -> OpaqueDiscrete
+    :: OpId -> Basis -> [FEValue] -> [Attribute] -> OpaqueDiscrete
 opaque operation basis operands attributes = OpaqueDiscreteCall
   operation (SemanticKey "key") (RequestGroupId "group")
   basis operands attributes

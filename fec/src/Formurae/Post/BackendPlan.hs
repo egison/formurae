@@ -22,10 +22,10 @@ import qualified Formurae.FEIR.PrimitiveManifest as Manifest
 import Formurae.FEIR.Syntax
 
 data BackendPlanError
-  = EffectfulRequestInInitializer VersionedOpId SemanticKey OriginId
+  = EffectfulRequestInInitializer OpId SemanticKey OriginId
   | ConflictingOpaqueSemanticKey SemanticKey
   | ConflictingOpaqueRequestGroup RequestGroupId
-  | UnsupportedEffectfulOperation VersionedOpId SemanticKey OriginId
+  | UnsupportedEffectfulOperation OpId SemanticKey OriginId
   deriving (Eq, Ord, Show)
 
 data RequestOccurrence = RequestOccurrence
@@ -198,9 +198,9 @@ sameRequestGroupPayload lhs rhs =
 sortedAttributes :: OpaqueDiscrete -> [Attribute]
 sortedAttributes = sortOn attributeId . opaqueDiscreteAttributes
 
-isMaterializingOperation :: VersionedOpId -> Bool
+isMaterializingOperation :: OpId -> Bool
 isMaterializingOperation opId =
-  case Primitives.lookupPrimitiveSignatureV1 opId of
+  case Primitives.lookupPrimitiveSignature opId of
     Just signature ->
       case Manifest.primitiveSignatureEffect signature of
         Manifest.NeedsMaterialization _ -> True

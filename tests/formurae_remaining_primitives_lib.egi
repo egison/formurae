@@ -6,7 +6,7 @@ def feGeometryScales : Vector MathValue := [|1, 1|]
 def feGeometryId : Integer := 1
 def epsilon : Tensor Integer := ε dimension
 def fePrimitiveManifestId : String :=
-  Formurae.Primitives.primitiveManifestV1Id
+  Formurae.Primitives.primitiveManifestId
 
 def remainingU := function (x, y)
 
@@ -26,7 +26,7 @@ def resampleRequest :=
   Formurae.resampleExplicit [|0, 1|] remainingU
 
 def expectedOrdered :=
-  FEIR.opaqueNode "derivative.ordered@1" []
+  FEIR.opaqueNode "derivative.ordered" []
     [FEIR.scalarValue encodedRemainingU]
     [ FEIR.attribute "order" (FEIR.attributeNatural 3)
     , FEIR.attribute "ordered-axes"
@@ -39,7 +39,7 @@ def expectedOrdered :=
     ]
 
 def expectedResample :=
-  FEIR.opaqueNode "resample.explicit@1" []
+  FEIR.opaqueNode "resample.explicit" []
     [FEIR.scalarValue encodedRemainingU]
     [ FEIR.attribute "target-placement"
         (FEIR.attributeValues

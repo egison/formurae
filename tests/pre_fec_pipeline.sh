@@ -465,7 +465,7 @@ cabal run -v0 -j1 pre-fec -- "$ROOT/tests/fixtures/pre_fec_wide.fme" \
 grep -F 'FormuraeInternalCoordinateWideDerivative 1 2 2 u' \
   "$WORK/wide.egi" >/dev/null
 run_machine "$WORK/wide.egi" "$WORK/wide.feir"
-grep -F '(op-id "derivative.coordinate-wide@1")' "$WORK/wide.feir" >/dev/null
+grep -F '(op-id "derivative.coordinate-wide")' "$WORK/wide.feir" >/dev/null
 grep -F '(id "radius") (value (natural 2))' "$WORK/wide.feir" >/dev/null
 cabal run -v0 -j1 post-fec -- "$WORK/wide.feir" > "$WORK/wide.fmr"
 grep -F 'u[i-2]' "$WORK/wide.fmr" >/dev/null
@@ -571,7 +571,7 @@ if grep -F 'expandAll' "$WORK/metric-forms.egi" >/dev/null; then
   exit 1
 fi
 run_machine "$WORK/metric-forms.egi" "$WORK/metric-forms.feir"
-if grep -F '(op-id "codiff.metric@1")' "$WORK/metric-forms.feir" >/dev/null; then
+if grep -F '(op-id "codiff.metric")' "$WORK/metric-forms.feir" >/dev/null; then
   printf 'metric form FEIR still schedules the retired codiff.metric request\n' >&2
   exit 1
 fi
@@ -661,8 +661,8 @@ if grep -E 'FormuraeInternalFluxConservativeDivergence|FormuraeInternalMateriali
 fi
 run_machine "$WORK/surface-cutover.egi" "$WORK/surface-cutover.feir"
 for operation in \
-  derivative.ordered@1 \
-  resample.explicit@1; do
+  derivative.ordered \
+  resample.explicit; do
   grep -F "(op-id \"$operation\")" "$WORK/surface-cutover.feir" >/dev/null
 done
 if grep -E 'flux\.conservative-divergence@1|operator\.materialized@1' \
@@ -709,7 +709,7 @@ if grep -F 'FormuraeInternalScalarDelta' \
 fi
 run_machine "$WORK/scalar-delta-equivalence.egi" \
   "$WORK/scalar-delta-equivalence.feir"
-if grep -F '(op-id "lb.orthogonal@1")' \
+if grep -F '(op-id "lb.orthogonal")' \
      "$WORK/scalar-delta-equivalence.feir" >/dev/null; then
   printf 'declared-geometry Delta still scheduled lb.orthogonal\n' >&2
   exit 1
@@ -764,7 +764,7 @@ while read -r geometry check_source; do
   fi
   run_machine "$WORK/$geometry.egi" "$WORK/$geometry.feir"
   grep -F '(orthogonality-verified true)' "$WORK/$geometry.feir" >/dev/null
-  if grep -F '(op-id "lb.orthogonal@1")' "$WORK/$geometry.feir" >/dev/null; then
+  if grep -F '(op-id "lb.orthogonal")' "$WORK/$geometry.feir" >/dev/null; then
     printf 'geometry FEIR still schedules lb.orthogonal: %s\n' "$geometry" >&2
     exit 1
   fi

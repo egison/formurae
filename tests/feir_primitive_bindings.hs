@@ -2,41 +2,41 @@ module Main (main) where
 
 import Formurae.FEIR.PrimitiveBindingGenerator
 import Formurae.FEIR.PrimitiveBindings
-import Formurae.FEIR.PrimitiveManifest
-import Formurae.FEIR.Syntax (PrimitiveManifestId(..), VersionedOpId(..))
+import Formurae.FEIR.PrimitiveManifest hiding (primitiveManifestId)
+import Formurae.FEIR.Syntax (PrimitiveManifestId(..), OpId(..))
 
 main :: IO ()
 main = do
   result <- checkGeneratedPrimitiveBindings
     (defaultGeneratedPrimitivePaths ".")
   either (fail . unlines) pure result
-  source <- readFile "spec/feir-primitives-v1.sexp"
+  source <- readFile "spec/feir-primitives.sexp"
   parsed <- either (fail . show) pure (parsePrimitiveManifest source)
-  assertEqual "generated full primitive manifest" parsed primitiveManifestV1
+  assertEqual "generated full primitive manifest" parsed primitiveManifest
   assertEqual "generated full signature table"
-    (primitiveManifestSignatures parsed) primitiveSignaturesV1
+    (primitiveManifestSignatures parsed) primitiveSignatures
   assertEqual "generated manifest ID"
     (PrimitiveManifestId
-      "sha256:15edbc55825f7b9ff02836c67d852b46635f34d7b94a0397d750243b555aa9fb")
-    primitiveManifestV1Id
+      "sha256:b7a05af81f6418b2163bd3ef280d911d6409564da41c96d455b872e62d120098")
+    primitiveManifestId
   assertEqual "all generated operation IDs"
-    [ VersionedOpId "derivative.coordinate-wide@1"
-    , VersionedOpId "derivative.grid-whole@1"
-    , VersionedOpId "derivative.ordered@1"
-    , VersionedOpId "resample.explicit@1"
+    [ OpId "derivative.coordinate-wide"
+    , OpId "derivative.grid-whole"
+    , OpId "derivative.ordered"
+    , OpId "resample.explicit"
     ]
     primitiveOperationIds
   mapM_ (assertLookup parsed) primitiveOperationIds
   putStrLn "FEIR generated primitive binding tests: ok"
 
-assertLookup :: PrimitiveManifest -> VersionedOpId -> IO ()
+assertLookup :: PrimitiveManifest -> OpId -> IO ()
 assertLookup manifest operationId =
   assertEqual ("generated signature lookup " ++ show operationId)
     [ signature
     | signature <- primitiveManifestSignatures manifest
     , primitiveSignatureOpId signature == operationId
     ]
-    (case lookupPrimitiveSignatureV1 operationId of
+    (case lookupPrimitiveSignature operationId of
       Just signature -> [signature]
       Nothing -> [])
 

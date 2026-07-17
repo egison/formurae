@@ -59,7 +59,7 @@ testValidationActionAndOpaquePaths = do
         [ProgramPath, ActionPath 1, EquationPath (EquationId 2)]
         (InvalidTargetTime CurrentTime NextTime)))
   assertRendered "global opaque key resolves its request occurrence"
-    "/workspace/model.fme:40:3: unknown opaque operation VersionedOpId \"operator.retired@1\""
+    "/workspace/model.fme:40:3: unknown opaque operation OpId \"operator.retired\""
     (renderValidationError fixture
       (ValidationError [ProgramPath, OpaquePath opaqueKey]
         (UnknownOpaqueOperation retiredOperationId)))
@@ -81,7 +81,7 @@ testPostIdentifierResolution = do
     (renderPostError fixture
       (PostLocationError (InvalidDerivativeAxis (AxisId 1) 0)))
   assertRendered "opaque operation occurrence"
-    "/workspace/model.fme:40:3: unsupported opaque operation VersionedOpId \"operator.retired@1\""
+    "/workspace/model.fme:40:3: unsupported opaque operation OpId \"operator.retired\""
     (renderPostError fixture (PostUnsupportedOpaque retiredOperationId))
   assertRendered "wide request error keeps opaque occurrence origin"
     "/workspace/model.fme:40:3: wide derivative is missing attribute AttributeId \"radius\""
@@ -103,7 +103,7 @@ testPostIdentifierResolution = do
 testBackendPlanResolution :: IO ()
 testBackendPlanResolution = do
   assertRendered "origin-bearing backend error"
-    "/workspace/model.fme:40:3: effectful operation VersionedOpId \"operator.retired@1\" (SemanticKey \"opaque-key\") is not supported by this post-fec"
+    "/workspace/model.fme:40:3: effectful operation OpId \"operator.retired\" (SemanticKey \"opaque-key\") is not supported by this post-fec"
     (renderPostError fixture
       (PostBackendPlanError (Backend.UnsupportedEffectfulOperation
         retiredOperationId opaqueKey (OriginId 7))))
@@ -152,14 +152,12 @@ testExpansionTrace = do
 
 fixture :: FEProgram
 fixture = FEProgram
-  { feProgramVersion = 1
-  , feProgramModel = ModelIdentity (ModelId "model") "model"
+  { feProgramModel = ModelIdentity (ModelId "model") "model"
       (SourceIdentity (SourceId "source") "/workspace/model.fme")
   , feProgramRegistryId = RegistryId "registry"
   , feProgramPrimitiveManifestId = PrimitiveManifestId "manifest"
   , feProgramDiscretization = setProfileFingerprint
       (DiscretizationProfile
-        (VersionedProfileId "formurae-discretization@1")
         (Fingerprint "")
         [DerivativeRule CollocatedLattice (Just (Positive 1))
           CenteredTaylor (PositiveEven 3) (OriginId 2)]
@@ -200,8 +198,8 @@ fixture = FEProgram
       [(NodeId 1, [OriginId 6])]
   }
 
-retiredOperationId :: VersionedOpId
-retiredOperationId = VersionedOpId "operator.retired@1"
+retiredOperationId :: OpId
+retiredOperationId = OpId "operator.retired"
 
 opaqueKey :: SemanticKey
 opaqueKey = SemanticKey "opaque-key"

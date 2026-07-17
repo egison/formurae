@@ -12,7 +12,7 @@ main = do
   model <- parseModel "tests/fixtures/pre_fec_remaining_primitives.fme"
     "remaining-primitives" source
   unit <- requireRight =<< emitNormalizationUnit
-    Primitives.primitiveManifestV1Id model
+    Primitives.primitiveManifestId model
   assertContains "nested quoted-derivative axes become stable IDs"
     "FormuraeInternalOrderedDerivative [| 1, 2 |] u" unit
   assertContains "canonical resample keeps absolute placement bits explicit"
@@ -37,7 +37,7 @@ main = do
   indexedModel <- parseModel "indexed-targets.fme" "indexed-targets"
     indexedTargetSource
   indexedUnit <- requireRight =<< emitNormalizationUnit
-    Primitives.primitiveManifestV1Id indexedModel
+    Primitives.primitiveManifestId indexedModel
   assertContains "indexed let scopes its LHS index over the RHS"
     "def FormuraeInternalValue1_i : Tensor MathValue := B_i" indexedUnit
   assertContains "indexed let alias keeps the same indexed contract"
@@ -53,7 +53,7 @@ main = do
   completionModel <- parseModel "indexed-let-completion.fme"
     "indexed-let-completion" indexedLetCompletionSource
   completionUnit <- requireRight =<< emitNormalizationUnit
-    Primitives.primitiveManifestV1Id completionModel
+    Primitives.primitiveManifestId completionModel
   assertContains "bare lower indexed let gets an anonymous lower use-site"
     "def FormuraeInternalValue3_i : Tensor MathValue := T_#" completionUnit
   assertContains "bare mixed indexed let preserves every declared variance"
@@ -64,7 +64,7 @@ main = do
   localModel <- parseModel "tensor-locals.fme" "tensor-locals"
     tensorLocalSource
   localUnit <- requireRight =<< emitNormalizationUnit
-    Primitives.primitiveManifestV1Id localModel
+    Primitives.primitiveManifestId localModel
   assertContains "indexed local scopes its LHS index over the RHS"
     "def FormuraeInternalValue1_i : Tensor MathValue := Q_i"
     localUnit
@@ -85,7 +85,7 @@ main = do
 
   badBitsModel <- parseModel "bad-resample.fme" "bad-resample"
     badBitsSource
-  badBits <- emitNormalizationUnit Primitives.primitiveManifestV1Id badBitsModel
+  badBits <- emitNormalizationUnit Primitives.primitiveManifestId badBitsModel
   assertLeft "resample requires dimension-many literal bits" isBadBits badBits
   putStrLn "pre-fec remaining primitive emitter tests: ok"
 

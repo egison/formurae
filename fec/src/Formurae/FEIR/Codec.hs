@@ -197,12 +197,6 @@ encodePrimitiveManifestId (PrimitiveManifestId value) = encodeStringId value
 decodePrimitiveManifestId :: SExpr -> Either CodecError PrimitiveManifestId
 decodePrimitiveManifestId = decodeStringId "primitive-manifest-id" PrimitiveManifestId
 
-encodeVersionedProfileId :: VersionedProfileId -> SExpr
-encodeVersionedProfileId (VersionedProfileId value) = encodeStringId value
-
-decodeVersionedProfileId :: SExpr -> Either CodecError VersionedProfileId
-decodeVersionedProfileId = decodeStringId "profile-version" VersionedProfileId
-
 encodeFingerprint :: Fingerprint -> SExpr
 encodeFingerprint (Fingerprint value) = encodeStringId value
 
@@ -263,11 +257,11 @@ encodeEquationId (EquationId value) = encodeNumericId value
 decodeEquationId :: SExpr -> Either CodecError EquationId
 decodeEquationId = decodeNumericId "equation-id" EquationId
 
-encodeVersionedOpId :: VersionedOpId -> SExpr
-encodeVersionedOpId (VersionedOpId value) = encodeStringId value
+encodeOpId :: OpId -> SExpr
+encodeOpId (OpId value) = encodeStringId value
 
-decodeVersionedOpId :: SExpr -> Either CodecError VersionedOpId
-decodeVersionedOpId = decodeStringId "op-id" VersionedOpId
+decodeOpId :: SExpr -> Either CodecError OpId
+decodeOpId = decodeStringId "op-id" OpId
 
 encodeSemanticKey :: SemanticKey -> SExpr
 encodeSemanticKey (SemanticKey value) = encodeStringId value
@@ -325,7 +319,6 @@ encodeFEProgram :: FEProgram -> SExpr
 encodeFEProgram program =
   List
     [ Atom "feir"
-    , encodeInt (feProgramVersion program)
     , field "model" (encodeModelIdentity (feProgramModel program))
     , field "registry-id" (encodeRegistryId (feProgramRegistryId program))
     , field "primitive-manifest-id"
@@ -349,13 +342,9 @@ encodeFEProgram program =
 decodeFEProgram :: SExpr -> Either CodecError FEProgram
 decodeFEProgram expression =
   case expression of
-    List (Atom "feir" : versionExpr : encodedFields) -> do
-      version <- decodeInt "feir-version" versionExpr
-      if version /= 1
-        then codecError "feir" ("unsupported FEIR version: " ++ show version)
-        else return ()
+    List (Atom "feir" : encodedFields) -> do
       fields <- decodeRecordFields "feir" programFieldNames encodedFields
-      program <- FEProgram version
+      program <- FEProgram
         <$> (required "model" fields >>= decodeModelIdentity)
         <*> (required "registry-id" fields >>= decodeRegistryId)
         <*> (required "primitive-manifest-id" fields >>= decodePrimitiveManifestId)
@@ -375,7 +364,7 @@ decodeFEProgram expression =
       verifyProfileFingerprint (feProgramDiscretization program)
       Right program
     List (Atom tag : _) -> codecError "feir" ("unknown top-level tag: " ++ tag)
-    _ -> codecError "feir" "expected (feir 1 ...)"
+    _ -> codecError "feir" "expected (feir ...)"
   where
     programFieldNames =
       [ "model", "registry-id", "primitive-manifest-id", "discretization"
@@ -822,8 +811,7 @@ decodeAxisScalarAssociations context expression = do
 
 encodeDiscretizationProfile :: DiscretizationProfile -> SExpr
 encodeDiscretizationProfile profile = record "discretization-profile"
-  [ ("version", encodeVersionedProfileId (discretizationProfileVersion profile))
-  , ("fingerprint", encodeFingerprint (discretizationProfileFingerprint profile))
+  [ ("fingerprint", encodeFingerprint (discretizationProfileFingerprint profile))
   , ("rules", encodeList encodeDerivativeRule (sortRules (discretizationDerivativeRules profile)))
   , ("mixed", encodeMixedStencilRule (discretizationMixedRule profile))
   ]
@@ -831,10 +819,9 @@ encodeDiscretizationProfile profile = record "discretization-profile"
 decodeDiscretizationProfile :: SExpr -> Either CodecError DiscretizationProfile
 decodeDiscretizationProfile expression = do
   fields <- decodeRecord "discretization-profile"
-    ["version", "fingerprint", "rules", "mixed"] expression
+    ["fingerprint", "rules", "mixed"] expression
   profile <- DiscretizationProfile
-    <$> (required "version" fields >>= decodeVersionedProfileId)
-    <*> (required "fingerprint" fields >>= decodeFingerprint)
+    <$> (required "fingerprint" fields >>= decodeFingerprint)
     <*> (required "rules" fields >>= decodeList "derivative-rules" decodeDerivativeRule)
     <*> (required "mixed" fields >>= decodeMixedStencilRule)
   rejectDuplicateKeys "derivative-rules" (map ruleKey (discretizationDerivativeRules profile))
@@ -905,7 +892,6 @@ sortRules = sortOn ruleKey
 profileFingerprintPayload :: DiscretizationProfile -> SExpr
 profileFingerprintPayload profile = record "discretization-profile-payload"
   [ ("schema", List [Atom "formurae-discretization", encodeInt 1])
-  , ("version", encodeVersionedProfileId (discretizationProfileVersion profile))
   , ("rules", encodeList encodeRuleWithoutOrigin (sortRules (discretizationDerivativeRules profile)))
   , ("mixed", encodeMixedStencilRule (discretizationMixedRule profile))
   ]
@@ -1110,7 +1096,7 @@ decodeMultiIndex expression = do
 
 encodeOpaqueDiscrete :: OpaqueDiscrete -> SExpr
 encodeOpaqueDiscrete opaque = record "opaque-discrete"
-  [ ("op-id", encodeVersionedOpId (opaqueDiscreteOpId opaque))
+  [ ("op-id", encodeOpId (opaqueDiscreteOpId opaque))
   , ("semantic-key", encodeSemanticKey (opaqueDiscreteSemanticKey opaque))
   , ("request-group", encodeRequestGroupId (opaqueDiscreteRequestGroup opaque))
   , ("result-basis", encodeBasis (opaqueDiscreteResultBasis opaque))
@@ -1128,7 +1114,7 @@ decodeOpaqueDiscrete expression = do
   attributes <- decodeList "attributes" decodeAttribute attributesExpression
   rejectDuplicateKeys "attributes" (map attributeId attributes)
   OpaqueDiscreteCall
-    <$> (required "op-id" fields >>= decodeVersionedOpId)
+    <$> (required "op-id" fields >>= decodeOpId)
     <*> (required "semantic-key" fields >>= decodeSemanticKey)
     <*> (required "request-group" fields >>= decodeRequestGroupId)
     <*> (required "result-basis" fields >>= decodeBasis)

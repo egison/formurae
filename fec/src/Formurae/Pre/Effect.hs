@@ -21,7 +21,7 @@ import Data.List (find, intercalate, nub, sort)
 
 import qualified Formurae.FEIR.PrimitiveBindings as Primitives
 import Formurae.FEIR.PrimitiveManifest
-import Formurae.FEIR.Syntax (VersionedOpId(..))
+import Formurae.FEIR.Syntax (OpId(..))
 import Formurae.Common
   ( analyticDerivativeName
   , egisonIdentifiers
@@ -42,7 +42,7 @@ import Formurae.TensorExpr
 
 data FunctionEffect
   = PureFunction
-  | DiscreteFunction [VersionedOpId]
+  | DiscreteFunction [OpId]
   deriving (Eq, Ord, Show)
 
 -- Variable-metric safety needs one small amount of meaning that the
@@ -68,9 +68,9 @@ data EffectIssue
   = InvalidEffectExpression String
   | ForwardDefinitionUse String
   | MissingPrimitiveSignature String
-  | AnalyticDerivativeOfDiscrete [VersionedOpId]
-  | GridDerivativeOfDiscrete [VersionedOpId]
-  | EffectfulHigherOrderArgument String [VersionedOpId]
+  | AnalyticDerivativeOfDiscrete [OpId]
+  | GridDerivativeOfDiscrete [OpId]
+  | EffectfulHigherOrderArgument String [OpId]
   | CanonicalOperatorModeMismatch String
   | VariableMetricHodgeLaplacianUnsupported
   | VariableMetricHodgeCompositionUnsupported
@@ -260,7 +260,7 @@ analyzeRawEgisonDefinition environment source = do
           case derivativeOpParts (name ++ concatMap ixSuffix parts) of
             Just (_, radius, _)
               | radius > 1 -> primitiveEffect environment
-                  Primitives.derivativeCoordinateWideV1OpId
+                  Primitives.derivativeCoordinateWideOpId
             _
               | null parts
               , Just operator <- canonicalOperator name ->
@@ -314,7 +314,7 @@ rawEgisonIdentifiers environment source = nub (identifiers ++ dotIdentifier)
 -- Raw Egison can spell a bridge call with its qualified library name.  The
 -- shallow scanner sees the final component after `Formurae.`, so include the
 -- bridge implementation names as well as the ordinary surface aliases.
-rawPrimitiveOperation :: Model -> String -> Maybe VersionedOpId
+rawPrimitiveOperation :: Model -> String -> Maybe OpId
 rawPrimitiveOperation _model name =
   case lookup name directBridgeOperations of
     Just operation -> Just operation
@@ -322,18 +322,18 @@ rawPrimitiveOperation _model name =
   where
     directBridgeOperations =
       [ ("coordinateWideDerivative",
-          Primitives.derivativeCoordinateWideV1OpId)
+          Primitives.derivativeCoordinateWideOpId)
       , ("FormuraeInternalCoordinateWideDerivative",
-          Primitives.derivativeCoordinateWideV1OpId)
-      , ("gridWholeDerivative", Primitives.derivativeGridWholeV1OpId)
+          Primitives.derivativeCoordinateWideOpId)
+      , ("gridWholeDerivative", Primitives.derivativeGridWholeOpId)
       , ("FormuraeInternalGridWholeDerivative",
-          Primitives.derivativeGridWholeV1OpId)
-      , ("gridDerivativeChain", Primitives.derivativeOrderedV1OpId)
+          Primitives.derivativeGridWholeOpId)
+      , ("gridDerivativeChain", Primitives.derivativeOrderedOpId)
       , ("FormuraeInternalOrderedDerivative",
-          Primitives.derivativeOrderedV1OpId)
-      , ("resampleExplicit", Primitives.resampleExplicitV1OpId)
+          Primitives.derivativeOrderedOpId)
+      , ("resampleExplicit", Primitives.resampleExplicitOpId)
       , ("FormuraeInternalResampleExplicit",
-          Primitives.resampleExplicitV1OpId)
+          Primitives.resampleExplicitOpId)
       ]
 
 mapErrorContext :: String -> Either EffectError a -> Either EffectError a
@@ -413,7 +413,7 @@ analyzeExpression environment expression
             [_] -> effectFailure (InvalidEffectExpression
               "a single quoted derivative is redundant; write the coordinate derivative unquoted and reserve backquotes for ordered chains")
             _ -> primitiveEffect environment
-              Primitives.derivativeOrderedV1OpId
+              Primitives.derivativeOrderedOpId
         DiscreteFunction operations ->
           effectFailure (GridDerivativeOfDiscrete operations)
     TETensorLiteral elements _ ->
@@ -434,7 +434,7 @@ analyzeExpression environment expression
     applyDerivativeLayer effect _part =
       case effect of
         PureFunction -> primitiveEffect environment
-          Primitives.derivativeGridWholeV1OpId
+          Primitives.derivativeGridWholeOpId
         DiscreteFunction operations ->
           effectFailure (GridDerivativeOfDiscrete operations)
 
@@ -464,8 +464,8 @@ applicationHeadEffect environment function argumentEffect =
           case argumentEffect of
             PureFunction -> primitiveEffect environment
               (if order == 1 && radius == 1
-                 then Primitives.derivativeGridWholeV1OpId
-                 else Primitives.derivativeCoordinateWideV1OpId)
+                 then Primitives.derivativeGridWholeOpId
+                 else Primitives.derivativeCoordinateWideOpId)
             DiscreteFunction operations ->
               effectFailure (GridDerivativeOfDiscrete operations)
         Nothing
@@ -497,18 +497,18 @@ namedHeadEffect environment name parts =
               Nothing -> pure PureFunction
               Just operation -> primitiveEffect environment operation
 
-surfacePrimitiveOperation :: String -> Maybe VersionedOpId
+surfacePrimitiveOperation :: String -> Maybe OpId
 surfacePrimitiveOperation name
   | name == "resample" =
-      Just Primitives.resampleExplicitV1OpId
+      Just Primitives.resampleExplicitOpId
   -- The discrete exterior derivative and the adjoint divergence carry
   -- placement-directed grid derivatives, so the derivative-nesting rules
   -- that guarded the canonical operators keep applying to their
   -- prelude-macro expansions.
   | name == "dExterior" =
-      Just Primitives.derivativeGridWholeV1OpId
+      Just Primitives.derivativeGridWholeOpId
   | name == "dFluxDiv" =
-      Just Primitives.derivativeGridWholeV1OpId
+      Just Primitives.derivativeGridWholeOpId
   | otherwise = Nothing
 
 -- Summarize only the canonical metric operators whose analytic composition
@@ -668,7 +668,7 @@ canonicalOperatorEffect environment operator =
       | otherwise -> pure PureFunction
 
 primitiveEffect
-    :: EffectEnvironment -> VersionedOpId -> Either EffectError FunctionEffect
+    :: EffectEnvironment -> OpId -> Either EffectError FunctionEffect
 primitiveEffect environment operation =
   case [ primitiveSignatureOpId signature
        | signature <- primitiveManifestSignatures (environmentManifest environment)
@@ -677,8 +677,8 @@ primitiveEffect environment operation =
     [knownOperation] -> pure (DiscreteFunction [knownOperation])
     _ -> effectFailure (MissingPrimitiveSignature (operationText operation))
 
-operationText :: VersionedOpId -> String
-operationText (VersionedOpId value) = value
+operationText :: OpId -> String
+operationText (OpId value) = value
 
 rejectHigherOrder
     :: EffectEnvironment -> String -> TensorExpr -> Either EffectError ()

@@ -1,26 +1,26 @@
 assertEqual "generated primitive manifest ID"
-  "sha256:15edbc55825f7b9ff02836c67d852b46635f34d7b94a0397d750243b555aa9fb"
-  Formurae.Primitives.primitiveManifestV1Id
+  "sha256:b7a05af81f6418b2163bd3ef280d911d6409564da41c96d455b872e62d120098"
+  Formurae.Primitives.primitiveManifestId
 
 assertEqual "generated primitive operation IDs"
-  [ "derivative.coordinate-wide@1"
-  , "derivative.grid-whole@1"
-  , "derivative.ordered@1"
-  , "resample.explicit@1"
+  [ "derivative.coordinate-wide"
+  , "derivative.grid-whole"
+  , "derivative.ordered"
+  , "resample.explicit"
   ]
   Formurae.Primitives.operationIds
 
 assertEqual "generated full primitive signatures"
-  [ ("derivative.coordinate-wide@1", "derivative.coordinate-wide", 1,
+  [ ("derivative.coordinate-wide", "derivative.coordinate-wide",
       ["scalar"], "scalar",
       "derivative-target", "pure-local", [], "ordered")
-  , ("derivative.grid-whole@1", "derivative.grid-whole", 1,
+  , ("derivative.grid-whole", "derivative.grid-whole",
       ["scalar"], "scalar",
       "derivative-target", "pure-local", [], "ordered")
-  , ("derivative.ordered@1", "derivative.ordered", 1,
+  , ("derivative.ordered", "derivative.ordered",
       ["scalar"], "scalar",
       "derivative-target", "pure-local", [], "ordered")
-  , ("resample.explicit@1", "resample.explicit", 1,
+  , ("resample.explicit", "resample.explicit",
       ["scalar"], "scalar", "explicit-target",
       "pure-local", [], "ordered")
   ]

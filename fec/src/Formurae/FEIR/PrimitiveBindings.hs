@@ -1,15 +1,15 @@
--- This file is generated from spec/feir-primitives-v1.sexp.
+-- This file is generated from spec/feir-primitives.sexp.
 -- Run tools/generate-feir-primitives.hs; do not edit it directly.
 module Formurae.FEIR.PrimitiveBindings
-  ( primitiveManifestV1Id
-  , primitiveManifestV1
-  , primitiveSignaturesV1
+  ( primitiveManifestId
+  , primitiveManifest
+  , primitiveSignatures
   , primitiveOperationIds
-  , lookupPrimitiveSignatureV1
-  , derivativeCoordinateWideV1OpId
-  , derivativeGridWholeV1OpId
-  , derivativeOrderedV1OpId
-  , resampleExplicitV1OpId
+  , lookupPrimitiveSignature
+  , derivativeCoordinateWideOpId
+  , derivativeGridWholeOpId
+  , derivativeOrderedOpId
+  , resampleExplicitOpId
   ) where
 
 import Formurae.FEIR.PrimitiveManifest
@@ -22,21 +22,20 @@ import Formurae.FEIR.PrimitiveManifest
   )
 import Formurae.FEIR.Syntax
   ( PrimitiveManifestId(..)
-  , VersionedOpId(..)
+  , OpId(..)
   )
 
-primitiveManifestV1Id :: PrimitiveManifestId
-primitiveManifestV1Id = PrimitiveManifestId "sha256:15edbc55825f7b9ff02836c67d852b46635f34d7b94a0397d750243b555aa9fb"
+primitiveManifestId :: PrimitiveManifestId
+primitiveManifestId = PrimitiveManifestId "sha256:b7a05af81f6418b2163bd3ef280d911d6409564da41c96d455b872e62d120098"
 
-primitiveManifestV1 :: PrimitiveManifest
-primitiveManifestV1 = PrimitiveManifest 1 primitiveSignaturesV1
+primitiveManifest :: PrimitiveManifest
+primitiveManifest = PrimitiveManifest primitiveSignatures
 
-primitiveSignaturesV1 :: [PrimitiveSignature]
-primitiveSignaturesV1 =
+primitiveSignatures :: [PrimitiveSignature]
+primitiveSignatures =
   [ PrimitiveSignature
-      { primitiveSignatureOpId = derivativeCoordinateWideV1OpId
+      { primitiveSignatureOpId = derivativeCoordinateWideOpId
       , primitiveSignatureOpName = "derivative.coordinate-wide"
-      , primitiveSignatureOpVersion = 1
       , primitiveSignatureInputs = [ScalarCategory]
       , primitiveSignatureOutput = ScalarCategory
       , primitiveSignaturePlacement = DerivativeTargetPlacement
@@ -44,9 +43,8 @@ primitiveSignaturesV1 =
       , primitiveSignatureCommutation = Ordered
       }
   , PrimitiveSignature
-      { primitiveSignatureOpId = derivativeGridWholeV1OpId
+      { primitiveSignatureOpId = derivativeGridWholeOpId
       , primitiveSignatureOpName = "derivative.grid-whole"
-      , primitiveSignatureOpVersion = 1
       , primitiveSignatureInputs = [ScalarCategory]
       , primitiveSignatureOutput = ScalarCategory
       , primitiveSignaturePlacement = DerivativeTargetPlacement
@@ -54,9 +52,8 @@ primitiveSignaturesV1 =
       , primitiveSignatureCommutation = Ordered
       }
   , PrimitiveSignature
-      { primitiveSignatureOpId = derivativeOrderedV1OpId
+      { primitiveSignatureOpId = derivativeOrderedOpId
       , primitiveSignatureOpName = "derivative.ordered"
-      , primitiveSignatureOpVersion = 1
       , primitiveSignatureInputs = [ScalarCategory]
       , primitiveSignatureOutput = ScalarCategory
       , primitiveSignaturePlacement = DerivativeTargetPlacement
@@ -64,9 +61,8 @@ primitiveSignaturesV1 =
       , primitiveSignatureCommutation = Ordered
       }
   , PrimitiveSignature
-      { primitiveSignatureOpId = resampleExplicitV1OpId
+      { primitiveSignatureOpId = resampleExplicitOpId
       , primitiveSignatureOpName = "resample.explicit"
-      , primitiveSignatureOpVersion = 1
       , primitiveSignatureInputs = [ScalarCategory]
       , primitiveSignatureOutput = ScalarCategory
       , primitiveSignaturePlacement = ExplicitTargetPlacement
@@ -75,28 +71,28 @@ primitiveSignaturesV1 =
       }
   ]
 
-primitiveOperationIds :: [VersionedOpId]
+primitiveOperationIds :: [OpId]
 primitiveOperationIds =
-  [ derivativeCoordinateWideV1OpId
-  , derivativeGridWholeV1OpId
-  , derivativeOrderedV1OpId
-  , resampleExplicitV1OpId
+  [ derivativeCoordinateWideOpId
+  , derivativeGridWholeOpId
+  , derivativeOrderedOpId
+  , resampleExplicitOpId
   ]
 
-lookupPrimitiveSignatureV1 :: VersionedOpId -> Maybe PrimitiveSignature
-lookupPrimitiveSignatureV1 operationId = lookup operationId
+lookupPrimitiveSignature :: OpId -> Maybe PrimitiveSignature
+lookupPrimitiveSignature operationId = lookup operationId
   [ (primitiveSignatureOpId signature, signature)
-  | signature <- primitiveSignaturesV1
+  | signature <- primitiveSignatures
   ]
 
-derivativeCoordinateWideV1OpId :: VersionedOpId
-derivativeCoordinateWideV1OpId = VersionedOpId "derivative.coordinate-wide@1"
+derivativeCoordinateWideOpId :: OpId
+derivativeCoordinateWideOpId = OpId "derivative.coordinate-wide"
 
-derivativeGridWholeV1OpId :: VersionedOpId
-derivativeGridWholeV1OpId = VersionedOpId "derivative.grid-whole@1"
+derivativeGridWholeOpId :: OpId
+derivativeGridWholeOpId = OpId "derivative.grid-whole"
 
-derivativeOrderedV1OpId :: VersionedOpId
-derivativeOrderedV1OpId = VersionedOpId "derivative.ordered@1"
+derivativeOrderedOpId :: OpId
+derivativeOrderedOpId = OpId "derivative.ordered"
 
-resampleExplicitV1OpId :: VersionedOpId
-resampleExplicitV1OpId = VersionedOpId "resample.explicit@1"
+resampleExplicitOpId :: OpId
+resampleExplicitOpId = OpId "resample.explicit"

@@ -12,11 +12,11 @@ if [ "$#" -lt 2 ]; then
 fi
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-manifest="$root/spec/egison-normalization-v1.list"
+manifest="$root/spec/egison-normalization.list"
 
 exec 3< "$manifest"
 IFS= read -r schema <&3
-if [ "$schema" != 'formurae-egison-normalization 1' ]; then
+if [ "$schema" != 'formurae-egison-normalization' ]; then
   printf '%s: unsupported normalization manifest: %s\n' "$0" "$schema" >&2
   exit 2
 fi
@@ -24,7 +24,7 @@ fi
 egison_dir=$1
 shift
 
-# The v1 schema fixes five ordered entries. Explicit reads preserve every
+# The schema fixes five ordered entries. Explicit reads preserve every
 # caller argument verbatim without relying on non-POSIX shell arrays.
 IFS= read -r library_1 <&3
 IFS= read -r library_2 <&3

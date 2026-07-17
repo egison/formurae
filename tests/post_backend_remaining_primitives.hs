@@ -7,12 +7,12 @@ import Formurae.Post.Compile (PostError(..), compileProgram)
 
 main :: IO ()
 main = do
-  testRemovedOpaque (VersionedOpId "flux.conservative-divergence@1")
-  testRemovedOpaque (VersionedOpId "operator.materialized@1")
+  testRemovedOpaque (OpId "flux.conservative-divergence")
+  testRemovedOpaque (OpId "operator.materialized")
   testMaterializeActionNeedsNoOpaquePlan
   putStrLn "post backend removed primitive tests: ok"
 
-testRemovedOpaque :: VersionedOpId -> IO ()
+testRemovedOpaque :: OpId -> IO ()
 testRemovedOpaque operation =
   assertLeft ("removed opaque primitive " ++ show operation)
     isUnsupported
@@ -27,7 +27,7 @@ testMaterializeActionNeedsNoOpaquePlan =
   assertRight "ordinary FEIR Materialize action"
     (planBackendEffects materializeProgram)
 
-withOpaqueStep :: FEProgram -> VersionedOpId -> FEProgram
+withOpaqueStep :: FEProgram -> OpId -> FEProgram
 withOpaqueStep program operation = program
   { feProgramStepActions =
       [ UpdateField (scalarEquation (OpaqueDiscrete (OpaqueDiscreteCall
@@ -58,14 +58,12 @@ fieldJet field = FieldJetValue field CurrentTime (Basis [])
 
 fixture :: FEProgram
 fixture = FEProgram
-  { feProgramVersion = 1
-  , feProgramModel = ModelIdentity (ModelId "model") "removed-primitives"
+  { feProgramModel = ModelIdentity (ModelId "model") "removed-primitives"
       (SourceIdentity (SourceId "source") "removed-primitives.fme")
   , feProgramRegistryId = RegistryId "registry"
   , feProgramPrimitiveManifestId = PrimitiveManifestId "manifest"
   , feProgramDiscretization = setProfileFingerprint
       (DiscretizationProfile
-        (VersionedProfileId "formurae-discretization@1")
         (Fingerprint "") [] FixedAxisOrder)
   , feProgramMode = CollocatedMode
   , feProgramDimension = 2

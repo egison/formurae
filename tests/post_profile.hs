@@ -29,7 +29,6 @@ profile = profileWith
 profileWith :: [DerivativeRule] -> DiscretizationProfile
 profileWith rules = setProfileFingerprint
   (DiscretizationProfile
-    (VersionedProfileId "formurae-discretization@1")
     (Fingerprint "pending") rules FixedAxisOrder)
 
 fieldJet :: [(AxisId, Natural)] -> FieldJet

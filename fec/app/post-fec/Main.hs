@@ -24,9 +24,9 @@ main = do
   let validationConfig = ValidationConfig
         { validationExpectedRegistryId = Just (computeRegistryId program)
         , validationExpectedPrimitiveManifestId =
-            Just Primitives.primitiveManifestV1Id
+            Just Primitives.primitiveManifestId
         , validationPrimitiveSignatures =
-            Primitives.primitiveSignaturesV1
+            Primitives.primitiveSignatures
         }
   either (failWith . unlines . map (renderValidationError program)) pure
     (validateFEProgram validationConfig program)

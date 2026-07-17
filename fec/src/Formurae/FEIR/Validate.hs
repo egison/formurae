@@ -74,8 +74,7 @@ data IdNamespace
   deriving (Eq, Ord, Show)
 
 data ValidationIssue
-  = UnsupportedProgramVersion Int Int
-  | EmptyIdentifier IdNamespace
+  = EmptyIdentifier IdNamespace
   | NonPositiveIdentifier IdNamespace Int
   | DuplicateIdentifier IdNamespace String
   | UnknownReference IdNamespace String
@@ -117,19 +116,18 @@ data ValidationIssue
   | TensorTypeMismatch TensorType TensorType
   | InvalidDerivativeRuleOrder Int
   | InvalidFormalAccuracy Int
-  | UnsupportedProfileVersion VersionedProfileId
   | InvalidLatticeFamily LatticeClass StencilFamily
   | UnsupportedYeeAccuracy Int
   | DuplicateDerivativeRule LatticeClass (Maybe Int)
   | ProfileFingerprintMismatch Fingerprint Fingerprint
   | EmptyOpaqueSemanticKey
   | EmptyOpaqueRequestGroup
-  | UnknownOpaqueOperation VersionedOpId
-  | OpaqueOperandCountMismatch VersionedOpId Int Int
-  | OpaqueOperandCategoryMismatch VersionedOpId Int ValueCategory
-  | OpaqueOutputCategoryMismatch VersionedOpId ValueCategory Basis
-  | OpaqueEffectContextMismatch VersionedOpId PrimitiveEffect
-  | OpaquePlacementContractMismatch VersionedOpId PlacementRule Basis
+  | UnknownOpaqueOperation OpId
+  | OpaqueOperandCountMismatch OpId Int Int
+  | OpaqueOperandCategoryMismatch OpId Int ValueCategory
+  | OpaqueOutputCategoryMismatch OpId ValueCategory Basis
+  | OpaqueEffectContextMismatch OpId PrimitiveEffect
+  | OpaquePlacementContractMismatch OpId PlacementRule Basis
   | ConflictingOpaqueSemanticKey SemanticKey
   | UnverifiedOrthogonalGeometry
   | InvalidEmbeddedGeometry
@@ -202,10 +200,7 @@ makeEnvironment config program = Environment
 
 validateHeader :: Environment -> [ValidationError]
 validateHeader environment = concat
-  [ [validationError [ProgramPath]
-       (UnsupportedProgramVersion 1 (feProgramVersion program))
-    | feProgramVersion program /= 1]
-  , nonEmptyStringId [ProgramPath, ModelPath] ModelIds modelIdText
+  [ nonEmptyStringId [ProgramPath, ModelPath] ModelIds modelIdText
   , nonEmptyStringId [ProgramPath, ModelPath] SourceIds sourceIdText
   , nonEmptyStringId [ProgramPath] RegistryIds registryText
   , nonEmptyStringId [ProgramPath] PrimitiveManifestIds manifestText
@@ -241,7 +236,7 @@ validateHeader environment = concat
     SourceId sourceIdText = sourceIdentityId (environmentSource environment)
     RegistryId registryText = feProgramRegistryId program
     PrimitiveManifestId manifestText = feProgramPrimitiveManifestId program
-    signatureManifest = PrimitiveManifest 1
+    signatureManifest = PrimitiveManifest
       (validationPrimitiveSignatures config)
     signatureManifestId = primitiveManifestId signatureManifest
 
@@ -428,12 +423,7 @@ validateAxisScalarList environment path context values =
 
 validateProfile :: Environment -> [ValidationError]
 validateProfile environment = concat
-  [ nonEmptyStringId path ProfileIds profileVersion
-  , [validationError path
-       (UnsupportedProfileVersion (discretizationProfileVersion profile))
-    | discretizationProfileVersion profile
-        /= VersionedProfileId "formurae-discretization@1"]
-  , nonEmptyStringId path ProfileIds fingerprintText
+  [ nonEmptyStringId path ProfileIds fingerprintText
   , duplicateRuleErrors rules
   , [validationError path (NonCanonicalOrder "derivative rules")
     | rules /= sortBy (comparing derivativeRuleKey) rules]
@@ -449,7 +439,6 @@ validateProfile environment = concat
     profile = feProgramDiscretization (environmentProgram environment)
     rules = discretizationDerivativeRules profile
     path = [ProgramPath, ProfilePath]
-    VersionedProfileId profileVersion = discretizationProfileVersion profile
     declaredFingerprint@(Fingerprint fingerprintText) =
       discretizationProfileFingerprint profile
     expectedFingerprint = computeProfileFingerprint profile
@@ -1136,7 +1125,7 @@ validateOpaque environment context parentPath opaque = concat
   , concatMap validateAttribute attributes
   ]
   where
-    opId@(VersionedOpId opText) = opaqueDiscreteOpId opaque
+    opId@(OpId opText) = opaqueDiscreteOpId opaque
     semanticKey@(SemanticKey semanticText) = opaqueDiscreteSemanticKey opaque
     RequestGroupId requestGroupText = opaqueDiscreteRequestGroup opaque
     path = parentPath ++ [OpaquePath semanticKey]

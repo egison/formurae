@@ -166,14 +166,12 @@ equationFor fieldId scalar = FEEquation (EquationId 2)
 
 fixture :: FEProgram
 fixture = FEProgram
-  { feProgramVersion = 1
-  , feProgramModel = ModelIdentity (ModelId "model") "grid-whole"
+  { feProgramModel = ModelIdentity (ModelId "model") "grid-whole"
       (SourceIdentity (SourceId "source") "grid-whole.fme")
   , feProgramRegistryId = RegistryId "registry"
   , feProgramPrimitiveManifestId = PrimitiveManifestId "manifest"
   , feProgramDiscretization = setProfileFingerprint
       (DiscretizationProfile
-        (VersionedProfileId "formurae-discretization@1")
         (Fingerprint "")
         [DerivativeRule CollocatedLattice (Just (Positive 1))
           CenteredTaylor (PositiveEven 4) (OriginId 1)]

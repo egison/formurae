@@ -14,7 +14,7 @@ main = do
   mode <- case arguments of
     [value] -> pure value
     _ -> fail "usage: post_diagnostic_cli_fixture MODE"
-  manifestSource <- readFile "spec/feir-primitives-v1.sexp"
+  manifestSource <- readFile "spec/feir-primitives.sexp"
   manifest <- either (fail . show) pure
     (parsePrimitiveManifest manifestSource)
   let program0 = case mode of
@@ -30,14 +30,12 @@ main = do
 
 baseProgram :: FEProgram
 baseProgram = FEProgram
-  { feProgramVersion = 1
-  , feProgramModel = ModelIdentity (ModelId "cli-model") "cli-model"
+  { feProgramModel = ModelIdentity (ModelId "cli-model") "cli-model"
       (SourceIdentity (SourceId "cli-source") "/workspace/cli-model.fme")
   , feProgramRegistryId = RegistryId "pending"
   , feProgramPrimitiveManifestId = PrimitiveManifestId "pending"
   , feProgramDiscretization = setProfileFingerprint
       (DiscretizationProfile
-        (VersionedProfileId "formurae-discretization@1")
         (Fingerprint "") [] FixedAxisOrder)
   , feProgramMode = CollocatedMode
   , feProgramDimension = 1
@@ -69,7 +67,7 @@ wideEquation = FEEquation (EquationId 1)
 
 missingRadiusWide :: OpaqueDiscrete
 missingRadiusWide = OpaqueDiscreteCall
-  (VersionedOpId "derivative.coordinate-wide@1")
+  (OpId "derivative.coordinate-wide")
   (SemanticKey "wide-missing-radius")
   (RequestGroupId "wide-missing-radius-group")
   (Basis [])

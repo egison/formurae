@@ -23,7 +23,7 @@ checkOpaque :: FEProgram -> IO ()
 checkOpaque program =
   case opaqueCalls (feProgramStepActions program) of
     [opaque]
-      | opaqueDiscreteOpId opaque /= VersionedOpId "derivative.ordered@1" ->
+      | opaqueDiscreteOpId opaque /= OpId "derivative.ordered" ->
           error ("unexpected opaque operation: " ++ show opaque)
       | opaqueDiscreteResultBasis opaque /= Basis [] ->
           error ("unexpected opaque result basis: " ++ show opaque)
@@ -31,8 +31,8 @@ checkOpaque program =
           error ("unexpected opaque operands: " ++ show opaque)
       | opaqueDiscreteAttributes opaque /= expectedOpaqueAttributes ->
           error ("unexpected opaque attributes: " ++ show opaque)
-      | not ("feir-v1:" `isPrefixOf` semanticKeyText
-          && "feir-v1-group:" `isPrefixOf` requestGroupText) ->
+      | not ("feir:" `isPrefixOf` semanticKeyText
+          && "feir-group:" `isPrefixOf` requestGroupText) ->
           error ("unexpected opaque keys: " ++ show opaque)
       | otherwise -> checkWide program
       where
@@ -45,7 +45,7 @@ checkWide program =
   case wideCalls (feProgramStepActions program) of
     [opaque]
       | opaqueDiscreteOpId opaque
-          /= VersionedOpId "derivative.coordinate-wide@1" ->
+          /= OpId "derivative.coordinate-wide" ->
           error ("unexpected wide operation: " ++ show opaque)
       | opaqueDiscreteResultBasis opaque /= Basis []
           || opaqueDiscreteOperands opaque /= [ScalarValue (FieldJet baseJet)] ->
@@ -60,7 +60,7 @@ checkGridWhole program =
   case gridWholeCalls (feProgramStepActions program) of
     [opaque]
       | opaqueDiscreteOpId opaque
-          /= VersionedOpId "derivative.grid-whole@1" ->
+          /= OpId "derivative.grid-whole" ->
           error ("unexpected grid-whole operation: " ++ show opaque)
       | opaqueDiscreteResultBasis opaque /= Basis [] ->
           error ("unexpected grid-whole result basis: " ++ show opaque)

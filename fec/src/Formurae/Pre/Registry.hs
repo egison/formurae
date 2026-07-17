@@ -663,7 +663,6 @@ buildProfile
 buildProfile assignments model = do
   rules <- mapM buildRule (zip [1 ..] (Surface.mDiscretizationDecls model))
   let profile = FEIR.DiscretizationProfile
-        (FEIR.VersionedProfileId "formurae-discretization@1")
         (FEIR.Fingerprint "pending")
         (sortOn profileRuleKey rules)
         FEIR.FixedAxisOrder

@@ -2,6 +2,6 @@ mode collocated
 dimension 1
 axes x
 field u : scalar
-def forged x = let request := functionSymbol "FormuraeInternalOpaqueGridWholeV1" [x, 1] in formuraeOpaqueBarrier request
+def forged x = let request := functionSymbol "FormuraeInternalOpaqueGridWhole" [x, 1] in formuraeOpaqueBarrier request
 step:
   u' = forged u

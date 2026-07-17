@@ -22,7 +22,6 @@ module Formurae.FEIR.PrimitiveManifest
 import Control.Monad (foldM)
 import Data.Char (isAlphaNum)
 import Data.List (group, nub, sort, sortOn)
-import Text.Read (readMaybe)
 
 import Formurae.FEIR.Fingerprint (sha256Utf8)
 import Formurae.FEIR.SExpr
@@ -34,18 +33,16 @@ import Formurae.FEIR.SExpr
 import Formurae.FEIR.Syntax
   ( Fingerprint(..)
   , PrimitiveManifestId(..)
-  , VersionedOpId(..)
+  , OpId(..)
   )
 
-data PrimitiveManifest = PrimitiveManifest
-  { primitiveManifestSchemaVersion :: Int
-  , primitiveManifestSignatures :: [PrimitiveSignature]
+newtype PrimitiveManifest = PrimitiveManifest
+  { primitiveManifestSignatures :: [PrimitiveSignature]
   } deriving (Eq, Ord, Show)
 
 data PrimitiveSignature = PrimitiveSignature
-  { primitiveSignatureOpId :: VersionedOpId
+  { primitiveSignatureOpId :: OpId
   , primitiveSignatureOpName :: String
-  , primitiveSignatureOpVersion :: Int
   , primitiveSignatureInputs :: [ValueCategory]
   , primitiveSignatureOutput :: ValueCategory
   , primitiveSignaturePlacement :: PlacementRule
@@ -92,12 +89,12 @@ data PrimitiveManifestError
   deriving (Eq, Ord, Show)
 
 data ManifestAccumulator = ManifestAccumulator
-  { accumulatedSchemaVersion :: Maybe Int
+  { accumulatedSchemaVersion :: Maybe ()
   , accumulatedSignatures :: [PrimitiveSignature]
   }
 
 data SignatureAccumulator = SignatureAccumulator
-  { accumulatedOp :: Maybe (VersionedOpId, String, Int)
+  { accumulatedOp :: Maybe (OpId, String)
   , accumulatedInputs :: Maybe [ValueCategory]
   , accumulatedOutput :: Maybe ValueCategory
   , accumulatedPlacement :: Maybe PlacementRule
@@ -119,10 +116,9 @@ parseManifestExpression
   :: SExpr -> Either PrimitiveManifestError PrimitiveManifest
 parseManifestExpression (List (Atom "primitive-manifest" : entries)) = do
   accumulator <- foldM parseManifestEntry emptyManifestAccumulator entries
-  schemaVersion <- requireField "schema" (accumulatedSchemaVersion accumulator)
+  _ <- requireField "schema" (accumulatedSchemaVersion accumulator)
   pure PrimitiveManifest
-    { primitiveManifestSchemaVersion = schemaVersion
-    , primitiveManifestSignatures = reverse (accumulatedSignatures accumulator)
+    { primitiveManifestSignatures = reverse (accumulatedSignatures accumulator)
     }
 parseManifestExpression expression =
   validationError
@@ -135,9 +131,9 @@ parseManifestEntry
   :: ManifestAccumulator -> SExpr
   -> Either PrimitiveManifestError ManifestAccumulator
 parseManifestEntry accumulator (List (Atom "schema" : fields)) = do
-  version <- parseSchema fields
-  version' <- setOnce "schema" version (accumulatedSchemaVersion accumulator)
-  pure accumulator { accumulatedSchemaVersion = version' }
+  schema <- parseSchema fields
+  schema' <- setOnce "schema" schema (accumulatedSchemaVersion accumulator)
+  pure accumulator { accumulatedSchemaVersion = schema' }
 parseManifestEntry accumulator (List (Atom "primitive" : fields)) = do
   signature <- parsePrimitiveSignature fields
   pure accumulator
@@ -146,13 +142,8 @@ parseManifestEntry _ expression =
   validationError
     ("unknown primitive-manifest entry " ++ renderSExpr expression)
 
-parseSchema :: [SExpr] -> Either PrimitiveManifestError Int
-parseSchema [Atom "formurae-feir-primitives", Atom versionText] = do
-  version <- parseCanonicalInt "schema version" versionText
-  if version == 1
-    then pure version
-    else validationError
-      ("unsupported primitive manifest schema version " ++ show version)
+parseSchema :: [SExpr] -> Either PrimitiveManifestError ()
+parseSchema [Atom "formurae-feir-primitives"] = pure ()
 parseSchema fields =
   validationError
     ("invalid schema declaration " ++ renderSExpr (List (Atom "schema" : fields)))
@@ -161,7 +152,7 @@ parsePrimitiveSignature
   :: [SExpr] -> Either PrimitiveManifestError PrimitiveSignature
 parsePrimitiveSignature fields = do
   accumulator <- foldM parseSignatureField emptySignatureAccumulator fields
-  (opId, opName, opVersion) <- requireField "op" (accumulatedOp accumulator)
+  (opId, opName) <- requireField "op" (accumulatedOp accumulator)
   inputs <- requireField "inputs" (accumulatedInputs accumulator)
   output <- requireField "output" (accumulatedOutput accumulator)
   placement <- requireField "placement" (accumulatedPlacement accumulator)
@@ -170,7 +161,6 @@ parsePrimitiveSignature fields = do
   pure PrimitiveSignature
     { primitiveSignatureOpId = opId
     , primitiveSignatureOpName = opName
-    , primitiveSignatureOpVersion = opVersion
     , primitiveSignatureInputs = inputs
     , primitiveSignatureOutput = output
     , primitiveSignaturePlacement = placement
@@ -220,19 +210,12 @@ parseSignatureField _ expression =
 
 parseOp
   :: [SExpr]
-  -> Either PrimitiveManifestError (VersionedOpId, String, Int)
-parseOp [Atom name, Atom versionText] = do
+  -> Either PrimitiveManifestError (OpId, String)
+parseOp [Atom name] = do
   if validOpName name
     then pure ()
     else validationError ("invalid primitive operation name " ++ show name)
-  version <- parseCanonicalInt "primitive operation version" versionText
-  if version > 0
-    then pure
-      ( VersionedOpId (name ++ "@" ++ show version)
-      , name
-      , version
-      )
-    else validationError "primitive operation version must be positive"
+  pure (OpId name, name)
 parseOp fields =
   validationError ("invalid op field " ++ renderSExpr (List (Atom "op" : fields)))
 
@@ -302,8 +285,6 @@ parseCommutation fields =
 validatePrimitiveManifest
   :: PrimitiveManifest -> Either PrimitiveManifestError PrimitiveManifest
 validatePrimitiveManifest manifest
-  | primitiveManifestSchemaVersion manifest /= 1 =
-      validationError "primitive manifest schema version must be 1"
   | null signatures =
       validationError "primitive manifest must contain at least one primitive"
   | otherwise =
@@ -326,10 +307,8 @@ validateSignature
 validateSignature signature
   | not (validOpName (primitiveSignatureOpName signature)) =
       validationError "invalid primitive operation name"
-  | primitiveSignatureOpVersion signature <= 0 =
-      validationError "primitive operation version must be positive"
   | primitiveSignatureOpId signature /= expectedOpId =
-      validationError "primitive operation ID does not match its name and version"
+      validationError "primitive operation ID does not match its name"
   | null (primitiveSignatureInputs signature) =
       validationError "primitive inputs must not be empty"
   | not (placementAcceptsOutput
@@ -351,9 +330,7 @@ validateSignature signature
                     NeedsMaterialization (sortOn auxiliaryRoleAtom roles)
                 }
   where
-    expectedOpId = VersionedOpId
-      (primitiveSignatureOpName signature
-       ++ "@" ++ show (primitiveSignatureOpVersion signature))
+    expectedOpId = OpId (primitiveSignatureOpName signature)
 
 placementAcceptsOutput :: PlacementRule -> ValueCategory -> Bool
 placementAcceptsOutput PreserveSourcePlacement _ = True
@@ -370,7 +347,6 @@ canonicalPrimitiveManifest manifest =
     : List
         [ Atom "schema"
         , Atom "formurae-feir-primitives"
-        , Atom (show (primitiveManifestSchemaVersion manifest))
         ]
     : map signatureSExpr
         (sortOn primitiveSignatureOpId
@@ -384,7 +360,6 @@ signatureSExpr signature =
     , List
         [ Atom "op"
         , Atom (primitiveSignatureOpName signature)
-        , Atom (show (primitiveSignatureOpVersion signature))
         ]
     , List
         (Atom "inputs" : map (Atom . categoryAtom)
@@ -443,15 +418,6 @@ primitiveManifestId :: PrimitiveManifest -> PrimitiveManifestId
 primitiveManifestId manifest =
   case primitiveManifestFingerprint manifest of
     Fingerprint fingerprint -> PrimitiveManifestId fingerprint
-
-parseCanonicalInt
-  :: String -> String -> Either PrimitiveManifestError Int
-parseCanonicalInt label source =
-  case readMaybe source of
-    Just value
-      | show value == source -> pure value
-      | otherwise -> validationError (label ++ " is not canonical")
-    Nothing -> validationError (label ++ " is not an integer")
 
 setOnce
   :: String -> a -> Maybe a -> Either PrimitiveManifestError (Maybe a)

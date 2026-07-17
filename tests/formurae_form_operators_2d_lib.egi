@@ -6,7 +6,7 @@ def feGeometryScales : Vector MathValue := [|2, 3|]
 def feGeometryId : Integer := 1
 def epsilon : Tensor Integer := ε dimension
 def fePrimitiveManifestId : String :=
-  Formurae.Primitives.primitiveManifestV1Id
+  Formurae.Primitives.primitiveManifestId
 
 def formDx := [|1, 0|]
 def formDy := [|0, 1|]

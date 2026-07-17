@@ -1,10 +1,10 @@
-; FEIR v1 discrete primitive manifest.
+; FEIR discrete primitive manifest.
 ; This file is the only source of primitive identities and signatures.
 (primitive-manifest
-  (schema formurae-feir-primitives 1)
+  (schema formurae-feir-primitives)
 
   (primitive
-    (op derivative.coordinate-wide 1)
+    (op derivative.coordinate-wide)
     (inputs scalar)
     (output scalar)
     (placement derivative-target)
@@ -12,7 +12,7 @@
     (commutation ordered))
 
   (primitive
-    (op derivative.ordered 1)
+    (op derivative.ordered)
     (inputs scalar)
     (output scalar)
     (placement derivative-target)
@@ -20,7 +20,7 @@
     (commutation ordered))
 
   (primitive
-    (op derivative.grid-whole 1)
+    (op derivative.grid-whole)
     (inputs scalar)
     (output scalar)
     (placement derivative-target)
@@ -28,7 +28,7 @@
     (commutation ordered))
 
   (primitive
-    (op resample.explicit 1)
+    (op resample.explicit)
     (inputs scalar)
     (output scalar)
     (placement explicit-target)

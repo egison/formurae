@@ -7,23 +7,22 @@ import System.Exit (exitFailure)
 import qualified Formurae.FEIR.PrimitiveBindings as Bindings
 import Formurae.FEIR.PrimitiveManifest
 import Formurae.FEIR.SExpr (SExpr(..), parseSExpr, renderSExpr)
-import Formurae.FEIR.Syntax (Fingerprint(..), PrimitiveManifestId(..), VersionedOpId(..))
+import Formurae.FEIR.Syntax (Fingerprint(..), PrimitiveManifestId(..), OpId(..))
 
 main :: IO ()
 main = do
-  source <- readFile "spec/feir-primitives-v1.sexp"
+  source <- readFile "spec/feir-primitives.sexp"
   manifest <- expectRight "parse canonical manifest" (parsePrimitiveManifest source)
   assertEqual "generated manifest matches the parsed source"
-    manifest Bindings.primitiveManifestV1
+    manifest Bindings.primitiveManifest
 
-  assertEqual "schema version" 1 (primitiveManifestSchemaVersion manifest)
   assertEqual
     "required v1 operation IDs"
-    (map VersionedOpId
-      [ "derivative.coordinate-wide@1"
-      , "derivative.grid-whole@1"
-      , "derivative.ordered@1"
-      , "resample.explicit@1"
+    (map OpId
+      [ "derivative.coordinate-wide"
+      , "derivative.grid-whole"
+      , "derivative.ordered"
+      , "resample.explicit"
       ])
     (map primitiveSignatureOpId (primitiveManifestSignatures manifest))
 
@@ -33,7 +32,7 @@ main = do
   materializing <- expectRight "parse materializing grammar"
     (parsePrimitiveManifest materializingManifest)
   synthetic <- expectJust "synthetic materializing signature"
-    (find ((== VersionedOpId "test.materializing@1")
+    (find ((== OpId "test.materializing")
       . primitiveSignatureOpId)
       (primitiveManifestSignatures materializing))
   assertEqual "materializing placement" ConservativeCellPlacement
@@ -47,7 +46,7 @@ main = do
     (primitiveSignatureCommutation synthetic)
 
   gridWhole <- expectJust "grid-whole derivative signature"
-    (find ((== VersionedOpId "derivative.grid-whole@1")
+    (find ((== OpId "derivative.grid-whole")
       . primitiveSignatureOpId)
       (primitiveManifestSignatures manifest))
   assertEqual "grid-whole scalar input"
@@ -86,7 +85,7 @@ main = do
   assertEqual
     "canonical fingerprint"
     (Fingerprint
-      "sha256:15edbc55825f7b9ff02836c67d852b46635f34d7b94a0397d750243b555aa9fb")
+      "sha256:b7a05af81f6418b2163bd3ef280d911d6409564da41c96d455b872e62d120098")
     (primitiveManifestFingerprint manifest)
   assertEqual
     "manifest ID is its fingerprint"
@@ -102,7 +101,7 @@ main = do
   assertLeft "duplicate field"
     (parsePrimitiveManifest
       (singlePrimitiveWithExtra "(output scalar)"))
-  assertLeft "invalid operation version"
+  assertLeft "op declaration takes exactly one name"
     (parsePrimitiveManifest
       (singlePrimitiveWithOp "(op test.invalid 0)"))
   assertLeft "duplicate operation"
@@ -121,14 +120,14 @@ main = do
   assertLeft "placement and output category must agree"
     (parsePrimitiveManifest (manifestEnvelope (unlines
       [ "  (primitive"
-      , "    (op test.invalid-placement 1)"
+      , "    (op test.invalid-placement)"
       , "    (inputs scalar)"
       , "    (output tensor)"
       , "    (placement derivative-target)"
       , "    (effects pure-local)"
       , "    (commutation ordered))"
       ])))
-  assertLeft "unknown schema version"
+  assertLeft "schema declaration takes no version"
     (parsePrimitiveManifest
       "(primitive-manifest (schema formurae-feir-primitives 2))")
 
@@ -137,7 +136,7 @@ main = do
 validPrimitive :: String
 validPrimitive = unlines
   [ "  (primitive"
-  , "    (op test.valid 1)"
+  , "    (op test.valid)"
   , "    (inputs scalar)"
   , "    (output scalar)"
   , "    (placement preserve-source)"
@@ -148,7 +147,7 @@ validPrimitive = unlines
 materializingManifest :: String
 materializingManifest = manifestEnvelope (unlines
   [ "  (primitive"
-  , "    (op test.materializing 1)"
+  , "    (op test.materializing)"
   , "    (inputs scalar)"
   , "    (output scalar)"
   , "    (placement conservative-cell)"
@@ -162,7 +161,7 @@ validEffects = "(effects pure-local)"
 singlePrimitive :: String -> String -> String
 singlePrimitive inputs effects = manifestEnvelope (unlines
   [ "  (primitive"
-  , "    (op test.valid 1)"
+  , "    (op test.valid)"
   , "    " ++ inputs
   , "    (output scalar)"
   , "    (placement preserve-source)"
@@ -173,7 +172,7 @@ singlePrimitive inputs effects = manifestEnvelope (unlines
 singlePrimitiveWithExtra :: String -> String
 singlePrimitiveWithExtra extra = manifestEnvelope (unlines
   [ "  (primitive"
-  , "    (op test.valid 1)"
+  , "    (op test.valid)"
   , "    (inputs scalar)"
   , "    (output scalar)"
   , "    (placement preserve-source)"
@@ -196,7 +195,7 @@ singlePrimitiveWithOp op = manifestEnvelope (unlines
 replacePlacement :: String -> String
 replacePlacement placement = manifestEnvelope (unlines
   [ "  (primitive"
-  , "    (op test.valid 1)"
+  , "    (op test.valid)"
   , "    (inputs scalar)"
   , "    (output scalar)"
   , "    " ++ placement
@@ -207,7 +206,7 @@ replacePlacement placement = manifestEnvelope (unlines
 manifestEnvelope :: String -> String
 manifestEnvelope body =
   "(primitive-manifest\n"
-  ++ "  (schema formurae-feir-primitives 1)\n"
+  ++ "  (schema formurae-feir-primitives)\n"
   ++ body
   ++ ")\n"
 

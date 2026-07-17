@@ -31,7 +31,7 @@ def feGeometryScales : Vector MathValue := [|1, 1|]
 def feGeometryId : Integer := 1
 def epsilon : Tensor Integer := ε dimension
 def fePrimitiveManifestId : String :=
-  Formurae.Primitives.primitiveManifestV1Id
+  Formurae.Primitives.primitiveManifestId
 
 def feirFieldU := function (x, y)
 def feirAnalyticQ := functionSymbol "potential" [x, y]
@@ -174,10 +174,9 @@ def feirSourceOrigin :=
 
 def feirEmptyProfile :=
   FEIR.record "discretization-profile"
-    [ FEIR.field "version" (FEIR.string "formurae-discretization@1")
-    , FEIR.field "fingerprint"
+    [ FEIR.field "fingerprint"
         (FEIR.string
-          "sha256:2bf180015cdf4e5818e8a9e364f5fa7f278c357d129314b4baa34201e8bac32a")
+          "sha256:ab3aa90709475678ce509d9a81a78e14de62cd110cf4efaddfb056893f78f354")
     , FEIR.field "rules" (FEIR.list [])
     , FEIR.field "mixed" (FEIR.atom "fixed-axis-order")
     ]
@@ -193,19 +192,19 @@ def feirDerivativeFixture :=
 def feirOpaqueFixture :=
   FEIR.encodeOpaqueRef feirParameters feirCoordinates feirFields
     feirIntrinsics feirAnalytics
-    (functionSymbol "FormuraeInternalOpaqueOrderedDerivativeV1"
+    (functionSymbol "FormuraeInternalOpaqueOrderedDerivative"
       [feirFieldU, 1, 2])
 
 def feirWideOpaqueFixture :=
   FEIR.encodeOpaqueRef feirParameters feirCoordinates feirFields
     feirIntrinsics feirAnalytics
-    (functionSymbol "FormuraeInternalOpaqueCoordinateWideV1"
+    (functionSymbol "FormuraeInternalOpaqueCoordinateWide"
       [feirFieldU, 2, 2, 2])
 
 def feirGridWholeFixture :=
   FEIR.encodeOpaqueRef feirParameters feirCoordinates feirFields
     feirIntrinsics feirAnalytics
-    (functionSymbol "FormuraeInternalOpaqueGridWholeV1"
+    (functionSymbol "FormuraeInternalOpaqueGridWhole"
       [feirFieldU * feirFieldU / 2, 1])
 
 -- A complete wire fixture including a canonical mixed FieldJet.  This uses
@@ -214,7 +213,6 @@ def feirGridWholeFixture :=
 def feirProgramFixture :=
   FEIR.list
     [ FEIR.atom "feir"
-    , FEIR.int 1
     , FEIR.field "model"
         (FEIR.record "model-identity"
           [ FEIR.field "id" (FEIR.string "model:fixture")
@@ -369,7 +367,7 @@ def feirProgramFixture :=
     ]
 
 assertEqual "complete FEIR fixture has canonical protocol prefix"
-  (take 7 (unpack (FEIR.render feirProgramFixture)))
-  (unpack "(feir 1")
+  (take 12 (unpack (FEIR.render feirProgramFixture)))
+  (unpack "(feir (model")
 
 def main (args: [String]) : IO () := print (FEIR.render feirProgramFixture)

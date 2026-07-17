@@ -152,14 +152,12 @@ withUpdate program scalar = program
 
 fixture :: FEProgram
 fixture = FEProgram
-  { feProgramVersion = 1
-  , feProgramModel = ModelIdentity (ModelId "model") "wide"
+  { feProgramModel = ModelIdentity (ModelId "model") "wide"
       (SourceIdentity (SourceId "source") "wide.fme")
   , feProgramRegistryId = RegistryId "registry"
   , feProgramPrimitiveManifestId = PrimitiveManifestId "manifest"
   , feProgramDiscretization = setProfileFingerprint
       (DiscretizationProfile
-        (VersionedProfileId "formurae-discretization@1")
         (Fingerprint "")
         [DerivativeRule CollocatedLattice (Just (Positive 2))
           CenteredTaylor (PositiveEven 2) (OriginId 1)]

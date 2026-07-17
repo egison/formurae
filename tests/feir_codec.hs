@@ -68,8 +68,6 @@ main = do
     (decodeFEProgram (appendTopField "mode" (Atom "collocated") encoded))
   assertDecodeError "unknown top-level tag" "unknown top-level tag"
     (decodeFEProgram (replaceTopTag "not-feir" encoded))
-  assertDecodeError "unknown FEIR version" "unsupported FEIR version"
-    (decodeFEProgram (replaceVersion 2 encoded))
   assertDecodeError "profile fingerprint tampering" "fingerprint mismatch"
     (decodeFEProgram (tamperFingerprint encoded))
 
@@ -78,12 +76,11 @@ main = do
 fixtureProgram :: FEProgram
 fixtureProgram =
   FEProgram
-    { feProgramVersion = 1
-    , feProgramModel = ModelIdentity
+    { feProgramModel = ModelIdentity
         (ModelId "model:渦") "渦モデル"
         (SourceIdentity sourceId "/tmp/テンソル/渦.fme")
     , feProgramRegistryId = RegistryId "sha256:registry"
-    , feProgramPrimitiveManifestId = PrimitiveManifestId "formurae-primitives@1"
+    , feProgramPrimitiveManifestId = PrimitiveManifestId "formurae-primitives"
     , feProgramDiscretization = fixtureProfile
     , feProgramMode = CollocatedMode
     , feProgramDimension = 2
@@ -141,7 +138,6 @@ sourceOrigin2 = SourceOrigin location2
 
 fixtureProfile :: DiscretizationProfile
 fixtureProfile = setProfileFingerprint $ DiscretizationProfile
-  (VersionedProfileId "formurae-discretization@1")
   (Fingerprint "pending")
   [ DerivativeRule CollocatedLattice Nothing CenteredTaylor
       (PositiveEven 2) (OriginId 1)
@@ -195,7 +191,7 @@ fixtureJet = FieldJetValue (FieldId 2) CurrentTime (Basis [1])
 
 fixtureOpaque :: OpaqueDiscrete
 fixtureOpaque = OpaqueDiscreteCall
-  (VersionedOpId "test.opaque@1") (SemanticKey "opaque-key-17")
+  (OpId "test.opaque") (SemanticKey "opaque-key-17")
   (RequestGroupId "opaque17") (Basis [])
   [ ScalarValue (FieldJet fixtureJet)
   , TensorValue (scalarTensor (Exact 1 2))
@@ -296,10 +292,6 @@ isNamedField _ _ = False
 replaceTopTag :: String -> SExpr -> SExpr
 replaceTopTag tag (List (_ : rest)) = List (Atom tag : rest)
 replaceTopTag _ expression = expression
-
-replaceVersion :: Int -> SExpr -> SExpr
-replaceVersion version (List (tag : _ : rest)) = List (tag : Atom (show version) : rest)
-replaceVersion _ expression = expression
 
 tamperFingerprint :: SExpr -> SExpr
 tamperFingerprint (List values) = List (map tamperTop values)

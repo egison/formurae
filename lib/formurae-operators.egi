@@ -14,16 +14,16 @@ declare mathfunc formuraeOpaqueBarrier
 declare symbol formuraeTensorIndex1, formuraeTensorIndex2, formuraeTensorIndex3
 
 def Formurae.opaqueCoordinateWideHead : String :=
-  "FormuraeInternalOpaqueCoordinateWideV1"
+  "FormuraeInternalOpaqueCoordinateWide"
 
 def Formurae.opaqueGridWholeHead : String :=
-  "FormuraeInternalOpaqueGridWholeV1"
+  "FormuraeInternalOpaqueGridWhole"
 
 def Formurae.opaqueOrderedDerivativeHead : String :=
-  "FormuraeInternalOpaqueOrderedDerivativeV1"
+  "FormuraeInternalOpaqueOrderedDerivative"
 
 def Formurae.opaqueResampleHead : String :=
-  "FormuraeInternalOpaqueResampleV1"
+  "FormuraeInternalOpaqueResample"
 
 -- Egison represents differential-form axes as anonymous tensor dimensions:
 -- tensorVariances reports the explicit tensor axes and dfOrder reports the
@@ -89,7 +89,7 @@ def Formurae.geometryScale
 
 def Formurae.requireOpaqueManifest : Bool :=
   assert "opaque operator has an incompatible primitive manifest"
-    (fePrimitiveManifestId = Formurae.Primitives.primitiveManifestV1Id)
+    (fePrimitiveManifestId = Formurae.Primitives.primitiveManifestId)
 
 -- Surface conditionals stay symbolic across Egison normalization.  Predicate
 -- nodes and Select are ordinary FunctionData values with versioned reserved
@@ -97,43 +97,43 @@ def Formurae.requireOpaqueManifest : Bool :=
 -- deliberately lets Egison's tensor-map insertion lift Select componentwise
 -- when the two branches are tensors with matching structural metadata.
 def Formurae.predicateTrue : MathValue :=
-  functionSymbol "FormuraeInternalPredicateTrueV1" []
+  functionSymbol "FormuraeInternalPredicateTrue" []
 
 def Formurae.predicateFalse : MathValue :=
-  functionSymbol "FormuraeInternalPredicateFalseV1" []
+  functionSymbol "FormuraeInternalPredicateFalse" []
 
 def Formurae.predicateEq (lhs: MathValue) (rhs: MathValue) : MathValue :=
-  functionSymbol "FormuraeInternalPredicateEqV1" [lhs, rhs]
+  functionSymbol "FormuraeInternalPredicateEq" [lhs, rhs]
 
 def Formurae.predicateNe (lhs: MathValue) (rhs: MathValue) : MathValue :=
-  functionSymbol "FormuraeInternalPredicateNeV1" [lhs, rhs]
+  functionSymbol "FormuraeInternalPredicateNe" [lhs, rhs]
 
 def Formurae.predicateLt (lhs: MathValue) (rhs: MathValue) : MathValue :=
-  functionSymbol "FormuraeInternalPredicateLtV1" [lhs, rhs]
+  functionSymbol "FormuraeInternalPredicateLt" [lhs, rhs]
 
 def Formurae.predicateLe (lhs: MathValue) (rhs: MathValue) : MathValue :=
-  functionSymbol "FormuraeInternalPredicateLeV1" [lhs, rhs]
+  functionSymbol "FormuraeInternalPredicateLe" [lhs, rhs]
 
 def Formurae.predicateGt (lhs: MathValue) (rhs: MathValue) : MathValue :=
-  functionSymbol "FormuraeInternalPredicateGtV1" [lhs, rhs]
+  functionSymbol "FormuraeInternalPredicateGt" [lhs, rhs]
 
 def Formurae.predicateGe (lhs: MathValue) (rhs: MathValue) : MathValue :=
-  functionSymbol "FormuraeInternalPredicateGeV1" [lhs, rhs]
+  functionSymbol "FormuraeInternalPredicateGe" [lhs, rhs]
 
 def Formurae.predicateNot (predicate: MathValue) : MathValue :=
-  functionSymbol "FormuraeInternalPredicateNotV1" [predicate]
+  functionSymbol "FormuraeInternalPredicateNot" [predicate]
 
 def Formurae.predicateAnd
       (lhs: MathValue) (rhs: MathValue) : MathValue :=
-  functionSymbol "FormuraeInternalPredicateAndV1" [lhs, rhs]
+  functionSymbol "FormuraeInternalPredicateAnd" [lhs, rhs]
 
 def Formurae.predicateOr
       (lhs: MathValue) (rhs: MathValue) : MathValue :=
-  functionSymbol "FormuraeInternalPredicateOrV1" [lhs, rhs]
+  functionSymbol "FormuraeInternalPredicateOr" [lhs, rhs]
 
 def Formurae.select
       (predicate: MathValue) (yes: MathValue) (no: MathValue) : MathValue :=
-  functionSymbol "FormuraeInternalSelectV1" [predicate, yes, no]
+  functionSymbol "FormuraeInternalSelect" [predicate, yes, no]
 
 -- Every subscripted ∂ is an explicit-radius centered request (radius =
 -- primes + 1), independent of the model discretization profile.  Its axis,

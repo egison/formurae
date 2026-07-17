@@ -220,22 +220,22 @@ def FEIR.opaqueNode
   let checkedOpId := Formurae.Primitives.requireOperationId opId
       sortedAttributes := FEIR.sortSExprs attributes
       semanticPayload :=
-        FEIR.record "opaque-semantic-v1"
+        FEIR.record "opaque-semantic"
           [ FEIR.field "op-id" (FEIR.string checkedOpId)
           , FEIR.field "result-basis" (FEIR.basis resultBasis)
           , FEIR.field "operands" (FEIR.list operands)
           , FEIR.field "attributes" (FEIR.list sortedAttributes)
           ]
       groupPayload :=
-        FEIR.record "opaque-group-v1"
+        FEIR.record "opaque-group"
           [ FEIR.field "op-id" (FEIR.string checkedOpId)
           , FEIR.field "operands" (FEIR.list operands)
           , FEIR.field "attributes" (FEIR.list sortedAttributes)
           ]
       semanticKey :=
-        S.concat ["feir-v1:", FEIR.render semanticPayload]
+        S.concat ["feir:", FEIR.render semanticPayload]
       requestGroup :=
-        S.concat ["feir-v1-group:", FEIR.render groupPayload]
+        S.concat ["feir-group:", FEIR.render groupPayload]
    in FEIR.record "opaque-discrete"
         [ FEIR.field "op-id" (FEIR.string checkedOpId)
         , FEIR.field "semantic-key" (FEIR.string semanticKey)
@@ -487,7 +487,7 @@ def FEIR.encodeCoordinateWideOpaque
                   operand)
          in if i.> radius 0 && i.< order (i.+ (i.* 2 radius) 1)
               then FEIR.opaqueNode
-                     Formurae.Primitives.derivativeCoordinateWideV1OpId
+                     Formurae.Primitives.derivativeCoordinateWideOpId
                      [] [operandNF] [
                   FEIR.attribute "order" (FEIR.attributeNatural order)
                 , FEIR.attribute "ordered-axes"
@@ -513,7 +513,7 @@ def FEIR.encodeGridWholeOpaque
                 (FEIR.encodeScalar parameters coordinates fields intrinsics analytics
                   operand)
          in FEIR.opaqueNode
-              Formurae.Primitives.derivativeGridWholeV1OpId
+              Formurae.Primitives.derivativeGridWholeOpId
               [] [operandNF] [
               FEIR.attribute "order" (FEIR.attributeNatural 1)
             , FEIR.attribute "ordered-axes"
@@ -543,7 +543,7 @@ def FEIR.encodeOrderedDerivativeOpaque
                       (not (axes = [])
                        && all (\axis -> i.<= axis (length coordinates)) axes)
               then FEIR.opaqueNode
-                     Formurae.Primitives.derivativeOrderedV1OpId
+                     Formurae.Primitives.derivativeOrderedOpId
                      [] [operandNF] [
                    FEIR.attribute "order"
                      (FEIR.attributeNatural (length axes))
@@ -573,7 +573,7 @@ def FEIR.encodeResampleOpaque
                       (length bits = length coordinates
                        && all (\bit -> bit = 0 || bit = 1) bits)
               then FEIR.opaqueNode
-                     Formurae.Primitives.resampleExplicitV1OpId
+                     Formurae.Primitives.resampleExplicitOpId
                      [] [operandNF] [
                    FEIR.attribute "target-placement"
                      (FEIR.attributeValues
@@ -596,13 +596,13 @@ def FEIR.encodeOpaqueRef
           | symbol $name _ ->
               if not (symbolIndices headValue = [])
                 then FEIR.unsupportedScalar "indexed opaque reference is invalid"
-                else if name = "FormuraeInternalOpaqueCoordinateWideV1"
+                else if name = "FormuraeInternalOpaqueCoordinateWide"
                   then FEIR.encodeCoordinateWideOpaque parameters coordinates fields intrinsics analytics arguments
-                  else if name = "FormuraeInternalOpaqueGridWholeV1"
+                  else if name = "FormuraeInternalOpaqueGridWhole"
                     then FEIR.encodeGridWholeOpaque parameters coordinates fields intrinsics analytics arguments
-                    else if name = "FormuraeInternalOpaqueOrderedDerivativeV1"
+                    else if name = "FormuraeInternalOpaqueOrderedDerivative"
                       then FEIR.encodeOrderedDerivativeOpaque parameters coordinates fields intrinsics analytics arguments
-                      else if name = "FormuraeInternalOpaqueResampleV1"
+                      else if name = "FormuraeInternalOpaqueResample"
                         then FEIR.encodeResampleOpaque parameters coordinates fields intrinsics analytics arguments
                         else FEIR.unsupportedScalar "unknown reserved opaque head"
           | _ -> FEIR.unsupportedScalar "opaque payload head must be a symbol"
@@ -650,30 +650,30 @@ def FEIR.functionDataName (value: MathValue) : String :=
     | _ -> ""
 
 def FEIR.isPredicateHeadName (name: String) : Bool :=
-  name = "FormuraeInternalPredicateTrueV1"
-  || name = "FormuraeInternalPredicateFalseV1"
-  || name = "FormuraeInternalPredicateEqV1"
-  || name = "FormuraeInternalPredicateNeV1"
-  || name = "FormuraeInternalPredicateLtV1"
-  || name = "FormuraeInternalPredicateLeV1"
-  || name = "FormuraeInternalPredicateGtV1"
-  || name = "FormuraeInternalPredicateGeV1"
-  || name = "FormuraeInternalPredicateNotV1"
-  || name = "FormuraeInternalPredicateAndV1"
-  || name = "FormuraeInternalPredicateOrV1"
+  name = "FormuraeInternalPredicateTrue"
+  || name = "FormuraeInternalPredicateFalse"
+  || name = "FormuraeInternalPredicateEq"
+  || name = "FormuraeInternalPredicateNe"
+  || name = "FormuraeInternalPredicateLt"
+  || name = "FormuraeInternalPredicateLe"
+  || name = "FormuraeInternalPredicateGt"
+  || name = "FormuraeInternalPredicateGe"
+  || name = "FormuraeInternalPredicateNot"
+  || name = "FormuraeInternalPredicateAnd"
+  || name = "FormuraeInternalPredicateOr"
 
 def FEIR.compareOperatorName (name: String) : String :=
-  if name = "FormuraeInternalPredicateEqV1"
+  if name = "FormuraeInternalPredicateEq"
     then "eq"
-    else if name = "FormuraeInternalPredicateNeV1"
+    else if name = "FormuraeInternalPredicateNe"
       then "ne"
-      else if name = "FormuraeInternalPredicateLtV1"
+      else if name = "FormuraeInternalPredicateLt"
         then "lt"
-        else if name = "FormuraeInternalPredicateLeV1"
+        else if name = "FormuraeInternalPredicateLe"
           then "le"
-          else if name = "FormuraeInternalPredicateGtV1"
+          else if name = "FormuraeInternalPredicateGt"
             then "gt"
-            else if name = "FormuraeInternalPredicateGeV1"
+            else if name = "FormuraeInternalPredicateGe"
               then "ge"
               else ""
 
@@ -702,11 +702,11 @@ def FEIR.encodePredicate
     | func $headValue $arguments ->
         let name := FEIR.unindexedSymbolName headValue
             compareOperator := FEIR.compareOperatorName name
-         in if name = "FormuraeInternalPredicateTrueV1"
+         in if name = "FormuraeInternalPredicateTrue"
               then if arguments = []
                      then FEIR.boolNode True
                      else FEIR.unsupportedScalar "true predicate must not have operands"
-              else if name = "FormuraeInternalPredicateFalseV1"
+              else if name = "FormuraeInternalPredicateFalse"
                 then if arguments = []
                        then FEIR.boolNode False
                        else FEIR.unsupportedScalar "false predicate must not have operands"
@@ -719,16 +719,16 @@ def FEIR.encodePredicate
                                    rhsNF := FEIR.encodeScalar parameters coordinates fields intrinsics analytics rhs
                                 in FEIR.compareNode compareOperator lhsNF rhsNF
                     | _ -> FEIR.unsupportedScalar "comparison predicate needs two operands"
-                  else if name = "FormuraeInternalPredicateNotV1"
+                  else if name = "FormuraeInternalPredicateNot"
                     then match arguments as list mathValue with
                       | $body :: [] -> FEIR.notNode (FEIR.encodePredicate parameters coordinates fields intrinsics analytics body)
                       | _ -> FEIR.unsupportedScalar "not predicate needs one operand"
-                    else if name = "FormuraeInternalPredicateAndV1"
-                      || name = "FormuraeInternalPredicateOrV1"
+                    else if name = "FormuraeInternalPredicateAnd"
+                      || name = "FormuraeInternalPredicateOr"
                       then if length arguments = 2
                         then let flattened := concat (map (FEIR.flattenPredicateValue name) arguments)
                                  encoded := map (FEIR.encodePredicate parameters coordinates fields intrinsics analytics) flattened
-                              in if name = "FormuraeInternalPredicateAndV1"
+                              in if name = "FormuraeInternalPredicateAnd"
                                    then FEIR.andNode encoded
                                    else FEIR.orNode encoded
                         else FEIR.unsupportedScalar "and/or predicate needs two operands"
@@ -762,7 +762,7 @@ def FEIR.encodeFunctionData
         filter
           (\(candidate, _, _, _) -> FEIR.fieldHeadMatches candidate headValue)
           fields
-   in if reservedName = "FormuraeInternalSelectV1"
+   in if reservedName = "FormuraeInternalSelect"
         then FEIR.encodeSelect parameters coordinates fields intrinsics analytics arguments
         else if FEIR.isPredicateHeadName reservedName
           then FEIR.unsupportedScalar "predicate value may only appear as the condition of Select"

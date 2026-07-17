@@ -114,8 +114,7 @@ renderCompiled label program = assertRight label (renderProgram program)
 
 fixture :: FEProgram
 fixture = FEProgram
-  { feProgramVersion = 1
-  , feProgramModel = ModelIdentity (ModelId "model-1") "algebraic"
+  { feProgramModel = ModelIdentity (ModelId "model-1") "algebraic"
       (SourceIdentity (SourceId "source-1") "algebraic.fme")
   , feProgramRegistryId = RegistryId "registry-1"
   , feProgramPrimitiveManifestId = PrimitiveManifestId "manifest-1"
@@ -164,7 +163,6 @@ piFixture = fixture
 
 profile :: DiscretizationProfile
 profile = DiscretizationProfile
-  (VersionedProfileId "formurae-discretization@1")
   (Fingerprint "") [] FixedAxisOrder
 
 scalarField :: LogicalFieldDecl

@@ -8,7 +8,7 @@ import System.IO (hPutStrLn, stderr)
 
 import qualified Formurae.FEIR.PrimitiveBindings as Primitives
 import Formurae.FEIR.PrimitiveManifest
-import Formurae.FEIR.Syntax (VersionedOpId(..))
+import Formurae.FEIR.Syntax (OpId(..))
 import Formurae.Pre.Effect
 import Formurae.Pre.EmitEgison
 import Formurae.Pre.Parse (parseModel)
@@ -25,17 +25,17 @@ main = do
     _ -> failWith "usage: pre-fec MODEL.fme"
   source <- readFile path
   model <- parseModel path (takeBaseName path) source
-  manifestPath <- getDataFileName "spec/feir-primitives-v1.sexp"
+  manifestPath <- getDataFileName "spec/feir-primitives.sexp"
   manifestResult <- loadPrimitiveManifest manifestPath
   manifest <- either (failWith . show) pure manifestResult
-  if primitiveManifestId manifest == Primitives.primitiveManifestV1Id
+  if primitiveManifestId manifest == Primitives.primitiveManifestId
     then pure ()
     else failWith "installed primitive manifest does not match generated bindings"
   _ <- either (failWith . renderEffectError model) pure
     (inferModelEffects manifest model)
   _ <- either (failWith . renderOperatorTypeError) pure
     (validateModelOperatorTypes model)
-  emitted <- emitNormalizationUnit Primitives.primitiveManifestV1Id model
+  emitted <- emitNormalizationUnit Primitives.primitiveManifestId model
   output <- either (failWith . renderEmitError) pure emitted
   putStr output
 
@@ -104,10 +104,10 @@ renderEffectIssue issue =
     plural [_] = ""
     plural _ = "s"
 
-renderOperations :: [VersionedOpId] -> String
+renderOperations :: [OpId] -> String
 renderOperations = intercalate ", " . map operationText
   where
-    operationText (VersionedOpId value) = value
+    operationText (OpId value) = value
 
 renderEmitError :: EmitError -> String
 renderEmitError problem =

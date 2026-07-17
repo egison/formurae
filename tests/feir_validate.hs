@@ -23,14 +23,13 @@ userField, localField :: FieldId
 userField = FieldId 1
 localField = FieldId 2
 
-knownOpaqueOp :: VersionedOpId
-knownOpaqueOp = VersionedOpId "grid-derivative@1"
+knownOpaqueOp :: OpId
+knownOpaqueOp = OpId "grid-derivative"
 
 knownSignature :: PrimitiveSignature
 knownSignature = PrimitiveSignature
   { primitiveSignatureOpId = knownOpaqueOp
   , primitiveSignatureOpName = "grid-derivative"
-  , primitiveSignatureOpVersion = 1
   , primitiveSignatureInputs = [ScalarCategory]
   , primitiveSignatureOutput = ScalarCategory
   , primitiveSignaturePlacement = DerivativeTargetPlacement
@@ -39,7 +38,7 @@ knownSignature = PrimitiveSignature
   }
 
 knownManifestId :: PrimitiveManifestId
-knownManifestId = primitiveManifestId (PrimitiveManifest 1 [knownSignature])
+knownManifestId = primitiveManifestId (PrimitiveManifest [knownSignature])
 
 validationConfig :: ValidationConfig
 validationConfig = ValidationConfig
@@ -51,8 +50,7 @@ validationConfig = ValidationConfig
 
 validProgram :: FEProgram
 validProgram = FEProgram
-  { feProgramVersion = 1
-  , feProgramModel = ModelIdentity
+  { feProgramModel = ModelIdentity
       (ModelId "model-test") "test"
       (SourceIdentity (SourceId "source-test") "test.fme")
   , feProgramRegistryId = RegistryId "registry-test"
@@ -102,7 +100,6 @@ validProfile :: DiscretizationProfile
 validProfile = setProfileFingerprint profile
   where
     profile = DiscretizationProfile
-      (VersionedProfileId "formurae-discretization@1")
       (Fingerprint "")
       [ collocatedDefaultRule
       , DerivativeRule CollocatedLattice (Just (Positive 2)) CenteredTaylor
@@ -189,8 +186,6 @@ main = do
 
 checkHeaderAndIds :: IO ()
 checkHeaderAndIds = do
-  assertIssue "version 1 is required" isVersion
-    validProgram { feProgramVersion = 2 }
   let duplicateAxes =
         [ AxisDecl axisX "x" "x" origin1
         , AxisDecl axisX "y" "y" origin1
@@ -202,8 +197,6 @@ checkHeaderAndIds = do
   assertIssue "parameter references are declared" isUnknownParameter
     (mapInitializerScalar (const (Parameter (ParamId 99))) validProgram)
   where
-    isVersion (UnsupportedProgramVersion 1 2) = True
-    isVersion _ = False
     isDuplicateAxis (DuplicateIdentifier AxisIds _) = True
     isDuplicateAxis _ = False
     isAxisCount (AxisCountMismatch 3 2) = True
@@ -374,10 +367,6 @@ checkReferencesAndActions = do
 
 checkProfile :: IO ()
 checkProfile = do
-  let wrongVersion = validProfile
-        { discretizationProfileVersion = VersionedProfileId "other@2" }
-  assertIssue "profile schema version is fixed" isProfileVersion
-    validProgram { feProgramDiscretization = wrongVersion }
   let malformedRule = DerivativeRule CollocatedLattice Nothing Yee
         (PositiveEven 3) origin1
       malformedProfile = validProfile
@@ -399,8 +388,6 @@ checkProfile = do
   assertIssue "profile fingerprint is recomputed" isFingerprint
     validProgram { feProgramDiscretization = tampered }
   where
-    isProfileVersion (UnsupportedProfileVersion (VersionedProfileId "other@2")) = True
-    isProfileVersion _ = False
     isFamily (InvalidLatticeFamily CollocatedLattice Yee) = True
     isFamily _ = False
     isAccuracy (InvalidFormalAccuracy 3) = True
@@ -415,7 +402,7 @@ checkProfile = do
 checkOpaque :: IO ()
 checkOpaque = do
   let badOpaque = validOpaque
-        { opaqueDiscreteOpId = VersionedOpId "unknown@1"
+        { opaqueDiscreteOpId = OpId "unknown"
         , opaqueDiscreteSemanticKey = SemanticKey ""
         }
       badProgram = replaceFirstBind
@@ -479,7 +466,7 @@ checkOpaque = do
   assertIssue "one semantic key has one semantic payload" isConflict
     conflictProgram
   where
-    isUnknownOp (UnknownOpaqueOperation (VersionedOpId "unknown@1")) = True
+    isUnknownOp (UnknownOpaqueOperation (OpId "unknown")) = True
     isUnknownOp _ = False
     isEmptyKey EmptyOpaqueSemanticKey = True
     isEmptyKey _ = False
@@ -726,12 +713,12 @@ configForSignature signature = validationConfig
   , validationPrimitiveSignatures = [signature]
   }
   where
-    manifestId = primitiveManifestId (PrimitiveManifest 1 [signature])
+    manifestId = primitiveManifestId (PrimitiveManifest [signature])
 
 withSignature :: PrimitiveSignature -> FEProgram -> FEProgram
 withSignature signature program = program
   { feProgramPrimitiveManifestId = primitiveManifestId
-      (PrimitiveManifest 1 [signature]) }
+      (PrimitiveManifest [signature]) }
 
 replaceMaterializeTarget :: FieldId -> FEProgram -> FEProgram
 replaceMaterializeTarget fieldId program = program

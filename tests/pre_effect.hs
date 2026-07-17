@@ -3,14 +3,14 @@ module Main where
 import Data.List (isInfixOf)
 
 import Formurae.FEIR.PrimitiveManifest
-import Formurae.FEIR.Syntax (VersionedOpId(..))
+import Formurae.FEIR.Syntax (OpId(..))
 import Formurae.Pre.Effect
 import Formurae.Syntax
 import Formurae.TensorExpr (parseTensorExpr)
 
 main :: IO ()
 main = do
-  source <- readFile "spec/feir-primitives-v1.sexp"
+  source <- readFile "spec/feir-primitives.sexp"
   manifest <- either (fail . show) pure (parsePrimitiveManifest source)
 
   -- Canonical Δ/δ on declared geometry are prelude macro expansions, so
@@ -27,8 +27,8 @@ main = do
       })
   assertEqual "definition effect propagation"
     [ ("smooth", PureFunction)
-    , ("weighted", DiscreteFunction [VersionedOpId "derivative.grid-whole@1"])
-    , ("nested", DiscreteFunction [VersionedOpId "derivative.grid-whole@1"])
+    , ("weighted", DiscreteFunction [OpId "derivative.grid-whole"])
+    , ("nested", DiscreteFunction [OpId "derivative.grid-whole"])
     ]
     (effectSummaryDefinitions summary)
 
@@ -37,11 +37,11 @@ main = do
     (expressionEffect manifest baseModel (EffectSummary [])
       "constant scalar Delta" (parseTensorExpr "Δ u"))
   assertEqual "the discrete exterior derivative is a grid-whole operation"
-    (Right (DiscreteFunction [VersionedOpId "derivative.grid-whole@1"]))
+    (Right (DiscreteFunction [OpId "derivative.grid-whole"]))
     (expressionEffect manifest variableMetricModel (EffectSummary [])
       "discrete exterior derivative" (parseTensorExpr "dExterior u"))
   assertEqual "the adjoint flux divergence is a grid-whole operation"
-    (Right (DiscreteFunction [VersionedOpId "derivative.grid-whole@1"]))
+    (Right (DiscreteFunction [OpId "derivative.grid-whole"]))
     (expressionEffect manifest variableMetricDecModel (EffectSummary [])
       "adjoint flux divergence" (parseTensorExpr "dFluxDiv u"))
   assertEqual "constant-geometry Hodge Laplacian remains continuum-pure"
@@ -349,18 +349,18 @@ main = do
   let parsedWide = parseTensorExpr "pd2r2_x u"
   assertEqual "explicit wide derivative is manifest-backed"
     (Right (DiscreteFunction
-      [VersionedOpId "derivative.coordinate-wide@1"]))
+      [OpId "derivative.coordinate-wide"]))
     (expressionEffect manifest baseModel (EffectSummary []) "wide" parsedWide)
 
   assertEqual "unprimed coordinate derivative is a placement-directed grid request"
     (Right (DiscreteFunction
-      [VersionedOpId "derivative.grid-whole@1"]))
+      [OpId "derivative.grid-whole"]))
     (expressionEffect manifest baseModel (EffectSummary [])
       "coordinate derivative"
       (parseTensorExpr "d_x (u * u / 2)"))
   assertEqual "ordered coordinate derivative is a centered explicit request"
     (Right (DiscreteFunction
-      [VersionedOpId "derivative.coordinate-wide@1"]))
+      [OpId "derivative.coordinate-wide"]))
     (expressionEffect manifest baseModel (EffectSummary [])
       "second coordinate derivative"
       (parseTensorExpr "pd2r1_x u"))
@@ -376,7 +376,7 @@ main = do
       (parseTensorExpr "FormuraeInternalAnalyticDerivative u coordinates"))
   assertEqual "symbolic indexed derivative is a per-axis grid request"
     (Right (DiscreteFunction
-      [VersionedOpId "derivative.grid-whole@1"]))
+      [OpId "derivative.grid-whole"]))
     (expressionEffect manifest baseModel (EffectSummary [])
       "indexed derivative"
       (parseTensorExpr "d_i (u * u)"))
@@ -388,7 +388,7 @@ main = do
 
   assertEqual "tensor literal merges effects from structured components"
     (Right (DiscreteFunction
-      [VersionedOpId "derivative.grid-whole@1"]))
+      [OpId "derivative.grid-whole"]))
     (expressionEffect manifest baseModel (EffectSummary [])
       "coordinate derivatives in tensor literal"
       (parseTensorExpr
@@ -397,7 +397,7 @@ main = do
   let twoAxisModel = baseModel { mDim = 2, mAxes = ["x", "y"] }
   assertEqual "multi quoted derivative is one ordered request"
     (Right (DiscreteFunction
-      [VersionedOpId "derivative.ordered@1"]))
+      [OpId "derivative.ordered"]))
     (expressionEffect manifest twoAxisModel (EffectSummary [])
       "multi quoted derivative"
       (parseTensorExpr "`(d_y (`(d_x (`(d_x u)))))"))

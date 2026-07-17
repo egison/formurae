@@ -61,13 +61,13 @@ cd "$ROOT"
 # derivative-nesting rules now report the grid-whole operations of the
 # expanded flux divergence, and def bodies cannot wrap the macros at all.
 expect_failure pre_fec_effect_derivative_error \
-  '7:8: grid derivative contains nested discrete operation: derivative.grid-whole@1'
+  '7:8: grid derivative contains nested discrete operation: derivative.grid-whole'
 expect_parse_failure pre_fec_effect_function_alias_error \
   "macro 'Δ' expands to step statements; it cannot be used in def weighted"
 expect_failure pre_fec_effect_analytic_derivative_error \
-  '7:8: analytic derivative contains discrete operation: derivative.grid-whole@1'
+  '7:8: analytic derivative contains discrete operation: derivative.grid-whole'
 expect_failure pre_fec_effect_contract_reducer_error \
-  '8:8: contractWith receives discrete operation as a higher-order argument: resample.explicit@1'
+  '8:8: contractWith receives discrete operation as a higher-order argument: resample.explicit'
 expect_failure pre_fec_forward_definition_error \
   '5:15: forward reference to user definition second'
 expect_failure pre_fec_unknown_axis_error \

@@ -24,7 +24,7 @@ import qualified Formurae.FEIR.PrimitiveBindings as Primitives
 import Formurae.FEIR.Syntax
 
 data PrimitiveContractError
-  = ContractWrongOperation VersionedOpId VersionedOpId
+  = ContractWrongOperation OpId OpId
   | ContractMissingAttribute AttributeId
   | ContractDuplicateAttribute AttributeId
   | ContractUnknownAttribute AttributeId
@@ -50,10 +50,10 @@ parseOrderedDerivativeRequest
     :: Int -> OpaqueDiscrete
     -> Either PrimitiveContractError OrderedDerivativeRequest
 parseOrderedDerivativeRequest dimension opaque = do
-  requireOperation Primitives.derivativeOrderedV1OpId opaque
+  requireOperation Primitives.derivativeOrderedOpId opaque
   requireScalarResult opaque
   operand <- requireScalarOperand
-    "derivative.ordered@1 expects exactly one scalar operand" opaque
+    "derivative.ordered expects exactly one scalar operand" opaque
   requireAttributeSet [orderAttribute, orderedAxesAttribute, radiusAttribute]
     (opaqueDiscreteAttributes opaque)
   orderValue <- requireAttribute orderAttribute opaque
@@ -83,10 +83,10 @@ parseResampleRequest
     :: Int -> OpaqueDiscrete
     -> Either PrimitiveContractError ResampleRequest
 parseResampleRequest dimension opaque = do
-  requireOperation Primitives.resampleExplicitV1OpId opaque
+  requireOperation Primitives.resampleExplicitOpId opaque
   requireScalarResult opaque
   operand <- requireScalarOperand
-    "resample.explicit@1 expects exactly one scalar operand" opaque
+    "resample.explicit expects exactly one scalar operand" opaque
   requireAttributeSet [targetPlacementAttribute]
     (opaqueDiscreteAttributes opaque)
   placementValue <- requireAttribute targetPlacementAttribute opaque
@@ -101,7 +101,7 @@ parseResampleRequest dimension opaque = do
     else Left (ContractInvalidAttribute targetPlacementAttribute placementValue)
 
 requireOperation
-    :: VersionedOpId -> OpaqueDiscrete -> Either PrimitiveContractError ()
+    :: OpId -> OpaqueDiscrete -> Either PrimitiveContractError ()
 requireOperation expected opaque
   | opaqueDiscreteOpId opaque == expected = Right ()
   | otherwise = Left (ContractWrongOperation expected

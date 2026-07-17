@@ -6,7 +6,7 @@ def feGeometryScales : Vector MathValue := [|1, 1, 1|]
 def feGeometryId : Integer := 1
 def epsilon : Tensor Integer := ε dimension
 def fePrimitiveManifestId : String :=
-  Formurae.Primitives.primitiveManifestV1Id
+  Formurae.Primitives.primitiveManifestId
 
 def T := generateTensor (\[i, j] -> function (x, y, z)) [3, 3]
 

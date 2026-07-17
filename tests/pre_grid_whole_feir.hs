@@ -16,13 +16,13 @@ main = do
       wide =
         [ call
         | call <- calls
-        , opaqueDiscreteOpId call == VersionedOpId "derivative.coordinate-wide@1"
+        , opaqueDiscreteOpId call == OpId "derivative.coordinate-wide"
         ]
   assertEqual "the two ∂² occurrences are radius-one coordinate requests"
     2 (length wide)
   case [ call
        | call <- calls
-       , opaqueDiscreteOpId call == VersionedOpId "derivative.grid-whole@1"
+       , opaqueDiscreteOpId call == OpId "derivative.grid-whole"
        ] of
     [opaque] -> checkGridWhole opaque
     others -> fail ("expected one grid-whole request, got " ++ show others)
@@ -30,7 +30,7 @@ main = do
 checkGridWhole :: OpaqueDiscrete -> IO ()
 checkGridWhole opaque = do
   assertEqual "operation"
-    (VersionedOpId "derivative.grid-whole@1")
+    (OpId "derivative.grid-whole")
     (opaqueDiscreteOpId opaque)
   assertEqual "result basis" (Basis []) (opaqueDiscreteResultBasis opaque)
   assertEqual "one whole nonlinear operand"

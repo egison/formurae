@@ -1,37 +1,37 @@
--- This file is generated from spec/feir-primitives-v1.sexp.
+-- This file is generated from spec/feir-primitives.sexp.
 -- Run tools/generate-feir-primitives.hs; do not edit it directly.
 
-def Formurae.Primitives.primitiveManifestV1Id : String :=
-  "sha256:15edbc55825f7b9ff02836c67d852b46635f34d7b94a0397d750243b555aa9fb"
+def Formurae.Primitives.primitiveManifestId : String :=
+  "sha256:b7a05af81f6418b2163bd3ef280d911d6409564da41c96d455b872e62d120098"
 
-def Formurae.Primitives.derivativeCoordinateWideV1OpId : String :=
-  "derivative.coordinate-wide@1"
+def Formurae.Primitives.derivativeCoordinateWideOpId : String :=
+  "derivative.coordinate-wide"
 
-def Formurae.Primitives.derivativeGridWholeV1OpId : String :=
-  "derivative.grid-whole@1"
+def Formurae.Primitives.derivativeGridWholeOpId : String :=
+  "derivative.grid-whole"
 
-def Formurae.Primitives.derivativeOrderedV1OpId : String :=
-  "derivative.ordered@1"
+def Formurae.Primitives.derivativeOrderedOpId : String :=
+  "derivative.ordered"
 
-def Formurae.Primitives.resampleExplicitV1OpId : String :=
-  "resample.explicit@1"
+def Formurae.Primitives.resampleExplicitOpId : String :=
+  "resample.explicit"
 
 def Formurae.Primitives.signatures
-      : [(String, String, Integer, [String], String, String, String, [String], String)] :=
-  [ (Formurae.Primitives.derivativeCoordinateWideV1OpId, "derivative.coordinate-wide", 1, ["scalar"], "scalar", "derivative-target", "pure-local", [], "ordered")
-  , (Formurae.Primitives.derivativeGridWholeV1OpId, "derivative.grid-whole", 1, ["scalar"], "scalar", "derivative-target", "pure-local", [], "ordered")
-  , (Formurae.Primitives.derivativeOrderedV1OpId, "derivative.ordered", 1, ["scalar"], "scalar", "derivative-target", "pure-local", [], "ordered")
-  , (Formurae.Primitives.resampleExplicitV1OpId, "resample.explicit", 1, ["scalar"], "scalar", "explicit-target", "pure-local", [], "ordered")
+      : [(String, String, [String], String, String, String, [String], String)] :=
+  [ (Formurae.Primitives.derivativeCoordinateWideOpId, "derivative.coordinate-wide", ["scalar"], "scalar", "derivative-target", "pure-local", [], "ordered")
+  , (Formurae.Primitives.derivativeGridWholeOpId, "derivative.grid-whole", ["scalar"], "scalar", "derivative-target", "pure-local", [], "ordered")
+  , (Formurae.Primitives.derivativeOrderedOpId, "derivative.ordered", ["scalar"], "scalar", "derivative-target", "pure-local", [], "ordered")
+  , (Formurae.Primitives.resampleExplicitOpId, "resample.explicit", ["scalar"], "scalar", "explicit-target", "pure-local", [], "ordered")
   ]
 
 def Formurae.Primitives.signatureOperationId
-      (signature: (String, String, Integer, [String], String, String, String, [String], String))
+      (signature: (String, String, [String], String, String, String, [String], String))
       : String :=
-  let (operationId, _, _, _, _, _, _, _, _) := signature in operationId
+  let (operationId, _, _, _, _, _, _, _) := signature in operationId
 
 def Formurae.Primitives.signatureFor
       (operationId: String)
-      : (String, String, Integer, [String], String, String, String, [String], String) :=
+      : (String, String, [String], String, String, String, [String], String) :=
   let matches :=
         filter
           (\entry ->

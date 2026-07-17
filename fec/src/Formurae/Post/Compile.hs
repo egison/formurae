@@ -51,17 +51,17 @@ data GridWholeDerivativeError
   | GridWholeStencilFailure StencilError
   deriving (Eq, Show)
 
-wideDerivativeOperationId :: VersionedOpId
-wideDerivativeOperationId = Primitives.derivativeCoordinateWideV1OpId
+wideDerivativeOperationId :: OpId
+wideDerivativeOperationId = Primitives.derivativeCoordinateWideOpId
 
-gridWholeDerivativeOperationId :: VersionedOpId
-gridWholeDerivativeOperationId = Primitives.derivativeGridWholeV1OpId
+gridWholeDerivativeOperationId :: OpId
+gridWholeDerivativeOperationId = Primitives.derivativeGridWholeOpId
 
-orderedDerivativeOperationId :: VersionedOpId
-orderedDerivativeOperationId = Primitives.derivativeOrderedV1OpId
+orderedDerivativeOperationId :: OpId
+orderedDerivativeOperationId = Primitives.derivativeOrderedOpId
 
-resampleOperationId :: VersionedOpId
-resampleOperationId = Primitives.resampleExplicitV1OpId
+resampleOperationId :: OpId
+resampleOperationId = Primitives.resampleExplicitOpId
 
 data PostError
   = PostAtOrigin OriginId PostError
@@ -77,7 +77,7 @@ data PostError
   | PostMissingTensorComponent Basis
   | PostNonScalarComponent Basis [Int]
   | PostUnsupportedDerivative FieldJet
-  | PostUnsupportedOpaque VersionedOpId
+  | PostUnsupportedOpaque OpId
   | PostWideDerivativeError SemanticKey WideDerivativeError
   | PostGridWholeDerivativeError SemanticKey GridWholeDerivativeError
   | PostPrimitiveContractError SemanticKey PrimitiveContractError

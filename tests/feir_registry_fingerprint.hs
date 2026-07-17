@@ -36,8 +36,7 @@ main = do
 
 programFrom :: Surface.Model -> PreRegistry -> FEProgram
 programFrom model registry = FEProgram
-  { feProgramVersion = 1
-  , feProgramModel = preRegistryModelIdentity registry
+  { feProgramModel = preRegistryModelIdentity registry
   , feProgramRegistryId = RegistryId "pending"
   , feProgramPrimitiveManifestId = PrimitiveManifestId "manifest-test"
   , feProgramDiscretization = preRegistryDiscretization registry

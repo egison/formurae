@@ -6,7 +6,7 @@ def feGeometryScales : Vector MathValue := [|1, 1|]
 def feGeometryId : Integer := 1
 def epsilon : Tensor Integer := ε dimension
 def fePrimitiveManifestId : String :=
-  Formurae.Primitives.primitiveManifestV1Id
+  Formurae.Primitives.primitiveManifestId
 
 def opaqueU := function (x, y)
 def opaqueCoordinates := [(x, 1), (y, 2)]
@@ -26,7 +26,7 @@ def gridWholeRequest :=
   Formurae.gridWholeDerivative 1 gridWholeOperand
 
 def expectedWide :=
-  FEIR.opaqueNode "derivative.coordinate-wide@1" []
+  FEIR.opaqueNode "derivative.coordinate-wide" []
     [FEIR.scalarValue encodedOpaqueU]
     [ FEIR.attribute "order" (FEIR.attributeNatural 2)
     , FEIR.attribute "ordered-axes"
@@ -35,7 +35,7 @@ def expectedWide :=
     ]
 
 def expectedGridWhole :=
-  FEIR.opaqueNode "derivative.grid-whole@1" []
+  FEIR.opaqueNode "derivative.grid-whole" []
     [FEIR.scalarValue (encodeOpaqueFixture gridWholeOperand)]
     [ FEIR.attribute "order" (FEIR.attributeNatural 1)
     , FEIR.attribute "ordered-axes"

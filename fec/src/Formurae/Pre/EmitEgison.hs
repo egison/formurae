@@ -121,8 +121,7 @@ prepareProgram manifestId model registry = pure $ do
         | (FEIR.BindValue (FEIR.NodeId node) _ origin) <- actions
         ]
       program = FEIR.FEProgram
-        { FEIR.feProgramVersion = 1
-        , FEIR.feProgramModel = preRegistryModelIdentity registry
+        { FEIR.feProgramModel = preRegistryModelIdentity registry
         , FEIR.feProgramRegistryId = FEIR.RegistryId "pending"
         , FEIR.feProgramPrimitiveManifestId = manifestId
         , FEIR.feProgramDiscretization = preRegistryDiscretization registry
@@ -1729,6 +1728,13 @@ renderWire dynamics deferredSplices expression
       ++ show originId ++ " " ++ valueRef
   | Atom value <- expression = "FEIR.atom " ++ show value
   | StringAtom value <- expression = "FEIR.string " ++ show value
+  -- The program root spells as FEIR.record: the equivalent FEIR.list
+  -- literal, whose second element became a deep list when the wire
+  -- version atom was retired, trips an Egison evaluation quirk on
+  -- units of this size (observed as a spurious math type error).
+  | List (Atom "feir" : fields) <- expression =
+      "FEIR.record \"feir\" "
+      ++ renderList (map (renderWire dynamics deferredSplices) fields)
   | List values <- expression =
       "FEIR.list " ++ renderList (map (renderWire dynamics deferredSplices) values)
   where

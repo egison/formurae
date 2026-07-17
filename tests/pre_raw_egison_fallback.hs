@@ -10,7 +10,7 @@ import Formurae.Syntax
 
 main :: IO ()
 main = do
-  manifestSource <- readFile "spec/feir-primitives-v1.sexp"
+  manifestSource <- readFile "spec/feir-primitives.sexp"
   manifest <- either (fail . show) pure
     (parsePrimitiveManifest manifestSource)
 
@@ -40,7 +40,7 @@ main = do
   assertLeft "raw Egison rejects FunctionData construction" isReservedConstructor $
     inferModelEffects manifest (baseModel
       [definition 5 "raw" ["x"]
-        "let request := functionSymbol \"FormuraeInternalOpaqueGridWholeV1\" [x, 1] in request"])
+        "let request := functionSymbol \"FormuraeInternalOpaqueGridWhole\" [x, 1] in request"])
 
   assertLeft "raw Egison rejects generated-internal identifiers" isReservedConstructor $
     inferModelEffects manifest (baseModel
@@ -55,7 +55,7 @@ main = do
   nearMissSummary <- requireRight "reserved names inside a string are data" $
     inferModelEffects manifest (baseModel
       [definition 5 "raw" ["x"]
-        "let diagnostic := \"formuraeOpaqueBarrier functionSymbol FormuraeInternalOpaqueGridWholeV1\" in x"])
+        "let diagnostic := \"formuraeOpaqueBarrier functionSymbol FormuraeInternalOpaqueGridWhole\" in x"])
   assertEqual "diagnostic strings do not trip the reserved constructor gate"
     [("raw", PureFunction)] (effectSummaryDefinitions nearMissSummary)
 

@@ -44,8 +44,7 @@ testSourceOrderedNextTimeDependency = do
 
 fixture :: FEProgram
 fixture = FEProgram
-  { feProgramVersion = 1
-  , feProgramModel = ModelIdentity (ModelId "materialize-model") "materialize"
+  { feProgramModel = ModelIdentity (ModelId "materialize-model") "materialize"
       (SourceIdentity (SourceId "materialize-source") "materialize.fme")
   , feProgramRegistryId = RegistryId "materialize-registry"
   , feProgramPrimitiveManifestId = PrimitiveManifestId "materialize-manifest"
@@ -98,7 +97,6 @@ sourceOrderedFixture = fixture
 
 profile :: DiscretizationProfile
 profile = DiscretizationProfile
-  (VersionedProfileId "formurae-discretization@1")
   (Fingerprint "") [] FixedAxisOrder
 
 stateScalar :: LogicalFieldDecl
