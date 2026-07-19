@@ -5,7 +5,13 @@
 > なり、sbp 軸では素の ∂/∂²/profile 1–2 階が閉包化、閉包なし幅・素の
 > ghost 読みは静的エラー、sbpd は移行診断つきで拒否、
 > `derivative.sbp-staggered` は削除。3 例題は宣言形で .fmr バイト一致。
-> 残りは Phase B(k≥2 閉包構成器)と Phase C(SAT マクロ)。
+>
+> **Phase B も実装済み(2026-07-19、v2.21)。** k≥2 閉包構成器
+> ([sbp-high-order-closures.md](sbp-high-order-closures.md))が入り、
+> sbp 軸で `∂'`(全半径の 1 階)と profile 全 accuracy の 1/2 階が
+> 閉包つきに — 「幅 × 境界」の積が宣言どおり定義される(compact な
+> 幅広 2 階 `∂'^2` と 3 階以上は SBP 分解が無いので設計どおりエラー)。
+> 残りは Phase C(SAT マクロ)。
 
 ## 設計判断(2026-07-19 の議論で確定)
 

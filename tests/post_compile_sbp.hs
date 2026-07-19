@@ -17,6 +17,7 @@ main = do
   testPrimalToDualInterior
   testSecondDerivativeClosures
   testMixedBoundaryAxes
+  testWideRadiusClosures
   testProfileJetClosures
   testRejections
   putStrLn "post compile sbp tests: ok"
@@ -62,9 +63,30 @@ testMixedBoundaryAxes = do
   assertNotContains "periodic y axis has no guard" "if j" rendered
   assertContains "periodic y interior sample" "u[i,j+1]" rendered
 
--- Profile-driven field jets share the closure construction: the minimal
--- staggered first and second stages close, and a wider profile accuracy is
--- a static error until its closure constructor exists.
+-- A wide first derivative closes at every radius: the pair constructor
+-- supplies the closure rows for that interior width.  The dual-placed
+-- target grid ends one storage slot early (its final half point sits
+-- outside the domain), so the high guards of the primal-to-dual direction
+-- start at total_grid − 2.
+testWideRadiusClosures :: IO ()
+testWideRadiusClosures = do
+  dualToPrimal <- compileAndRender "radius-two dual-to-primal derivative"
+    (derivativeProgram DualPolicy PrimalPolicy (wideOpaque "sbp" 1 2))
+  assertContains "one-sided first row" "if i == 0 then" dualToPrimal
+  assertContains "outermost detached row" "if i == 3 then" dualToPrimal
+  assertContains "one-sided outer sample" "u[i+2]" dualToPrimal
+  assertContains "wide interior sample" "u[i-2]" dualToPrimal
+  primalToDual <- compileAndRender "radius-two primal-to-dual derivative"
+    (derivativeProgram PrimalPolicy DualPolicy (wideOpaque "sbp" 1 2))
+  assertContains "primal-to-dual closure guard" "if i == 2 then" primalToDual
+  assertContains "dual-placed high guard starts one slot early"
+    "if i == (-2) + total_grid_x then" primalToDual
+  assertNotContains "the out-of-domain half slot is never guarded"
+    "(-1) + total_grid_x" primalToDual
+
+-- Profile-driven field jets share the closure construction at every
+-- accuracy: the pair count is the accuracy half.  Only orders above two
+-- stay a static error until their closures exist.
 testProfileJetClosures :: IO ()
 testProfileJetClosures = do
   firstOrder <- compileAndRender "profile dual-to-primal jet"
@@ -77,10 +99,21 @@ testProfileJetClosures = do
     (jetProgram PrimalPolicy PrimalPolicy 2)
   assertContains "jet second closure outer sample" "u[i+2]" secondOrder
   assertContains "jet second denominator" "/ dx**2" secondOrder
-  assertSbpError "profile accuracy four has no closure yet"
-    (== SbpProfileClosureUnavailable 1 4)
-    (compileProgram (withAccuracyFourProfile
-      (jetProgram DualPolicy PrimalPolicy 1)))
+  wideFirst <- compileAndRender "accuracy-four dual-to-primal jet"
+    (withAccuracyFourProfile (jetProgram DualPolicy PrimalPolicy 1))
+  assertContains "accuracy-four detached closure row" "if i == 3 then"
+    wideFirst
+  assertContains "accuracy-four interior sample" "u[i-2]" wideFirst
+  wideSecond <- compileAndRender "accuracy-four second-derivative jet"
+    (withAccuracyFourProfile (jetProgram PrimalPolicy PrimalPolicy 2))
+  assertContains "accuracy-four second closure depth" "if i == 4 then"
+    wideSecond
+  assertContains "accuracy-four composed interior sample" "u[i+3]"
+    wideSecond
+  assertContains "accuracy-four second denominator" "/ dx**2" wideSecond
+  assertSbpError "third-order jets have no closure yet"
+    (== SbpProfileClosureUnavailable 3 2)
+    (compileProgram (jetProgram PrimalPolicy DualPolicy 3))
 
 testRejections :: IO ()
 testRejections = do

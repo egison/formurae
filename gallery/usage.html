@@ -442,7 +442,9 @@ step:
 
 <p>境界の扱いは個々の微分適用の属性ではなく<b>領域(軸)の属性</b>です:
 <code>boundary x : sbp</code>を宣言すると、その軸に沿う<b>素の</b><code>∂_x</code>・
-<code>∂^2_x</code>・profile 1–2階がそのまま境界対応になります。内部は通常の
+<code>∂^2_x</code>に加え、<b>プライム幅<code>∂'_x</code>(全半径の1階)と
+profile全accuracyの1–2階</b>もそのまま境界対応になります(k≥2のSBP対は
+Q=H·D線形化の厳密解として自動構成され、境界次数はk)。内部は通常の
 staggered差分のまま、境界に最も近い行だけsummation-by-parts閉包行に
 index guard(<code>if i == 0 then … else …</code>)で置換するため、
 どのサンプルも領域外を読みません。閉包はノルム行列Hとの組で
@@ -450,16 +452,18 @@ index guard(<code>if i == 0 then … else …</code>)で置換するため、
 post-fecが有限Nの行列恒等式として毎回検証します(エネルギー法の安定性の根拠)。
 エネルギー安定性は「モデル内の全微分が同じ境界扱いを共有する」大域的性質なので、
 宣言があるからこそ<b>sbp軸に閉包なし経路が混ざったら静的エラー</b>にできます:
-プライム幅・accuracy≥4・3階以上・collocated operand・ordered chain横断・
-half→integerのresampleはすべてcompile-time errorです(閉包構成器の拡張までの明示的な境界)。
-旧<code>sbpd_x</code>/<code>sbpd2_x</code>綴りは退役し、移行診断が
+幅広の明示2階<code>∂'^2</code>(compactステンシルはD⁻D⁺合成と別物でSBP分解が無い)・
+3階以上・collocated operand・ordered chain横断・half→integerのresampleは
+compile-time errorです。旧<code>sbpd_x</code>/<code>sbpd2_x</code>綴りは退役し、移行診断が
 宣言+素の∂への書き換えを案内します。
 境界条件はSAT(penalty項)を表層の<code>if</code>+<code>param</code>で書きます
-(係数・しきい値をparamに置くのはdxがCAS側で非束縛のため)。1階はhalf→integerの向きで
-両端閉包、integer→halfは閉包不要、2階はinteger配置限定です。実測は
+(係数・しきい値をparamに置くのはdxがCAS側で非束縛のため; H⁻¹端重みは
+k=1で2/dx・k=2で18/(7dx))。1階はhalf→integerの向きで両端閉包、
+integer→halfはk=1のみ閉包不要、2階はinteger配置限定です。実測は
 <code>examples/sbp_diffusion1d</code>(2.02次収束+エネルギー単調)・
 <code>sbp_wave1d</code>(pressure-release、1周期回帰)・
-<code>sbp_diffusion2d</code>(軸ごとの加法で角が自動成立)。</p>
+<code>sbp_diffusion2d</code>(軸ごとの加法で角が自動成立)・
+<code>sbp_highorder4</code>(内部4次の<code>∂'</code>両方向、実測3.03次収束)。</p>
 
 <h3>配置と中間storage</h3>
 

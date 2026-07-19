@@ -1,5 +1,15 @@
 # k ≥ 2 の SBP 境界閉包の構成器
 
+> **実装済み(2026-07-19、v2.21)。** `constructSbpStaggeredPair` が
+> Q = H·D 線形化+厳密 RREF(自由変数 = 0 の正準化+構造探索)で任意の
+> k の閉包対を構成し、k = 2, 3 が成立(境界精度 s = k・ノルム正値・
+> SBP 恒等式を有限 N で厳密検証)。D⁺ 側閉包(`sbpPrimalToDualLow/High`)
+> をレコードに追加し、sbp 軸では `∂'`(wide 1 階全半径)と profile 全
+> accuracy の 1/2 階が閉包つきに。E2E = sbp_highorder4(∂' 両方向 flux 形)
+> が実測 3.03 次収束+エネルギー単調。∂'^2(compact 幅広 2 階)と 3 階
+> 以上は設計どおりエラーのまま(下記「差し込み口」の注のとおり compact
+> 2 階には SBP 分解が無い)。
+
 ## 現状(v2.17)
 
 `Formurae.Post.Stencil` の `sbpStaggeredPair` は内部 2 次(k = 1)のみを

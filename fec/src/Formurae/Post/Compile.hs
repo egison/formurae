@@ -28,6 +28,7 @@ import Formurae.Post.Stencil
   , StencilError
   , centeredTaylorAtRadius
   , centeredWeights
+  , composedInteriorWeights
   , sbpStaggeredPair
   , staggeredTaylorAtPairs
   , staggeredTwiceWeights
@@ -686,10 +687,14 @@ lowerWideDerivative environment targetPlacement sampleOffsets opaque = do
         (derivativeRequestOperand request)
       Right (normalizeExpr (FMul [exactExpr coefficient, sample]))
 
--- | A wide request on a declared sbp axis: the only width with a closure so
--- far is the composed second derivative at the minimal radius (the exact
--- composition of the two staggered stages).  Every other width is a static
--- error until the higher-order closure constructor lands; an sbp axis never
+-- | A wide request on a declared sbp axis.  First derivatives close at
+-- every radius: the pair constructor supplies the closure rows of the
+-- staggered interior with that pair count.  The composed second derivative
+-- closes at the minimal radius, where the compact stencil coincides with
+-- the exact composition of the two staggered stages; a wider explicit
+-- second derivative is a genuinely different interior (the compact
+-- maximal-accuracy stencil) with no summation-by-parts factorization, so
+-- it stays a static error, as do higher orders — an sbp axis never
 -- silently lowers a closure-free stencil.
 lowerWideSbpDerivative
     :: CompileEnvironment
@@ -706,6 +711,11 @@ lowerWideSbpDerivative environment sampleOffsets opaque request
     else mapSbpError opaque (Left SbpRequiresStaggeredLattice)
   bit <- placementAxisBit sourcePlacement (derivativeRequestAxis request)
   case (derivativeRequestOrder request, derivativeRequestRadius request) of
+    (1, radius) ->
+      lowerSbpGuardedDerivative environment
+        (PostSbpDerivativeError (opaqueDiscreteSemanticKey opaque))
+        (derivativeRequestAxis request) 1 radius bit sampleOffsets
+        lowerSample
     (2, 1) ->
       case bit of
         HalfPoint -> mapSbpError opaque
@@ -713,7 +723,7 @@ lowerWideSbpDerivative environment sampleOffsets opaque request
         IntegerPoint ->
           lowerSbpGuardedDerivative environment
             (PostSbpDerivativeError (opaqueDiscreteSemanticKey opaque))
-            (derivativeRequestAxis request) 2 bit sampleOffsets lowerSample
+            (derivativeRequestAxis request) 2 1 bit sampleOffsets lowerSample
     (order, radius) -> mapSbpError opaque
       (Left (SbpClosureUnavailable order radius))
   where
@@ -755,7 +765,7 @@ lowerGridWholeDerivative environment targetPlacement sampleOffsets opaque = do
       bit <- placementAxisBit sourcePlacement (derivativeRequestAxis request)
       lowerSbpGuardedDerivative environment
         (PostSbpDerivativeError (opaqueDiscreteSemanticKey opaque))
-        (derivativeRequestAxis request) 1 bit sampleOffsets
+        (derivativeRequestAxis request) 1 1 bit sampleOffsets
         (lowerSample request sourcePlacement)
     _ -> do
       weights <- gridWholeWeights opaque request sourcePlacement
@@ -777,25 +787,27 @@ lowerGridWholeDerivative environment targetPlacement sampleOffsets opaque = do
 -- | Lower one derivative along a declared sbp axis: the interior rows are
 -- the ordinary staggered stencils, and the rows nearest each physical
 -- boundary are replaced by the summation-by-parts closure rows behind index
--- guards, so no in-domain sample ever reaches outside the domain.  Order 1
--- with an integer-placed operand is the closure-free primal-to-dual
--- direction; order 1 with a half-placed operand and order 2 with an
--- integer-placed operand carry one closure row per end.  The sample
--- callback lowers the operand at one storage offset along the axis, which
--- lets ordinary whole-expression requests and profile field jets share the
--- one closure construction.
+-- guards, so no in-domain sample ever reaches outside the domain.  The
+-- pair count selects the interior width; order 1 lowers the two staggered
+-- directions with their closure rows (the minimal primal-to-dual direction
+-- is closure-free), and order 2 lowers the composed second derivative with
+-- the closure rows of the exact product D⁻ D⁺.  The sample callback lowers
+-- the operand at one storage offset along the axis, which lets ordinary
+-- whole-expression requests and profile field jets share the one closure
+-- construction.
 lowerSbpGuardedDerivative
     :: CompileEnvironment
     -> (SbpDerivativeError -> PostError)
     -> AxisId
     -> Int
+    -> Int
     -> HalfBit
     -> [Int]
     -> (Int -> Either PostError FExpr)
     -> Either PostError FExpr
-lowerSbpGuardedDerivative environment wrapError axisId order bit
+lowerSbpGuardedDerivative environment wrapError axisId order pairs bit
     sampleOffsets lowerSample = do
-  pair <- mapLeft (wrapError . SbpClosureFailure) (sbpStaggeredPair 1)
+  pair <- mapLeft (wrapError . SbpClosureFailure) (sbpStaggeredPair pairs)
   axis <- lookupAxis environment axisId
   step <- axisStep environment axisId
   indices <- indexNames environment
@@ -810,7 +822,7 @@ lowerSbpGuardedDerivative environment wrapError axisId order bit
       lowerRowSample (offset, coefficient) = do
         sample <- lowerSample offset
         Right (normalizeExpr (FMul [exactExpr coefficient, sample]))
-      guardedRows lowRows highRows interiorStencil = do
+      guardedRows topShift lowRows highRows interiorStencil = do
         -- The guards compare the raw loop index, so a closure evaluated at
         -- a shifted sample point would select the wrong rows; no enclosing
         -- stencil may shift a guarded closure along its own axis.
@@ -820,7 +832,7 @@ lowerSbpGuardedDerivative environment wrapError axisId order bit
           _ -> Right ()
         interior <- lowerRow interiorStencil
         low <- mapM (boundaryBranch lowGuard) lowRows
-        high <- mapM (boundaryBranch highGuard) highRows
+        high <- mapM (boundaryBranch (highGuard topShift)) highRows
         Right (foldr (\(condition, expr) rest ->
             normalizeExpr (FSelect condition expr rest))
           interior (low ++ high))
@@ -829,21 +841,29 @@ lowerSbpGuardedDerivative environment wrapError axisId order bit
         Right (guard (sbpRowOffset row), expr)
       lowGuard offset =
         FCompare CompareEq indexVariable (FExact (toInteger offset) 1)
-      highGuard offset =
+      -- Primal-placed targets end at storage total_grid − 1; dual-placed
+      -- targets end one slot earlier because the final half point sits
+      -- outside the domain.
+      highGuard topShift offset =
         FCompare CompareEq indexVariable
           (normalizeExpr (FAdd
-            [extentVariable, FExact (negate (toInteger (offset + 1))) 1]))
+            [extentVariable, FExact (negate (toInteger (offset + topShift))) 1]))
       interiorWeights =
         staggeredStorageWeightsAtBit bit (sbpInteriorStage pair)
   case (order, bit) of
-    (1, IntegerPoint) -> lowerRow interiorWeights
+    (1, IntegerPoint)
+      | null (sbpPrimalToDualLow pair) -> lowerRow interiorWeights
+      | otherwise ->
+          guardedRows 2 (sbpPrimalToDualLow pair) (sbpPrimalToDualHigh pair)
+            interiorWeights
     (1, HalfPoint) ->
-      guardedRows (sbpDualToPrimalLow pair) (sbpDualToPrimalHigh pair)
+      guardedRows 1 (sbpDualToPrimalLow pair) (sbpDualToPrimalHigh pair)
         interiorWeights
-    (2, IntegerPoint) ->
-      guardedRows (sbpSecondLow pair) (sbpSecondHigh pair)
-        [(-1, 1), (0, -2), (1, 1)]
-    _ -> Left (wrapError (SbpClosureUnavailable order 1))
+    (2, IntegerPoint) -> do
+      interiorSecond <- mapLeft (wrapError . SbpClosureFailure)
+        (composedInteriorWeights (sbpInteriorStage pair))
+      guardedRows 1 (sbpSecondLow pair) (sbpSecondHigh pair) interiorSecond
+    _ -> Left (wrapError (SbpClosureUnavailable order pairs))
 
 placementAxisBit :: Placement -> AxisId -> Either PostError HalfBit
 placementAxisBit (Placement bits) axisId@(AxisId axisNumber) =
@@ -1410,11 +1430,10 @@ lowerFieldDerivativeShifted environment targetPlacement sampleOffsets jet = do
       Right (axisNumber, weights)
 
     -- Classify one profile factor against its axis boundary.  On a declared
-    -- sbp axis only the minimal staggered widths exist so far: the
-    -- closure-free primal-to-dual first stage lowers inline, the
-    -- dual-to-primal first stage and the composed second stage need guarded
-    -- closure rows, and every other order or accuracy is a static error
-    -- until the higher-order closure constructor lands.
+    -- sbp axis the first and the composed second derivative close at every
+    -- profile accuracy: the pair count is the accuracy half, and only the
+    -- minimal primal-to-dual first stage is closure-free and lowers inline.
+    -- Higher orders stay a static error until their closures exist.
     classifySbpAxis sourcePlacement resolvedAxis = do
       boundary <- axisBoundary environment (resolvedAxisId resolvedAxis)
       case boundary of
@@ -1422,18 +1441,16 @@ lowerFieldDerivativeShifted environment targetPlacement sampleOffsets jet = do
           let rule = resolvedAxisRule resolvedAxis
               order = resolvedAxisDerivativeOrder resolvedAxis
               accuracy = resolvedRuleFormalAccuracy rule
+              stagePairs = accuracy `div` 2
           if resolvedRuleLatticeClass rule == StaggeredLattice
             then Right ()
             else Left (PostSbpProfileError SbpRequiresStaggeredLattice)
-          if accuracy == 2
-            then Right ()
-            else Left (PostSbpProfileError
-              (SbpProfileClosureUnavailable order accuracy))
           bit <- placementAxisBit sourcePlacement (resolvedAxisId resolvedAxis)
           case (order, bit) of
-            (1, IntegerPoint) -> Right []
-            (1, HalfPoint) -> Right [(resolvedAxis, bit)]
-            (2, IntegerPoint) -> Right [(resolvedAxis, bit)]
+            (1, IntegerPoint)
+              | stagePairs == 1 -> Right []
+            (1, _) -> Right [(resolvedAxis, bit, stagePairs)]
+            (2, IntegerPoint) -> Right [(resolvedAxis, bit, stagePairs)]
             (2, HalfPoint) -> Left (PostSbpProfileError
               (SbpSecondOrderNeedsIntegerPlacement sourcePlacement))
             _ -> Left (PostSbpProfileError
@@ -1444,7 +1461,7 @@ lowerFieldDerivativeShifted environment targetPlacement sampleOffsets jet = do
     -- that axis: each closure row samples the remaining derivative at the
     -- row's storage offset, so mixed jets compose with the same closure
     -- rows as the pure ones.
-    peelGuardedAxis field sourcePlacement (resolvedAxis, bit) = do
+    peelGuardedAxis field sourcePlacement (resolvedAxis, bit, stagePairs) = do
       let axisId = resolvedAxisId resolvedAxis
           AxisId axisNumber = axisId
           order = resolvedAxisDerivativeOrder resolvedAxis
@@ -1459,7 +1476,7 @@ lowerFieldDerivativeShifted environment targetPlacement sampleOffsets jet = do
         (derivativePlacementForPolicy (logicalFieldPolicy field)
           (fieldJetMultiIndex reducedJet) sourcePlacement)
       lowerSbpGuardedDerivative environment PostSbpProfileError axisId order
-        bit sampleOffsets
+        stagePairs bit sampleOffsets
         (\offset -> lowerScalarShifted environment reducedTarget
           (adjustOffset axisNumber offset sampleOffsets)
           (FieldJet reducedJet))

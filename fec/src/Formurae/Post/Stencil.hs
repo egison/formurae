@@ -13,6 +13,8 @@ module Formurae.Post.Stencil
   , centeredTaylorAtRadius
   , minimalCenteredRadius
   , composeStages
+  , composedInteriorWeights
+  , sbpMinimumIntervals
   , sbpStaggeredPair
   , staggeredDerivativeOrder
   , staggeredFormalAccuracy
@@ -188,16 +190,20 @@ data SbpBoundaryRow = SbpBoundaryRow
   } deriving (Eq, Show)
 
 -- | A staggered SBP pair on the bounded primal/dual grids: primal points
--- 0..N and dual points 1/2..N−1/2.  The primal-to-dual derivative keeps the
--- interior stage on every row; the dual-to-primal derivative replaces the
--- rows nearest each end with closure rows.  Together with the diagonal
--- norms (stored in h units, interior weight 1) and the dual-to-boundary
--- extrapolation vector, the pair satisfies the exact summation-by-parts
--- identity  H_d D⁺ + (H_p D⁻)ᵀ = d_N e_Nᵀ − d_0 e_0ᵀ.  The second-order
--- closure rows are the boundary rows of the exact composition D⁻ D⁺ for
+-- 0..N and dual points 1/2..N−1/2.  Both derivative directions keep the
+-- interior stage away from the walls and replace the rows nearest each end
+-- with closure rows (the primal-to-dual closure lists are empty exactly
+-- when the interior stage never reaches outside, as at pair count one).
+-- Together with the diagonal norms (stored in h units, interior weight 1)
+-- and the dual-to-boundary extrapolation vector, the pair satisfies the
+-- exact summation-by-parts identity
+-- H_d D⁺ + (H_p D⁻)ᵀ = d_N e_Nᵀ − d_0 e_0ᵀ.  The second-order closure
+-- rows are the boundary rows of the exact composition D⁻ D⁺ for
 -- integer-placed operands.
 data SbpStaggeredPair = SbpStaggeredPair
   { sbpInteriorStage :: StaggeredStencil
+  , sbpPrimalToDualLow :: [SbpBoundaryRow]
+  , sbpPrimalToDualHigh :: [SbpBoundaryRow]
   , sbpDualToPrimalLow :: [SbpBoundaryRow]
   , sbpDualToPrimalHigh :: [SbpBoundaryRow]
   , sbpSecondLow :: [SbpBoundaryRow]
@@ -207,18 +213,22 @@ data SbpStaggeredPair = SbpStaggeredPair
   , sbpExtrapolate :: [(Int, Rational)]
   } deriving (Eq, Show)
 
--- | The staggered SBP pair with interior pair count k.  Only the classic
--- second-order pair (k = 1) is constructed: its primal-to-dual direction
--- needs no closure rows, the dual-to-primal direction gets one first-order
--- one-sided row per end, and the norms are the half-weighted trapezoid on
--- the primal grid and the identity on the dual grid.
+-- | The staggered SBP pair with interior pair count k.  The classic
+-- second-order pair (k = 1) is written in closed form: its primal-to-dual
+-- direction needs no closure rows, the dual-to-primal direction gets one
+-- first-order one-sided row per end, and the norms are the half-weighted
+-- trapezoid on the primal grid and the identity on the dual grid.  Wider
+-- interiors are constructed by 'constructSbpStaggeredPair' as the exact
+-- solution of the linear closure system.
 sbpStaggeredPair :: Int -> Either StencilError SbpStaggeredPair
 sbpStaggeredPair pairs
-  | pairs /= 1 = Left (UnsupportedSbpInterior pairs)
-  | otherwise = do
+  | pairs < 1 = Left (UnsupportedSbpInterior pairs)
+  | pairs == 1 = do
       stage <- staggeredTaylorAtPairs 1 2 1
       let pair = SbpStaggeredPair
             { sbpInteriorStage = stage
+            , sbpPrimalToDualLow = []
+            , sbpPrimalToDualHigh = []
             , sbpDualToPrimalLow =
                 [SbpBoundaryRow 0 [(0, -1), (1, 1)]]
             , sbpDualToPrimalHigh =
@@ -234,6 +244,419 @@ sbpStaggeredPair pairs
       validateSbpStaggeredPair pair 8
       validateSbpStaggeredPair pair 9
       return pair
+  | otherwise = constructSbpStaggeredPair pairs
+
+-- ------------------------------------------------ general closure system
+
+-- | One unknown of the linear closure system.  The declaration order below
+-- is the canonical column order of the solve: norms and the extrapolation
+-- vector first, then the closure coefficients near-sample-first, so the
+-- zeroed free parameters of 'solveFreeZero' land on the far coefficients.
+data SbpUnknown
+  = UnknownPrimalNorm Int
+  | UnknownDualNorm Int
+  | UnknownExtrapolation Int
+  | UnknownDualToPrimal Int Int
+  | UnknownPrimalToDual Int Int
+  deriving (Eq, Ord, Show)
+
+-- | Structural shape of one one-sided closure candidate: how many rows of
+-- each direction deviate from the interior stage, the column support of
+-- those rows, and the width of the boundary extrapolation vector.
+data SbpStructure = SbpStructure
+  { structurePrimalToDualRows :: Int
+  , structureDualToPrimalRows :: Int
+  , structurePrimalToDualWidth :: Int
+  , structureDualToPrimalWidth :: Int
+  , structureExtrapolationWidth :: Int
+  } deriving (Eq, Show)
+
+-- | A linear expression over the closure unknowns with an exact constant
+-- part.  Every closure condition below is affine in these unknowns.
+data SbpLinear = SbpLinear
+  { linearConstant :: Rational
+  , linearTerms :: [(SbpUnknown, Rational)]
+  }
+
+linearKnown :: Rational -> SbpLinear
+linearKnown value = SbpLinear value []
+
+linearUnknown :: SbpUnknown -> SbpLinear
+linearUnknown unknown = SbpLinear 0 [(unknown, 1)]
+
+linearScale :: Rational -> SbpLinear -> SbpLinear
+linearScale factor (SbpLinear constant terms) =
+  SbpLinear (factor * constant)
+    [(unknown, factor * weight) | (unknown, weight) <- terms]
+
+linearSum :: [SbpLinear] -> SbpLinear
+linearSum expressions = SbpLinear
+  (sum (map linearConstant expressions))
+  (concatMap linearTerms expressions)
+
+-- | Construct the pair with interior pair count k ≥ 2 as the exact
+-- solution of the linear closure system.  With Q⁺ = H_d D⁺ and
+-- Q⁻ = H_p D⁻ taken as the unknowns, the boundary-accuracy conditions,
+-- the summation-by-parts identity, and the extrapolation-accuracy
+-- conditions are all affine, so one exact reduction both decides
+-- solvability and produces the canonical representative (free parameters
+-- fixed to zero, far coefficients first).  Structures are searched from
+-- the smallest: closure row counts grow together, then the row support,
+-- then the extrapolation width.  The first candidate whose solution has
+-- positive norms and passes the full finite-interval validation wins;
+-- rational optimization families are deliberately not considered.
+constructSbpStaggeredPair :: Int -> Either StencilError SbpStaggeredPair
+constructSbpStaggeredPair pairs = do
+  stage <- staggeredTaylorAtPairs 1 (2 * pairs) pairs
+  search stage (candidateClosureStructures pairs)
+  where
+    search _ [] = Left (UnsupportedSbpInterior pairs)
+    search stage (structure : rest) =
+      case solveClosureStructure pairs stage structure of
+        Just pair -> Right pair
+        Nothing -> search stage rest
+
+candidateClosureStructures :: Int -> [SbpStructure]
+candidateClosureStructures pairs =
+  [ SbpStructure
+      { structurePrimalToDualRows = primalToDualRows
+      , structureDualToPrimalRows = dualToPrimalRows
+      , structurePrimalToDualWidth = primalToDualRows + pairs + widen
+      , structureDualToPrimalWidth = dualToPrimalRows + pairs - 1 + widen
+      , structureExtrapolationWidth = extrapolationWidth
+      }
+  | grow <- [0 .. 3]
+  , widen <- [0 .. 2]
+  , extrapolationWidth <- [pairs + 1 .. pairs + 3]
+  , let primalToDualRows = pairs - 1 + grow
+        dualToPrimalRows = pairs + grow
+  ]
+
+-- | Solve one closure structure exactly; Nothing rejects the candidate
+-- (inconsistent system, an interior identity violation, a nonpositive
+-- norm, or a failed finite-interval validation).
+solveClosureStructure
+    :: Int -> StaggeredStencil -> SbpStructure -> Maybe SbpStaggeredPair
+solveClosureStructure pairs stage structure = do
+  equations <- closureEquations pairs stage structure
+  let unknowns = closureUnknowns structure
+      matrix =
+        [ [ maybe 0 id (lookup unknown collected)
+          | unknown <- unknowns
+          ]
+        | SbpLinear _ terms <- equations
+        , let collected = collectTerms terms
+        ]
+      targets = [negate constant | SbpLinear constant _ <- equations]
+  solution <- solveFreeZero matrix targets
+  let valueOf unknown =
+        case lookup unknown (zip unknowns solution) of
+          Just value -> value
+          Nothing -> 0
+      primalNorms =
+        [ valueOf (UnknownPrimalNorm index)
+        | index <- [0 .. structureDualToPrimalRows structure - 1]
+        ]
+      dualNorms =
+        [ valueOf (UnknownDualNorm index)
+        | index <- [0 .. structurePrimalToDualRows structure - 1]
+        ]
+      extrapolation =
+        [ (index, value)
+        | index <- [0 .. structureExtrapolationWidth structure - 1]
+        , let value = valueOf (UnknownExtrapolation index)
+        , value /= 0
+        ]
+      dualToPrimalRow row =
+        SbpBoundaryRow row
+          [ (column - row, valueOf (UnknownDualToPrimal row column)
+              / (primalNorms !! row))
+          | column <- [0 .. structureDualToPrimalWidth structure - 1]
+          , valueOf (UnknownDualToPrimal row column) /= 0
+          ]
+      primalToDualRow row =
+        SbpBoundaryRow row
+          [ (column - row, valueOf (UnknownPrimalToDual row column)
+              / (dualNorms !! row))
+          | column <- [0 .. structurePrimalToDualWidth structure - 1]
+          , valueOf (UnknownPrimalToDual row column) /= 0
+          ]
+  if all (> 0) (primalNorms ++ dualNorms)
+    then Just ()
+    else Nothing
+  -- The canonical solution may reproduce the interior stage on a row whose
+  -- samples already stay in range; such a row is a redundant guard, so it
+  -- falls back to the interior mapping instead of becoming a closure row.
+  let interiorDualToPrimal =
+        [ ((twiceOffset - 1) `div` 2, weight)
+        | (twiceOffset, weight) <- staggeredTwiceWeights stage
+        ]
+      interiorPrimalToDual =
+        [ ((twiceOffset + 1) `div` 2, weight)
+        | (twiceOffset, weight) <- staggeredTwiceWeights stage
+        ]
+      essentialRows interior rows =
+        [row | row <- rows, sbpRowWeights row /= interior]
+      dualToPrimalLow = essentialRows interiorDualToPrimal
+        (map dualToPrimalRow
+          [0 .. structureDualToPrimalRows structure - 1])
+      primalToDualLow = essentialRows interiorPrimalToDual
+        (map primalToDualRow
+          [0 .. structurePrimalToDualRows structure - 1])
+      withoutSecond = SbpStaggeredPair
+        { sbpInteriorStage = stage
+        , sbpPrimalToDualLow = primalToDualLow
+        , sbpPrimalToDualHigh = map (mirrorOddRow 1) primalToDualLow
+        , sbpDualToPrimalLow = dualToPrimalLow
+        , sbpDualToPrimalHigh = map (mirrorOddRow (-1)) dualToPrimalLow
+        , sbpSecondLow = []
+        , sbpSecondHigh = []
+        , sbpPrimalNorm = primalNorms
+        , sbpDualNorm = dualNorms
+        , sbpExtrapolate = extrapolation
+        }
+  secondLow <- deriveSecondClosureRows pairs withoutSecond
+  let pair = withoutSecond
+        { sbpSecondLow = secondLow
+        , sbpSecondHigh = map mirrorEvenRow secondLow
+        }
+      intervals = sbpMinimumIntervals pair
+  case validateSbpStaggeredPair pair intervals
+         >> validateSbpStaggeredPair pair (intervals + 1) of
+    Right () -> Just pair
+    Left _ -> Nothing
+  where
+    collectTerms terms =
+      [ (unknown, sum [weight | (candidate, weight) <- terms,
+                                candidate == unknown])
+      | unknown <- unique (map fst terms)
+      ]
+    unique = foldr (\value seen ->
+      if value `elem` seen then seen else value : seen) []
+
+-- | Mirror one closure row to the opposite end.  Odd (first-derivative)
+-- rows flip sign; the sample of the low row at target offset o sits at
+-- mirrored offset shift − o, where the shift is +1 for the primal-to-dual
+-- orientation and −1 for the dual-to-primal one.  Even (second-derivative)
+-- rows keep their weights with reflected offsets.
+mirrorOddRow :: Int -> SbpBoundaryRow -> SbpBoundaryRow
+mirrorOddRow shift (SbpBoundaryRow offset weights) =
+  SbpBoundaryRow offset
+    [(shift - column, negate weight) | (column, weight) <- weights]
+
+mirrorEvenRow :: SbpBoundaryRow -> SbpBoundaryRow
+mirrorEvenRow (SbpBoundaryRow offset weights) =
+  SbpBoundaryRow offset
+    [(negate column, weight) | (column, weight) <- weights]
+
+closureUnknowns :: SbpStructure -> [SbpUnknown]
+closureUnknowns structure =
+  [ UnknownPrimalNorm index
+  | index <- [0 .. structureDualToPrimalRows structure - 1]
+  ]
+  ++ [ UnknownDualNorm index
+     | index <- [0 .. structurePrimalToDualRows structure - 1]
+     ]
+  ++ [ UnknownExtrapolation index
+     | index <- [0 .. structureExtrapolationWidth structure - 1]
+     ]
+  ++ [ UnknownDualToPrimal row column
+     | row <- [0 .. structureDualToPrimalRows structure - 1]
+     , column <- [0 .. structureDualToPrimalWidth structure - 1]
+     ]
+  ++ [ UnknownPrimalToDual row column
+     | row <- [0 .. structurePrimalToDualRows structure - 1]
+     , column <- [0 .. structurePrimalToDualWidth structure - 1]
+     ]
+
+-- | All closure conditions of one structure as affine equations equal to
+-- zero: boundary-row accuracy through the boundary order (the pair count),
+-- the entrywise summation-by-parts identity over the affected corner, and
+-- extrapolation accuracy of the boundary vector.  Corner entries that are
+-- pure interior must satisfy the identity identically; a violation rejects
+-- the structure.
+closureEquations
+    :: Int -> StaggeredStencil -> SbpStructure -> Maybe [SbpLinear]
+closureEquations pairs stage structure = do
+  identityRows <- mapM identityEquation
+    [ (dualRow, primalColumn)
+    | dualRow <- [0 .. zoneSize - 1]
+    , primalColumn <- [0 .. zoneSize - 1]
+    ]
+  Just (accuracyPlus ++ accuracyMinus ++ concat identityRows
+        ++ extrapolationAccuracy)
+  where
+    boundaryOrder = pairs
+    zoneSize = maximum
+      [ structurePrimalToDualWidth structure
+      , structureDualToPrimalWidth structure
+      , structureExtrapolationWidth structure
+      , structurePrimalToDualRows structure
+      , structureDualToPrimalRows structure
+      ] + 2 * pairs + 2
+
+    primalCoordinate column = fromIntegral column :: Rational
+    dualCoordinate row = fromIntegral row + 1 / 2 :: Rational
+
+    stageWeightAt twiceOffset =
+      case lookup twiceOffset (staggeredTwiceWeights stage) of
+        Just weight -> weight
+        Nothing -> 0
+
+    -- Q⁺ = H_d D⁺ entry at (dual row, primal column).
+    quadraturePlus dualRow primalColumn
+      | dualRow < structurePrimalToDualRows structure =
+          if primalColumn < structurePrimalToDualWidth structure
+            then linearUnknown (UnknownPrimalToDual dualRow primalColumn)
+            else linearKnown 0
+      | otherwise =
+          linearKnown (stageWeightAt (2 * (primalColumn - dualRow) - 1))
+
+    -- Q⁻ = H_p D⁻ entry at (primal row, dual column).
+    quadratureMinus primalRow dualColumn
+      | primalRow < structureDualToPrimalRows structure =
+          if dualColumn < structureDualToPrimalWidth structure
+            then linearUnknown (UnknownDualToPrimal primalRow dualColumn)
+            else linearKnown 0
+      | otherwise =
+          linearKnown (stageWeightAt (2 * (dualColumn - primalRow) + 1))
+
+    extrapolationEntry dualRow
+      | dualRow < structureExtrapolationWidth structure =
+          linearUnknown (UnknownExtrapolation dualRow)
+      | otherwise = linearKnown 0
+
+    powerOrZero base count
+      | count < 0 = 0
+      | otherwise = base ^ count
+
+    accuracyPlus =
+      [ linearSum
+          ( [ linearScale (primalCoordinate column ^ power)
+                (quadraturePlus row column)
+            | column <- [0 .. structurePrimalToDualWidth structure - 1]
+            ]
+          ++ [ linearScale
+                 (negate (fromIntegral power
+                          * powerOrZero (dualCoordinate row) (power - 1)))
+                 (linearUnknown (UnknownDualNorm row))
+             | power >= 1
+             ] )
+      | row <- [0 .. structurePrimalToDualRows structure - 1]
+      , power <- [0 .. boundaryOrder]
+      ]
+
+    accuracyMinus =
+      [ linearSum
+          ( [ linearScale (dualCoordinate column ^ power)
+                (quadratureMinus row column)
+            | column <- [0 .. structureDualToPrimalWidth structure - 1]
+            ]
+          ++ [ linearScale
+                 (negate (fromIntegral power
+                          * powerOrZero (primalCoordinate row) (power - 1)))
+                 (linearUnknown (UnknownPrimalNorm row))
+             | power >= 1
+             ] )
+      | row <- [0 .. structureDualToPrimalRows structure - 1]
+      , power <- [0 .. boundaryOrder]
+      ]
+
+    identityEquation (dualRow, primalColumn) =
+      let equation = linearSum
+            ( [ quadraturePlus dualRow primalColumn
+              , quadratureMinus primalColumn dualRow
+              ]
+            ++ [extrapolationEntry dualRow | primalColumn == 0] )
+      in case linearTerms equation of
+           [] | linearConstant equation == 0 -> Just []
+              | otherwise -> Nothing
+           _ -> Just [equation]
+
+    extrapolationAccuracy =
+      [ linearSum
+          ( linearKnown (if power == 0 then -1 else 0)
+          : [ linearScale (dualCoordinate row ^ power)
+                (extrapolationEntry row)
+            | row <- [0 .. structureExtrapolationWidth structure - 1]
+            ] )
+      | power <- [0 .. boundaryOrder]
+      ]
+
+-- | The second-derivative closure rows are read off the exact composition
+-- D⁻ D⁺ on a segment long enough that the two ends cannot interact: the
+-- deviating rows must form a contiguous prefix, and everything beyond it
+-- must equal the composed interior stencil.
+deriveSecondClosureRows :: Int -> SbpStaggeredPair -> Maybe [SbpBoundaryRow]
+deriveSecondClosureRows pairs pair = do
+  composed <- case composeStages 2 (sbpInteriorStage pair) of
+    Right (ComposedCentered stencil) -> Just stencil
+    _ -> Nothing
+  let interiorRadius = centeredRadius composed
+      rowBound = structureBound + interiorRadius + 1
+      intervals = 2 * rowBound + 2 * interiorRadius + 4
+      primalCount = intervals + 1
+      dualCount = intervals
+  primalToDual <- eitherToMaybe
+    (assemblePrimalToDual pair primalCount dualCount)
+  dualToPrimal <- eitherToMaybe
+    (assembleDualToPrimal pair primalCount dualCount)
+  let productRow row =
+        [ sum
+            [ (dualToPrimal !! row !! middle)
+              * (primalToDual !! middle !! column)
+            | middle <- [0 .. dualCount - 1]
+            ]
+        | column <- [0 .. primalCount - 1]
+        ]
+      interiorRow row = rowVector
+        [ (row + offset, weight)
+        | (offset, weight) <- centeredWeights composed
+        ]
+        primalCount
+      matchesInterior row =
+        row >= interiorRadius && productRow row == interiorRow row
+      deviating = [row | row <- [0 .. rowBound], not (matchesInterior row)]
+  if deviating == [0 .. length deviating - 1]
+    then Just ()
+    else Nothing
+  Just
+    [ SbpBoundaryRow row
+        [ (column - row, weight)
+        | (column, weight) <- zip [0 ..] (productRow row)
+        , weight /= 0
+        ]
+    | row <- deviating
+    ]
+  where
+    structureBound =
+      length (sbpDualToPrimalLow pair)
+      + length (sbpPrimalToDualLow pair) + 2 * pairs
+    eitherToMaybe = either (const Nothing) Just
+
+-- | The smallest interval count on which the two ends of the pair are
+-- fully decoupled: closure rows of both ends plus the interior reach never
+-- overlap, every boundary-row support fits, and the extrapolation vector
+-- fits on the dual grid.
+sbpMinimumIntervals :: SbpStaggeredPair -> Int
+sbpMinimumIntervals pair = maximum
+  ( 4
+  : length (sbpDualToPrimalLow pair) + length (sbpDualToPrimalHigh pair)
+      + 2 * stagePairs + 2
+  : length (sbpPrimalToDualLow pair) + length (sbpPrimalToDualHigh pair)
+      + 2 * stagePairs + 2
+  : length (sbpSecondLow pair) + length (sbpSecondHigh pair)
+      + 2 * (2 * stagePairs - 1) + 2
+  : structureExtrapolationReach + 1
+  : map lowRowReach (sbpDualToPrimalLow pair ++ sbpPrimalToDualLow pair
+      ++ sbpSecondLow pair)
+  )
+  where
+    stagePairs = staggeredPairCount (sbpInteriorStage pair)
+    lowRowReach (SbpBoundaryRow offset weights) =
+      offset + maximum (0 : map fst weights) + 2
+    structureExtrapolationReach =
+      maximum (0 : map fst (sbpExtrapolate pair))
 
 -- | Recheck every invariant of a staggered SBP pair on the bounded grid
 -- with N primal intervals: in-range samples, boundary-order accuracy of
@@ -243,15 +666,13 @@ sbpStaggeredPair pairs
 validateSbpStaggeredPair
     :: SbpStaggeredPair -> Int -> Either StencilError ()
 validateSbpStaggeredPair pair intervals = do
-  let stage = sbpInteriorStage pair
-      lowRows = length (sbpDualToPrimalLow pair)
-      highRows = length (sbpDualToPrimalHigh pair)
-      primalCount = intervals + 1
+  let primalCount = intervals + 1
       dualCount = intervals
-  if intervals >= 2 * (lowRows + highRows + 2)
+      minimumIntervals = sbpMinimumIntervals pair
+  if intervals >= minimumIntervals
     then return ()
-    else Left (SbpGridTooSmall intervals (2 * (lowRows + highRows + 2)))
-  primalToDual <- assemblePrimalToDual stage primalCount dualCount
+    else Left (SbpGridTooSmall intervals minimumIntervals)
+  primalToDual <- assemblePrimalToDual pair primalCount dualCount
   dualToPrimal <- assembleDualToPrimal pair primalCount dualCount
   let primalNorm = normDiagonal (sbpPrimalNorm pair) primalCount
       dualNorm = normDiagonal (sbpDualNorm pair) dualCount
@@ -357,16 +778,33 @@ validateSbpStaggeredPair pair intervals = do
         ]
 
 assemblePrimalToDual
-    :: StaggeredStencil -> Int -> Int -> Either StencilError [[Rational]]
-assemblePrimalToDual stage primalCount dualCount =
+    :: SbpStaggeredPair -> Int -> Int -> Either StencilError [[Rational]]
+assemblePrimalToDual pair primalCount dualCount =
   mapM buildRow [0 .. dualCount - 1]
   where
+    lowRows = sbpPrimalToDualLow pair
+    highRows = sbpPrimalToDualHigh pair
+    stage = sbpInteriorStage pair
+
     buildRow row = do
-      entries <- mapM (place row)
-        [ ((twiceOffset + 1) `div` 2, weight)
-        | (twiceOffset, weight) <- staggeredTwiceWeights stage
-        ]
+      entries <- mapM (place row) (weightsFor row)
       return (rowVector entries primalCount)
+
+    weightsFor row =
+      case lookupRow row lowRows of
+        Just weights -> weights
+        Nothing ->
+          case lookupRow (dualCount - 1 - row) highRows of
+            Just weights -> weights
+            Nothing ->
+              [ ((twiceOffset + 1) `div` 2, weight)
+              | (twiceOffset, weight) <- staggeredTwiceWeights stage
+              ]
+
+    lookupRow offset rows = lookup offset
+      [(sbpRowOffset boundaryRow, sbpRowWeights boundaryRow)
+      | boundaryRow <- rows]
+
     place row (offset, weight) =
       let column = row + offset
       in if column >= 0 && column < primalCount
@@ -409,19 +847,21 @@ assembleDualToPrimal pair primalCount dualCount =
 
 assembleSecond
     :: SbpStaggeredPair -> Int -> Either StencilError [[Rational]]
-assembleSecond pair primalCount = mapM buildRow [0 .. primalCount - 1]
+assembleSecond pair primalCount = do
+  interiorWeights <- composedInteriorWeights (sbpInteriorStage pair)
+  mapM (buildRow interiorWeights) [0 .. primalCount - 1]
   where
-    buildRow row = do
-      entries <- mapM (place row) (weightsFor row)
+    buildRow interiorWeights row = do
+      entries <- mapM (place row) (weightsFor interiorWeights row)
       return (rowVector entries primalCount)
 
-    weightsFor row =
+    weightsFor interiorWeights row =
       case lookupRow row (sbpSecondLow pair) of
         Just weights -> weights
         Nothing ->
           case lookupRow (primalCount - 1 - row) (sbpSecondHigh pair) of
             Just weights -> weights
-            Nothing -> [(-1, 1), (0, -2), (1, 1)]
+            Nothing -> interiorWeights
 
     lookupRow offset rows = lookup offset
       [(sbpRowOffset boundaryRow, sbpRowWeights boundaryRow)
@@ -432,6 +872,18 @@ assembleSecond pair primalCount = mapM buildRow [0 .. primalCount - 1]
       in if column >= 0 && column < primalCount
            then Right (column, weight)
            else Left (SbpSampleOutOfRange row column)
+
+-- | The interior stencil of the composed second derivative: the exact
+-- self-composition of the pair's first-derivative stage ([1, −2, 1] at
+-- pair count one).
+composedInteriorWeights
+    :: StaggeredStencil -> Either StencilError [(Int, Rational)]
+composedInteriorWeights stage = do
+  composed <- composeStages 2 stage
+  case composed of
+    ComposedCentered stencil -> Right (centeredWeights stencil)
+    ComposedStaggered _ ->
+      error "internal error: an even composition must be centered"
 
 normDiagonal :: [Rational] -> Int -> [Rational]
 normDiagonal edge count =
@@ -743,6 +1195,26 @@ solveUnique coefficients@(firstRow : _) targets =
            | column <- [0 .. columnCount - 1]
            , let pivotRow = pivotRowFor column pivots
            ]
+
+-- | The canonical particular solution of a consistent system: every
+-- non-pivot unknown is fixed to zero, so the column order of the caller
+-- selects which free parameters vanish.  Nothing reports inconsistency.
+solveFreeZero :: [[Rational]] -> [Rational] -> Maybe [Rational]
+solveFreeZero [] _ = Nothing
+solveFreeZero coefficients@(firstRow : _) targets =
+  let columnCount = length firstRow
+      augmented = zipWith (\row target -> row ++ [target]) coefficients targets
+      (reduced, pivots) = rref columnCount augmented
+      inconsistent row =
+        all (== 0) (take columnCount row) && last row /= 0
+  in if any inconsistent reduced
+       then Nothing
+       else Just
+         [ case lookup column pivots of
+             Just pivotRow -> last (reduced !! pivotRow)
+             Nothing -> 0
+         | column <- [0 .. columnCount - 1]
+         ]
 
 pivotRowFor :: Int -> [(Int, Int)] -> Int
 pivotRowFor column pivots =

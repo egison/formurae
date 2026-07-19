@@ -68,6 +68,8 @@ examples/sbp_diffusion2d/sbp_diffusion2d.c
 examples/sbp_diffusion2d/sbp_diffusion2d.h
 examples/sbp_wave1d/sbp_wave1d.c
 examples/sbp_wave1d/sbp_wave1d.h
+examples/sbp_highorder4/sbp_highorder4.c
+examples/sbp_highorder4/sbp_highorder4.h
 examples/*/viz
 gallery/data/
 dist-newstyle/

@@ -52,16 +52,69 @@ checkSbpPair = do
   assertEqual "SBP dual norm is the identity" [] (sbpDualNorm pair)
   assertEqual "SBP boundary extrapolation"
     [(0, 3 % 2), (1, (-1) % 2)] (sbpExtrapolate pair)
+  assertEqual "the minimal primal-to-dual direction is closure-free"
+    [] (sbpPrimalToDualLow pair)
   forM_ [8, 9, 12, 17] $ \intervals ->
     assertEqual ("SBP identity at N=" ++ show intervals)
       (Right ()) (validateSbpStaggeredPair pair intervals)
   assertLeft "SBP grid too small"
-    isTooSmall (validateSbpStaggeredPair pair 7)
-  assertEqual "only the second-order interior is constructed"
-    (Left (UnsupportedSbpInterior 2)) (sbpStaggeredPair 2)
+    isTooSmall (validateSbpStaggeredPair pair 5)
+  checkConstructedPair 2
+  checkConstructedPair 3
+  wide <- assertRight "fourth-order SBP pair" (sbpStaggeredPair 2)
+  assertEqual "fourth-order boundary extrapolation is second order"
+    [(0, 15 % 8), (1, (-5) % 4), (2, 3 % 8)] (sbpExtrapolate wide)
+  assertEqual "fourth-order one-sided first row"
+    (Just [(0, -2), (1, 3), (2, -1)])
+    (lookup 0 [ (sbpRowOffset row, sbpRowWeights row)
+              | row <- sbpDualToPrimalLow wide ])
+  assertEqual "zero interior pairs are rejected"
+    (Left (UnsupportedSbpInterior 0)) (sbpStaggeredPair 0)
   where
-    isTooSmall (SbpGridTooSmall 7 8) = True
+    isTooSmall (SbpGridTooSmall 5 _) = True
     isTooSmall _ = False
+
+-- The general constructor must deliver both closure directions with
+-- positive norms and pass the full finite-interval validation at several
+-- sizes, including sizes above the construction's own checks; the boundary
+-- rows must also be exact through the boundary order k (the interior pair
+-- count), which is what the accuracy-(2k) profile promises at the walls.
+checkConstructedPair :: Int -> IO ()
+checkConstructedPair pairs = do
+  let label = "constructed SBP pair k=" ++ show pairs
+  pair <- assertRight label (sbpStaggeredPair pairs)
+  assertBool (label ++ " has primal-to-dual closures")
+    (not (null (sbpPrimalToDualLow pair)))
+  assertBool (label ++ " has dual-to-primal closures")
+    (not (null (sbpDualToPrimalLow pair)))
+  assertBool (label ++ " positive norms")
+    (all (> 0) (sbpPrimalNorm pair ++ sbpDualNorm pair))
+  let minimumIntervals = sbpMinimumIntervals pair
+  forM_ [minimumIntervals, minimumIntervals + 1, minimumIntervals + 7] $
+    \intervals ->
+      assertEqual (label ++ " identity at N=" ++ show intervals)
+        (Right ()) (validateSbpStaggeredPair pair intervals)
+  forM_ (sbpDualToPrimalLow pair) $ \row ->
+    forM_ [0 .. pairs] $ \power ->
+      assertEqual
+        (label ++ " dual-to-primal row " ++ show (sbpRowOffset row)
+         ++ " moment " ++ show power)
+        (momentTarget power (fromIntegral (sbpRowOffset row)))
+        (sum [ weight * dualPoint (sbpRowOffset row + offset) ^ power
+             | (offset, weight) <- sbpRowWeights row ])
+  forM_ (sbpPrimalToDualLow pair) $ \row ->
+    forM_ [0 .. pairs] $ \power ->
+      assertEqual
+        (label ++ " primal-to-dual row " ++ show (sbpRowOffset row)
+         ++ " moment " ++ show power)
+        (momentTarget power (dualPoint (sbpRowOffset row)))
+        (sum [ weight * fromIntegral (sbpRowOffset row + offset) ^ power
+             | (offset, weight) <- sbpRowWeights row ])
+  where
+    dualPoint index = fromIntegral index + 1 % 2
+    momentTarget power position
+      | power == 0 = 0
+      | otherwise = fromIntegral power * position ^ (power - 1)
 
 checkFixture :: ExpectedStencil -> IO ()
 checkFixture expected = do

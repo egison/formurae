@@ -722,13 +722,13 @@ sbpDerivativeErrorMessage sbpError =
     SbpClosureUnavailable order radius ->
       "no SBP closure exists yet for derivative order " ++ show order
       ++ " at radius " ++ show radius
-      ++ " on an sbp axis; only the minimal first and second derivatives"
-      ++ " have closures"
+      ++ " on an sbp axis; first derivatives close at every radius and"
+      ++ " the composed second derivative at radius 1"
     SbpProfileClosureUnavailable order accuracy ->
       "no SBP closure exists yet for the profile derivative order "
       ++ show order ++ " at accuracy " ++ show accuracy
-      ++ " on an sbp axis; only the minimal first and second derivatives"
-      ++ " have closures"
+      ++ " on an sbp axis; profile first and second derivatives close at"
+      ++ " every accuracy"
     SbpClosureInsideStencil axisId ->
       "an SBP closure cannot be sampled inside another stencil along axis "
       ++ show axisId
