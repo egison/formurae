@@ -88,9 +88,14 @@ endef
 $(foreach e,$(FME_EXAMPLES),$(eval $(call FME_RULE,$(e))))
 
 .PHONY: all setup clean compiler-tests formurae-geometry-tests formurae-tensor-tests formurae-operator-tests \
-	yinyang_diffusion-long $(FME_EXAMPLES)
+	gallery-assets yinyang_diffusion-long $(FME_EXAMPLES)
 
 all: $(FME_EXAMPLES)
+
+gallery-assets:
+	./gallery/gen.sh
+	python3 gallery/tools/render.py
+	python3 gallery/tools/render_video.py
 
 # Kept out of all: yy_check runs the global x/y/z eigenmodes, so the long
 # regression is deliberately opt-in for local/CI endurance testing.

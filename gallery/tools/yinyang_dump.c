@@ -22,6 +22,15 @@
 
 static const int DUMPS[] = {0, 600};
 #define NDUMP ((int)(sizeof DUMPS / sizeof DUMPS[0]))
+#ifndef VIDEO_FRAMES
+#define VIDEO_FRAMES 36
+#endif
+#ifndef VIDEO_END
+#define VIDEO_END 600
+#endif
+#if VIDEO_FRAMES < 2
+#error VIDEO_FRAMES must be at least 2
+#endif
 
 static Formura_Grid_Struct panel[2];
 static double h, ph0;
@@ -94,11 +103,15 @@ static double bump(int pnl, double th, double ph) {
   return exp(12.0 * (dot - 1.0));
 }
 
-static void dump(int step) {
+static void dump(int step, int videoFrame) {
   static const char *const names[2] = {"yin", "yang"};
   for (int d = 0; d < 2; d++) {
     char path[512];
-    snprintf(path, sizeof path, OUTDIR "/yy_%s_t%d.mat", names[d], step);
+    if (videoFrame >= 0)
+      snprintf(path, sizeof path, OUTDIR "/yy_%s_v%04d_t%d.mat",
+               names[d], videoFrame, step);
+    else
+      snprintf(path, sizeof path, OUTDIR "/yy_%s_t%d.mat", names[d], step);
     FILE *f = fopen(path, "w");
     if (!f) { perror(path); exit(1); }
     for (int i = 0; i < NTH; i++) {
@@ -129,8 +142,10 @@ int main(int argc, char **argv) {
 
   Formura_Navi nav[2];
   nav[0] = n; nav[1] = n;
-  int next = 0, last = DUMPS[NDUMP - 1];
-  if (DUMPS[next] == 0) { dump(0); next++; }
+  int next = 0, videoFrame = 0, last = DUMPS[NDUMP - 1];
+  if (VIDEO_END > last) last = VIDEO_END;
+  if (DUMPS[next] == 0) { dump(0, -1); next++; }
+  if (videoFrame < VIDEO_FRAMES) { dump(0, videoFrame); videoFrame++; }
   for (int t = 1; t <= last; t++) {
     for (int d = 0; d < 2; d++) {
       formura_data = panel[d];
@@ -138,7 +153,12 @@ int main(int argc, char **argv) {
       panel[d] = formura_data;
     }
     exchange();
-    if (next < NDUMP && t == DUMPS[next]) { dump(t); next++; }
+    if (next < NDUMP && t == DUMPS[next]) { dump(t, -1); next++; }
+    if (videoFrame < VIDEO_FRAMES
+        && t == (int)(((long long)VIDEO_END * videoFrame) / (VIDEO_FRAMES - 1))) {
+      dump(t, videoFrame);
+      videoFrame++;
+    }
   }
   printf("yinyang gallery dump: ok\n");
   Formura_Finalize();

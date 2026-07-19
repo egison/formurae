@@ -162,13 +162,15 @@ def _rot(p, az, ax):
 
 
 def surface3d(mat, embed, out, wrapx=True, wrapy=True, az=0.55, ax=1.05,
-              target=520, step=1, anchors=VIRIDIS):
+              target=520, step=1, anchors=VIRIDIS, rng=None):
     """mat[cy][cx] colors the surface embed(cx, cy) -> (X, Y, Z)."""
     ny, nx = len(mat), len(mat[0])
     xs = list(range(0, nx, step)) + ([0] if wrapx else [nx - 1])
     ys = list(range(0, ny, step)) + ([0] if wrapy else [ny - 1])
     P = [[_rot(embed(cx, cy), az, ax) for cx in xs] for cy in ys]
     lo = min(min(r) for r in mat); hi = max(max(r) for r in mat)
+    if rng is not None:
+        lo, hi = rng
     if hi - lo < 1e-300: hi = lo + 1.0
     sx = [p[0] for row in P for p in row]; sz = [p[2] for row in P for p in row]
     x0, x1 = min(sx), max(sx); z0, z1 = min(sz), max(sz)

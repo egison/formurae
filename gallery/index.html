@@ -34,8 +34,8 @@
   .codebox pre .c { color:#5f7c9e; }
   .imgs { display:flex; gap:8px; align-items:center; justify-content:center;
           background:#fafbfc; border:1px solid var(--line); border-radius:6px; padding:8px; }
-  .imgs img { max-width:100%; height:auto; border-radius:3px; }
-  .imgs.two img { max-width:49%; }
+  .imgs img, .imgs video { max-width:100%; height:auto; border-radius:3px; }
+  .imgs.two img, .imgs.two video { max-width:49%; }
   .cap { font-size:11.5px; color:var(--sub); margin:6px 2px 8px; text-align:center; }
   .facts { margin:auto 0 0; padding:8px 0 0; border-top:1px dashed var(--line);
            font-size:12.5px; color:var(--ink); }
@@ -54,9 +54,9 @@
      pureな<code>grad</code>/<code>divg</code>/<code>curl</code>/<code>d</code>などは短いEgison関数として評価され、
      post-fecだけがformal accuracy、exact stencil、Collocated/Primal/Dual placement、storageを決めます。
      <code>`(∂_x e)</code>は式全体を1つの離散requestとして保ち、canonical <code>Δ</code>は可変計量で
-     保存流束のbackend planへlowerされます。すべて<code>make all</code>で再現でき、画像は<code>gallery/gen.sh</code> →
-     <code>gallery/tools/render.py</code>、ソース全文の埋め込みは <code>gallery/tools/embed_src.py</code>
-     で再生成できます(いずれも外部ライブラリ不要)。
+     保存流束のbackend planへlowerされます。すべて<code>make all</code>で再現でき、可視化は<code>gallery/gen.sh</code> →
+     <code>gallery/tools/render.py</code>/<code>render_video.py</code>、ソース全文の埋め込みは <code>gallery/tools/embed_src.py</code>
+     で再生成できます(動画encodeだけ<code>ffmpeg</code>が必要)。
      このページを唯一のギャラリーとし、各例のFormuraeソースから可視化・検証結果までを一か所で確認できます。
      <b><a href="usage.html">使い方ガイド</a></b>もあります。
      関連論文へのリンクは <a href="usage.html#papers">使い方ガイドの関連論文</a> にまとめています。</p>
@@ -176,8 +176,8 @@ end function
 begin function u' = step(u)
   u'[i,j,k] = u[i,j,k] + dt * kappa * (u[i-1,j,k] + u[i+1,j,k] + (-2) * u[i,j,k]) / dx**2 + dt * kappa * (u[i,j-1,k] + u[i,j+1,k] + (-2) * u[i,j,k]) / dy**2 + dt * kappa * (u[i,j,k-1] + u[i,j,k+1] + (-2) * u[i,j,k]) / dz**2
 end function</pre></details>
-  <div class="imgs two"><img src="img/diffusion_t0.png" alt="t=0"><img src="img/diffusion_t100.png" alt="t=T"></div>
-  <div class="cap">z 中央断面: t=0 のガウス塊(左)が等方に拡散(右、100 step)</div>
+  <div class="imgs"><video autoplay loop muted playsinline preload="metadata" poster="img/diffusion_t0.png" aria-label="3次元拡散方程式の時間発展"><source src="video/diffusion.mp4" type="video/mp4"><img src="img/diffusion_t100.png" alt="3次元拡散方程式の最終状態"></video></div>
+  <div class="cap">z 中央断面: ガウス塊が100 stepで等方に拡散する実計算の時間発展</div>
   <div class="facts">100³格子・temporal blocking 5 で 0.19 秒、質量保存 <b>6.4e-13</b>。</div>
 </div>
 
@@ -427,8 +427,8 @@ begin function u' = step(u)
   q_down2[i,j] = (-1) * kappa * (u[i,j+1] + (-1) * u[i,j]) / dy
   u'[i,j] = u[i,j] + (-1) * dt * (q_down1[i,j] + (-1) * q_down1[i-1,j]) / dx + (-1) * dt * (q_down2[i,j] + (-1) * q_down2[i,j-1]) / dy
 end function</pre></details>
-  <div class="imgs two"><img src="img/diffusion2d_t0.png" alt="t=0"><img src="img/diffusion2d_t100.png" alt="t=T"></div>
-  <div class="cap">中央断面: t=0 のガウス塊(左)が等方に拡散(右、100 step)</div>
+  <div class="imgs"><video autoplay loop muted playsinline preload="metadata" poster="img/diffusion2d_t0.png" aria-label="2次元拡散方程式の時間発展"><source src="video/diffusion2d.mp4" type="video/mp4"><img src="img/diffusion2d_t100.png" alt="2次元拡散方程式の最終状態"></video></div>
+  <div class="cap">ガウス塊が100 stepで等方に拡散する実計算の時間発展</div>
   <div class="facts">質量保存とピーク減衰を検査。</div>
 </div>
 
@@ -1002,9 +1002,9 @@ end function
 begin function u' = step(u)
   u'[i,j] = u[i,j] + dt * kappa * (if i == 0 then (u[i,j] + u[i+2,j] + (-2) * u[i+1,j]) / dx**2 else if i == (-1) + total_grid_x then (u[i-2,j] + u[i,j] + (-2) * u[i-1,j]) / dx**2 else (u[i-1,j] + u[i+1,j] + (-2) * u[i,j]) / dx**2) + dt * kappa * (if j == 0 then (u[i,j] + u[i,j+2] + (-2) * u[i,j+1]) / dy**2 else if j == (-1) + total_grid_y then (u[i,j-2] + u[i,j] + (-2) * u[i,j-1]) / dy**2 else (u[i,j-1] + u[i,j+1] + (-2) * u[i,j]) / dy**2) + dt * (if dx * i &lt; xlo then (-1) * satx * u[i,j] else 0) + dt * (if dy * j &lt; ylo then (-1) * saty * u[i,j] else 0) + dt * (if dx * i &gt; xhi then (-1) * satx * u[i,j] else 0) + dt * (if dy * j &gt; yhi then (-1) * saty * u[i,j] else 0)
 end function</pre></details>
-  <div class="imgs two"><img src="img/sbpdiff2d_t0.png" alt="t=0"><img src="img/sbpdiff2d_t1000.png" alt="t=25"></div>
-  <div class="cap">積モード t=0(左)→ t=25(右、同一色スケールなので減衰が明度で見える)。
-    軸ごとの <code>sbpd2</code> + 4 辺の SAT を足すだけで、角は両軸の閉包と両辺の
+  <div class="imgs"><video autoplay loop muted playsinline preload="metadata" poster="img/sbpdiff2d_t0.png" aria-label="SBPとSATによる2次元拡散の時間発展"><source src="video/sbpdiff2d.mp4" type="video/mp4"><img src="img/sbpdiff2d_t1000.png" alt="SBP拡散の最終状態"></video></div>
+  <div class="cap">積モード t=0 → t=25(全フレーム同一色スケールなので減衰が明度で見える)。
+    軸ごとの <code>∂^2</code>(sbp 宣言で閉包つき)+ 4 辺の SAT を足すだけで、角は両軸の閉包と両辺の
     ペナルティを加法的に受ける — 角専用の処理は存在しない</div>
   <div class="facts">モード誤差 <b>1.7e-04</b>(t=25)・エネルギー単調・辺 <b>7.8e-05</b>・
     角 <b>1.0e-08</b>。</div>
@@ -2742,8 +2742,8 @@ begin function (rho',mx',my',mz',bx',by',bz',en') = step(rho,mx,my,mz,bx,by,bz,e
   bz'[i,j,k] = bz[i,j,k] + (-1) * dt * ((-1 / 2) * fbz1[i-1,j,k] + (1 / 2) * fbz1[i+1,j,k]) / dx + (-1) * dt * ((-1 / 2) * fbz2[i,j-1,k] + (1 / 2) * fbz2[i,j+1,k]) / dy + dt * nux * (bz[i-1,j,k] + bz[i+1,j,k] + (-2) * bz[i,j,k]) / dx**2 + dt * nuy * (bz[i,j-1,k] + bz[i,j+1,k] + (-2) * bz[i,j,k]) / dy**2 + dt * nuz * (bz[i,j,k-1] + bz[i,j,k+1] + (-2) * bz[i,j,k]) / dz**2
   en'[i,j,k] = en[i,j,k] + (-1) * dt * ((-1 / 2) * fen1[i-1,j,k] + (1 / 2) * fen1[i+1,j,k]) / dx + (-1) * dt * ((-1 / 2) * fen2[i,j-1,k] + (1 / 2) * fen2[i,j+1,k]) / dy + (-1) * dt * ((-1 / 2) * fen3[i,j,k-1] + (1 / 2) * fen3[i,j,k+1]) / dz + dt * nux * (en[i-1,j,k] + en[i+1,j,k] + (-2) * en[i,j,k]) / dx**2 + dt * nuy * (en[i,j-1,k] + en[i,j+1,k] + (-2) * en[i,j,k]) / dy**2 + dt * nuz * (en[i,j,k-1] + en[i,j,k+1] + (-2) * en[i,j,k]) / dz**2
 end function</pre></details>
-  <div class="imgs"><img src="img/mhd.png" alt="OT vortex"></div>
-  <div class="cap">t=0.5 の密度場 — 特徴的な OT 渦構造</div>
+  <div class="imgs"><video autoplay loop muted playsinline preload="metadata" poster="img/mhd.png" aria-label="Orszag–Tang渦の密度場の時間発展"><source src="video/mhd.mp4" type="video/mp4"><img src="img/mhd.png" alt="Orszag–Tang渦の最終状態"></video></div>
+  <div class="cap">密度場が t=0 から特徴的な OT 渦構造を形成する実計算</div>
   <div class="facts">8保存量ドリフト <b>~1e-12</b>・<b>divB=1.2e-14</b>・正値性維持。6 秒。</div>
 </div>
 
@@ -3878,8 +3878,8 @@ begin function u' = step(u)
   w[i,j,k] = (u[i-1,j,k] + u[i+1,j,k] + (-2) * u[i,j,k]) / dx**2
   u'[i,j,k] = u[i,j,k] + (-1) * dt * w[i,j,k] + (-1) * dt * (w[i-1,j,k] + w[i+1,j,k] + (-2) * w[i,j,k]) / dx**2 + (-1) * dt * ((-1 / 4) * u[i-1,j,k]**2 + (1 / 4) * u[i+1,j,k]**2) / dx
 end function</pre></details>
-  <div class="imgs"><img src="img/ks.png" alt="KS space-time"></div>
-  <div class="cap">時空図(横=x、縦=時間 t:0→90): セル構造が分裂・合体するカオス</div>
+  <div class="imgs"><video autoplay loop muted playsinline preload="metadata" poster="img/ks.png" aria-label="Kuramoto–Sivashinsky方程式の時空カオス"><source src="video/ks.mp4" type="video/mp4"><img src="img/ks.png" alt="KS時空カオス図"></video></div>
+  <div class="cap">u(x,t)の実計算: 初期の低波数モードが崩れ、600,000 stepで時空カオスへ遷移</div>
   <div class="facts">Lyapunov 内(t=5)で参照実装と <b>3.6e-14</b>・Σu ドリフト 5.4e-12(60万 step)。</div>
 </div>
 
@@ -4021,8 +4021,8 @@ begin function (U',V') = step(U,V)
   U'[i,j,k] = U[i,j,k] + (-1) * Fe * dt * U[i,j,k] * V[i,j,k]**2 + (-1) * Fu * dt * U[i,j,k] + Du * dt * (U[i-1,j,k] + U[i+1,j,k] + (-2) * U[i,j,k]) / dx**2 + Du * dt * (U[i,j-1,k] + U[i,j+1,k] + (-2) * U[i,j,k]) / dy**2 + Du * dt * (U[i,j,k-1] + U[i,j,k+1] + (-2) * U[i,j,k]) / dz**2 + Fu * dt
   V'[i,j,k] = V[i,j,k] + (-1) * Fv * dt * V[i,j,k] + Dv * dt * (V[i-1,j,k] + V[i+1,j,k] + (-2) * V[i,j,k]) / dx**2 + Dv * dt * (V[i,j-1,k] + V[i,j+1,k] + (-2) * V[i,j,k]) / dy**2 + Dv * dt * (V[i,j,k-1] + V[i,j,k+1] + (-2) * V[i,j,k]) / dz**2 + Fe * dt * U[i,j,k] * V[i,j,k]**2
 end function</pre></details>
-  <div class="imgs"><img src="img/pearson.png" alt="pearson spots"></div>
-  <div class="cap">V 場の断面(20,000 step): 種スポットがリング状に自己複製 — 論文 Fig.7 と同じ
+  <div class="imgs"><video autoplay loop muted playsinline preload="metadata" poster="img/pearson.png" aria-label="Pearson反応拡散による菌根コロニー形成"><source src="video/pearson.mp4" type="video/mp4"><img src="img/pearson.png" alt="Pearson反応拡散の最終状態"></video></div>
+  <div class="cap">V 場の中央断面: 種スポットがリング状に自己複製する20,000 stepの実計算 — 論文 Fig.7 と同じ
     Gray–Scott 型ダイナミクス</div>
   <div class="facts">64³格子(dt=200s)。40,000 step まで回すとスポットが全域に増殖。物理の記述は2行。</div>
 </div>
@@ -4148,8 +4148,8 @@ begin function c' = step(c)
   mu[i,j,k] = (-1) * kap * (c[i-1,j,k] + c[i+1,j,k] + (-2) * c[i,j,k]) / dx**2 + (-1) * kap * (c[i,j-1,k] + c[i,j+1,k] + (-2) * c[i,j,k]) / dy**2 + (-1) * kap * (c[i,j,k-1] + c[i,j,k+1] + (-2) * c[i,j,k]) / dz**2 + (-1) * c[i,j,k] + c[i,j,k]**3
   c'[i,j,k] = c[i,j,k] + dt * mob * (mu[i-1,j,k] + mu[i+1,j,k] + (-2) * mu[i,j,k]) / dx**2 + dt * mob * (mu[i,j-1,k] + mu[i,j+1,k] + (-2) * mu[i,j,k]) / dy**2 + dt * mob * (mu[i,j,k-1] + mu[i,j,k+1] + (-2) * mu[i,j,k]) / dz**2
 end function</pre></details>
-  <div class="imgs"><img src="img/ch.png" alt="spinodal"></div>
-  <div class="cap">低波数の正弦ゆらぎから相分離したラメラ(縞)状二相構造(25,000 step、c∈[−0.95,0.96])</div>
+  <div class="imgs"><video autoplay loop muted playsinline preload="metadata" poster="img/ch.png" aria-label="Cahn–Hilliard相分離の時間発展"><source src="video/cahnhilliard.mp4" type="video/mp4"><img src="img/ch.png" alt="Cahn–Hilliard相分離の最終状態"></video></div>
+  <div class="cap">低波数の正弦ゆらぎからラメラ(縞)状二相構造へ相分離する25,000 stepの実計算(c∈[−0.95,0.96])</div>
   <div class="facts">質量(reduces 経由)<b>12桁保存</b>・自由エネルギー単調減少。</div>
 </div>
 
@@ -4273,8 +4273,8 @@ begin function (a',b') = step(a,b)
   a'[i,j,k] = a[i,j,k] + (-1) * dt * a[i,j,k] * b[i,j,k]**2 + (-1) * dt * a[i,j,k]**3 + dt * a[i,j,k] + dt * (a[i-1,j,k] + a[i+1,j,k] + (-2) * a[i,j,k]) / dx**2 + dt * (a[i,j-1,k] + a[i,j+1,k] + (-2) * a[i,j,k]) / dy**2 + dt * (a[i,j,k-1] + a[i,j,k+1] + (-2) * a[i,j,k]) / dz**2
   b'[i,j,k] = b[i,j,k] + (-1) * dt * b[i,j,k] * a[i,j,k]**2 + (-1) * dt * b[i,j,k]**3 + dt * b[i,j,k] + dt * (b[i-1,j,k] + b[i+1,j,k] + (-2) * b[i,j,k]) / dx**2 + dt * (b[i,j-1,k] + b[i,j+1,k] + (-2) * b[i,j,k]) / dy**2 + dt * (b[i,j,k-1] + b[i,j,k+1] + (-2) * b[i,j,k]) / dz**2
 end function</pre></details>
-  <div class="imgs"><img src="img/tdgl.png" alt="vortices"></div>
-  <div class="cap">|ψ|² 場: 暗い点が量子化渦芯(min |ψ|²=0.004)</div>
+  <div class="imgs"><video autoplay loop muted playsinline preload="metadata" poster="img/tdgl.png" aria-label="TDGL量子化渦形成の時間発展"><source src="video/tdgl.mp4" type="video/mp4"><img src="img/tdgl.png" alt="TDGL量子化渦の最終状態"></video></div>
+  <div class="cap">|ψ|² 場から量子化渦芯(暗い点、min |ψ|²=0.004)が形成される時間発展</div>
   <div class="facts">バルク |ψ|²=0.978 に飽和・渦芯 48 セル自発形成。3.6 秒。</div>
 </div>
 
@@ -4458,8 +4458,8 @@ begin function (u',deltaCoeff_1',deltaCoeff_2',deltaCoeff_3') = step(u,deltaCoef
   deltaFlux_3[i,j,k] = deltaCoeff_3[i,j,k] * (u[i,j,k+1] + (-1) * u[i,j,k]) / dz
   u'[i,j,k] = (u[i,j,k] + dr * i * u[i,j,k] + dt * (deltaFlux_1[i,j,k] + (-1) * deltaFlux_1[i-1,j,k]) / dr + dt * (deltaFlux_2[i,j,k] + (-1) * deltaFlux_2[i,j-1,k]) / dphi + dt * (deltaFlux_3[i,j,k] + (-1) * deltaFlux_3[i,j,k-1]) / dz) / (1 + dr * i)
 end function</pre></details>
-  <div class="imgs two"><img src="img/polar3d.png" alt="annulus"><img src="img/polar_flat.png" alt="chart"></div>
-  <div class="cap">左: 実際の円環上に描いた u(t=0.2)/右: (r,φ) チャート</div>
+  <div class="imgs"><video autoplay loop muted playsinline preload="metadata" poster="img/polar3d.png" aria-label="極座標円環上の拡散の時間発展"><source src="video/polar.mp4" type="video/mp4"><img src="img/polar3d.png" alt="円環上の拡散の最終状態"></video></div>
+  <div class="cap">実際の円環上に描いた u(t=0 → 0.2)の時間発展</div>
   <div class="facts">独立参照実装と <b>5.6e-16</b>・Σr·u 保存 <b>1.1e-15</b>・最大値原理成立。</div>
 </div>
 
@@ -4639,8 +4639,8 @@ begin function (u',deltaCoeff_1',deltaCoeff_2',deltaCoeff_3') = step(u,deltaCoef
   deltaFlux_3[i,j,k] = deltaCoeff_3[i,j,k] * (u[i,j,k+1] + (-1) * u[i,j,k]) / dphi
   u'[i,j,k] = (2 * dr * i * u[i,j,k] * sin(1 + dtheta * j) + dt * (deltaFlux_1[i,j,k] + (-1) * deltaFlux_1[i-1,j,k]) / dr + dt * (deltaFlux_2[i,j,k] + (-1) * deltaFlux_2[i,j-1,k]) / dtheta + dt * (deltaFlux_3[i,j,k] + (-1) * deltaFlux_3[i,j,k-1]) / dphi + u[i,j,k] * (dr * i)**2 * sin(1 + dtheta * j) + u[i,j,k] * sin(1 + dtheta * j)) / (2 * dr * i * sin(1 + dtheta * j) + (dr * i)**2 * sin(1 + dtheta * j) + sin(1 + dtheta * j))
 end function</pre></details>
-  <div class="imgs two"><img src="img/shell3d.png" alt="shell"><img src="img/shell_rt.png" alt="rt"></div>
-  <div class="cap">左: 外殻面 r=2 上の u(t=0.2)/右: (r,θ) 断面</div>
+  <div class="imgs"><video autoplay loop muted playsinline preload="metadata" poster="img/shell3d.png" aria-label="球殻外面上の拡散の時間発展"><source src="video/shell.mp4" type="video/mp4"><img src="img/shell3d.png" alt="球殻上の拡散の最終状態"></video></div>
+  <div class="cap">外殻面 r=2 上に描いた u(t=0 → 0.2)の時間発展</div>
   <div class="facts">独立 3D 参照実装と <b>4.4e-16</b>・Σr²sinθ·u 保存 <b>4.2e-15</b>・最大値原理成立。</div>
 </div>
 
@@ -4826,8 +4826,8 @@ begin function (u',deltaCoeff_1',deltaCoeff_2',deltaCoeff_3') = step(u,deltaCoef
   deltaFlux_3[i,j,k] = deltaCoeff_3[i,j,k] * (u[i,j,k+1] + (-1) * u[i,j,k]) / dz
   u'[i,j,k] = (2 * u[i,j,k] + dt * (deltaFlux_1[i,j,k] + (-1) * deltaFlux_1[i-1,j,k]) / dtheta + dt * (deltaFlux_2[i,j,k] + (-1) * deltaFlux_2[i,j-1,k]) / dphi + dt * (deltaFlux_3[i,j,k] + (-1) * deltaFlux_3[i,j,k-1]) / dz + u[i,j,k] * cos(dtheta * i)) / (2 + cos(dtheta * i))
 end function</pre></details>
-  <div class="imgs two"><img src="img/torus3d.png" alt="torus 3d"><img src="img/metric_t3000.png" alt="chart"></div>
-  <div class="cap">左: トーラス上に描いた u(t=3000、陰影つき 3D)/右: (θ,φ) チャート</div>
+  <div class="imgs"><video autoplay loop muted playsinline preload="metadata" poster="img/torus3d.png" aria-label="トーラス上のLaplace–Beltrami拡散の時間発展"><source src="video/metric.mp4" type="video/mp4"><img src="img/torus3d.png" alt="トーラス上の拡散の最終状態"></video></div>
+  <div class="cap">トーラス上に描いた u(t=0 → 3000、陰影つき3D)の時間発展</div>
   <div class="facts">独立 C 参照と <b>3.3e-16(全桁一致)</b>・計量重みつき熱量 Σ√g·u 保存 <b>2.5e-15</b>・
     最大値原理成立。スケール因子導出版の .fmr は手展開版と<b>バイト一致</b>。</div>
 </div>
@@ -5011,8 +5011,8 @@ begin function (u',deltaCoeff_1',deltaCoeff_2',deltaCoeff_3') = step(u,deltaCoef
   deltaFlux_3[i,j,k] = deltaCoeff_3[i,j,k] * (u[i,j,k+1] + (-1) * u[i,j,k]) / dz
   u'[i,j,k] = u[i,j,k] + dt * (deltaFlux_1[i,j,k] + (-1) * deltaFlux_1[i-1,j,k]) / dtheta * sin(1 + dtheta * i)**(-1) + dt * (deltaFlux_2[i,j,k] + (-1) * deltaFlux_2[i,j-1,k]) / dphi * sin(1 + dtheta * i)**(-1) + dt * (deltaFlux_3[i,j,k] + (-1) * deltaFlux_3[i,j,k-1]) / dz * sin(1 + dtheta * i)**(-1)
 end function</pre></details>
-  <div class="imgs two"><img src="img/sphere3d.png" alt="sphere 3d"><img src="img/sphere_flat.png" alt="chart"></div>
-  <div class="cap">左: 球面の帯の上に描いた u(t=0.2)/右: (θ,φ) チャート</div>
+  <div class="imgs"><video autoplay loop muted playsinline preload="metadata" poster="img/sphere3d.png" aria-label="球面の帯上の拡散の時間発展"><source src="video/sphere.mp4" type="video/mp4"><img src="img/sphere3d.png" alt="球面の帯上の拡散の最終状態"></video></div>
+  <div class="cap">球面の帯の上に描いた u(t=0 → 0.2)の時間発展</div>
   <div class="facts">独立参照実装と <b>5.6e-16</b>・Σ√g·u 保存 <b>3.6e-15</b>・最大値原理成立。</div>
 </div>
 
@@ -5187,7 +5187,7 @@ begin function (u',deltaCoeff_1',deltaCoeff_2',deltaCoeff_3') = step(u,deltaCoef
   deltaFlux_3[i,j,k] = deltaCoeff_3[i,j,k] * (u[i,j,k+1] + (-1) * u[i,j,k]) / dz
   u'[i,j,k] = u[i,j,k] + 2 * dt * dy * j * (deltaFlux_1[i,j,k] + (-1) * deltaFlux_1[i-1,j,k]) / dx + 2 * dt * dy * j * (deltaFlux_2[i,j,k] + (-1) * deltaFlux_2[i,j-1,k]) / dy + 2 * dt * dy * j * (deltaFlux_3[i,j,k] + (-1) * deltaFlux_3[i,j,k-1]) / dz + dt * (deltaFlux_1[i,j,k] + (-1) * deltaFlux_1[i-1,j,k]) / dx + dt * (deltaFlux_1[i,j,k] + (-1) * deltaFlux_1[i-1,j,k]) / dx * (dy * j)**2 + dt * (deltaFlux_2[i,j,k] + (-1) * deltaFlux_2[i,j-1,k]) / dy + dt * (deltaFlux_2[i,j,k] + (-1) * deltaFlux_2[i,j-1,k]) / dy * (dy * j)**2 + dt * (deltaFlux_3[i,j,k] + (-1) * deltaFlux_3[i,j,k-1]) / dz + dt * (deltaFlux_3[i,j,k] + (-1) * deltaFlux_3[i,j,k-1]) / dz * (dy * j)**2
 end function</pre></details>
-  <div class="imgs two"><img src="img/hyp_t0.png" alt="t=0"><img src="img/hyp.png" alt="t=T"></div>
+  <div class="imgs"><video autoplay loop muted playsinline preload="metadata" poster="img/hyp_t0.png" aria-label="Poincaré半平面上の拡散の時間発展"><source src="video/hyp.mp4" type="video/mp4"><img src="img/hyp.png" alt="Poincaré半平面上の拡散の最終状態"></video></div>
   <div class="cap">半平面チャート上の u(t=0 → 0.1): 上端(y 大)ほど実効拡散 y² が速い</div>
   <div class="facts">独立参照実装と <b>6.7e-16</b>・Σu/y² 保存 <b>9.8e-16</b>・最大値原理成立。</div>
 </div>
@@ -5230,12 +5230,11 @@ init:
 
 step:
   u' = u + dt * Δ u</pre></details>
-  <div class="imgs two"><img src="img/yy_yin_t0.png" alt="Yin t=0"><img src="img/yy_yang_t0.png" alt="Yang t=0"></div>
-  <div class="imgs two"><img src="img/yy_yin_t600.png" alt="Yin t=0.18"><img src="img/yy_yang_t600.png" alt="Yang t=0.18"></div>
-  <div class="cap">上段 t=0: 同じ物理的なガウス塊を Yin(左)は φ 端で、Yang(右)は
-    θ 端で見る(2 パネルは対合 (x,y,z)→(−x,z,y) で合同)。下段 t=0.18: 熱が
+  <div class="imgs"><video autoplay loop muted playsinline preload="metadata" poster="img/yy_yin_t0.png" aria-label="Yin–Yang二パネル間を横断する拡散の時間発展"><source src="video/yinyang.mp4" type="video/mp4"><img src="img/yy_yin_t600.png" alt="Yin–Yang拡散の最終状態"></video></div>
+  <div class="cap">同じ物理的なガウス塊を Yin(左)は φ 端で、Yang(右)は
+    θ 端で見る(2 パネルは対合 (x,y,z)→(−x,z,y) で合同)。t=0.18までに熱が
     継ぎ目の縁補間を通って Yang 内部へ流れ込み、パネル境界に不連続が見えない。
-    色スケールは各時刻で両パネル共有</div>
+    色スケールは全フレームで両パネル共有</div>
   <div class="facts">.fme は<b>1 パネル分のカーネルだけ</b>(compiler 無改造)。check driver が
     格子構造体を 2 個持って formura_data に交互に差し替え、毎 step 後に相手パネルから
     1 セル縁を双一次補間で上書き。検証は大域 l=1 固有モード x/y/z の厳密減衰
@@ -5249,5 +5248,22 @@ step:
   すべての数値は <code>make all</code> の検証ドライバが exit code で保証。
 </footer>
 </main>
+<script>
+  (() => {
+    const videos = document.querySelectorAll('.imgs video');
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!('IntersectionObserver' in window) || reducedMotion) {
+      if (reducedMotion) videos.forEach(video => video.pause());
+      return;
+    }
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(({target, isIntersecting}) => {
+        if (isIntersecting) target.play().catch(() => {});
+        else target.pause();
+      });
+    }, {rootMargin: '160px 0px'});
+    videos.forEach(video => observer.observe(video));
+  })();
+</script>
 </body>
 </html>

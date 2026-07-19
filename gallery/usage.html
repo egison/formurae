@@ -532,7 +532,8 @@ preludeマクロとして実体化local+公開演算子(<code>dFluxWeights</code
 </ol>
 
 <pre>python3 gallery/tools/embed_src.py  <span class="c"># galleryへ4段sourceを再埋め込み</span>
-make all                           <span class="c"># 全exampleのC numerical check</span></pre>
+make all                           <span class="c"># 全exampleのC numerical check</span>
+make gallery-assets                <span class="c"># 実計算frameから静止画とH.264動画を再生成(ffmpegが必要)</span></pre>
 
 <p>FEIR codec/fingerprint、source diagnostic、effect、operator、placement、Taylor stencil、geometry-aware <code>Δ</code>/<code>δ</code>、
 end-to-end pipelineをfocused testで検査します。Egison本体を変更した場合はrepresentative math samples、

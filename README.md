@@ -307,6 +307,18 @@ typed `local`として物質化し、`lbm_d3q19`は中心1階・2階差分の恒
 | `examples/` | model、生成artifact、C numerical check |
 | `gallery/` | sourceと数値結果のgallery |
 
+galleryの時間場は、初期・最終画像の補間ではなく、数値計算中に等間隔で保存した実データから
+H.264動画を生成します。`ffmpeg`を用意し、全exampleのC生成後に次を実行します。
+
+```sh
+make all
+make gallery-assets
+```
+
+`gallery/gen.sh`が静止画用snapshotと動画frame dataを同じrunで生成し、
+`render.py`が静止画、`render_video.py`が全フレーム共通の色スケールで動画を描画・encodeします。
+誤差曲線、厳密解比較、時空図は検証情報を同時に読める静止図のまま保持します。
+
 ## 検証
 
 変更は次の層で検査します。
