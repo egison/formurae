@@ -3,14 +3,14 @@ axes :: x
 
 double :: dt = 0.2*dx
 double :: xlo = 0.5*dx
-double :: xhi = 62.5*dx
+double :: xhi = (total_grid_x - 1.5)*dx
 double :: satp = 2.0/dx
 
 extern function :: sin
 
 begin function (p,v) = init()
   double [] :: p, v
-  p[i] = sin(3.141592653589793*i/63.0)
+  p[i] = sin(3.141592653589793*i/(total_grid_x - 1.0))
   v[i] = 0.0
 end function
 

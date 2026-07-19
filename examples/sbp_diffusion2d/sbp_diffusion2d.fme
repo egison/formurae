@@ -13,9 +13,9 @@ param κ = 1.0
 param τ = 4.0
 param dt = 0.025*dx*dx
 param xlo = 0.5*dx
-param xhi = 30.5*dx
+param xhi = (total_grid_x - 1.5)*dx
 param ylo = 0.5*dy
-param yhi = 30.5*dy
+param yhi = (total_grid_y - 1.5)*dy
 param satx = 2.0*τ*κ/(dx*dx)
 param saty = 2.0*τ*κ/(dy*dy)
 
@@ -24,7 +24,7 @@ extern sin
 field u : scalar @ primal
 
 init:
-  u = sin(3.141592653589793*i/31.0)*sin(3.141592653589793*j/31.0)
+  u = sin(3.141592653589793*i/(total_grid_x - 1.0))*sin(3.141592653589793*j/(total_grid_y - 1.0))
 
 step:
   u' = u + dt * (κ*(sbpd2_x u + sbpd2_y u)

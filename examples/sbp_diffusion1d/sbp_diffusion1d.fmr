@@ -5,14 +5,14 @@ double :: kappa = 1.0
 double :: tau = 4.0
 double :: dt = 0.05*dx*dx
 double :: xlo = 0.5*dx
-double :: xhi = 62.5*dx
+double :: xhi = (total_grid_x - 1.5)*dx
 double :: sat = 2.0*tau*kappa/(dx*dx)
 
 extern function :: sin
 
 begin function u = init()
   double [] :: u
-  u[i] = sin(3.141592653589793*i/63.0)
+  u[i] = sin(3.141592653589793*i/(total_grid_x - 1.0))
 end function
 
 begin function u' = step(u)

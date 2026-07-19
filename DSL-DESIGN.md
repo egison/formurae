@@ -433,6 +433,27 @@ LHS は既存の whole-field target 制約により自然に対象外(RHS 専用
 残: 混合射影(`σ_x_j` = 行ベクトル)・式レベル一般射影(`(grad u)_x`)・
 宣言レベル `component x @ primal`(FEIR スキーマ拡張が要る)は将来課題。
 
+**v2.19(2026-07-19): .fme/yaml 切り分けの Formura 統一 — 格子数由来の定数を .fme から排除** —
+切り分けの規準を明文化した。`.fme` には Formura が `.fmr` に置くもの
+(スキーム・物理・dt を含む param)だけを書き、yaml には数値設定
+(`length_per_node`・`grid_per_node`・`mpi_shape`・blocking・`boundary`・
+`reduces`)だけを書く。`.fme` が yaml 値に依存する式を書くときは、
+Formura が parse 時に注入する `d<軸>`・`total_grid_<軸>` を使う
+(param・raw・`=` init は生文字列素通しなのでそのまま届き、束縛は
+`.fmr` 先頭に前置されるため常に解決される)。規準:
+**grid_per_node 由来の数値リテラルを .fme に書くのは違反**
+(格子細分だけで .fme が壊れる = 収束実験の運用を破る)。一方、
+物理長由来の定数(euler_sod の隔膜 x=4・ks3d の波数 2π/22 など)は
+上流 Formura の `.fmr` と同じ「物理の一部」であり許容。違反 4 例題を修正:
+dirichlet_diffusion(65 → `total_grid_x + 1`)、
+sbp_diffusion1d / sbp_wave1d(`62.5*dx` → `(total_grid_x - 1.5)*dx`、
+63 → `total_grid_x - 1`)、sbp_diffusion2d(30.5 → `total_grid_{x,y} - 1.5`、
+31 → `- 1`)。全対象が 2 冪格子の dyadic 差分なので生成 C の数値は
+ビット同一(dirichlet の厳密減衰 6.91e-14・sbp2d の corner 1.009e-08 まで
+書き換え前と同値)、check driver 無変更で 4 本全緑。これで全例題が
+旧来のスケールフリー慣行(diffusion*d・maxwell* の `total_grid_x*dx` 系)に
+揃い、yaml の解像度だけを変えても .fme を触らずに済む。
+
 **v1.36(2026-07-11): runtime tensor lowering と Phase 7 完了** —
 標準6演算子だけでなく、一般の indexed equation、implicit vector equation、rank-1/rank-2
 indexed `let`、indexed CAS initializer を、成分別 Haskell 式へ展開せず whole runtime tensor として

@@ -12,7 +12,7 @@ axes x
 
 param dt = 0.2*dx
 param xlo = 0.5*dx
-param xhi = 62.5*dx
+param xhi = (total_grid_x - 1.5)*dx
 param satp = 2.0/dx
 
 extern sin
@@ -21,7 +21,7 @@ field p : scalar @ primal
 field v : scalar @ dual
 
 init:
-  p = sin(3.141592653589793*i/63.0)
+  p = sin(3.141592653589793*i/(total_grid_x - 1.0))
   v = 0.0
 
 step:

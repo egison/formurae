@@ -5,9 +5,9 @@ double :: kappa = 1.0
 double :: tau = 4.0
 double :: dt = 0.025*dx*dx
 double :: xlo = 0.5*dx
-double :: xhi = 30.5*dx
+double :: xhi = (total_grid_x - 1.5)*dx
 double :: ylo = 0.5*dy
-double :: yhi = 30.5*dy
+double :: yhi = (total_grid_y - 1.5)*dy
 double :: satx = 2.0*tau*kappa/(dx*dx)
 double :: saty = 2.0*tau*kappa/(dy*dy)
 
@@ -15,7 +15,7 @@ extern function :: sin
 
 begin function u = init()
   double [] :: u
-  u[i,j] = sin(3.141592653589793*i/31.0)*sin(3.141592653589793*j/31.0)
+  u[i,j] = sin(3.141592653589793*i/(total_grid_x - 1.0))*sin(3.141592653589793*j/(total_grid_y - 1.0))
 end function
 
 begin function u' = step(u)
