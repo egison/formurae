@@ -11,7 +11,13 @@
 > sbp 軸で `∂'`(全半径の 1 階)と profile 全 accuracy の 1/2 階が
 > 閉包つきに — 「幅 × 境界」の積が宣言どおり定義される(compact な
 > 幅広 2 階 `∂'^2` と 3 階以上は SBP 分解が無いので設計どおりエラー)。
-> 残りは Phase C(SAT マクロ)。
+>
+> **Phase C も実装済み(2026-07-19、v2.22)。** 宣言が名前つき定数
+> `sbpLoA`/`sbpHiA`/`sbpHinvA`(+使用幅の `sbpHinv<2k>A`)を供給して
+> 手書き係数を解消し、境界外挿 `sbpx_a`(opaque `boundary.sbp-trace`)と
+> prelude マクロ `satDirichlet_a`/`satNeumann_a` で定型 SAT が閉じた
+> ([sbp-sat-patterns.md](sbp-sat-patterns.md))。例題 = sbp_neumann・
+> sbp_wave_open、既存 4 本もイディオム化。本計画の 3 フェーズは完了。
 
 ## 設計判断(2026-07-19 の議論で確定)
 

@@ -33,6 +33,7 @@ FME_EXAMPLES := acoustic3d diffusion1d diffusion2d divergence2d diffusion3d maxw
                 burgers3d pearson3d cahnhilliard3d tdgl3d shallowwater \
                 euler_sod highorder4 dirichlet_diffusion elastic3d \
                 sbp_diffusion1d sbp_wave1d sbp_diffusion2d sbp_highorder4 \
+                sbp_neumann sbp_wave_open \
                 metric_torus metric_sphere hyperbolic polar2d spherical3d yinyang_diffusion mhd_ot lbm_d3q19
 
 CHECK_diffusion1d         := diffusion1d_check.c
@@ -55,6 +56,8 @@ CHECK_sbp_diffusion1d     := sbp_check.c
 CHECK_sbp_wave1d          := sbp_wave_check.c
 CHECK_sbp_diffusion2d     := sbp2d_check.c
 CHECK_sbp_highorder4      := sbp_hi4_check.c
+CHECK_sbp_neumann         := sbp_nmn_check.c
+CHECK_sbp_wave_open       := sbp_open_check.c
 CHECK_elastic3d           := elastic_check.c
 CHECK_metric_torus        := metric_check.c
 CHECK_metric_sphere       := sphere_check.c

@@ -738,6 +738,15 @@ sbpDerivativeErrorMessage sbpError =
     SbpResampleUnsupported axisId ->
       "resampling toward integer points reads outside the domain on the"
       ++ " sbp axis " ++ show axisId
+    SbpTraceRequiresSbpAxis axisId ->
+      "the SBP boundary trace needs axis " ++ show axisId
+      ++ " to declare boundary : sbp"
+    SbpTraceNeedsHalfPlacement placement ->
+      "the SBP boundary trace extrapolates a dual-placed operand, got "
+      ++ show placement
+    SbpTraceUnsupportedRadius radius ->
+      "the SBP boundary trace only has the minimal-pair extrapolation;"
+      ++ " radius " ++ show radius ++ " is not constructed yet"
     SbpClosureFailure stencilError ->
       "SBP closure error: " ++ stencilErrorMessage stencilError
 

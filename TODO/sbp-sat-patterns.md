@@ -1,5 +1,16 @@
 # Neumann・特性 SAT の定型化
 
+> **実装済み(2026-07-19、v2.22)。** 宣言が名前つき定数
+> `sbpLoA`/`sbpHiA`/`sbpHinvA`(+使用幅ぶんの `sbpHinv<2k>A`)を供給し、
+> 境界外挿は新 opaque `boundary.sbp-trace`(表層 `sbpx_a e`、壁行で
+> d₀ᵀ/d_Nᵀ・内部 0)。定型は prelude マクロ `satDirichlet_a(u,g,coef)`・
+> `satNeumann_a(flux,glo,ghi)`。例題 = sbp_neumann(断熱壁、熱量ドリフト
+> 3.4e-15 の厳密保存+実測 2.04 次)と sbp_wave_open(特性 SAT の透過境界、
+> エネルギー無成長+mid-flight 実測 1.98 次+反射残差減衰)。既存 sbp
+> 例題 4 本も定数+マクロのイディオムへ書き換え済み(driver 値同一)。
+> 特性 SAT は方程式内容なのでマクロ化せず例題で明示(向き・インピーダンス
+> 依存)。
+
 ## 現状(v2.17)
 
 SAT は新機構なしの表層記述: Dirichlet は

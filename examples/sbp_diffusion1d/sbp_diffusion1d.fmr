@@ -1,12 +1,13 @@
 dimension :: 1
 axes :: x
 
+double :: sbpLoX = 0.5*dx
+double :: sbpHiX = (total_grid_x - 1.5)*dx
+double :: sbpHinvX = 2.0/dx
 double :: kappa = 1.0
 double :: tau = 4.0
 double :: dt = 0.05*dx*dx
-double :: xlo = 0.5*dx
-double :: xhi = (total_grid_x - 1.5)*dx
-double :: sat = 2.0*tau*kappa/(dx*dx)
+double :: sat = tau*kappa*sbpHinvX/dx
 
 extern function :: sin
 
@@ -17,5 +18,5 @@ end function
 
 begin function u' = step(u)
   q[i] = kappa * (u[i+1] + (-1) * u[i]) / dx
-  u'[i] = u[i] + dt * (if i == 0 then (q[i+1] + (-1) * q[i]) / dx else if i == (-1) + total_grid_x then (q[i-1] + (-1) * q[i-2]) / dx else (q[i] + (-1) * q[i-1]) / dx) + dt * (if dx * i < xlo then (-1) * sat * u[i] else 0) + dt * (if dx * i > xhi then (-1) * sat * u[i] else 0)
+  u'[i] = u[i] + dt * (if i == 0 then (q[i+1] + (-1) * q[i]) / dx else if i == (-1) + total_grid_x then (q[i-1] + (-1) * q[i-2]) / dx else (q[i] + (-1) * q[i-1]) / dx) + dt * (if dx * i < sbpLoX then (-1) * sat * u[i] else 0) + dt * (if dx * i > sbpHiX then (-1) * sat * u[i] else 0)
 end function

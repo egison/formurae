@@ -1,6 +1,6 @@
 -- Heat equation on a bounded rectangle: both axes declare the sbp
 -- boundary, so the plain second derivative is closed per axis and the
--- Dirichlet penalties act on all four edges; the corners simply receive
+-- satDirichlet penalties act on all four edges; the corners simply receive
 -- both axis closures and both penalties additively -- no dedicated corner
 -- treatment exists or is needed.  The check driver asserts the exact
 -- product-mode decay, monotone energy in the tensor SBP norm, and pinned
@@ -16,12 +16,8 @@ boundary y : sbp
 param κ = 1.0
 param τ = 4.0
 param dt = 0.025*dx*dx
-param xlo = 0.5*dx
-param xhi = (total_grid_x - 1.5)*dx
-param ylo = 0.5*dy
-param yhi = (total_grid_y - 1.5)*dy
-param satx = 2.0*τ*κ/(dx*dx)
-param saty = 2.0*τ*κ/(dy*dy)
+param satx = τ*κ*sbpHinvX/dx
+param saty = τ*κ*sbpHinvY/dy
 
 extern sin
 
@@ -32,7 +28,4 @@ init:
 
 step:
   u' = u + dt * (κ*(∂^2_x u + ∂^2_y u)
-    + (if x < xlo then 0.0 - satx*u else 0.0)
-    + (if x > xhi then 0.0 - satx*u else 0.0)
-    + (if y < ylo then 0.0 - saty*u else 0.0)
-    + (if y > yhi then 0.0 - saty*u else 0.0))
+    + satDirichlet_x(u, 0.0, satx) + satDirichlet_y(u, 0.0, saty))

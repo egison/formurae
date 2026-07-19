@@ -762,6 +762,17 @@ contextualize model userDefinitions shadowedNames boundNames expression
                 (internalCoordNames model !! (axisId - 1)) value')
             _ -> Left (EmitExpressionError
               "∂/∂ needs one operand and one coordinate, or the ambient coordinates vector")
+    TEApply (TEIdent trace parts) arguments
+      | trace == "sbpx"
+      , [Surface.IxPart _ axis] <- parts -> do
+          arguments' <- mapM walk arguments
+          case arguments' of
+            [argument] -> do
+              axisId <- gridAxisId trace axis
+              Right (TEApply (TEIdent "FormuraeInternalSbpTrace" [])
+                [TENumber (show axisId), applicationArgument argument])
+            _ -> Left (EmitExpressionError
+              (trace ++ " SBP boundary trace needs one operand"))
     TEApply (TEIdent derivative parts) arguments
       | Just (order, radius) <- coordinateDerivativeName derivative
       , [Surface.IxPart _ axis] <- parts -> do
@@ -1118,6 +1129,8 @@ renderUnit model registry geometryDeclarations definitions dynamics program = un
           ["def FormuraeInternalCoordinateWideDerivative axis order radius value := Formurae.coordinateWideDerivative axis order radius value"]
       , whenUsed "FormuraeInternalGridWholeDerivative"
           ["def FormuraeInternalGridWholeDerivative axis value := Formurae.gridWholeDerivative axis value"]
+      , whenUsed "FormuraeInternalSbpTrace"
+          ["def FormuraeInternalSbpTrace axis value := Formurae.sbpTrace axis value"]
       , whenUsed "FormuraeInternalOrderedDerivative"
           ["def FormuraeInternalOrderedDerivative axes value := Formurae.gridDerivativeChain axes value"]
       , whenUsed "FormuraeInternalResampleExplicit"

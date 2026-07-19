@@ -20,6 +20,14 @@
     (commutation ordered))
 
   (primitive
+    (op boundary.sbp-trace)
+    (inputs scalar)
+    (output scalar)
+    (placement derivative-target)
+    (effects pure-local)
+    (commutation ordered))
+
+  (primitive
     (op derivative.grid-whole)
     (inputs scalar)
     (output scalar)

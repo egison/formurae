@@ -1,15 +1,17 @@
 dimension :: 2
 axes :: x,y
 
+double :: sbpLoX = 0.5*dx
+double :: sbpHiX = (total_grid_x - 1.5)*dx
+double :: sbpHinvX = 2.0/dx
+double :: sbpLoY = 0.5*dy
+double :: sbpHiY = (total_grid_y - 1.5)*dy
+double :: sbpHinvY = 2.0/dy
 double :: kappa = 1.0
 double :: tau = 4.0
 double :: dt = 0.025*dx*dx
-double :: xlo = 0.5*dx
-double :: xhi = (total_grid_x - 1.5)*dx
-double :: ylo = 0.5*dy
-double :: yhi = (total_grid_y - 1.5)*dy
-double :: satx = 2.0*tau*kappa/(dx*dx)
-double :: saty = 2.0*tau*kappa/(dy*dy)
+double :: satx = tau*kappa*sbpHinvX/dx
+double :: saty = tau*kappa*sbpHinvY/dy
 
 extern function :: sin
 
@@ -19,5 +21,5 @@ begin function u = init()
 end function
 
 begin function u' = step(u)
-  u'[i,j] = u[i,j] + dt * kappa * (if i == 0 then (u[i,j] + u[i+2,j] + (-2) * u[i+1,j]) / dx**2 else if i == (-1) + total_grid_x then (u[i-2,j] + u[i,j] + (-2) * u[i-1,j]) / dx**2 else (u[i-1,j] + u[i+1,j] + (-2) * u[i,j]) / dx**2) + dt * kappa * (if j == 0 then (u[i,j] + u[i,j+2] + (-2) * u[i,j+1]) / dy**2 else if j == (-1) + total_grid_y then (u[i,j-2] + u[i,j] + (-2) * u[i,j-1]) / dy**2 else (u[i,j-1] + u[i,j+1] + (-2) * u[i,j]) / dy**2) + dt * (if dx * i < xlo then (-1) * satx * u[i,j] else 0) + dt * (if dy * j < ylo then (-1) * saty * u[i,j] else 0) + dt * (if dx * i > xhi then (-1) * satx * u[i,j] else 0) + dt * (if dy * j > yhi then (-1) * saty * u[i,j] else 0)
+  u'[i,j] = u[i,j] + dt * kappa * (if i == 0 then (u[i,j] + u[i+2,j] + (-2) * u[i+1,j]) / dx**2 else if i == (-1) + total_grid_x then (u[i-2,j] + u[i,j] + (-2) * u[i-1,j]) / dx**2 else (u[i-1,j] + u[i+1,j] + (-2) * u[i,j]) / dx**2) + dt * kappa * (if j == 0 then (u[i,j] + u[i,j+2] + (-2) * u[i,j+1]) / dy**2 else if j == (-1) + total_grid_y then (u[i,j-2] + u[i,j] + (-2) * u[i,j-1]) / dy**2 else (u[i,j-1] + u[i,j+1] + (-2) * u[i,j]) / dy**2) + dt * (if dx * i < sbpLoX then (-1) * satx * u[i,j] else 0) + dt * (if dy * j < sbpLoY then (-1) * saty * u[i,j] else 0) + dt * (if dx * i > sbpHiX then (-1) * satx * u[i,j] else 0) + dt * (if dy * j > sbpHiY then (-1) * saty * u[i,j] else 0)
 end function

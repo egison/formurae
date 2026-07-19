@@ -6,6 +6,7 @@ module Formurae.FEIR.PrimitiveBindings
   , primitiveSignatures
   , primitiveOperationIds
   , lookupPrimitiveSignature
+  , boundarySbpTraceOpId
   , derivativeCoordinateWideOpId
   , derivativeGridWholeOpId
   , derivativeOrderedOpId
@@ -26,7 +27,7 @@ import Formurae.FEIR.Syntax
   )
 
 primitiveManifestId :: PrimitiveManifestId
-primitiveManifestId = PrimitiveManifestId "sha256:b7a05af81f6418b2163bd3ef280d911d6409564da41c96d455b872e62d120098"
+primitiveManifestId = PrimitiveManifestId "sha256:0ee432464c88e9939507b33379103bdddb344f032bbfef930eda05467060d009"
 
 primitiveManifest :: PrimitiveManifest
 primitiveManifest = PrimitiveManifest primitiveSignatures
@@ -34,6 +35,15 @@ primitiveManifest = PrimitiveManifest primitiveSignatures
 primitiveSignatures :: [PrimitiveSignature]
 primitiveSignatures =
   [ PrimitiveSignature
+      { primitiveSignatureOpId = boundarySbpTraceOpId
+      , primitiveSignatureOpName = "boundary.sbp-trace"
+      , primitiveSignatureInputs = [ScalarCategory]
+      , primitiveSignatureOutput = ScalarCategory
+      , primitiveSignaturePlacement = DerivativeTargetPlacement
+      , primitiveSignatureEffect = PureLocal
+      , primitiveSignatureCommutation = Ordered
+      }
+  , PrimitiveSignature
       { primitiveSignatureOpId = derivativeCoordinateWideOpId
       , primitiveSignatureOpName = "derivative.coordinate-wide"
       , primitiveSignatureInputs = [ScalarCategory]
@@ -73,7 +83,8 @@ primitiveSignatures =
 
 primitiveOperationIds :: [OpId]
 primitiveOperationIds =
-  [ derivativeCoordinateWideOpId
+  [ boundarySbpTraceOpId
+  , derivativeCoordinateWideOpId
   , derivativeGridWholeOpId
   , derivativeOrderedOpId
   , resampleExplicitOpId
@@ -84,6 +95,9 @@ lookupPrimitiveSignature operationId = lookup operationId
   [ (primitiveSignatureOpId signature, signature)
   | signature <- primitiveSignatures
   ]
+
+boundarySbpTraceOpId :: OpId
+boundarySbpTraceOpId = OpId "boundary.sbp-trace"
 
 derivativeCoordinateWideOpId :: OpId
 derivativeCoordinateWideOpId = OpId "derivative.coordinate-wide"

@@ -1,9 +1,10 @@
 assertEqual "generated primitive manifest ID"
-  "sha256:b7a05af81f6418b2163bd3ef280d911d6409564da41c96d455b872e62d120098"
+  "sha256:0ee432464c88e9939507b33379103bdddb344f032bbfef930eda05467060d009"
   Formurae.Primitives.primitiveManifestId
 
 assertEqual "generated primitive operation IDs"
-  [ "derivative.coordinate-wide"
+  [ "boundary.sbp-trace"
+  , "derivative.coordinate-wide"
   , "derivative.grid-whole"
   , "derivative.ordered"
   , "resample.explicit"
@@ -11,7 +12,10 @@ assertEqual "generated primitive operation IDs"
   Formurae.Primitives.operationIds
 
 assertEqual "generated full primitive signatures"
-  [ ("derivative.coordinate-wide", "derivative.coordinate-wide",
+  [ ("boundary.sbp-trace", "boundary.sbp-trace",
+      ["scalar"], "scalar",
+      "derivative-target", "pure-local", [], "ordered")
+  , ("derivative.coordinate-wide", "derivative.coordinate-wide",
       ["scalar"], "scalar",
       "derivative-target", "pure-local", [], "ordered")
   , ("derivative.grid-whole", "derivative.grid-whole",

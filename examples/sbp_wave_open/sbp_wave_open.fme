@@ -1,0 +1,36 @@
+-- Acoustic wave system with transparent (characteristic) walls: the model
+-- declares
+--   boundary x : sbp
+-- and penalizes the incoming characteristic at each wall, p + v at the
+-- left and p - v at the right, with the exact inverse-norm strength -- the
+-- boundary value of the staggered v comes from the SBP extrapolation
+-- sbpx_x, and the energy method gives dE/dt = -2 p0^2 - 2 pN^2 exactly:
+-- a rightward pulse (v = p) leaves the domain with no growth and only the
+-- scheme's truncation-order reflection stays behind.  The check driver
+-- asserts the mid-flight translation error, the monotone energy decay,
+-- and the after-exit reflection residual.
+
+mode collocated
+dimension 1
+axes x
+
+boundary x : sbp
+
+param dt = 0.2*dx
+param x0 = 20.0
+param w = 4.0
+
+extern exp
+
+field p : scalar @ primal
+field v : scalar @ dual
+
+init:
+  p = exp(0.0 - ((i*dx - x0)/w)*((i*dx - x0)/w))
+  v = exp(0.0 - (((i + 0.5)*dx - x0 + 0.5*dt)/w)*(((i + 0.5)*dx - x0 + 0.5*dt)/w))
+
+step:
+  v' = v - dt * ∂_x p
+  p' = p - dt * (∂_x v'
+    + (if x < sbpLoX then sbpHinvX*(p + sbpx_x v') else 0.0)
+    + (if x > sbpHiX then sbpHinvX*(p - sbpx_x v') else 0.0))

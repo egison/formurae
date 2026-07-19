@@ -19,6 +19,9 @@ def Formurae.opaqueCoordinateWideHead : String :=
 def Formurae.opaqueGridWholeHead : String :=
   "FormuraeInternalOpaqueGridWhole"
 
+def Formurae.opaqueSbpTraceHead : String :=
+  "FormuraeInternalOpaqueSbpTrace"
+
 def Formurae.opaqueOrderedDerivativeHead : String :=
   "FormuraeInternalOpaqueOrderedDerivative"
 
@@ -167,6 +170,21 @@ def Formurae.gridWholeDerivative
     | #True ->
         formuraeOpaqueBarrier
           (functionSymbol Formurae.opaqueGridWholeHead [value, axisId])
+
+-- The SBP boundary trace: the wall value of a dual-placed expression,
+-- extrapolated by the pair's boundary vector at the first and last primal
+-- rows and zero elsewhere.  Like the derivatives it keeps the complete
+-- operand as one sample; post-fec supplies the extrapolation rows behind
+-- index guards on the declared sbp axis.
+def Formurae.sbpTrace
+      (axisId: Integer) (value: MathValue) : MathValue :=
+  match assert "SBP boundary trace needs a valid axis"
+               (i.> axisId 0 && i.<= axisId dimension)
+        && Formurae.requireOpaqueManifest
+        as bool with
+    | #True ->
+        formuraeOpaqueBarrier
+          (functionSymbol Formurae.opaqueSbpTraceHead [value, axisId])
 
 -- A noncommuting/ordered derivative chain remains one whole-expression
 -- request.  Axis order and repetition are data; the CAS never canonicalizes

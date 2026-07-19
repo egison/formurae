@@ -131,6 +131,16 @@ derivativeOpParts nm = do
         Just (read mDigits, read rDigits, part)
       _ -> Nothing
 
+-- | The SBP boundary trace: sbpx_a e is the wall value of a dual-placed
+-- expression along the declared sbp axis a, extrapolated by the pair's
+-- boundary vector at the first and last primal rows and zero elsewhere.
+sbpxOpParts :: String -> Maybe IxPart
+sbpxOpParts nm = do
+  rest <- stripPrefix "sbpx" nm
+  case parseMarkedPrefix rest of
+    Just ([part], "") -> Just part
+    _ -> Nothing
+
 -- | Recognizer for the retired sbpd spelling: sbpd_x was the first
 -- derivative and sbpd2_x the composed second derivative with
 -- summation-by-parts closure rows.  The boundary treatment is an axis

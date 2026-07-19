@@ -522,6 +522,30 @@ def FEIR.encodeGridWholeOpaque
             ]
     | _ -> FEIR.unsupportedScalar "grid-whole opaque payload must be (operand, axis)"
 
+def FEIR.encodeSbpTraceOpaque
+      (parameters: [(MathValue, Integer)])
+      (coordinates: [(MathValue, Integer)])
+      (fields: [(MathValue, Integer, String, [Integer])])
+      (intrinsics: [(String, Integer)])
+      (analytics: [(MathValue, Integer)])
+      (arguments: [MathValue]) : FEIRSExpr :=
+  match arguments as list mathValue with
+    | $operand :: $axisValue :: [] ->
+        let axisId :=
+              FEIR.requirePositiveInteger "SBP trace axis ID" axisValue
+            operandNF :=
+              FEIR.scalarValue
+                (FEIR.encodeScalar parameters coordinates fields intrinsics analytics
+                  operand)
+         in FEIR.opaqueNode
+              Formurae.Primitives.boundarySbpTraceOpId
+              [] [operandNF] [
+              FEIR.attribute "ordered-axes"
+                (FEIR.attributeValues [FEIR.attributeAxis axisId])
+            , FEIR.attribute "radius" (FEIR.attributeNatural 1)
+            ]
+    | _ -> FEIR.unsupportedScalar "SBP trace payload must be (operand, axis)"
+
 def FEIR.encodeOrderedDerivativeOpaque
       (parameters: [(MathValue, Integer)])
       (coordinates: [(MathValue, Integer)])
@@ -600,11 +624,13 @@ def FEIR.encodeOpaqueRef
                   then FEIR.encodeCoordinateWideOpaque parameters coordinates fields intrinsics analytics arguments
                   else if name = "FormuraeInternalOpaqueGridWhole"
                     then FEIR.encodeGridWholeOpaque parameters coordinates fields intrinsics analytics arguments
-                    else if name = "FormuraeInternalOpaqueOrderedDerivative"
-                      then FEIR.encodeOrderedDerivativeOpaque parameters coordinates fields intrinsics analytics arguments
-                      else if name = "FormuraeInternalOpaqueResample"
-                        then FEIR.encodeResampleOpaque parameters coordinates fields intrinsics analytics arguments
-                        else FEIR.unsupportedScalar "unknown reserved opaque head"
+                    else if name = "FormuraeInternalOpaqueSbpTrace"
+                      then FEIR.encodeSbpTraceOpaque parameters coordinates fields intrinsics analytics arguments
+                      else if name = "FormuraeInternalOpaqueOrderedDerivative"
+                        then FEIR.encodeOrderedDerivativeOpaque parameters coordinates fields intrinsics analytics arguments
+                        else if name = "FormuraeInternalOpaqueResample"
+                          then FEIR.encodeResampleOpaque parameters coordinates fields intrinsics analytics arguments
+                          else FEIR.unsupportedScalar "unknown reserved opaque head"
           | _ -> FEIR.unsupportedScalar "opaque payload head must be a symbol"
     | _ -> FEIR.unsupportedScalar "opaque barrier must contain FunctionData"
 

@@ -2,7 +2,9 @@
 -- integrated leapfrog-style like the Yee solver on the declared sbp axis:
 -- v' uses the closure-free primal-to-dual gradient, and p' applies the
 -- dual-to-primal divergence, whose rows nearest the walls become the SBP
--- closure rows, to the updated v'.  The penalty pins the walls; because the
+-- closure rows, to the updated v'.  The satDirichlet penalty (strength =
+-- the declared inverse boundary norm, entering the minus-dt form with a
+-- leading minus) pins the walls; because the
 -- standing mode vanishes there, the SBP energy stays conserved to leapfrog
 -- accuracy over a full period, which the check driver asserts together
 -- with the mode returning to its initial shape.
@@ -14,9 +16,6 @@ axes x
 boundary x : sbp
 
 param dt = 0.2*dx
-param xlo = 0.5*dx
-param xhi = (total_grid_x - 1.5)*dx
-param satp = 2.0/dx
 
 extern sin
 
@@ -29,6 +28,4 @@ init:
 
 step:
   v' = v - dt * ∂_x p
-  p' = p - dt * (∂_x v'
-    + (if x < xlo then satp*p else 0.0)
-    + (if x > xhi then satp*p else 0.0))
+  p' = p - dt * (∂_x v' - satDirichlet_x(p, 0.0, sbpHinvX))

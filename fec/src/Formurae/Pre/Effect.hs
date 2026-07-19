@@ -35,6 +35,7 @@ import Formurae.Index
   ( derivativeOpParts
   , ixSuffix
   , parseIndexedIdent
+  , sbpxOpParts
   )
 import Formurae.Pre.FormOperator
 import Formurae.Syntax
@@ -262,6 +263,9 @@ analyzeRawEgisonDefinition environment source = do
               | radius > 1 -> primitiveEffect environment
                   Primitives.derivativeCoordinateWideOpId
             _
+              | Just _ <- sbpxOpParts (name ++ concatMap ixSuffix parts) ->
+                  primitiveEffect environment
+                    Primitives.boundarySbpTraceOpId
               | null parts
               , Just operator <- canonicalOperator name ->
                   canonicalOperatorEffect environment operator
@@ -328,6 +332,8 @@ rawPrimitiveOperation _model name =
       , ("gridWholeDerivative", Primitives.derivativeGridWholeOpId)
       , ("FormuraeInternalGridWholeDerivative",
           Primitives.derivativeGridWholeOpId)
+      , ("sbpTrace", Primitives.boundarySbpTraceOpId)
+      , ("FormuraeInternalSbpTrace", Primitives.boundarySbpTraceOpId)
       , ("gridDerivativeChain", Primitives.derivativeOrderedOpId)
       , ("FormuraeInternalOrderedDerivative",
           Primitives.derivativeOrderedOpId)
@@ -469,6 +475,12 @@ applicationHeadEffect environment function argumentEffect =
             DiscreteFunction operations ->
               effectFailure (GridDerivativeOfDiscrete operations)
         Nothing
+          | Just _ <- sbpxOpParts (name ++ concatMap ixSuffix parts) ->
+              case argumentEffect of
+                PureFunction -> primitiveEffect environment
+                  Primitives.boundarySbpTraceOpId
+                DiscreteFunction operations ->
+                  effectFailure (GridDerivativeOfDiscrete operations)
           | name == analyticDerivativeName ->
               case argumentEffect of
                 PureFunction -> pure PureFunction

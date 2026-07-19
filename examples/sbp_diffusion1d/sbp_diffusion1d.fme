@@ -3,9 +3,9 @@
 -- and every derivative along x becomes the SBP staggered pair, so no
 -- stencil ever reads a ghost value.  The walls sit on the primal points
 -- x = 0 and x = (total_grid_x - 1)*dx;
--- homogeneous Dirichlet data enters through the penalty (SAT) terms, whose
--- strength τ multiplies the inverse boundary norm 2/dx and the extra 1/dx
--- of the second-order form.  The check driver asserts the exact-mode decay,
+-- homogeneous Dirichlet data enters through the satDirichlet penalty,
+-- whose strength τ multiplies the declared inverse boundary norm sbpHinvX
+-- and the extra 1/dx of the second-order form.  The check driver asserts the exact-mode decay,
 -- monotone energy in the SBP norm, and that the walls stay pinned.
 
 mode collocated
@@ -17,9 +17,7 @@ boundary x : sbp
 param κ = 1.0
 param τ = 4.0
 param dt = 0.05*dx*dx
-param xlo = 0.5*dx
-param xhi = (total_grid_x - 1.5)*dx
-param sat = 2.0*τ*κ/(dx*dx)
+param sat = τ*κ*sbpHinvX/dx
 
 extern sin
 
@@ -30,6 +28,4 @@ init:
 
 step:
   local q @ dual = κ * ∂_x u
-  u' = u + dt * (∂_x q
-    + (if x < xlo then 0.0 - sat*u else 0.0)
-    + (if x > xhi then 0.0 - sat*u else 0.0))
+  u' = u + dt * (∂_x q + satDirichlet_x(u, 0.0, sat))

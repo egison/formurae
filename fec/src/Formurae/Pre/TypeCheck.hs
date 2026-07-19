@@ -19,7 +19,7 @@ module Formurae.Pre.TypeCheck
 
 import Data.Char (isAlphaNum)
 import Formurae.Common (analyticDerivativeName, egisonIdentifiers, maskEgisonNonCode)
-import Formurae.Index (derivativeOpParts)
+import Formurae.Index (derivativeOpParts, sbpxOpParts)
 import Formurae.Pre.FormOperator
 import Formurae.Syntax
 import Formurae.TensorExpr
@@ -362,6 +362,8 @@ infer model shadowed environment source expression
           | name == "resample"
           , kind : _ <- argumentKinds -> kind
           | Just _ <- derivativeOpParts name
+          , [kind] <- argumentKinds -> kind
+          | Just _ <- sbpxOpParts name
           , [kind] <- argumentKinds -> kind
           -- ∂/∂ by one coordinate keeps the operand's kind; ∂/∂ by the
           -- ambient coordinates vector adds a derivative axis, so only

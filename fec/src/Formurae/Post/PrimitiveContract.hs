@@ -13,8 +13,10 @@ module Formurae.Post.PrimitiveContract
   ( PrimitiveContractError(..)
   , OrderedDerivativeRequest(..)
   , ResampleRequest(..)
+  , SbpTraceRequest(..)
   , parseOrderedDerivativeRequest
   , parseResampleRequest
+  , parseSbpTraceRequest
   ) where
 
 import Data.List (find, nub)
@@ -45,6 +47,35 @@ data ResampleRequest = ResampleRequest
   { resampleOperand :: ScalarNF
   , resampleTargetBits :: [Bool]
   } deriving (Eq, Ord, Show)
+
+data SbpTraceRequest = SbpTraceRequest
+  { sbpTraceOperand :: ScalarNF
+  , sbpTraceAxis :: AxisId
+  , sbpTraceRadius :: Int
+  } deriving (Eq, Ord, Show)
+
+parseSbpTraceRequest
+    :: Int -> OpaqueDiscrete
+    -> Either PrimitiveContractError SbpTraceRequest
+parseSbpTraceRequest dimension opaque = do
+  requireOperation Primitives.boundarySbpTraceOpId opaque
+  requireScalarResult opaque
+  operand <- requireScalarOperand
+    "boundary.sbp-trace expects exactly one scalar operand" opaque
+  requireAttributeSet [orderedAxesAttribute, radiusAttribute]
+    (opaqueDiscreteAttributes opaque)
+  axesValue <- requireAttribute orderedAxesAttribute opaque
+  axis <- case axesValue of
+    AttributeValues [value] -> axisValue value
+    _ -> Left (ContractInvalidAttribute orderedAxesAttribute axesValue)
+  validAxis dimension axis
+  radiusValue <- requireAttribute radiusAttribute opaque
+  radius <- positiveNatural radiusAttribute radiusValue
+  Right SbpTraceRequest
+    { sbpTraceOperand = operand
+    , sbpTraceAxis = axis
+    , sbpTraceRadius = radius
+    }
 
 parseOrderedDerivativeRequest
     :: Int -> OpaqueDiscrete

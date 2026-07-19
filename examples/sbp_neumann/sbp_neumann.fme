@@ -1,0 +1,30 @@
+-- Heat equation with adiabatic walls (u_x = 0 at both ends): the model
+-- declares
+--   boundary x : sbp
+-- and imposes the Neumann data through the satNeumann macro, which
+-- substitutes the extrapolated boundary flux sbpx_x q by the given data in
+-- the weak form -- no free penalty parameter exists, the substitution is
+-- exact, and the semidiscrete heat content 1ᵀH_p u is conserved to
+-- rounding.  The solution tracks the exact adiabatic mode
+-- cos(pi x/L) e^{-kappa (pi/L)^2 t}; the check driver asserts the mode
+-- decay, monotone energy in the SBP norm, and exact heat conservation.
+
+mode collocated
+dimension 1
+axes x
+
+boundary x : sbp
+
+param κ = 1.0
+param dt = 0.05*dx*dx
+
+extern cos
+
+field u : scalar @ primal
+
+init:
+  u = cos(3.141592653589793*i/(total_grid_x - 1.0))
+
+step:
+  local q @ dual = κ * ∂_x u
+  u' = u + dt * (∂_x q + satNeumann_x(q, 0.0, 0.0))

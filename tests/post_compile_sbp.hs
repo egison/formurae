@@ -19,8 +19,44 @@ main = do
   testMixedBoundaryAxes
   testWideRadiusClosures
   testProfileJetClosures
+  testBoundaryTrace
   testRejections
   putStrLn "post compile sbp tests: ok"
+
+-- The boundary trace extrapolates a dual-placed operand to the walls with
+-- the pair's boundary vector and is zero elsewhere; it is only meaningful
+-- on a declared sbp axis.
+testBoundaryTrace :: IO ()
+testBoundaryTrace = do
+  rendered <- compileAndRender "sbp boundary trace"
+    (derivativeProgram DualPolicy PrimalPolicy (traceOpaque "sbp" 1))
+  assertContains "low wall guard" "if i == 0 then" rendered
+  assertContains "low extrapolation weights" "(3 / 2) * u[i]" rendered
+  assertContains "high wall guard"
+    "if i == (-1) + total_grid_x then" rendered
+  assertContains "high extrapolation sample" "u[i-2]" rendered
+  assertContains "zero interior" "else 0" rendered
+  assertSbpError "the trace needs a declared sbp axis"
+    (== SbpTraceRequiresSbpAxis (AxisId 1))
+    (compileProgram (withPeriodicAxis
+      (derivativeProgram DualPolicy PrimalPolicy (traceOpaque "sbp" 1))))
+  assertSbpError "the trace needs a dual-placed operand"
+    isIntegerPlacement
+    (compileProgram (derivativeProgram PrimalPolicy DualPolicy
+      (traceOpaque "sbp" 1)))
+  assertSbpError "only the minimal-pair extrapolation exists"
+    (== SbpTraceUnsupportedRadius 2)
+    (compileProgram (derivativeProgram DualPolicy PrimalPolicy
+      (traceOpaque "sbp" 2)))
+  where
+    isIntegerPlacement (SbpTraceNeedsHalfPlacement _) = True
+    isIntegerPlacement _ = False
+
+withPeriodicAxis :: FEProgram -> FEProgram
+withPeriodicAxis program = program
+  { feProgramAxes =
+      [AxisDecl (AxisId 1) "x" "x" PeriodicBoundary (OriginId 1)]
+  }
 
 -- The dual-to-primal direction replaces the first and last primal rows
 -- with the summation-by-parts closure rows behind index guards.
@@ -242,6 +278,17 @@ orderedOpaque key axes operand = OpaqueDiscreteCall
   , Attribute (AttributeId "ordered-axes")
       (AttributeValues (map AttributeAxis axes))
   , Attribute (AttributeId "radius") (AttributeNatural 1)
+  ]
+
+traceOpaque :: String -> Integer -> ScalarNF -> OpaqueDiscrete
+traceOpaque key radius operand = OpaqueDiscreteCall
+  Primitives.boundarySbpTraceOpId
+  (SemanticKey key) (RequestGroupId (key ++ "-group"))
+  (Basis []) [ScalarValue operand]
+  [ Attribute (AttributeId "ordered-axes")
+      (AttributeValues [AttributeAxis (AxisId 1)])
+  , Attribute (AttributeId "radius")
+      (AttributeNatural (fromInteger radius))
   ]
 
 resampleOpaque :: String -> [Bool] -> ScalarNF -> OpaqueDiscrete

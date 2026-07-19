@@ -70,6 +70,10 @@ examples/sbp_wave1d/sbp_wave1d.c
 examples/sbp_wave1d/sbp_wave1d.h
 examples/sbp_highorder4/sbp_highorder4.c
 examples/sbp_highorder4/sbp_highorder4.h
+examples/sbp_neumann/sbp_neumann.c
+examples/sbp_neumann/sbp_neumann.h
+examples/sbp_wave_open/sbp_wave_open.c
+examples/sbp_wave_open/sbp_wave_open.h
 examples/*/viz
 gallery/data/
 dist-newstyle/

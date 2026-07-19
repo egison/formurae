@@ -9,11 +9,13 @@ module Formurae.Pre.Parse
   ) where
 
 import Control.Monad (foldM, when)
-import Data.Char (isAlpha, isAlphaNum, isDigit, isSpace)
+import Data.Char (isAlpha, isAlphaNum, isDigit, isSpace, toUpper)
 import Data.List (dropWhileEnd, intercalate, nub, sort, stripPrefix, isSuffixOf)
+import Data.Ratio (denominator, numerator)
 
 import Formurae.Common
 import Formurae.Index
+import Formurae.Post.Stencil (sbpPrimalNorm, sbpStaggeredPair)
 import Formurae.Syntax
 import Formurae.TensorExpr
   ( pattern TENumber, pattern TEIdent, pattern TEUnary, pattern TECall
@@ -527,6 +529,130 @@ validateBoundaryDecls m = mapM_ check (mBoundaryDecls m)
            ++ boundaryAxisName declaration ++ "' (line "
            ++ show (boundarySourceLine declaration) ++ ")")
 
+-- | An sbp boundary declaration supplies named constants to the model:
+-- the wall-neighborhood thresholds sbpLoA / sbpHiA and the inverse
+-- boundary norm sbpHinvA of the minimal pair (with sbpHinv<2k>A for
+-- every wider pair count the model's spellings or profile rules can
+-- reach), where A is the axis name with its first letter capitalized —
+-- an underscore would read as an Egison subscript, so the axis joins the
+-- name in camel case.  Penalty terms compose these names instead of
+-- hand-written closure weights.  The constants are ordinary parameters
+-- with exact rational backend values, injected ahead of the user
+-- parameters so a user parameter may reference them.
+injectSbpBoundaryConstants :: [String] -> Model -> IO Model
+injectSbpBoundaryConstants macroSources m
+  | null sbpDeclarations = return m
+  | otherwise = do
+      mapM_ checkCollision constants
+      return m
+        { mParams = map constantParam constants ++ mParams m
+        , mParamSourceLines = map constantLine constants
+            ++ mParamSourceLines m
+        }
+  where
+    sbpDeclarations =
+      [ declaration
+      | declaration <- mBoundaryDecls m
+      , boundaryKind declaration == SurfaceSbpBoundary
+      ]
+
+    constants = concatMap axisConstants sbpDeclarations
+    constantParam (name, value, _) = (name, value)
+    constantLine (_, _, line) = line
+
+    axisConstants declaration =
+      let axis = boundaryAxisName declaration
+          line = boundarySourceLine declaration
+          step = "d" ++ axis
+          suffix = sbpAxisSuffix axis
+      in ( "sbpLo" ++ suffix, "0.5*" ++ step, line )
+         : ( "sbpHi" ++ suffix
+           , "(total_grid_" ++ axis ++ " - 1.5)*" ++ step, line )
+         : [ (hinvName pairs suffix, hinvValue weight ++ "/" ++ step, line)
+           | pairs <- pairCounts
+           , Right pair <- [sbpStaggeredPair pairs]
+           , weight : _ <- [sbpPrimalNorm pair]
+           ]
+
+    hinvName pairs suffix
+      | pairs == 1 = "sbpHinv" ++ suffix
+      | otherwise = "sbpHinv" ++ show (2 * pairs) ++ suffix
+
+    hinvValue weight =
+      let inverse = recip weight
+          num = show (numeratorOf inverse) ++ ".0"
+          den = show (denominatorOf inverse) ++ ".0"
+      in if denominatorOf inverse == 1
+           then num
+           else "(" ++ num ++ "/" ++ den ++ ")"
+
+    -- Every pair count the model can request on an sbp axis: the minimal
+    -- stage, the explicit-radius spellings, and the staggered profile
+    -- accuracies.  Unconstructible widths simply supply no constant.
+    pairCounts = nub
+      ( 1
+      : [ radius
+        | source <- modelExpressionTexts ++ macroSources
+        , TId name _ <- tokenize source
+        , Just (_, radius, _) <- [derivativeOpParts name]
+        , radius > 1
+        ]
+      ++ [ accuracy `div` 2
+         | declaration <- mDiscretizationDecls m
+         , discretizationLatticeClass declaration == SurfaceStaggered
+         , let accuracy = discretizationFormalAccuracy declaration
+         , accuracy > 2
+         ] )
+
+    modelExpressionTexts =
+      map sEx (mSteps m)
+      ++ map defBody (mDefs m)
+      ++ concatMap initializerTexts (mInits m)
+
+    initializerTexts initializer =
+      case initializer of
+        IRaw _ _ -> []
+        IVec _ components -> components
+        ISym _ components -> components
+        IAnti _ components -> components
+        ITensor2 _ components -> components
+        ICas _ expression -> [expression]
+        ICasIndex _ _ expression -> [expression]
+
+    checkCollision (name, _, line)
+      | name `elem` boundNames = fatal
+          ("value name '" ++ name
+           ++ "' is reserved for the sbp boundary declaration (line "
+           ++ show line ++ ")")
+      | otherwise = return ()
+
+    boundNames =
+      mAxes m
+      ++ map fst (mParams m)
+      ++ map fdName (mFieldDecls m)
+      ++ map defName (mDefs m)
+      ++ map sNm (mSteps m)
+      ++ maybe [] (: []) (mMetricName m)
+
+macroTexts :: PreMacro -> [String]
+macroTexts macro =
+  map snd (pmLocals macro) ++ [snd (pmResult macro)]
+
+-- | The axis suffix of the injected boundary constants: the axis name
+-- with its first letter capitalized, so the joined name stays one plain
+-- Egison symbol.
+sbpAxisSuffix :: String -> String
+sbpAxisSuffix axis =
+  case axis of
+    first : rest -> toUpper first : rest
+    [] -> []
+
+numeratorOf :: Rational -> Integer
+numeratorOf = numerator
+
+denominatorOf :: Rational -> Integer
+denominatorOf = denominator
+
 parseDiscretizationDecl :: Int -> String -> IO DiscretizationDecl
 parseDiscretizationDecl lineNumber source =
   case words source of
@@ -726,7 +852,9 @@ parseModel sourceFile name txt = do
                 , mBoundaryDecls = reverse (mBoundaryDecls m)
                 }
           validateBoundaryDecls ordered
-          mUse <- expandMacros (ms ++ activePreludeMacros ordered) ordered
+          supplied <- injectSbpBoundaryConstants
+            (concatMap macroTexts ms) ordered
+          mUse <- expandMacros (ms ++ activePreludeMacros supplied) supplied
           validateValueBindingNames mUse
           validateMetricName mUse
           validateDimensionFeatures mUse
@@ -1677,12 +1805,56 @@ activePreludeMacros model =
       ++ map sNm (mSteps model)
       ++ maybe [] (: []) (mMetricName model)
 
+preludeMacros :: Model -> [PreMacro]
+preludeMacros model =
+  geometryPreludeMacros model ++ boundaryPreludeMacros model
+
+-- The penalty (SAT) idioms of a declared sbp axis: Dirichlet damping on
+-- both walls and the Neumann flux substitution through the boundary
+-- extrapolation sbpx.  The bodies compose the declaration's supplied
+-- constants, so the only hand-written ingredients left are the data and
+-- the physical strength.
+boundaryPreludeMacros :: Model -> [PreMacro]
+boundaryPreludeMacros model = concat
+  [ [ PreMacro
+        { pmName = "satDirichlet_" ++ axis
+        , pmParams = ["u", "g", "coef"]
+        , pmLocals = []
+        , pmResult = (0, dirichletBody axis)
+        , pmLine = 0
+        }
+    , PreMacro
+        { pmName = "satNeumann_" ++ axis
+        , pmParams = ["flux", "glo", "ghi"]
+        , pmLocals = []
+        , pmResult = (0, neumannBody axis)
+        , pmLine = 0
+        }
+    ]
+  | declaration <- mBoundaryDecls model
+  , boundaryKind declaration == SurfaceSbpBoundary
+  , let axis = boundaryAxisName declaration
+  ]
+  where
+    dirichletBody axis =
+      "((if " ++ axis ++ " < sbpLo" ++ sbpAxisSuffix axis
+      ++ " then 0.0 - coef*(u - g) else 0.0)"
+      ++ " + (if " ++ axis ++ " > sbpHi" ++ sbpAxisSuffix axis
+      ++ " then 0.0 - coef*(u - g) else 0.0))"
+    neumannBody axis =
+      "((if " ++ axis ++ " < sbpLo" ++ sbpAxisSuffix axis
+      ++ " then sbpHinv" ++ sbpAxisSuffix axis ++ "*(sbpx_" ++ axis
+      ++ " flux - glo) else 0.0)"
+      ++ " + (if " ++ axis ++ " > sbpHi" ++ sbpAxisSuffix axis
+      ++ " then 0.0 - sbpHinv" ++ sbpAxisSuffix axis ++ "*(sbpx_" ++ axis
+      ++ " flux - ghi) else 0.0))"
+
 -- The weights local carries only geometry (dFluxWeights reads its operand
 -- solely for the degree), so the backend can freeze it into an init-time
 -- coefficient field; the flux local then contains no position-dependent
 -- arithmetic, exactly the shape the shifting-frame code generator expects.
-preludeMacros :: Model -> [PreMacro]
-preludeMacros model
+geometryPreludeMacros :: Model -> [PreMacro]
+geometryPreludeMacros model
   | mMetric model == Nothing && mEmbed model == Nothing = []
   | otherwise =
       [ PreMacro
@@ -1829,8 +2001,13 @@ expandMacros macros model = do
           ("macro expansion cannot parse step expression: " ++ sEx step
            ++ " (" ++ message ++ ")")
       (used', lifted, ast') <- expandNode (0 :: Int) (callSiteOf step) used ast
-      let step'
-            | null lifted = step
+      -- A pure-expression macro lifts no locals, so the rewrite is
+      -- detected from the call spelling itself; steps without any macro
+      -- call keep their original text and source map.
+      let usesMacro = any (`elem` map pmName macros)
+            [name | TId name _ <- tokenize (sEx step)]
+          step'
+            | null lifted && not usesMacro = step
             | otherwise = step
                 { sEx = renderTensorExpr ast'
                 , sSourceText = syntheticSource (callSiteOf step)
@@ -1865,11 +2042,15 @@ expandMacros macros model = do
       when (depth > 32) (fatal
         "macro expansion did not terminate; recursive macros are not supported")
       case expression of
-        TEApply (TEIdent name []) arguments
-          | Just mc <- lookup name macrosByName ->
+        -- Axis-suffixed macro names (satNeumann_x) parse as an indexed
+        -- head, so the lookup key is the complete spelling.
+        TEApply (TEIdent name parts) arguments
+          | Just mc <- lookup (name ++ concatMap ixSuffix parts)
+              macrosByName ->
               expandCall depth site used mc arguments
-        TECall (TEIdent name []) arguments
-          | Just mc <- lookup name macrosByName ->
+        TECall (TEIdent name parts) arguments
+          | Just mc <- lookup (name ++ concatMap ixSuffix parts)
+              macrosByName ->
               expandCall depth site used mc arguments
         _ -> descend expression
       where

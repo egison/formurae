@@ -50,7 +50,7 @@ main = do
 
 manifestId :: PrimitiveManifestId
 manifestId = PrimitiveManifestId
-  "sha256:b7a05af81f6418b2163bd3ef280d911d6409564da41c96d455b872e62d120098"
+  "sha256:0ee432464c88e9939507b33379103bdddb344f032bbfef930eda05467060d009"
 
 scaleSource :: String
 scaleSource = unlines

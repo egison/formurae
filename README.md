@@ -302,7 +302,7 @@ typed `local`として物質化し、`lbm_d3q19`は中心1階・2階差分の恒
 | `lib/formurae-operators.egi` | pure continuum operatorとopaque request constructor |
 | `lib/formurae-primitives.egi` | primitive manifestから自動生成するfull-signature binding |
 | `lib/formurae-feir.egi` | MathValue/Tensorからcanonical FEIRへのencoder |
-| `spec/feir-primitives.sexp` | 4 primitiveのfull signatureを規定する唯一のmanifest source |
+| `spec/feir-primitives.sexp` | 5 primitiveのfull signatureを規定する唯一のmanifest source |
 | `spec/egison-normalization.list` | Egison normalization libraryの規範load順 |
 | `examples/` | model、生成artifact、C numerical check |
 | `gallery/` | sourceと数値結果のgallery |

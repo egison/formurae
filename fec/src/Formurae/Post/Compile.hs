@@ -69,6 +69,9 @@ data SbpDerivativeError
   | SbpClosureInsideStencil AxisId
   | SbpOrderedChainUnsupported AxisId
   | SbpResampleUnsupported AxisId
+  | SbpTraceRequiresSbpAxis AxisId
+  | SbpTraceNeedsHalfPlacement Placement
+  | SbpTraceUnsupportedRadius Int
   | SbpClosureFailure StencilError
   deriving (Eq, Show)
 
@@ -80,6 +83,9 @@ gridWholeDerivativeOperationId = Primitives.derivativeGridWholeOpId
 
 orderedDerivativeOperationId :: OpId
 orderedDerivativeOperationId = Primitives.derivativeOrderedOpId
+
+sbpTraceOperationId :: OpId
+sbpTraceOperationId = Primitives.boundarySbpTraceOpId
 
 resampleOperationId :: OpId
 resampleOperationId = Primitives.resampleExplicitOpId
@@ -489,6 +495,8 @@ lowerOpaqueShifted environment targetPlacement sampleOffsets opaque
       lowerWideDerivative environment targetPlacement sampleOffsets opaque
   | opaqueDiscreteOpId opaque == gridWholeDerivativeOperationId =
       lowerGridWholeDerivative environment targetPlacement sampleOffsets opaque
+  | opaqueDiscreteOpId opaque == sbpTraceOperationId =
+      lowerSbpTrace environment targetPlacement sampleOffsets opaque
   | opaqueDiscreteOpId opaque == orderedDerivativeOperationId =
       lowerOrderedDerivative environment targetPlacement sampleOffsets opaque
   | opaqueDiscreteOpId opaque == resampleOperationId =
@@ -865,6 +873,98 @@ lowerSbpGuardedDerivative environment wrapError axisId order pairs bit
       guardedRows 1 (sbpSecondLow pair) (sbpSecondHigh pair) interiorSecond
     _ -> Left (wrapError (SbpClosureUnavailable order pairs))
 
+-- | Lower the SBP boundary trace: the wall value of a dual-placed operand,
+-- extrapolated by the pair's boundary vector at the first and last primal
+-- rows and zero elsewhere.  The trace is a value, not a difference
+-- quotient, so no step denominator appears; the guards follow the primal
+-- target grid.
+lowerSbpTrace
+    :: CompileEnvironment
+    -> Placement
+    -> [Int]
+    -> OpaqueDiscrete
+    -> Either PostError FExpr
+lowerSbpTrace environment targetPlacement sampleOffsets opaque = do
+  request <- mapPrimitiveContract opaque
+    (parseSbpTraceRequest (programDimension environment) opaque)
+  boundary <- axisBoundary environment (sbpTraceAxis request)
+  case boundary of
+    SbpBoundary -> Right ()
+    _ -> mapSbpError opaque
+      (Left (SbpTraceRequiresSbpAxis (sbpTraceAxis request)))
+  if sbpTraceRadius request == 1
+    then Right ()
+    else mapSbpError opaque
+      (Left (SbpTraceUnsupportedRadius (sbpTraceRadius request)))
+  location <- inferScalarLocation environment
+    (opaqueDiscreteSemanticKey opaque) (sbpTraceOperand request)
+  let sourcePlacement =
+        case scalarLocationCapability location of
+          LocatedCapability placement -> placement
+          ConstantCapability -> targetPlacement
+          SampleableCapability -> targetPlacement
+  if scalarLocationLattice location == Just StaggeredLattice
+    then Right ()
+    else mapSbpError opaque (Left SbpRequiresStaggeredLattice)
+  bit <- placementAxisBit sourcePlacement (sbpTraceAxis request)
+  case bit of
+    HalfPoint -> Right ()
+    IntegerPoint -> mapSbpError opaque
+      (Left (SbpTraceNeedsHalfPlacement sourcePlacement))
+  naturalTarget <- mapLocationError
+    (derivativePlacement [(sbpTraceAxis request, 1)] sourcePlacement)
+  if naturalTarget == targetPlacement
+    then Right ()
+    else Left (PostInvalidReferencePlacement targetPlacement naturalTarget)
+  pair <- mapSbpError opaque
+    (mapLeft SbpClosureFailure (sbpStaggeredPair 1))
+  axis <- lookupAxis environment (sbpTraceAxis request)
+  indices <- indexNames environment
+  let AxisId axisNumber = sbpTraceAxis request
+      indexVariable = FVariable (indices !! (axisNumber - 1))
+      extentVariable = FVariable ("total_grid_" ++ axisDeclSourceName axis)
+  case drop (axisNumber - 1) sampleOffsets of
+    shift : _ | shift /= 0 -> mapSbpError opaque
+      (Left (SbpClosureInsideStencil (sbpTraceAxis request)))
+    _ -> Right ()
+  let lowerSample offset = do
+        let offsets = adjustOffset axisNumber offset sampleOffsets
+        lowerScalarShifted environment sourcePlacement offsets
+          (sbpTraceOperand request)
+      lowerWall wallOffsets = do
+        samples <- mapM
+          (\(offset, coefficient) -> do
+            sample <- lowerSample offset
+            Right (normalizeExpr (FMul [exactExpr coefficient, sample])))
+          wallOffsets
+        Right (normalizeExpr (FAdd samples))
+  low <- lowerWall (sbpExtrapolate pair)
+  high <- lowerWall
+    [ (negate 1 - offset, coefficient)
+    | (offset, coefficient) <- sbpExtrapolate pair
+    ]
+  let lowGuard = FCompare CompareEq indexVariable (FExact 0 1)
+      highGuard = FCompare CompareEq indexVariable
+        (normalizeExpr (FAdd [extentVariable, FExact (-1) 1]))
+  Right (normalizeExpr (FSelect lowGuard low
+    (normalizeExpr (FSelect highGuard high (FExact 0 1)))))
+
+inferSbpTraceLocation
+    :: CompileEnvironment
+    -> OpaqueDiscrete
+    -> Either PostError ScalarLocationInfo
+inferSbpTraceLocation environment opaque = do
+  request <- mapPrimitiveContract opaque
+    (parseSbpTraceRequest (programDimension environment) opaque)
+  location <- inferScalarLocation environment
+    (opaqueDiscreteSemanticKey opaque) (sbpTraceOperand request)
+  case scalarLocationCapability location of
+    LocatedCapability source -> do
+      target <- mapLocationError
+        (derivativePlacement [(sbpTraceAxis request, 1)] source)
+      Right location { scalarLocationCapability = LocatedCapability target }
+    _ -> Right location
+
 placementAxisBit :: Placement -> AxisId -> Either PostError HalfBit
 placementAxisBit (Placement bits) axisId@(AxisId axisNumber) =
   case drop (axisNumber - 1) bits of
@@ -1052,6 +1152,8 @@ inferScalarLocation environment semanticKey scalar =
           inferWideLocation environment opaque
       | opaqueDiscreteOpId opaque == gridWholeDerivativeOperationId ->
           inferGridWholeLocation environment opaque
+      | opaqueDiscreteOpId opaque == sbpTraceOperationId ->
+          inferSbpTraceLocation environment opaque
       | opaqueDiscreteOpId opaque == orderedDerivativeOperationId ->
           inferOrderedDerivativeLocation environment opaque
       | opaqueDiscreteOpId opaque == resampleOperationId ->

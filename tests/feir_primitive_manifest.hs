@@ -19,7 +19,8 @@ main = do
   assertEqual
     "required operation IDs"
     (map OpId
-      [ "derivative.coordinate-wide"
+      [ "boundary.sbp-trace"
+      , "derivative.coordinate-wide"
       , "derivative.grid-whole"
       , "derivative.ordered"
       , "resample.explicit"
@@ -85,7 +86,7 @@ main = do
   assertEqual
     "canonical fingerprint"
     (Fingerprint
-      "sha256:b7a05af81f6418b2163bd3ef280d911d6409564da41c96d455b872e62d120098")
+      "sha256:0ee432464c88e9939507b33379103bdddb344f032bbfef930eda05467060d009")
     (primitiveManifestFingerprint manifest)
   assertEqual
     "manifest ID is its fingerprint"

@@ -367,6 +367,17 @@ main = do
   assertContains "plain second derivative stays the wide request"
     "FormuraeInternalCoordinateWideDerivative 1 2 1 u" sbpUnit
   assertAbsent sbpUnit "SbpStaggered"
+  assertContains "the declaration supplies the wall threshold constant"
+    "FEIR.string \"sbpLoX\"" sbpUnit
+  assertContains "the declaration supplies the inverse boundary norm"
+    "FEIR.string \"2.0/dx\"" sbpUnit
+  assertContains "the wide spelling supplies its own inverse norm"
+    "FEIR.string \"sbpHinv4X\"" sbpUnit
+  assertContains "the Neumann macro expands to the boundary trace"
+    "FormuraeInternalSbpTrace 1 (q)" sbpUnit
+  assertContains "sbp trace bridge definition"
+    "def FormuraeInternalSbpTrace axis value := Formurae.sbpTrace axis value"
+    sbpUnit
 
   ghostModel <- parseModel "pre-ghost.fme" "pre-ghost" ghostBoundarySource
   ghostUnit <- requireRight =<< emitNormalizationUnit manifestId ghostModel
@@ -764,8 +775,9 @@ sbpSource = unlines
   , "field u : scalar @ primal"
   , "field v : scalar @ dual"
   , "step:"
+  , "  local q @ dual = ∂'_x u"
   , "  v' = ∂_x u"
-  , "  u' = u + ∂^2_x u"
+  , "  u' = u + ∂^2_x u + satNeumann_x(q, 0.0, 0.0)"
   ]
 
 ghostBoundarySource :: String
