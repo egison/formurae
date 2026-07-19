@@ -267,6 +267,19 @@ def main():
     heatmap(mat('sbpdiff2d_t1000.mat'),
             os.path.join(IMG, 'sbpdiff2d_t1000.png'), rng=rng2d)
 
+    # 2c Yin-Yang overset sphere: one bump near the Yin panel's phi edge
+    # spreads across the interpolated seam onto Yang.  The color scale is
+    # shared between the two panels at each time (the Yin/Yang agreement
+    # is the point), but not across times, so the later frame stays
+    # readable after the amplitude decays.
+    ryy0 = heatmap(mat('yy_yin_t0.mat'), os.path.join(IMG, 'yy_yin_t0.png'))
+    heatmap(mat('yy_yang_t0.mat'), os.path.join(IMG, 'yy_yang_t0.png'),
+            rng=ryy0)
+    ryyT = heatmap(mat('yy_yin_t600.mat'),
+                   os.path.join(IMG, 'yy_yin_t600.png'))
+    heatmap(mat('yy_yang_t600.mat'), os.path.join(IMG, 'yy_yang_t600.png'),
+            rng=ryyT)
+
     # 3 maxwell + yee: Ey pulse before/after
     line_panel('maxwell.svg', ['maxwell_t0.txt', 'maxwell_t100.txt'],
                ['Ey (t=0)', 'Ey (t=100dt)'], ['#999999', C1],

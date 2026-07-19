@@ -63,6 +63,13 @@ run polar polar2d polar2d -DAXIS_X=r -DAXIS_Y=phi -DAXIS_Z=z \
 run shell spherical3d spherical3d -DAXIS_X=r -DAXIS_Y=theta -DAXIS_Z=phi \
   -DSLICE -DSLICEX -DDUMPS='{0,1000}' -DF1="$U.u[i][j][k]"
 
+# yinyang: twin-panel drive with rim interpolation (viz_dump cannot run
+# the overset exchange), Gaussian bump crossing the seam
+( cd "$ROOT/examples/yinyang_diffusion" && \
+  $CC $FLAGS -I. -DOUTDIR="\"$DATA\"" \
+    -o viz "$TOOLS/yinyang_dump.c" yinyang_diffusion.c -lm && ./viz )
+echo "ok: yinyang"
+
 # pearson: reuse the PGM the check driver wrote during `make all`
 cp "$ROOT/examples/pearson3d/pearson_V.pgm" "$DATA/pearson_V.pgm" 2>/dev/null || \
   echo "note: run 'make pearson3d' first for the pearson panel"
