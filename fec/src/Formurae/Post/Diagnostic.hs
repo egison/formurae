@@ -20,6 +20,7 @@ import Formurae.Post.Compile
   ( DerivativeMetadataError(..)
   , GridWholeDerivativeError(..)
   , PostError(..)
+  , SbpDerivativeError(..)
   , WideDerivativeError(..)
   )
 import Formurae.Post.FMR (FMRError(..))
@@ -168,6 +169,8 @@ postErrorOriginIds program postError =
     PostWideDerivativeError semanticKey _ -> maybeToList
       (locatedOpaqueOrigin <$> findLocatedOpaqueByKey program semanticKey)
     PostGridWholeDerivativeError semanticKey _ -> maybeToList
+      (locatedOpaqueOrigin <$> findLocatedOpaqueByKey program semanticKey)
+    PostSbpDerivativeError semanticKey _ -> maybeToList
       (locatedOpaqueOrigin <$> findLocatedOpaqueByKey program semanticKey)
     PostPrimitiveContractError semanticKey _ -> maybeToList
       (locatedOpaqueOrigin <$> findLocatedOpaqueByKey program semanticKey)
@@ -674,6 +677,7 @@ postErrorMessage postError =
     PostUnsupportedOpaque opId ->
       "unsupported opaque operation " ++ show opId
     PostWideDerivativeError _ wideError -> wideDerivativeErrorMessage wideError
+    PostSbpDerivativeError _ sbpError -> sbpDerivativeErrorMessage sbpError
     PostGridWholeDerivativeError _ gridError ->
       gridWholeDerivativeErrorMessage gridError
     PostPrimitiveContractError _ contractError ->
@@ -703,6 +707,23 @@ wideDerivativeErrorMessage wideError =
       ++ " exceeds the diameter of radius " ++ show radius
     WideStencilFailure stencilError ->
       "wide derivative stencil error: " ++ show stencilError
+
+sbpDerivativeErrorMessage :: SbpDerivativeError -> String
+sbpDerivativeErrorMessage sbpError =
+  case sbpError of
+    SbpMetadataError metadata ->
+      derivativeMetadataErrorMessage "SBP staggered derivative" metadata
+    SbpOrderUnsupported order ->
+      "SBP staggered derivative order must be 1 or 2, got " ++ show order
+    SbpRadiusMustBeOne radius ->
+      "SBP staggered derivative radius must be 1, got " ++ show radius
+    SbpRequiresStaggeredLattice ->
+      "SBP staggered derivative needs a staggered-lattice operand"
+    SbpSecondOrderNeedsIntegerPlacement placement ->
+      "SBP second derivative needs an integer-placed operand, got "
+      ++ show placement
+    SbpClosureFailure stencilError ->
+      "SBP closure error: " ++ stencilErrorMessage stencilError
 
 gridWholeDerivativeErrorMessage :: GridWholeDerivativeError -> String
 gridWholeDerivativeErrorMessage gridError =

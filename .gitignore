@@ -62,6 +62,12 @@ examples/spherical3d/spherical3d.c
 examples/spherical3d/spherical3d.h
 examples/yinyang_diffusion/yinyang_diffusion.c
 examples/yinyang_diffusion/yinyang_diffusion.h
+examples/sbp_diffusion1d/sbp_diffusion1d.c
+examples/sbp_diffusion1d/sbp_diffusion1d.h
+examples/sbp_diffusion2d/sbp_diffusion2d.c
+examples/sbp_diffusion2d/sbp_diffusion2d.h
+examples/sbp_wave1d/sbp_wave1d.c
+examples/sbp_wave1d/sbp_wave1d.h
 examples/*/viz
 gallery/data/
 dist-newstyle/

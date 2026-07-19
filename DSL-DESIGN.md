@@ -375,6 +375,64 @@ suite 全緑+make all 全例バイト不変。実測: 解析 3 重 `∂/∂` が
 accuracy 4 の 3 階が 10 点(端 ±1/13824 = ±(1/24)³、全 5 対が半点まわり反対称)。
 残: 境界の片側化(staggered SBP 閉包)のみ。
 
+**v2.17(2026-07-17): 境界の片側化 — staggered SBP 閉包+SAT(Phase 0–3)** —
+v2.16 の残課題を実装し、物理境界を持つ領域で ghost を一切読まない
+summation-by-parts 離散化を通した。
+**Phase 0(作用素層)**: `SbpStaggeredPair`(2 次内部対)を Stencil.hs に構成。
+D⁺ は閉包不要、D⁻ は両端 1 行の片側行(row₀ = (q₁ − q₀)/h)、
+H_p = h·[1/2, 1, …, 1, 1/2]・H_d = h·I・外挿 d₀ = (3/2, −1/2)。
+`validateSbpStaggeredPair` が有限 N(8/9/12/17)で**厳密 SBP 恒等式
+H_d D⁺ + (H_p D⁻)ᵀ = d_N e_Nᵀ − d₀ e₀ᵀ を成分ごとに検証**し、さらに全行の
+境界次数・外挿精度・ノルム正値・「2 階閉包行 = D⁻D⁺ の合成」まで再検査する。
+高次内部(k ≥ 2)の閉包構成は未実装(`UnsupportedSbpInterior`)。
+**Phase 1(言語配管)**: 新 opaque `derivative.sbp-staggered`(表層 `sbpd_x e`
+= 1 階・`sbpd2_x e` = 合成 2 階)を grid-whole の写経で全層貫通
+(sexp+生成器・operators/feir.egi・Pre の parse/effect/kind/emit・post-fec)。
+post-fec は境界行を **index guard の FSelect**(`if i == 0 …
+else if i == total_grid_a − 1 …`)で emit し、閉包行は域内サンプルしか
+読まないため fork の `boundary: [fixed g]` でも周期でも安全。1 階は
+half→int が閉包つき・int→half は閉包不要の interior のみ、2 階は
+integer 配置限定(half は明示エラー)。collocated operand は
+`SbpRequiresStaggeredLattice`。SAT は新機構なしで**表層の `if x < xlo …` +
+param** で書ける(dx は CAS 非束縛のため係数・しきい値は param に置く)。
+**Phase 2(拡散実測)**: 新例題 sbp_diffusion1d(壁 = primal 両端、
+Dirichlet SAT = −2τκ/h²·u·guard、flux は `local q @ dual`)。driver 実測:
+厳密モード誤差 2.74e-05(N=64, t=100)・SBP ノルムエネルギー毎ステップ単調・
+壁 1.2e-05。**N=128 で誤差 6.75e-06 → 比 4.05 = 実測 2.02 次収束**。
+**Phase 3(波動+2D 角)**: sbp_wave1d = pressure-release 壁の音響系を
+Yee 流 leapfrog(`v' = v − dt ∂_x p; p' = p − dt (sbpd_x v' + SAT)`)で
+1 周期(T = 2L)回して回帰誤差 5.0e-03・エネルギー帯 ±1.5%(成長なし)・
+壁 1.7e-06。sbp_diffusion2d = 軸ごとの `sbpd2` + 4 辺 SAT の加法だけで
+**角は自動成立**(専用処理なし): モード誤差 1.73e-04・エネルギー単調・
+辺 7.8e-05・角 1.0e-08。3 例題とも make 登録済み。
+新 primitive により manifest ハッシュが更新(既存例題は .egi/.feir の
+ハッシュ行のみ差し替え・.fmr/C バイト不変)。
+残: 高次(k ≥ 2)SBP 閉包の構成器・Neumann/特性 SAT の定型化・
+境界宣言の言語化(現状は yaml + 表層 SAT の組で明示)。
+
+**v2.18(2026-07-17): 成分射影 — 添字つき場の具体軸成分をスカラーとして名指す** —
+`∂_x`/`∂_i` と同じ判定規則(添字が宣言済み軸名なら具体、そうでなければ記号)を
+場の参照へ拡張し、宣言済みの添字つき field/local に対する `q_x`・`T_x_y` を
+**成分射影**として定義した。preprocess(TensorExpr)が軸名添字を 1 始まりの
+軸位置へ書き換え(`q_x` → `q_1`)、Egison のネイティブな具体添字アクセスに
+そのまま乗る。**束縛テンソル値が対称/反対称の鏡像成分(符号・零対角込み)を
+実体として持つため、正準化・符号処理は一切不要** — 射影は純粋な
+軸→位置の改名だけで正しい。placement は従来どおり (policy, 成分基底) から
+導出されるので、post-fec は無変更で `sbpd_x q_x` の閉包選択・配置検査・
+パリティ法則が全部そのまま効く。検証は 2 段: token 層(Parse、`_` 綴り)と
+AST 層(emit walk、`~` 綴りも捕捉)の `invalidAxisProjection` が、
+混合添字(`T_x_j`)と宣言不一致(variance 反転 `q~x`・ランク超過 `q_x_y`)を
+位置情報つきで拒否する(軸名を含まない添字は従来どおり記号読みで無変更)。
+LHS は既存の whole-field target 制約により自然に対象外(RHS 専用)。
+実測: sbp_diffusion2d を flux 形
+(`local q_i @ primal = [| κ∂_x u, κ∂_y u |]_i; u' = u + dt*(sbpd_x q_x + sbpd_y q_y + SAT)`)
+に書き換えた変種が全パイプラインを通り、**元の check driver をそのまま通過**
+(モード誤差 1.726e-04・角 1.009e-08 = sbpd2 版と同一値;閉包∘D⁺ = sbpd2 の
+合成恒等式が E2E で成立)。既存モデルへの影響: 軸名を記号添字に使う既存例は
+なし(全例題 .fme を確認)、ワイヤ不変・全例題バイト不変。
+残: 混合射影(`σ_x_j` = 行ベクトル)・式レベル一般射影(`(grad u)_x`)・
+宣言レベル `component x @ primal`(FEIR スキーマ拡張が要る)は将来課題。
+
 **v1.36(2026-07-11): runtime tensor lowering と Phase 7 完了** —
 標準6演算子だけでなく、一般の indexed equation、implicit vector equation、rank-1/rank-2
 indexed `let`、indexed CAS initializer を、成分別 Haskell 式へ展開せず whole runtime tensor として

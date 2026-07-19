@@ -131,6 +131,18 @@ derivativeOpParts nm = do
         Just (read mDigits, read rDigits, part)
       _ -> Nothing
 
+-- | The SBP staggered derivative request: sbpd_x is the first derivative
+-- and sbpd2_x the composed second derivative, each with the
+-- summation-by-parts closure rows at the physical boundary.
+sbpOpParts :: String -> Maybe (Int, IxPart)
+sbpOpParts nm = do
+  rest0 <- stripPrefix "sbpd" nm
+  let (orderDigits, rest1) = span isDigit rest0
+      order = if null orderDigits then 1 else read orderDigits
+  case parseMarkedPrefix rest1 of
+    Just ([part], "") -> Just (order, part)
+    _ -> Nothing
+
 showIxParts :: [IxPart] -> String
 showIxParts = concatMap ixSuffix
 
@@ -148,14 +160,51 @@ sameVarianceList xs ys =
   && and [vx == vy | (IxPart vx _, IxPart vy _) <- zip xs ys]
 
 fieldDeclAcceptsParts :: FieldDecl -> [IxPart] -> Bool
-fieldDeclAcceptsParts fd parts =
-  case fdIndex fd of
+fieldDeclAcceptsParts fd = indexDeclAcceptsParts (fdIndex fd)
+
+indexDeclAcceptsParts :: Maybe FieldIndex -> [IxPart] -> Bool
+indexDeclAcceptsParts indexDecl parts =
+  case indexDecl of
     Nothing -> null parts
     Just (FieldIndex (Plain decl)) -> sameVarianceList decl parts
     Just (FieldIndex (Symmetric decl)) ->
       sameVarianceList decl parts || sameVarianceList (reverse decl) parts
     Just (FieldIndex (Antisymmetric decl)) ->
       sameVarianceList decl parts || sameVarianceList (reverse decl) parts
+
+-- | Every indexed declaration a concrete-axis subscript may project: user
+-- state fields and materialized step locals share the same index
+-- vocabulary, so both admit component projection.
+indexedFieldDeclarations :: Model -> [(String, Maybe FieldIndex)]
+indexedFieldDeclarations m =
+  [(fdName field, fdIndex field) | field <- mFieldDecls m]
+  ++ [ (ldName local, ldIndex local)
+     | step <- mSteps m
+     , Just local <- [sLocalDecl step]
+     ]
+
+-- | Concrete-axis subscripts on a declared indexed field or local must
+-- project a complete component: every mark names an axis and the sequence
+-- matches the declared rank and variance.  Subscripts without any axis
+-- name keep their symbolic reading, exactly as for the coordinate
+-- derivative.
+invalidAxisProjection :: Model -> String -> [IxPart] -> Maybe String
+invalidAxisProjection m base parts
+  | null parts = Nothing
+  | Nothing <- declaration = Nothing
+  | not (any isAxis parts) = Nothing
+  | not (all isAxis parts) =
+      Just ("component projection cannot mix axis and symbolic indices: "
+            ++ spelled)
+  | Just indexDecl <- declaration
+  , not (indexDeclAcceptsParts indexDecl parts) =
+      Just ("component projection does not match the declared index"
+            ++ " structure of " ++ base ++ ": " ++ spelled)
+  | otherwise = Nothing
+  where
+    declaration = lookup base (indexedFieldDeclarations m)
+    isAxis part = ixName part `elem` mAxes m
+    spelled = base ++ concatMap ixSuffix parts
 
 -- | Static failures for an Egison-style indexed binding target.  Field
 -- declaration index names are placeholders, so compatibility compares rank

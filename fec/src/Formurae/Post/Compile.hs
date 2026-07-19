@@ -3,8 +3,10 @@ module Formurae.Post.Compile
   , DerivativeMetadataError(..)
   , WideDerivativeError(..)
   , GridWholeDerivativeError(..)
+  , SbpDerivativeError(..)
   , wideDerivativeOperationId
   , gridWholeDerivativeOperationId
+  , sbpStaggeredOperationId
   , compileProgram
   ) where
 
@@ -21,10 +23,13 @@ import Formurae.Post.Normalize (normalizeExpr)
 import Formurae.Post.PrimitiveContract
 import Formurae.Post.Profile
 import Formurae.Post.Stencil
-  ( StaggeredStencil
+  ( SbpBoundaryRow(..)
+  , SbpStaggeredPair(..)
+  , StaggeredStencil
   , StencilError
   , centeredTaylorAtRadius
   , centeredWeights
+  , sbpStaggeredPair
   , staggeredTaylorAtPairs
   , staggeredTwiceWeights
   )
@@ -53,11 +58,23 @@ data GridWholeDerivativeError
   | GridWholeStencilFailure StencilError
   deriving (Eq, Show)
 
+data SbpDerivativeError
+  = SbpMetadataError DerivativeMetadataError
+  | SbpOrderUnsupported Int
+  | SbpRadiusMustBeOne Int
+  | SbpRequiresStaggeredLattice
+  | SbpSecondOrderNeedsIntegerPlacement Placement
+  | SbpClosureFailure StencilError
+  deriving (Eq, Show)
+
 wideDerivativeOperationId :: OpId
 wideDerivativeOperationId = Primitives.derivativeCoordinateWideOpId
 
 gridWholeDerivativeOperationId :: OpId
 gridWholeDerivativeOperationId = Primitives.derivativeGridWholeOpId
+
+sbpStaggeredOperationId :: OpId
+sbpStaggeredOperationId = Primitives.derivativeSbpStaggeredOpId
 
 orderedDerivativeOperationId :: OpId
 orderedDerivativeOperationId = Primitives.derivativeOrderedOpId
@@ -82,6 +99,7 @@ data PostError
   | PostUnsupportedOpaque OpId
   | PostWideDerivativeError SemanticKey WideDerivativeError
   | PostGridWholeDerivativeError SemanticKey GridWholeDerivativeError
+  | PostSbpDerivativeError SemanticKey SbpDerivativeError
   | PostPrimitiveContractError SemanticKey PrimitiveContractError
   | PostExplicitStencilError SemanticKey ExplicitStencilError
   | PostDerivativeLatticeMismatch SemanticKey LatticeClass LatticeClass
@@ -468,6 +486,9 @@ lowerOpaqueShifted environment targetPlacement sampleOffsets opaque
       lowerWideDerivative environment targetPlacement sampleOffsets opaque
   | opaqueDiscreteOpId opaque == gridWholeDerivativeOperationId =
       lowerGridWholeDerivative environment targetPlacement sampleOffsets opaque
+  | opaqueDiscreteOpId opaque == sbpStaggeredOperationId =
+      lowerSbpStaggeredDerivative environment targetPlacement sampleOffsets
+        opaque
   | opaqueDiscreteOpId opaque == orderedDerivativeOperationId =
       lowerOrderedDerivative environment targetPlacement sampleOffsets opaque
   | opaqueDiscreteOpId opaque == resampleOperationId =
@@ -671,6 +692,126 @@ lowerGridWholeDerivative environment targetPlacement sampleOffsets opaque = do
         (derivativeRequestOperand request)
       Right (normalizeExpr (FMul [exactExpr coefficient, sample]))
 
+-- | Lower the SBP staggered derivative: the interior rows are the ordinary
+-- staggered stencils, and the rows nearest each physical boundary are
+-- replaced by the summation-by-parts closure rows behind index guards, so
+-- no sample ever reaches outside the domain.  Order 1 with an
+-- integer-placed operand is the closure-free primal-to-dual direction;
+-- order 1 with a half-placed operand and order 2 with an integer-placed
+-- operand carry one closure row per end.
+lowerSbpStaggeredDerivative
+    :: CompileEnvironment
+    -> Placement
+    -> [Int]
+    -> OpaqueDiscrete
+    -> Either PostError FExpr
+lowerSbpStaggeredDerivative environment targetPlacement sampleOffsets
+    opaque = do
+  request <- mapSbpError opaque
+    (mapLeft SbpMetadataError (parseDerivativeRequest opaque))
+  if derivativeRequestRadius request == 1
+    then Right ()
+    else mapSbpError opaque
+      (Left (SbpRadiusMustBeOne (derivativeRequestRadius request)))
+  if derivativeRequestOrder request == 1
+      || derivativeRequestOrder request == 2
+    then Right ()
+    else mapSbpError opaque
+      (Left (SbpOrderUnsupported (derivativeRequestOrder request)))
+  axis <- lookupAxis environment (derivativeRequestAxis request)
+  location <- inferScalarLocation environment
+    (opaqueDiscreteSemanticKey opaque) (derivativeRequestOperand request)
+  let sourcePlacement =
+        case scalarLocationCapability location of
+          LocatedCapability placement -> placement
+          ConstantCapability -> targetPlacement
+          SampleableCapability -> targetPlacement
+  if scalarLocationLattice location == Just StaggeredLattice
+    then Right ()
+    else mapSbpError opaque (Left SbpRequiresStaggeredLattice)
+  naturalTarget <- derivativeNaturalTarget request sourcePlacement
+    (scalarLocationLattice location)
+  if naturalTarget == targetPlacement
+    then Right ()
+    else Left (PostInvalidReferencePlacement targetPlacement naturalTarget)
+  pair <- mapSbpError opaque
+    (mapLeft SbpClosureFailure (sbpStaggeredPair 1))
+  bit <- placementAxisBit sourcePlacement (derivativeRequestAxis request)
+  step <- axisStep environment (derivativeRequestAxis request)
+  indices <- indexNames environment
+  let AxisId axisNumber = derivativeRequestAxis request
+      indexVariable = FVariable (indices !! (axisNumber - 1))
+      extentVariable = FVariable ("total_grid_" ++ axisDeclSourceName axis)
+      order = derivativeRequestOrder request
+      denominator = FPow step (FExact (toInteger order) 1)
+      lowerRow weights = do
+        samples <- mapM lowerRowSample weights
+        Right (normalizeExpr
+          (FDiv (normalizeExpr (FAdd samples)) denominator))
+      lowerRowSample (offset, coefficient) = do
+        let offsets = adjustOffset axisNumber offset sampleOffsets
+        sample <- lowerScalarShifted environment sourcePlacement offsets
+          (derivativeRequestOperand request)
+        Right (normalizeExpr (FMul [exactExpr coefficient, sample]))
+      guardedRows lowRows highRows interiorWeights = do
+        interior <- lowerRow interiorWeights
+        low <- mapM (boundaryBranch lowGuard) lowRows
+        high <- mapM (boundaryBranch highGuard) highRows
+        Right (foldr (\(condition, expr) rest ->
+            normalizeExpr (FSelect condition expr rest))
+          interior (low ++ high))
+      boundaryBranch guard row = do
+        expr <- lowerRow (sbpRowWeights row)
+        Right (guard (sbpRowOffset row), expr)
+      lowGuard offset =
+        FCompare CompareEq indexVariable (FExact (toInteger offset) 1)
+      highGuard offset =
+        FCompare CompareEq indexVariable
+          (normalizeExpr (FAdd
+            [extentVariable, FExact (negate (toInteger (offset + 1))) 1]))
+  interiorWeights <- staggeredStorageWeights sourcePlacement
+    (derivativeRequestAxis request) (sbpInteriorStage pair)
+  case (order, bit) of
+    (1, IntegerPoint) -> lowerRow interiorWeights
+    (1, HalfPoint) ->
+      guardedRows (sbpDualToPrimalLow pair) (sbpDualToPrimalHigh pair)
+        interiorWeights
+    (_, IntegerPoint) ->
+      guardedRows (sbpSecondLow pair) (sbpSecondHigh pair)
+        [(-1, 1), (0, -2), (1, 1)]
+    (_, HalfPoint) -> mapSbpError opaque
+      (Left (SbpSecondOrderNeedsIntegerPlacement sourcePlacement))
+
+placementAxisBit :: Placement -> AxisId -> Either PostError HalfBit
+placementAxisBit (Placement bits) axisId@(AxisId axisNumber) =
+  case drop (axisNumber - 1) bits of
+    bit : _ -> Right bit
+    [] -> Left (PostLocationError
+      (InvalidDerivativeAxis axisId (length bits)))
+
+inferSbpStaggeredLocation
+    :: CompileEnvironment
+    -> OpaqueDiscrete
+    -> Either PostError ScalarLocationInfo
+inferSbpStaggeredLocation environment opaque = do
+  request <- mapSbpError opaque
+    (mapLeft SbpMetadataError (parseDerivativeRequest opaque))
+  location <- inferScalarLocation environment
+    (opaqueDiscreteSemanticKey opaque) (derivativeRequestOperand request)
+  case scalarLocationCapability location of
+    LocatedCapability source -> do
+      target <- derivativeNaturalTarget request source
+        (scalarLocationLattice location)
+      Right location { scalarLocationCapability = LocatedCapability target }
+    _ -> Right location
+
+mapSbpError
+    :: OpaqueDiscrete
+    -> Either SbpDerivativeError a
+    -> Either PostError a
+mapSbpError opaque = either
+  (Left . PostSbpDerivativeError (opaqueDiscreteSemanticKey opaque)) Right
+
 gridWholeWeights
     :: OpaqueDiscrete
     -> CoordinateDerivativeRequest
@@ -839,6 +980,8 @@ inferScalarLocation environment semanticKey scalar =
           inferWideLocation environment opaque
       | opaqueDiscreteOpId opaque == gridWholeDerivativeOperationId ->
           inferGridWholeLocation environment opaque
+      | opaqueDiscreteOpId opaque == sbpStaggeredOperationId ->
+          inferSbpStaggeredLocation environment opaque
       | opaqueDiscreteOpId opaque == orderedDerivativeOperationId ->
           inferOrderedDerivativeLocation environment opaque
       | opaqueDiscreteOpId opaque == resampleOperationId ->

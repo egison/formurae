@@ -9,6 +9,7 @@ module Formurae.FEIR.PrimitiveBindings
   , derivativeCoordinateWideOpId
   , derivativeGridWholeOpId
   , derivativeOrderedOpId
+  , derivativeSbpStaggeredOpId
   , resampleExplicitOpId
   ) where
 
@@ -26,7 +27,7 @@ import Formurae.FEIR.Syntax
   )
 
 primitiveManifestId :: PrimitiveManifestId
-primitiveManifestId = PrimitiveManifestId "sha256:b7a05af81f6418b2163bd3ef280d911d6409564da41c96d455b872e62d120098"
+primitiveManifestId = PrimitiveManifestId "sha256:f85bce3e5dc32e8c096ceafaf0c44e2a0d5a4bef2b0b5454b3afae63588666bd"
 
 primitiveManifest :: PrimitiveManifest
 primitiveManifest = PrimitiveManifest primitiveSignatures
@@ -61,6 +62,15 @@ primitiveSignatures =
       , primitiveSignatureCommutation = Ordered
       }
   , PrimitiveSignature
+      { primitiveSignatureOpId = derivativeSbpStaggeredOpId
+      , primitiveSignatureOpName = "derivative.sbp-staggered"
+      , primitiveSignatureInputs = [ScalarCategory]
+      , primitiveSignatureOutput = ScalarCategory
+      , primitiveSignaturePlacement = DerivativeTargetPlacement
+      , primitiveSignatureEffect = PureLocal
+      , primitiveSignatureCommutation = Ordered
+      }
+  , PrimitiveSignature
       { primitiveSignatureOpId = resampleExplicitOpId
       , primitiveSignatureOpName = "resample.explicit"
       , primitiveSignatureInputs = [ScalarCategory]
@@ -76,6 +86,7 @@ primitiveOperationIds =
   [ derivativeCoordinateWideOpId
   , derivativeGridWholeOpId
   , derivativeOrderedOpId
+  , derivativeSbpStaggeredOpId
   , resampleExplicitOpId
   ]
 
@@ -93,6 +104,9 @@ derivativeGridWholeOpId = OpId "derivative.grid-whole"
 
 derivativeOrderedOpId :: OpId
 derivativeOrderedOpId = OpId "derivative.ordered"
+
+derivativeSbpStaggeredOpId :: OpId
+derivativeSbpStaggeredOpId = OpId "derivative.sbp-staggered"
 
 resampleExplicitOpId :: OpId
 resampleExplicitOpId = OpId "resample.explicit"

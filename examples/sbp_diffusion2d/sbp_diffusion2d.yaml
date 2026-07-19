@@ -1,0 +1,4 @@
+length_per_node: [32.0, 32.0]
+grid_per_node: [32, 32]
+boundary: [fixed 0.0, fixed 0.0]
+mpi_shape: [1, 1]

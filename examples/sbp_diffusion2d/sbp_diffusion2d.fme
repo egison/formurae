@@ -1,0 +1,34 @@
+-- Heat equation on a bounded rectangle: the SBP second derivative is
+-- applied per axis and the Dirichlet penalties act on all four edges, so
+-- the corners simply receive both axis closures and both penalties
+-- additively -- no dedicated corner treatment exists or is needed.  The
+-- check driver asserts the exact product-mode decay, monotone energy in
+-- the tensor SBP norm, and pinned edges including the four corners.
+
+mode collocated
+dimension 2
+axes x, y
+
+param κ = 1.0
+param τ = 4.0
+param dt = 0.025*dx*dx
+param xlo = 0.5*dx
+param xhi = 30.5*dx
+param ylo = 0.5*dy
+param yhi = 30.5*dy
+param satx = 2.0*τ*κ/(dx*dx)
+param saty = 2.0*τ*κ/(dy*dy)
+
+extern sin
+
+field u : scalar @ primal
+
+init:
+  u = sin(3.141592653589793*i/31.0)*sin(3.141592653589793*j/31.0)
+
+step:
+  u' = u + dt * (κ*(sbpd2_x u + sbpd2_y u)
+    + (if x < xlo then 0.0 - satx*u else 0.0)
+    + (if x > xhi then 0.0 - satx*u else 0.0)
+    + (if y < ylo then 0.0 - saty*u else 0.0)
+    + (if y > yhi then 0.0 - saty*u else 0.0))

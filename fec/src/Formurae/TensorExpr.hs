@@ -34,7 +34,7 @@ module Formurae.TensorExpr
   ) where
 
 import Data.Char (isDigit, isSpace)
-import Data.List (intercalate)
+import Data.List (elemIndex, intercalate)
 
 import Formurae.Common (fatal, strip, validSurfaceName)
 import Formurae.Index
@@ -256,6 +256,9 @@ preprocessTensorAst :: Model -> TensorExpr -> TensorExpr
 preprocessTensorAst m expr =
   case expr of
     TENumber _ -> expr
+    TEIdent base parts
+      | Just projected <- projectAxisComponents base parts ->
+          keep projected
     TEIdent base parts ->
       keep (TEIdent (renameAxisIdent base parts) parts)
     TEUnary op body ->
@@ -266,6 +269,10 @@ preprocessTensorAst m expr =
       | Just (ordr, radius, part) <- derivativeOpParts (fn ++ concatMap ixSuffix fnParts)
       , let part' = renameDerivativePart part ->
           keep (TEApply (TEIdent ("pd" ++ show ordr ++ "r" ++ show radius) [part'])
+                  (map pre args))
+      | Just (order, part) <- sbpOpParts (fn ++ concatMap ixSuffix fnParts)
+      , let part' = renameDerivativePart part ->
+          keep (TEApply (TEIdent ("sbpd" ++ show order) [part'])
                   (map pre args))
     TEApply f args ->
       keep (TEApply (pre f) (map pre args))
@@ -317,6 +324,23 @@ preprocessTensorAst m expr =
       , (nm, 0) <- fieldBaseOf base
       , Just nm' <- lookup nm axmap = nm'
       | otherwise = base
+    -- A concrete-axis subscript on a declared indexed field or local
+    -- projects one component: the axis renames to its one-based position,
+    -- which Egison reads as concrete tensor access.  The bound tensor value
+    -- carries the symmetric and antisymmetric mirror entries (signs and the
+    -- zero diagonal included), so no canonicalization is needed here.
+    -- Non-axis subscripts keep their symbolic reading, exactly as for the
+    -- coordinate derivative.
+    projectAxisComponents base parts = do
+      indexDecl <- lookup base (indexedFieldDeclarations m)
+      positions <- mapM (axisPosition . ixName) parts
+      if not (null parts) && indexDeclAcceptsParts indexDecl parts
+        then Just (TEIdent base
+          [ IxPart (ixVariance part) (show position)
+          | (part, position) <- zip parts positions
+          ])
+        else Nothing
+    axisPosition name = fmap (+ 1) (elemIndex name (mAxes m))
 
 parseTensorTokensE :: String -> [ITok] -> Either String TensorExpr
 parseTensorTokensE src ts0 =

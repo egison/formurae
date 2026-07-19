@@ -1377,6 +1377,8 @@ surfaceBanned m _ s =
           Just "symbolic constant π is scalar and cannot carry tensor indices"
       | Just msg <- invalidDerivativeOp m nm =
           Just msg
+      | Just msg <- invalidAxisProjection m baseName indexedParts =
+          Just msg
       | nm == "badPartialDerivative" =
           Just "coordinate derivative must be written with subscript notation, e.g. ∂_x u, ∂^2_x u, or ∂'^2_x u"
       | ("FormuraeInternalKroneckerDelta" : ps) <- splitOn '_' nm
@@ -1429,7 +1431,12 @@ generatedMetricNameConflicts = nub
 invalidDerivativeOp :: Model -> String -> Maybe String
 invalidDerivativeOp _ nm =
   case derivativeOpParts nm of
-    Nothing -> Nothing
+    Nothing ->
+      case sbpOpParts nm of
+        Just (order, _)
+          | order /= 1 && order /= 2 ->
+              Just ("SBP staggered derivative order must be 1 or 2: " ++ nm)
+        _ -> Nothing
     Just (ordr, radius, part)
       | ordr < 1 ->
           Just ("coordinate derivative order must be at least 1: " ++ nm)

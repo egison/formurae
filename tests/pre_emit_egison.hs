@@ -357,6 +357,26 @@ main = do
   assertContains "generic quote remains raw Egison"
     "`(u * u)" quotedUnit
 
+  sbpModel <- parseModel "pre-sbp.fme" "pre-sbp" sbpSource
+  sbpUnit <- requireRight =<< emitNormalizationUnit manifestId sbpModel
+  assertContains "sbp first derivative bridges to the staggered request"
+    "FormuraeInternalSbpStaggeredDerivative 1 1 u" sbpUnit
+  assertContains "sbp second derivative carries its order"
+    "FormuraeInternalSbpStaggeredDerivative 1 2 u" sbpUnit
+  assertContains "sbp bridge definition"
+    "def FormuraeInternalSbpStaggeredDerivative axis order value := Formurae.sbpStaggeredDerivative axis order value"
+    sbpUnit
+
+  projectionModel <- parseModel "pre-projection.fme"
+    "pre-projection" projectionSource
+  projectionUnit <- requireRight =<< emitNormalizationUnit manifestId
+    projectionModel
+  assertContains "axis subscript projects the concrete vector component"
+    "q_1" projectionUnit
+  assertContains "axis subscripts project rank-2 components positionally"
+    "T_1_2" projectionUnit
+  assertAbsent projectionUnit "q_x"
+
   singleQuotedModel <- parseModel "pre-single-quoted.fme"
     "pre-single-quoted" singleQuotedSource
   assertLeft "a single quoted derivative is rejected as redundant"
@@ -726,6 +746,36 @@ quotedDerivativeSource = unlines
   , "def genericQuote u = `(u * u)"
   , "step:"
   , "  u' = ordinary u + quotedMulti u + genericQuote u"
+  ]
+
+sbpSource :: String
+sbpSource = unlines
+  [ "mode collocated"
+  , "dimension 1"
+  , "axes x"
+  , "field u : scalar @ primal"
+  , "field v : scalar @ dual"
+  , "step:"
+  , "  v' = sbpd_x u"
+  , "  u' = u + sbpd2_x u"
+  ]
+
+projectionSource :: String
+projectionSource = unlines
+  [ "mode collocated"
+  , "dimension 2"
+  , "axes x, y"
+  , "field u : scalar @ primal"
+  , "field q_i @ primal"
+  , "field T_i_j @ primal"
+  , "init:"
+  , "  u = 0.0"
+  , "  q_i = [| 0.0, 0.0 |]_i"
+  , "  T_i_j = [| [| 0.0, 0.0 |], [| 0.0, 0.0 |] |]_i_j"
+  , "step:"
+  , "  u' = u + q_x - T_x_y"
+  , "  q' = q"
+  , "  T' = T"
   ]
 
 singleQuotedSource :: String

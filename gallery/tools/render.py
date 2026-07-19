@@ -36,12 +36,14 @@ def cmap(t, anchors):
     a, b = anchors[i], anchors[i + 1]
     return tuple(int(round(a[c] + f * (b[c] - a[c]))) for c in range(3))
 
-def heatmap(mat, out, anchors=VIRIDIS, sym=False, target=420):
+def heatmap(mat, out, anchors=VIRIDIS, sym=False, target=420, rng=None):
     h, w = len(mat), len(mat[0])
     lo = min(min(r) for r in mat); hi = max(max(r) for r in mat)
     if sym:
         m = max(abs(lo), abs(hi)) or 1.0
         lo, hi = -m, m
+    if rng is not None:
+        lo, hi = rng
     if hi - lo < 1e-300: hi = lo + 1.0
     sx = max(1, target // w); sy = max(1, target // h)
     rows = []
@@ -240,6 +242,30 @@ def main():
     # though the check itself only compares its Fourier symbol numerically.
     heatmap(mat('divergence_t100.mat'), os.path.join(IMG, 'divergence.png'),
             DIVERGE, sym=True)
+
+    # 2b SBP+SAT: shape-preserving decay between pinned walls, the acoustic
+    # mode flipping at T/2 and returning at T, and the 2D run whose corners
+    # need no dedicated treatment.  The dual grid's final slot is storage
+    # padding, so the v profile drops it.
+    s0, s1, s2 = (cols('sbpdiff1d_t%d.txt' % n) for n in (0, 4000, 8000))
+    svg_plot(os.path.join(IMG, 'sbp_diffusion1d.svg'),
+             [{'x': s0[0], 'y': s0[1], 'color': '#999999', 'label': 'u (t=0)', 'dash': True},
+              {'x': s1[0], 'y': s1[1], 'color': C3, 'label': 'u (t=200)'},
+              {'x': s2[0], 'y': s2[1], 'color': C1, 'label': 'u (t=400)'}],
+             title='SBP+SAT heat: walls pinned, mode decays in shape',
+             xlabel='x', ylabel='u')
+    w0, wq, wh, wf = (cols('sbpwave_t%d.txt' % n) for n in (0, 157, 315, 630))
+    svg_plot(os.path.join(IMG, 'sbp_wave1d.svg'),
+             [{'x': w0[0], 'y': w0[1], 'color': '#999999', 'label': 'p (t=0)', 'dash': True},
+              {'x': wq[0][:-1], 'y': wq[2][:-1], 'color': C3, 'label': 'v (T/4)', 'dash': True},
+              {'x': wh[0], 'y': wh[1], 'color': C2, 'label': 'p (T/2)'},
+              {'x': wf[0], 'y': wf[1], 'color': C1, 'label': 'p (T)'}],
+             title='SBP acoustic: pressure-release walls, one period',
+             xlabel='x', ylabel='p, v')
+    rng2d = heatmap(mat('sbpdiff2d_t0.mat'),
+                    os.path.join(IMG, 'sbpdiff2d_t0.png'))
+    heatmap(mat('sbpdiff2d_t1000.mat'),
+            os.path.join(IMG, 'sbpdiff2d_t1000.png'), rng=rng2d)
 
     # 3 maxwell + yee: Ey pulse before/after
     line_panel('maxwell.svg', ['maxwell_t0.txt', 'maxwell_t100.txt'],

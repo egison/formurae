@@ -1,0 +1,20 @@
+dimension :: 1
+axes :: x
+
+double :: dt = 0.2*dx
+double :: xlo = 0.5*dx
+double :: xhi = 62.5*dx
+double :: satp = 2.0/dx
+
+extern function :: sin
+
+begin function (p,v) = init()
+  double [] :: p, v
+  p[i] = sin(3.141592653589793*i/63.0)
+  v[i] = 0.0
+end function
+
+begin function (p',v') = step(p,v)
+  v'[i] = v[i] + (-1) * dt * (p[i+1] + (-1) * p[i]) / dx
+  p'[i] = p[i] + (-1) * dt * (if i == 0 then (v'[i+1] + (-1) * v'[i]) / dx else if i == (-1) + total_grid_x then (v'[i-1] + (-1) * v'[i-2]) / dx else (v'[i] + (-1) * v'[i-1]) / dx) + (-1) * dt * (if dx * i < xlo then satp * p[i] else 0) + (-1) * dt * (if dx * i > xhi then satp * p[i] else 0)
+end function

@@ -1,0 +1,32 @@
+-- Heat equation on a genuinely bounded interval: the yaml declares
+--   boundary: [fixed 0.0]
+-- and every derivative is the SBP staggered pair, so no stencil ever reads
+-- a ghost value.  The walls sit on the primal points x = 0 and x = 63*dx;
+-- homogeneous Dirichlet data enters through the penalty (SAT) terms, whose
+-- strength τ multiplies the inverse boundary norm 2/dx and the extra 1/dx
+-- of the second-order form.  The check driver asserts the exact-mode decay,
+-- monotone energy in the SBP norm, and that the walls stay pinned.
+
+mode collocated
+dimension 1
+axes x
+
+param κ = 1.0
+param τ = 4.0
+param dt = 0.05*dx*dx
+param xlo = 0.5*dx
+param xhi = 62.5*dx
+param sat = 2.0*τ*κ/(dx*dx)
+
+extern sin
+
+field u : scalar @ primal
+
+init:
+  u = sin(3.141592653589793*i/63.0)
+
+step:
+  local q @ dual = κ * ∂_x u
+  u' = u + dt * (sbpd_x q
+    + (if x < xlo then 0.0 - sat*u else 0.0)
+    + (if x > xhi then 0.0 - sat*u else 0.0))

@@ -1,6 +1,8 @@
 module Formurae.Post.Stencil
   ( CenteredStencil
   , ComposedStencil(..)
+  , SbpBoundaryRow(..)
+  , SbpStaggeredPair(..)
   , StaggeredStencil
   , StencilError(..)
   , centeredDerivativeOrder
@@ -11,6 +13,7 @@ module Formurae.Post.Stencil
   , centeredTaylorAtRadius
   , minimalCenteredRadius
   , composeStages
+  , sbpStaggeredPair
   , staggeredDerivativeOrder
   , staggeredFormalAccuracy
   , staggeredPairCount
@@ -18,6 +21,7 @@ module Formurae.Post.Stencil
   , staggeredTwiceWeights
   , stencilMoment
   , validateCenteredTaylor
+  , validateSbpStaggeredPair
   , validateStaggeredTaylor
   ) where
 
@@ -46,6 +50,14 @@ data StencilError
   | ZeroEdgeCoefficient Int
   | NoCenteredTaylorStencil Int Int
   | StaggeredOrderMustBeOdd Int
+  | UnsupportedSbpInterior Int
+  | SbpGridTooSmall Int Int
+  | SbpSampleOutOfRange Int Int
+  | SbpAccuracyMismatch Int Int Rational Rational
+  | SbpIdentityMismatch Int Int Rational Rational
+  | SbpCompositionMismatch Int Int Rational Rational
+  | SbpNormNotPositive Int Rational
+  | SbpExtrapolationMismatch Int Rational Rational
   deriving (Eq, Show)
 
 -- | A staggered, single-axis finite-difference stencil.  Samples sit at the
@@ -166,6 +178,279 @@ staggeredTaylorAtPairs derivativeOrder formalAccuracy pairs = do
             }
       validateStaggeredTaylor stencil
       return stencil
+
+-- | One boundary closure row.  The target sits 'sbpRowOffset' points inside
+-- the boundary end; the weights sample storage offsets relative to that
+-- target and the weighted sum is divided by h^order at lowering.
+data SbpBoundaryRow = SbpBoundaryRow
+  { sbpRowOffset :: Int
+  , sbpRowWeights :: [(Int, Rational)]
+  } deriving (Eq, Show)
+
+-- | A staggered SBP pair on the bounded primal/dual grids: primal points
+-- 0..N and dual points 1/2..N−1/2.  The primal-to-dual derivative keeps the
+-- interior stage on every row; the dual-to-primal derivative replaces the
+-- rows nearest each end with closure rows.  Together with the diagonal
+-- norms (stored in h units, interior weight 1) and the dual-to-boundary
+-- extrapolation vector, the pair satisfies the exact summation-by-parts
+-- identity  H_d D⁺ + (H_p D⁻)ᵀ = d_N e_Nᵀ − d_0 e_0ᵀ.  The second-order
+-- closure rows are the boundary rows of the exact composition D⁻ D⁺ for
+-- integer-placed operands.
+data SbpStaggeredPair = SbpStaggeredPair
+  { sbpInteriorStage :: StaggeredStencil
+  , sbpDualToPrimalLow :: [SbpBoundaryRow]
+  , sbpDualToPrimalHigh :: [SbpBoundaryRow]
+  , sbpSecondLow :: [SbpBoundaryRow]
+  , sbpSecondHigh :: [SbpBoundaryRow]
+  , sbpPrimalNorm :: [Rational]
+  , sbpDualNorm :: [Rational]
+  , sbpExtrapolate :: [(Int, Rational)]
+  } deriving (Eq, Show)
+
+-- | The staggered SBP pair with interior pair count k.  Only the classic
+-- second-order pair (k = 1) is constructed: its primal-to-dual direction
+-- needs no closure rows, the dual-to-primal direction gets one first-order
+-- one-sided row per end, and the norms are the half-weighted trapezoid on
+-- the primal grid and the identity on the dual grid.
+sbpStaggeredPair :: Int -> Either StencilError SbpStaggeredPair
+sbpStaggeredPair pairs
+  | pairs /= 1 = Left (UnsupportedSbpInterior pairs)
+  | otherwise = do
+      stage <- staggeredTaylorAtPairs 1 2 1
+      let pair = SbpStaggeredPair
+            { sbpInteriorStage = stage
+            , sbpDualToPrimalLow =
+                [SbpBoundaryRow 0 [(0, -1), (1, 1)]]
+            , sbpDualToPrimalHigh =
+                [SbpBoundaryRow 0 [(-2, -1), (-1, 1)]]
+            , sbpSecondLow =
+                [SbpBoundaryRow 0 [(0, 1), (1, -2), (2, 1)]]
+            , sbpSecondHigh =
+                [SbpBoundaryRow 0 [(-2, 1), (-1, -2), (0, 1)]]
+            , sbpPrimalNorm = [1 / 2]
+            , sbpDualNorm = []
+            , sbpExtrapolate = [(0, 3 / 2), (1, -1 / 2)]
+            }
+      validateSbpStaggeredPair pair 8
+      validateSbpStaggeredPair pair 9
+      return pair
+
+-- | Recheck every invariant of a staggered SBP pair on the bounded grid
+-- with N primal intervals: in-range samples, boundary-order accuracy of
+-- all derivative rows, first-order extrapolation, positive norms, the
+-- exact summation-by-parts identity, and agreement of the second-order
+-- closure rows with the composition D⁻ D⁺.
+validateSbpStaggeredPair
+    :: SbpStaggeredPair -> Int -> Either StencilError ()
+validateSbpStaggeredPair pair intervals = do
+  let stage = sbpInteriorStage pair
+      lowRows = length (sbpDualToPrimalLow pair)
+      highRows = length (sbpDualToPrimalHigh pair)
+      primalCount = intervals + 1
+      dualCount = intervals
+  if intervals >= 2 * (lowRows + highRows + 2)
+    then return ()
+    else Left (SbpGridTooSmall intervals (2 * (lowRows + highRows + 2)))
+  primalToDual <- assemblePrimalToDual stage primalCount dualCount
+  dualToPrimal <- assembleDualToPrimal pair primalCount dualCount
+  let primalNorm = normDiagonal (sbpPrimalNorm pair) primalCount
+      dualNorm = normDiagonal (sbpDualNorm pair) dualCount
+      extrapolateLow = vectorAt (sbpExtrapolate pair) 0 dualCount
+      extrapolateHigh = vectorAt
+        [ (dualCount - 1 - offset, weight)
+        | (offset, weight) <- sbpExtrapolate pair
+        ]
+        0 dualCount
+  mapM_ (\(index, weight) ->
+      if weight > 0
+        then return ()
+        else Left (SbpNormNotPositive index weight))
+    (zip [0 ..] (primalNorm ++ dualNorm))
+  checkExtrapolation extrapolateLow 0
+  checkExtrapolation extrapolateHigh (fromIntegral intervals)
+  mapM_ (checkDerivativeRow 1 dualToPrimal dualCoordinate primalCoordinate)
+    [0 .. primalCount - 1]
+  mapM_ (checkDerivativeRow 1 primalToDual primalCoordinate dualCoordinate)
+    [0 .. dualCount - 1]
+  checkSbpIdentity primalToDual dualToPrimal primalNorm dualNorm
+    extrapolateLow extrapolateHigh primalCount dualCount
+  checkSecondRows pair primalToDual dualToPrimal primalCount
+  where
+    primalCoordinate :: Int -> Rational
+    primalCoordinate index = fromIntegral index
+
+    dualCoordinate :: Int -> Rational
+    dualCoordinate index = fromIntegral index + 1 / 2
+
+    checkExtrapolation vector position = do
+      let total = sum vector
+          moment = sum
+            [ weight * dualCoordinate index
+            | (index, weight) <- zip [0 ..] vector
+            ]
+      if total == 1
+        then return ()
+        else Left (SbpExtrapolationMismatch 0 1 total)
+      if moment == position
+        then return ()
+        else Left (SbpExtrapolationMismatch 1 position moment)
+
+    checkDerivativeRow order matrix sampleCoordinate targetCoordinate row =
+      mapM_ (checkMomentCondition order matrix sampleCoordinate
+              targetCoordinate row)
+        [0 .. order]
+
+    checkMomentCondition order matrix sampleCoordinate targetCoordinate
+        row power = do
+      let actual = sum
+            [ weight * sampleCoordinate column ^ power
+            | (column, weight) <- zip [0 ..] (matrix !! row)
+            ]
+          expected
+            | power < order = 0
+            | otherwise =
+                fromInteger (factorial power)
+                * targetCoordinate row ^ (power - order)
+      if actual == expected
+        then return ()
+        else Left (SbpAccuracyMismatch row power expected actual)
+
+    checkSbpIdentity primalToDual dualToPrimal primalNorm dualNorm
+        extrapolateLow extrapolateHigh primalCount dualCount =
+      mapM_ (\(row, column) ->
+          let combined =
+                dualNorm !! row * (primalToDual !! row !! column)
+                + primalNorm !! column * (dualToPrimal !! column !! row)
+              expected =
+                (if column == primalCount - 1
+                   then extrapolateHigh !! row else 0)
+                - (if column == 0 then extrapolateLow !! row else 0)
+          in if combined == expected
+               then return ()
+               else Left (SbpIdentityMismatch row column expected combined))
+        [ (row, column)
+        | row <- [0 .. dualCount - 1]
+        , column <- [0 .. primalCount - 1]
+        ]
+
+    checkSecondRows checked primalToDual dualToPrimal primalCount = do
+      let composition =
+            [ [ sum
+                  [ (dualToPrimal !! row !! middle)
+                    * (primalToDual !! middle !! column)
+                  | middle <- [0 .. length primalToDual - 1]
+                  ]
+              | column <- [0 .. primalCount - 1]
+              ]
+            | row <- [0 .. primalCount - 1]
+            ]
+      composed <- assembleSecond checked primalCount
+      mapM_ (\(row, column) ->
+          let expected = composition !! row !! column
+              actual = composed !! row !! column
+          in if actual == expected
+               then return ()
+               else Left (SbpCompositionMismatch row column expected actual))
+        [ (row, column)
+        | row <- [0 .. primalCount - 1]
+        , column <- [0 .. primalCount - 1]
+        ]
+
+assemblePrimalToDual
+    :: StaggeredStencil -> Int -> Int -> Either StencilError [[Rational]]
+assemblePrimalToDual stage primalCount dualCount =
+  mapM buildRow [0 .. dualCount - 1]
+  where
+    buildRow row = do
+      entries <- mapM (place row)
+        [ ((twiceOffset + 1) `div` 2, weight)
+        | (twiceOffset, weight) <- staggeredTwiceWeights stage
+        ]
+      return (rowVector entries primalCount)
+    place row (offset, weight) =
+      let column = row + offset
+      in if column >= 0 && column < primalCount
+           then Right (column, weight)
+           else Left (SbpSampleOutOfRange row column)
+
+assembleDualToPrimal
+    :: SbpStaggeredPair -> Int -> Int -> Either StencilError [[Rational]]
+assembleDualToPrimal pair primalCount dualCount =
+  mapM buildRow [0 .. primalCount - 1]
+  where
+    lowRows = sbpDualToPrimalLow pair
+    highRows = sbpDualToPrimalHigh pair
+    stage = sbpInteriorStage pair
+
+    buildRow row = do
+      entries <- mapM (place row) (weightsFor row)
+      return (rowVector entries dualCount)
+
+    weightsFor row =
+      case lookupRow row lowRows of
+        Just weights -> weights
+        Nothing ->
+          case lookupRow (primalCount - 1 - row) highRows of
+            Just weights -> weights
+            Nothing ->
+              [ ((twiceOffset - 1) `div` 2, weight)
+              | (twiceOffset, weight) <- staggeredTwiceWeights stage
+              ]
+
+    lookupRow offset rows = lookup offset
+      [(sbpRowOffset boundaryRow, sbpRowWeights boundaryRow)
+      | boundaryRow <- rows]
+
+    place row (offset, weight) =
+      let column = row + offset
+      in if column >= 0 && column < dualCount
+           then Right (column, weight)
+           else Left (SbpSampleOutOfRange row column)
+
+assembleSecond
+    :: SbpStaggeredPair -> Int -> Either StencilError [[Rational]]
+assembleSecond pair primalCount = mapM buildRow [0 .. primalCount - 1]
+  where
+    buildRow row = do
+      entries <- mapM (place row) (weightsFor row)
+      return (rowVector entries primalCount)
+
+    weightsFor row =
+      case lookupRow row (sbpSecondLow pair) of
+        Just weights -> weights
+        Nothing ->
+          case lookupRow (primalCount - 1 - row) (sbpSecondHigh pair) of
+            Just weights -> weights
+            Nothing -> [(-1, 1), (0, -2), (1, 1)]
+
+    lookupRow offset rows = lookup offset
+      [(sbpRowOffset boundaryRow, sbpRowWeights boundaryRow)
+      | boundaryRow <- rows]
+
+    place row (offset, weight) =
+      let column = row + offset
+      in if column >= 0 && column < primalCount
+           then Right (column, weight)
+           else Left (SbpSampleOutOfRange row column)
+
+normDiagonal :: [Rational] -> Int -> [Rational]
+normDiagonal edge count =
+  [ weightAt index | index <- [0 .. count - 1] ]
+  where
+    weightAt index
+      | index < length edge = edge !! index
+      | count - 1 - index < length edge = edge !! (count - 1 - index)
+      | otherwise = 1
+
+vectorAt :: [(Int, Rational)] -> Rational -> Int -> [Rational]
+vectorAt entries fill count =
+  [ maybe fill id (lookup index entries) | index <- [0 .. count - 1] ]
+
+rowVector :: [(Int, Rational)] -> Int -> [Rational]
+rowVector entries count =
+  [ sum [weight | (column, weight) <- entries, column == index]
+  | index <- [0 .. count - 1]
+  ]
 
 -- | An n-fold self-composition of a half-offset stage: even fold counts
 -- land back on the operand's sub-lattice, odd counts stay on the dual one.

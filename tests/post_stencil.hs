@@ -36,7 +36,32 @@ main = do
   forM_ staggeredFixtures checkStaggeredFixture
   checkStaggeredCompose
   checkStaggeredInvalidRequests
+  checkSbpPair
   putStrLn "post stencil tests: ok"
+
+checkSbpPair :: IO ()
+checkSbpPair = do
+  pair <- assertRight "second-order SBP pair" (sbpStaggeredPair 1)
+  assertEqual "SBP low closure row"
+    [SbpBoundaryRow 0 [(0, -1), (1, 1)]] (sbpDualToPrimalLow pair)
+  assertEqual "SBP high closure row"
+    [SbpBoundaryRow 0 [(-2, -1), (-1, 1)]] (sbpDualToPrimalHigh pair)
+  assertEqual "SBP second-order low closure row"
+    [SbpBoundaryRow 0 [(0, 1), (1, -2), (2, 1)]] (sbpSecondLow pair)
+  assertEqual "SBP primal norm boundary weight" [1 % 2] (sbpPrimalNorm pair)
+  assertEqual "SBP dual norm is the identity" [] (sbpDualNorm pair)
+  assertEqual "SBP boundary extrapolation"
+    [(0, 3 % 2), (1, (-1) % 2)] (sbpExtrapolate pair)
+  forM_ [8, 9, 12, 17] $ \intervals ->
+    assertEqual ("SBP identity at N=" ++ show intervals)
+      (Right ()) (validateSbpStaggeredPair pair intervals)
+  assertLeft "SBP grid too small"
+    isTooSmall (validateSbpStaggeredPair pair 7)
+  assertEqual "only the second-order interior is constructed"
+    (Left (UnsupportedSbpInterior 2)) (sbpStaggeredPair 2)
+  where
+    isTooSmall (SbpGridTooSmall 7 8) = True
+    isTooSmall _ = False
 
 checkFixture :: ExpectedStencil -> IO ()
 checkFixture expected = do
