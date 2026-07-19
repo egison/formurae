@@ -392,6 +392,12 @@ collocatedではradius = クォート数 + 1、staggeredの奇数階では結果
 着地するため<b>半整数の実効radius = クォート数 + 1/2</b>(ターゲット中心
 ±1/2 … ±(2k−1)/2 の対称stencil)になります。許される半径は
 2r ≡ m (mod 2)(パリティ整合)・点数 2r+1・形式精度 2r − m + 2。
+<b>半整数半径そのものは書きません</b>: 表層にもFEIRにも分数は現れず
+(radius属性は正整数のまま)、post-fecが「staggered×奇数階なら
+実効radius = 属性 − 1/2」と解釈するだけです。プライムはパリティ中立な
+「+1リング」で、半分ずれるかどうかは格子が供給するため、
+「collocatedに3/2」のようなパリティ不整合はそもそも表現できません —
+placementを宣言でなく(policy, 添字構造)から導出するのと同じ原則です。
 既定profile(accuracy 2)ではこれらは<code>∂/∂</code>経由と同じstencilに落ちます
 (elastic3d/maxwell3d/diffusion1d等で生成C byte一致を確認)。</p>
 
