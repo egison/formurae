@@ -482,11 +482,23 @@ buildAxes
 buildAxes assignments model = do
   origin <- originFor assignments AxesOrigin
   Right
-    [FEIR.AxisDecl (FEIR.AxisId identifier) sourceName canonicalName origin
+    [FEIR.AxisDecl (FEIR.AxisId identifier) sourceName canonicalName
+       (declaredBoundary sourceName) origin
     | (identifier, sourceName, canonicalName) <-
         zip3 [1 ..] (Surface.mAxes model) canonicalAxisNames]
   where
     canonicalAxisNames = take (Surface.mDim model) ["x", "y", "z"]
+    declaredBoundary sourceName =
+      case [Surface.boundaryKind declaration
+           | declaration <- Surface.mBoundaryDecls model
+           , Surface.boundaryAxisName declaration == sourceName] of
+        kind : _ -> mapBoundary kind
+        [] -> FEIR.PeriodicBoundary
+
+mapBoundary :: Surface.SurfaceBoundaryKind -> FEIR.BoundaryCondition
+mapBoundary Surface.SurfacePeriodicBoundary = FEIR.PeriodicBoundary
+mapBoundary Surface.SurfaceSbpBoundary = FEIR.SbpBoundary
+mapBoundary (Surface.SurfaceGhostBoundary fill) = FEIR.GhostBoundary fill
 
 buildParameters
   :: OriginAssignments -> Surface.Model

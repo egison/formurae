@@ -36,6 +36,23 @@ data DiscretizationDecl = DiscretizationDecl
   , discretizationSourceLine :: Int
   } deriving (Eq, Show)
 
+-- | The declared boundary treatment of one axis.  The boundary is a
+-- property of the domain, not of any individual derivative application:
+-- every derivative along a declared axis shares it.  An undeclared axis is
+-- periodic, which is the historical whole-torus reading.  The ghost fill
+-- value is a raw backend string, exactly like a parameter value.
+data SurfaceBoundaryKind
+  = SurfacePeriodicBoundary
+  | SurfaceSbpBoundary
+  | SurfaceGhostBoundary String
+  deriving (Eq, Show)
+
+data BoundaryDecl = BoundaryDecl
+  { boundaryAxisName :: String
+  , boundaryKind :: SurfaceBoundaryKind
+  , boundarySourceLine :: Int
+  } deriving (Eq, Show)
+
 data IxPart = IxPart Variance String deriving (Eq, Show)
 
 data IndexGroup =
@@ -176,6 +193,7 @@ data Model = Model
   , mEmbed  :: Maybe [String]
   , mDefs   :: [Def]
   , mDiscretizationDecls :: [DiscretizationDecl]
+  , mBoundaryDecls :: [BoundaryDecl]
   }
 
 selectedMode :: Model -> Mode

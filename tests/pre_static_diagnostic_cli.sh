@@ -177,5 +177,15 @@ expect_parse_failure pre_fec_raw_pi_error \
   "parameter value cannot use π because it bypasses symbolic FEIR; use a numeric backend value (line 4)"
 expect_parse_failure pre_fec_raw_initializer_pi_error \
   "raw initializer cannot use π because it bypasses symbolic FEIR; use a numeric backend value or ':=' (line 6)"
+# The boundary is an axis declaration; the per-call sbpd spelling is retired
+# with a migration diagnostic, and malformed declarations fail statically.
+expect_parse_failure pre_fec_sbpd_retired_error \
+  "sbpd_x is retired: declare the boundary (boundary AXIS : sbp) and write the plain derivative (∂_x for sbpd_x, ∂^2_x for sbpd2_x) (line 11)"
+expect_parse_failure pre_fec_boundary_unknown_axis_error \
+  "boundary declaration names unknown axis 'z' (line 5)"
+expect_parse_failure pre_fec_boundary_duplicate_error \
+  "duplicate boundary declaration for axis 'x' (line 6)"
+expect_parse_failure pre_fec_boundary_ghost_value_error \
+  "ghost boundary needs a fill value (line 5): boundary AXIS : ghost VALUE"
 
 printf 'pre-fec static source-diagnostic tests: ok\n'

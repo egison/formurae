@@ -19,9 +19,6 @@ def Formurae.opaqueCoordinateWideHead : String :=
 def Formurae.opaqueGridWholeHead : String :=
   "FormuraeInternalOpaqueGridWhole"
 
-def Formurae.opaqueSbpStaggeredHead : String :=
-  "FormuraeInternalOpaqueSbpStaggered"
-
 def Formurae.opaqueOrderedDerivativeHead : String :=
   "FormuraeInternalOpaqueOrderedDerivative"
 
@@ -170,24 +167,6 @@ def Formurae.gridWholeDerivative
     | #True ->
         formuraeOpaqueBarrier
           (functionSymbol Formurae.opaqueGridWholeHead [value, axisId])
-
--- Whole-expression staggered derivative with summation-by-parts boundary
--- closures.  Like the grid derivative it keeps the complete operand as one
--- sample; post-fec replaces the rows nearest a physical boundary with the
--- closure rows of the second-order SBP pair (order 1 = the dual-to-primal
--- first derivative, order 2 = the composed second derivative).
-def Formurae.sbpStaggeredDerivative
-      (axisId: Integer) (order: Integer) (value: MathValue) : MathValue :=
-  match assert "SBP staggered derivative needs a valid axis and order 1 or 2"
-               (i.> axisId 0
-                && i.<= axisId dimension
-                && (order = 1 || order = 2))
-        && Formurae.requireOpaqueManifest
-        as bool with
-    | #True ->
-        formuraeOpaqueBarrier
-          (functionSymbol Formurae.opaqueSbpStaggeredHead
-            [value, axisId, order])
 
 -- A noncommuting/ordered derivative chain remains one whole-expression
 -- request.  Axis order and repetition are data; the CAS never canonicalizes

@@ -28,14 +28,6 @@
     (commutation ordered))
 
   (primitive
-    (op derivative.sbp-staggered)
-    (inputs scalar)
-    (output scalar)
-    (placement derivative-target)
-    (effects pure-local)
-    (commutation ordered))
-
-  (primitive
     (op resample.explicit)
     (inputs scalar)
     (output scalar)

@@ -140,7 +140,7 @@ user定義は最下層と同じcompletion・placement経路を通ります。</p
 <tr><th>層</th><th>surface</th><th>意味の所有者</th><th>shadow</th></tr>
 <tr><td>構文(primitive)</td>
     <td><code>∂/∂ e a</code>・<code>∂_a</code>・<code>∂^m_a</code>・<code>∂'^m_a</code>・
-        バッククォートchain(2段以上)・<code>sbpd_a</code>/<code>sbpd2_a</code>・
+        バッククォートchain(2段以上)・<code>boundary a : sbp|periodic|ghost v</code>・
         <code>resample</code>・成分射影<code>q_x</code>・添字/variance記法・
         <code>let</code>/<code>local</code>と<code>@</code>policy</td>
     <td>pre-fecの構文解析+Egisonの<code>∂/∂</code>(未知の微分則はerror)+opaque manifest。
@@ -148,7 +148,7 @@ user定義は最下層と同じcompletion・placement経路を通ります。</p
         素の一階(軸・記号とも)はplacement誘導radius-1差分(記号添字は軸ごとに並べ
         導入した添字の反復を自動縮約)、次数・プライム付きはexplicit-radius中心stencil
         (collocated: radius = クォート数 + 1、staggered奇数階: 半整数radius = クォート数 + 1/2)。
-        <code>sbpd</code>はSBP境界閉包つきのstaggered微分(§6)。
+        境界は軸の宣言<code>boundary</code>が持ち、sbp軸では素の∂がSBP閉包つきに降下(§6)。
         添字が宣言済み軸名なら具体成分・それ以外は記号(∂と場の参照で共通の規則)</td>
     <td>不可</td></tr>
 <tr><td>ambient束縛</td>
@@ -424,24 +424,36 @@ staggered/yee側のm階則は<b>精度2kの1階半整数stageのm重自己合成
 bypassします。単発のクォート<code>`(∂_x e)</code>は素の<code>∂_x e</code>と
 同義になるためエラーです。</p>
 
-<h3>SBP境界閉包つき微分(sbpd)</h3>
+<h3>boundary宣言 — SBP境界閉包(幅は演算子、境界は宣言)</h3>
 
-<pre>field u : scalar @ primal          <span class="c">-- yaml側: boundary: [fixed 0.0] で有界領域に</span>
+<pre>boundary x : sbp                   <span class="c">-- 物理境界: x軸の全微分がSBP閉包つきに</span>
+<span class="c">-- boundary y : periodic          -- 既定(宣言なし = 周期 = 従来互換)</span>
+<span class="c">-- boundary z : ghost 0.0         -- fork の ghost 充填 idiom の明示化</span>
+
+field u : scalar @ primal
 param satx = 2.0*τ*κ/(dx*dx)
 step:
   local q @ dual = κ * ∂_x u       <span class="c">-- D⁺: 閉包不要(全行が域内)</span>
-  u' = u + dt * (sbpd_x q          <span class="c">-- D⁻: 両端1行だけSBP閉包行に置換</span>
+  u' = u + dt * (∂_x q             <span class="c">-- D⁻: 両端1行だけSBP閉包行に置換</span>
     + (if x &lt; xlo then 0.0 - satx*u else 0.0)   <span class="c">-- SAT(Dirichlet penalty)</span>
     + (if x &gt; xhi then 0.0 - satx*u else 0.0))
 
-  u' = u + dt * κ * sbpd2_x u      <span class="c">-- 合成2階(= 閉包つきD⁻∘D⁺)を直接書く形</span></pre>
+  u' = u + dt * κ * ∂^2_x u        <span class="c">-- 合成2階(= 閉包つきD⁻∘D⁺)を直接書く形</span></pre>
 
-<p><code>sbpd_x</code>・<code>sbpd2_x</code>(<code>derivative.sbp-staggered</code>)は
-物理境界を知っている唯一の微分です。内部は通常のstaggered差分のまま、境界に最も近い行だけ
-summation-by-parts閉包行にindex guard(<code>if i == 0 then … else …</code>)で置換するため、
+<p>境界の扱いは個々の微分適用の属性ではなく<b>領域(軸)の属性</b>です:
+<code>boundary x : sbp</code>を宣言すると、その軸に沿う<b>素の</b><code>∂_x</code>・
+<code>∂^2_x</code>・profile 1–2階がそのまま境界対応になります。内部は通常の
+staggered差分のまま、境界に最も近い行だけsummation-by-parts閉包行に
+index guard(<code>if i == 0 then … else …</code>)で置換するため、
 どのサンプルも領域外を読みません。閉包はノルム行列Hとの組で
 離散部分積分 H_d D⁺ + (H_p D⁻)ᵀ = d_N e_Nᵀ − d₀ e₀ᵀ を<b>厳密に</b>満たすよう選ばれ、
 post-fecが有限Nの行列恒等式として毎回検証します(エネルギー法の安定性の根拠)。
+エネルギー安定性は「モデル内の全微分が同じ境界扱いを共有する」大域的性質なので、
+宣言があるからこそ<b>sbp軸に閉包なし経路が混ざったら静的エラー</b>にできます:
+プライム幅・accuracy≥4・3階以上・collocated operand・ordered chain横断・
+half→integerのresampleはすべてcompile-time errorです(閉包構成器の拡張までの明示的な境界)。
+旧<code>sbpd_x</code>/<code>sbpd2_x</code>綴りは退役し、移行診断が
+宣言+素の∂への書き換えを案内します。
 境界条件はSAT(penalty項)を表層の<code>if</code>+<code>param</code>で書きます
 (係数・しきい値をparamに置くのはdxがCAS側で非束縛のため)。1階はhalf→integerの向きで
 両端閉包、integer→halfは閉包不要、2階はinteger配置限定です。実測は
@@ -473,16 +485,18 @@ parityから各軸の半セルbitを求めます。微分は自然なtarget plac
 
 <h3>成分射影 — q_x と q_i</h3>
 
-<pre>field q_i @ primal
+<pre>boundary x : sbp
+boundary y : sbp
+field q_i @ primal
 step:
   local w_i @ primal = [| κ * ∂_x u, κ * ∂_y u |]_i
-  u' = u + dt * (sbpd_x w_x + sbpd_y w_y)   <span class="c">-- w_x = wのx成分(x面に住むスカラー)</span></pre>
+  u' = u + dt * (∂_x w_x + ∂_y w_y)   <span class="c">-- w_x = wのx成分(x面に住むスカラー)</span></pre>
 
 <p>添字の判定規則は<code>∂</code>と同じです: <b>宣言済みの軸名なら具体成分、
 それ以外は記号添字</b>。<code>q_x</code>は宣言済みの添字つきfield/localのx成分を
 スカラーとして取り出し(<code>T_x_y</code>はrank-2の具体成分)、placementは従来どおり
 (policy, 成分basis)から導出されます — 上の<code>w_x</code>は[½, 0]に住み、
-<code>sbpd_x</code>がhalf→integerの向きを自動選択します。対称・反対称の鏡像成分は
+sbp軸の<code>∂_x</code>がhalf→integerの閉包つきの向きを自動選択します。対称・反対称の鏡像成分は
 束縛テンソル値が符号・零対角込みで持つため、<code>ω_y_x</code>も正しく負値を読みます。
 varianceは宣言と一致が必要(<code>q_i</code>宣言に対する<code>q~x</code>はerror、
 上下の付け替えは計量との縮約を明示で)。混合添字<code>T_x_j</code>と

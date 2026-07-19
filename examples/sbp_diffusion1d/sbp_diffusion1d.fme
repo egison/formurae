@@ -1,8 +1,8 @@
--- Heat equation on a genuinely bounded interval: the yaml declares
---   boundary: [fixed 0.0]
--- and every derivative is the SBP staggered pair, so no stencil ever reads
--- a ghost value.  The walls sit on the primal points x = 0 and
--- x = (total_grid_x - 1)*dx;
+-- Heat equation on a genuinely bounded interval: the model declares
+--   boundary x : sbp
+-- and every derivative along x becomes the SBP staggered pair, so no
+-- stencil ever reads a ghost value.  The walls sit on the primal points
+-- x = 0 and x = (total_grid_x - 1)*dx;
 -- homogeneous Dirichlet data enters through the penalty (SAT) terms, whose
 -- strength τ multiplies the inverse boundary norm 2/dx and the extra 1/dx
 -- of the second-order form.  The check driver asserts the exact-mode decay,
@@ -11,6 +11,8 @@
 mode collocated
 dimension 1
 axes x
+
+boundary x : sbp
 
 param κ = 1.0
 param τ = 4.0
@@ -28,6 +30,6 @@ init:
 
 step:
   local q @ dual = κ * ∂_x u
-  u' = u + dt * (sbpd_x q
+  u' = u + dt * (∂_x q
     + (if x < xlo then 0.0 - sat*u else 0.0)
     + (if x > xhi then 0.0 - sat*u else 0.0))

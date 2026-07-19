@@ -134,6 +134,7 @@ baseModel definitions = Model
   , mEmbed = Nothing
   , mDefs = definitions
   , mDiscretizationDecls = []
+  , mBoundaryDecls = []
   }
 
 lookupOrigin :: FEIR.OriginId -> FEIR.OriginTable -> FEIR.SourceOrigin

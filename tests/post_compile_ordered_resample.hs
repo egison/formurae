@@ -117,8 +117,8 @@ fixture = FEProgram
   , feProgramMode = CollocatedMode
   , feProgramDimension = 2
   , feProgramAxes =
-      [ AxisDecl (AxisId 1) "x" "x" (OriginId 1)
-      , AxisDecl (AxisId 2) "y" "y" (OriginId 1)
+      [ AxisDecl (AxisId 1) "x" "x" PeriodicBoundary (OriginId 1)
+      , AxisDecl (AxisId 2) "y" "y" PeriodicBoundary (OriginId 1)
       ]
   , feProgramGeometry = GeometryDecl (GeometryId 1) Nothing Nothing
       EuclideanGeometry

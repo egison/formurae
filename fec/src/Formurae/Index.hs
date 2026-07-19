@@ -131,9 +131,11 @@ derivativeOpParts nm = do
         Just (read mDigits, read rDigits, part)
       _ -> Nothing
 
--- | The SBP staggered derivative request: sbpd_x is the first derivative
--- and sbpd2_x the composed second derivative, each with the
--- summation-by-parts closure rows at the physical boundary.
+-- | Recognizer for the retired sbpd spelling: sbpd_x was the first
+-- derivative and sbpd2_x the composed second derivative with
+-- summation-by-parts closure rows.  The boundary treatment is an axis
+-- property now (boundary AXIS : sbp), so the only consumer left is the
+-- migration diagnostic.
 sbpOpParts :: String -> Maybe (Int, IxPart)
 sbpOpParts nm = do
   rest0 <- stripPrefix "sbpd" nm

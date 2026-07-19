@@ -454,7 +454,34 @@ sbp_diffusion1d / sbp_wave1d(`62.5*dx` → `(total_grid_x - 1.5)*dx`、
 旧来のスケールフリー慣行(diffusion*d・maxwell* の `total_grid_x*dx` 系)に
 揃い、yaml の解像度だけを変えても .fme を触らずに済む。
 
-**v1.36(2026-07-11): runtime tensor lowering と Phase 7 完了** —
+**v2.20(2026-07-19): 境界の言語化 — 「幅は演算子、境界は宣言、降下はその積」(sbpd 退役)** —
+v2.17 の `sbpd`/`sbpd2` は分類軸の取り違えだった: 演算子語彙は一貫して
+「幅と離散化の選び方」で切られているのに、境界の扱いという**領域(軸)の
+属性**を演算子名に持ち込んでいた。エネルギー安定性は「モデル内の全微分が
+同じ境界扱いを共有する」大域的性質なので、per-call opt-in では成立を検査
+できない。数学の因数分解(半整数半径族 = 内部の理論/SBP = その境界延長)を
+言語へそのまま写し、軸ごとのモデル宣言
+`boundary x : sbp | periodic | ghost VALUE`(無宣言 = periodic = 従来互換、
+ghost は fork の ghost 充填 idiom の明示化で降下は periodic と同一)を新設した。
+宣言は AxisDecl のワイヤ属性(logical registry の一部 = registry-id に参加)。
+この下で**既存演算子がそのまま境界対応になる**: sbp 軸では素の `∂_x` =
+内部 Yee+端は閉包行(旧 `sbpd_x` を吸収; int→half は閉包不要の interior)、
+`∂^2_x`(wide order 2 radius 1)= 合成閉包(旧 `sbpd2_x`)、profile 1/2 階
+(accuracy 2)の FieldJet も同じ共有ヘルパ `lowerSbpGuardedDerivative` で
+閉包化(混合 jet は sbp 軸因子を最外で剥離し残り jet を行ごとに再帰降下)。
+silent 禁止を回復: sbp 軸上の閉包なし幅(プライム/accuracy≥4/3 階以上)・
+collocated operand・ordered chain 横断・half→int resample・別ステンシル内での
+閉包サンプル(guard が生 index 比較のため)は全て静的エラー
+(`SbpClosureUnavailable` 等; int→half resample は phantom slot しか
+域外に出ないので許容)。`sbpd` 綴りは移行診断つきで拒否
+(「declare the boundary and write the plain derivative」)、opaque
+`derivative.sbp-staggered` はマニフェストから削除(manifest ハッシュ更新)。
+検証: sbp_diffusion1d/2d・sbp_wave1d を宣言形へ書き換えて**生成 .fmr が
+旧 sbpd 版とバイト一致**(post-fec の normalizeAdd が構造的全ソートなので
+op 名変更が項順に影響しないことも確認)・check driver 3 本同値通過・
+make all 30 例全緑(.egi/.feir は全例更新、.fmr は全例バイト不変)・
+suite 全緑。残: k≥2 閉包構成器(Phase B)・SAT マクロと宣言からの
+H⁻¹ 端重み供給(Phase C)・yaml boundary の宣言からの生成。
 標準6演算子だけでなく、一般の indexed equation、implicit vector equation、rank-1/rank-2
 indexed `let`、indexed CAS initializer を、成分別 Haskell 式へ展開せず whole runtime tensor として
 Egison へ渡すようにした。`RuntimeTensorExpr` は symbolic index を予約内部名へ alpha rename し、

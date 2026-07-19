@@ -763,21 +763,6 @@ contextualize model userDefinitions shadowedNames boundNames expression
             _ -> Left (EmitExpressionError
               "∂/∂ needs one operand and one coordinate, or the ambient coordinates vector")
     TEApply (TEIdent derivative parts) arguments
-      | Just order <- sbpDerivativeName derivative
-      , [Surface.IxPart _ axis] <- parts -> do
-          arguments' <- mapM walk arguments
-          case arguments' of
-            [argument] -> do
-              axisId <- gridAxisId derivative axis
-              Right (TEApply
-                (TEIdent "FormuraeInternalSbpStaggeredDerivative" [])
-                [ TENumber (show axisId)
-                , TENumber (show order)
-                , applicationArgument argument
-                ])
-            _ -> Left (EmitExpressionError
-              (derivative ++ " SBP derivative needs one operand"))
-    TEApply (TEIdent derivative parts) arguments
       | Just (order, radius) <- coordinateDerivativeName derivative
       , [Surface.IxPart _ axis] <- parts -> do
           arguments' <- mapM walk arguments
@@ -999,12 +984,6 @@ coordinateDerivativeName name = do
   radius <- readMaybe radiusText
   if order > 0 && radius > 0 then Just (order, radius) else Nothing
 
-sbpDerivativeName :: String -> Maybe Int
-sbpDerivativeName name = do
-  rest <- stripPrefix "sbpd" name
-  order <- if null rest then Just 1 else readMaybe rest
-  if order == 1 || order == 2 then Just order else Nothing
-
 stripPrefix :: String -> String -> Maybe String
 stripPrefix [] value = Just value
 stripPrefix (expected : rest) (actual : value)
@@ -1139,8 +1118,6 @@ renderUnit model registry geometryDeclarations definitions dynamics program = un
           ["def FormuraeInternalCoordinateWideDerivative axis order radius value := Formurae.coordinateWideDerivative axis order radius value"]
       , whenUsed "FormuraeInternalGridWholeDerivative"
           ["def FormuraeInternalGridWholeDerivative axis value := Formurae.gridWholeDerivative axis value"]
-      , whenUsed "FormuraeInternalSbpStaggeredDerivative"
-          ["def FormuraeInternalSbpStaggeredDerivative axis order value := Formurae.sbpStaggeredDerivative axis order value"]
       , whenUsed "FormuraeInternalOrderedDerivative"
           ["def FormuraeInternalOrderedDerivative axes value := Formurae.gridDerivativeChain axes value"]
       , whenUsed "FormuraeInternalResampleExplicit"

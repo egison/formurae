@@ -172,6 +172,7 @@ postErrorOriginIds program postError =
       (locatedOpaqueOrigin <$> findLocatedOpaqueByKey program semanticKey)
     PostSbpDerivativeError semanticKey _ -> maybeToList
       (locatedOpaqueOrigin <$> findLocatedOpaqueByKey program semanticKey)
+    PostSbpProfileError _ -> []
     PostPrimitiveContractError semanticKey _ -> maybeToList
       (locatedOpaqueOrigin <$> findLocatedOpaqueByKey program semanticKey)
     PostExplicitStencilError semanticKey _ -> maybeToList
@@ -628,6 +629,7 @@ validationIssueMessage issue =
       "orthogonal geometry has not been symbolically verified"
     InvalidEmbeddedGeometry -> "embedded geometry must not be empty"
     EmptyProvenance -> "provenance origin set must not be empty"
+    EmptyGhostBoundaryFill -> "ghost boundary fill value must not be empty"
 
 identifierNamespaceName :: IdNamespace -> String
 identifierNamespaceName namespace =
@@ -678,6 +680,7 @@ postErrorMessage postError =
       "unsupported opaque operation " ++ show opId
     PostWideDerivativeError _ wideError -> wideDerivativeErrorMessage wideError
     PostSbpDerivativeError _ sbpError -> sbpDerivativeErrorMessage sbpError
+    PostSbpProfileError sbpError -> sbpDerivativeErrorMessage sbpError
     PostGridWholeDerivativeError _ gridError ->
       gridWholeDerivativeErrorMessage gridError
     PostPrimitiveContractError _ contractError ->
@@ -711,17 +714,30 @@ wideDerivativeErrorMessage wideError =
 sbpDerivativeErrorMessage :: SbpDerivativeError -> String
 sbpDerivativeErrorMessage sbpError =
   case sbpError of
-    SbpMetadataError metadata ->
-      derivativeMetadataErrorMessage "SBP staggered derivative" metadata
-    SbpOrderUnsupported order ->
-      "SBP staggered derivative order must be 1 or 2, got " ++ show order
-    SbpRadiusMustBeOne radius ->
-      "SBP staggered derivative radius must be 1, got " ++ show radius
     SbpRequiresStaggeredLattice ->
-      "SBP staggered derivative needs a staggered-lattice operand"
+      "a derivative along an sbp axis needs a staggered-lattice operand"
     SbpSecondOrderNeedsIntegerPlacement placement ->
-      "SBP second derivative needs an integer-placed operand, got "
+      "the SBP second derivative needs an integer-placed operand, got "
       ++ show placement
+    SbpClosureUnavailable order radius ->
+      "no SBP closure exists yet for derivative order " ++ show order
+      ++ " at radius " ++ show radius
+      ++ " on an sbp axis; only the minimal first and second derivatives"
+      ++ " have closures"
+    SbpProfileClosureUnavailable order accuracy ->
+      "no SBP closure exists yet for the profile derivative order "
+      ++ show order ++ " at accuracy " ++ show accuracy
+      ++ " on an sbp axis; only the minimal first and second derivatives"
+      ++ " have closures"
+    SbpClosureInsideStencil axisId ->
+      "an SBP closure cannot be sampled inside another stencil along axis "
+      ++ show axisId
+    SbpOrderedChainUnsupported axisId ->
+      "an ordered derivative chain cannot cross the sbp axis "
+      ++ show axisId
+    SbpResampleUnsupported axisId ->
+      "resampling toward integer points reads outside the domain on the"
+      ++ " sbp axis " ++ show axisId
     SbpClosureFailure stencilError ->
       "SBP closure error: " ++ stencilErrorMessage stencilError
 

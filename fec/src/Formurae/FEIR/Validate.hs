@@ -131,6 +131,7 @@ data ValidationIssue
   | UnverifiedOrthogonalGeometry
   | InvalidEmbeddedGeometry
   | EmptyProvenance
+  | EmptyGhostBoundaryFill
   deriving (Eq, Ord, Show)
 
 data ValidationError = ValidationError
@@ -265,6 +266,8 @@ validateAxes environment = concat
         | null (axisDeclSourceName axis)]
       , [validationError path (EmptyIdentifier AxisIds)
         | null (axisDeclCanonicalName axis)]
+      , [validationError path EmptyGhostBoundaryFill
+        | GhostBoundary fill <- [axisDeclBoundary axis], null fill]
       , validateOriginReference environment path (axisDeclOrigin axis)
       ]
       where

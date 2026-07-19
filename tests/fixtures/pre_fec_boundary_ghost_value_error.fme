@@ -1,0 +1,10 @@
+mode collocated
+dimension 1
+axes x
+
+boundary x : ghost
+
+field u : scalar
+
+step:
+  u' = u

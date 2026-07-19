@@ -359,13 +359,20 @@ main = do
 
   sbpModel <- parseModel "pre-sbp.fme" "pre-sbp" sbpSource
   sbpUnit <- requireRight =<< emitNormalizationUnit manifestId sbpModel
-  assertContains "sbp first derivative bridges to the staggered request"
-    "FormuraeInternalSbpStaggeredDerivative 1 1 u" sbpUnit
-  assertContains "sbp second derivative carries its order"
-    "FormuraeInternalSbpStaggeredDerivative 1 2 u" sbpUnit
-  assertContains "sbp bridge definition"
-    "def FormuraeInternalSbpStaggeredDerivative axis order value := Formurae.sbpStaggeredDerivative axis order value"
+  assertContains "declared sbp boundary reaches the axis registry"
+    "FEIR.list [FEIR.atom \"boundary\", FEIR.list [FEIR.atom \"sbp\"]]"
     sbpUnit
+  assertContains "plain first derivative stays the grid-whole request"
+    "FormuraeInternalGridWholeDerivative 1 u" sbpUnit
+  assertContains "plain second derivative stays the wide request"
+    "FormuraeInternalCoordinateWideDerivative 1 2 1 u" sbpUnit
+  assertAbsent sbpUnit "SbpStaggered"
+
+  ghostModel <- parseModel "pre-ghost.fme" "pre-ghost" ghostBoundarySource
+  ghostUnit <- requireRight =<< emitNormalizationUnit manifestId ghostModel
+  assertContains "declared ghost boundary carries its fill value"
+    "FEIR.list [FEIR.atom \"boundary\", FEIR.list [FEIR.atom \"ghost\", FEIR.string \"0.0\"]]"
+    ghostUnit
 
   projectionModel <- parseModel "pre-projection.fme"
     "pre-projection" projectionSource
@@ -753,11 +760,23 @@ sbpSource = unlines
   [ "mode collocated"
   , "dimension 1"
   , "axes x"
+  , "boundary x : sbp"
   , "field u : scalar @ primal"
   , "field v : scalar @ dual"
   , "step:"
-  , "  v' = sbpd_x u"
-  , "  u' = u + sbpd2_x u"
+  , "  v' = ∂_x u"
+  , "  u' = u + ∂^2_x u"
+  ]
+
+ghostBoundarySource :: String
+ghostBoundarySource = unlines
+  [ "mode collocated"
+  , "dimension 2"
+  , "axes x, y"
+  , "boundary y : ghost 0.0"
+  , "field u : scalar"
+  , "step:"
+  , "  u' = u"
   ]
 
 projectionSource :: String

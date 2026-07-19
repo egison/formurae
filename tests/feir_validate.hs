@@ -111,8 +111,8 @@ validProfile = setProfileFingerprint profile
 
 validAxes :: [AxisDecl]
 validAxes =
-  [ AxisDecl axisX "x" "x" origin1
-  , AxisDecl axisY "y" "y" origin1
+  [ AxisDecl axisX "x" "x" PeriodicBoundary origin1
+  , AxisDecl axisY "y" "y" PeriodicBoundary origin1
   ]
 
 collocatedDefaultRule :: DerivativeRule
@@ -187,13 +187,27 @@ main = do
 checkHeaderAndIds :: IO ()
 checkHeaderAndIds = do
   let duplicateAxes =
-        [ AxisDecl axisX "x" "x" origin1
-        , AxisDecl axisX "y" "y" origin1
+        [ AxisDecl axisX "x" "x" PeriodicBoundary origin1
+        , AxisDecl axisX "y" "y" PeriodicBoundary origin1
         ]
   assertIssue "axis IDs are unique" isDuplicateAxis
     validProgram { feProgramAxes = duplicateAxes }
   assertIssue "dimension matches axes" isAxisCount
     validProgram { feProgramDimension = 3 }
+  assertValid "declared axis boundaries are accepted"
+    validProgram
+      { feProgramAxes =
+          [ AxisDecl axisX "x" "x" SbpBoundary origin1
+          , AxisDecl axisY "y" "y" (GhostBoundary "0.0") origin1
+          ]
+      }
+  assertIssue "ghost boundary fill must not be empty" isEmptyGhostFill
+    validProgram
+      { feProgramAxes =
+          [ AxisDecl axisX "x" "x" (GhostBoundary "") origin1
+          , AxisDecl axisY "y" "y" PeriodicBoundary origin1
+          ]
+      }
   assertIssue "parameter references are declared" isUnknownParameter
     (mapInitializerScalar (const (Parameter (ParamId 99))) validProgram)
   where
@@ -201,6 +215,8 @@ checkHeaderAndIds = do
     isDuplicateAxis _ = False
     isAxisCount (AxisCountMismatch 3 2) = True
     isAxisCount _ = False
+    isEmptyGhostFill EmptyGhostBoundaryFill = True
+    isEmptyGhostFill _ = False
     isUnknownParameter (UnknownReference ParameterIds _) = True
     isUnknownParameter _ = False
 
@@ -740,6 +756,13 @@ mapUpdateTarget transform program = program
 assertIssue :: String -> (ValidationIssue -> Bool) -> FEProgram -> IO ()
 assertIssue label predicate program =
   assertIssueWith label validationConfig predicate program
+
+assertValid :: String -> FEProgram -> IO ()
+assertValid label program =
+  case validateFEProgram validationConfig program of
+    Right () -> return ()
+    Left errors -> fail
+      (label ++ ": valid program was rejected; got " ++ show errors)
 
 assertIssueWith
     :: String

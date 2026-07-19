@@ -85,8 +85,8 @@ fixtureProgram =
     , feProgramMode = CollocatedMode
     , feProgramDimension = 2
     , feProgramAxes =
-        [ AxisDecl (AxisId 1) "r" "x" (OriginId 1)
-        , AxisDecl (AxisId 2) "θ" "y" (OriginId 1)
+        [ AxisDecl (AxisId 1) "r" "x" SbpBoundary (OriginId 1)
+        , AxisDecl (AxisId 2) "θ" "y" (GhostBoundary "0.0") (OriginId 1)
         ]
     , feProgramGeometry = fixtureGeometry
     , feProgramParameters =

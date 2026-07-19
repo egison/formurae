@@ -270,10 +270,6 @@ preprocessTensorAst m expr =
       , let part' = renameDerivativePart part ->
           keep (TEApply (TEIdent ("pd" ++ show ordr ++ "r" ++ show radius) [part'])
                   (map pre args))
-      | Just (order, part) <- sbpOpParts (fn ++ concatMap ixSuffix fnParts)
-      , let part' = renameDerivativePart part ->
-          keep (TEApply (TEIdent ("sbpd" ++ show order) [part'])
-                  (map pre args))
     TEApply f args ->
       keep (TEApply (pre f) (map pre args))
     TEIf c t e ->

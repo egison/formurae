@@ -2,7 +2,7 @@
 -- Run tools/generate-feir-primitives.hs; do not edit it directly.
 
 def Formurae.Primitives.primitiveManifestId : String :=
-  "sha256:f85bce3e5dc32e8c096ceafaf0c44e2a0d5a4bef2b0b5454b3afae63588666bd"
+  "sha256:b7a05af81f6418b2163bd3ef280d911d6409564da41c96d455b872e62d120098"
 
 def Formurae.Primitives.derivativeCoordinateWideOpId : String :=
   "derivative.coordinate-wide"
@@ -13,9 +13,6 @@ def Formurae.Primitives.derivativeGridWholeOpId : String :=
 def Formurae.Primitives.derivativeOrderedOpId : String :=
   "derivative.ordered"
 
-def Formurae.Primitives.derivativeSbpStaggeredOpId : String :=
-  "derivative.sbp-staggered"
-
 def Formurae.Primitives.resampleExplicitOpId : String :=
   "resample.explicit"
 
@@ -24,7 +21,6 @@ def Formurae.Primitives.signatures
   [ (Formurae.Primitives.derivativeCoordinateWideOpId, "derivative.coordinate-wide", ["scalar"], "scalar", "derivative-target", "pure-local", [], "ordered")
   , (Formurae.Primitives.derivativeGridWholeOpId, "derivative.grid-whole", ["scalar"], "scalar", "derivative-target", "pure-local", [], "ordered")
   , (Formurae.Primitives.derivativeOrderedOpId, "derivative.ordered", ["scalar"], "scalar", "derivative-target", "pure-local", [], "ordered")
-  , (Formurae.Primitives.derivativeSbpStaggeredOpId, "derivative.sbp-staggered", ["scalar"], "scalar", "derivative-target", "pure-local", [], "ordered")
   , (Formurae.Primitives.resampleExplicitOpId, "resample.explicit", ["scalar"], "scalar", "explicit-target", "pure-local", [], "ordered")
   ]
 

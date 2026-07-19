@@ -607,17 +607,38 @@ encodeAxisDecl axis = record "axis"
   [ ("id", encodeAxisId (axisDeclId axis))
   , ("source-name", encodeString (axisDeclSourceName axis))
   , ("canonical-name", encodeString (axisDeclCanonicalName axis))
+  , ("boundary", encodeBoundaryCondition (axisDeclBoundary axis))
   , ("origin", encodeOriginId (axisDeclOrigin axis))
   ]
 
 decodeAxisDecl :: SExpr -> Either CodecError AxisDecl
 decodeAxisDecl expression = do
-  fields <- decodeRecord "axis" ["id", "source-name", "canonical-name", "origin"] expression
+  fields <- decodeRecord "axis"
+    ["id", "source-name", "canonical-name", "boundary", "origin"] expression
   AxisDecl
     <$> (required "id" fields >>= decodeAxisId)
     <*> (required "source-name" fields >>= decodeString "axis-source-name")
     <*> (required "canonical-name" fields >>= decodeString "axis-canonical-name")
+    <*> (required "boundary" fields >>= decodeBoundaryCondition)
     <*> (required "origin" fields >>= decodeOriginId)
+
+encodeBoundaryCondition :: BoundaryCondition -> SExpr
+encodeBoundaryCondition condition =
+  case condition of
+    PeriodicBoundary -> List [Atom "periodic"]
+    SbpBoundary -> List [Atom "sbp"]
+    GhostBoundary fill -> List [Atom "ghost", encodeString fill]
+
+decodeBoundaryCondition :: SExpr -> Either CodecError BoundaryCondition
+decodeBoundaryCondition expression =
+  case expression of
+    List [Atom "periodic"] -> Right PeriodicBoundary
+    List [Atom "sbp"] -> Right SbpBoundary
+    List [Atom "ghost", fill] ->
+      GhostBoundary <$> decodeString "boundary-ghost-fill" fill
+    _ -> codecError "boundary"
+      ("expected (periodic), (sbp), or (ghost fill), got "
+       ++ renderSExpr expression)
 
 encodeParameterDecl :: ParameterDecl -> SExpr
 encodeParameterDecl parameter = record "parameter"

@@ -175,10 +175,22 @@ data CompareOp
 
 -- ---------------------------------------------------------- logical registry
 
+-- | The declared shape of the domain along one axis.  This is a property of
+-- the model's logical registry, not of the discretization profile: a bounded
+-- axis is a different domain, and every derivative along it shares the one
+-- declared boundary treatment.  The ghost fill value keeps backend semantics
+-- as a raw string, exactly like a parameter's raw value.
+data BoundaryCondition
+  = PeriodicBoundary
+  | SbpBoundary
+  | GhostBoundary String
+  deriving (Eq, Ord, Show)
+
 data AxisDecl = AxisDecl
   { axisDeclId            :: AxisId
   , axisDeclSourceName    :: String
   , axisDeclCanonicalName :: String
+  , axisDeclBoundary      :: BoundaryCondition
   , axisDeclOrigin        :: OriginId
   } deriving (Eq, Ord, Show)
 

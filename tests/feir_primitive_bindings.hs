@@ -17,13 +17,12 @@ main = do
     (primitiveManifestSignatures parsed) primitiveSignatures
   assertEqual "generated manifest ID"
     (PrimitiveManifestId
-      "sha256:f85bce3e5dc32e8c096ceafaf0c44e2a0d5a4bef2b0b5454b3afae63588666bd")
+      "sha256:b7a05af81f6418b2163bd3ef280d911d6409564da41c96d455b872e62d120098")
     primitiveManifestId
   assertEqual "all generated operation IDs"
     [ OpId "derivative.coordinate-wide"
     , OpId "derivative.grid-whole"
     , OpId "derivative.ordered"
-    , OpId "derivative.sbp-staggered"
     , OpId "resample.explicit"
     ]
     primitiveOperationIds

@@ -26,16 +26,19 @@ k ≠ 1 の要求は `UnsupportedSbpInterior` を返す。
 決めて `centeredTaylor` の radius 探索と同様の探索ループにする。
 有理数で閉じない最適化族(スペクトル最小化系)は採らない。
 
-## 差し込み口
+## 差し込み口(v2.20 の boundary 宣言後)
 
 - `fec/src/Formurae/Post/Stencil.hs`: `sbpStaggeredPair` の k=1 分岐を
   一般構成に置換。検証器・`SbpStaggeredPair` 型・`SbpBoundaryRow` は不変。
-- `fec/src/Formurae/Post/Compile.hs` `lowerSbpStaggeredDerivative`:
+- `fec/src/Formurae/Post/Compile.hs` `lowerSbpGuardedDerivative`:
   閉包行リストを既にループで guard 化しているので、行数が増えても変更不要
   のはず(要確認: 2 階の interior [1,−2,1] 固定箇所を pair 由来に置換)。
-- 表層: `sbpd_x` に accuracy を渡す綴り(例 `sbpd'_x` = プライム流、または
-  profile の accuracy と連動)を決める。attribute は order/radius の既存
-  3 つ組に accuracy を足すか radius 属性を流用するか要設計。
+- 表層は**新しい綴り不要**([boundary-declaration.md](boundary-declaration.md)
+  の因数分解どおり): sbp 軸ではプライム幅・profile accuracy が今は
+  `SbpClosureUnavailable` / `SbpProfileClosureUnavailable` の明示エラーに
+  なっているので、構成器が入り次第そのエラー分岐を k = radius(または
+  accuracy/2)の閉包呼び出しへ差し替えるだけで「幅 × 境界」の積が全域で
+  定義される。attribute 追加も不要(order/radius の既存 3 つ組で足りる)。
 
 ## 完了条件
 

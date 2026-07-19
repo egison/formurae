@@ -11,8 +11,9 @@ SAT は新機構なしの表層記述: Dirichlet は
 ## 欠けているもの
 
 1. **Neumann**(流束指定): 熱方程式なら境界流束 g を D⁻ の閉包行が読む
-   「仮想フラックス」として注入する形が自然だが、現在の sbpd は閉包行を
-   固定で emit するので、境界行だけ g で置換/加算する綴りがない。
+   「仮想フラックス」として注入する形が自然だが、現在の閉包降下
+   (v2.20 の `lowerSbpGuardedDerivative`)は閉包行を固定で emit するので、
+   境界行だけ g で置換/加算する綴りがない。
 2. **特性 SAT**(波動系の透過境界): p ± Z v の特性変数への penalty。
    v の境界値が外挿 d₀ᵀv を要するため、**外挿演算子が表層にない**
    (v2.17 で pressure-release を選んだ理由)。
@@ -25,8 +26,10 @@ SAT は新機構なしの表層記述: Dirichlet は
   特性 SAT が表層で閉じる。
 - 中間: SAT を prelude マクロ化(`satDirichlet_x(u, g, τ)` →
   if 連鎖へ展開)。v2.10 の surface macro(let-insertion)機構が使える。
-- Neumann は「D⁻ 閉包行の境界フラックス項を演算子引数で受ける」
-  変種 `sbpdn_x(q, glo, ghi)` が素直。
+- Neumann は境界フラックスを **boundary 宣言の側**で受けるのが v2.20 の
+  因数分解に整合する(per-call 演算子引数は sbpd と同じ取り違えに戻る):
+  宣言が名前つき定数(H⁻¹ 端重み・g)を式へ供給し、閉包行への注入は
+  `lowerSbpGuardedDerivative` の境界行だけを変える。
 
 ## 完了条件
 

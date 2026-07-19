@@ -22,7 +22,6 @@ main = do
       [ "derivative.coordinate-wide"
       , "derivative.grid-whole"
       , "derivative.ordered"
-      , "derivative.sbp-staggered"
       , "resample.explicit"
       ])
     (map primitiveSignatureOpId (primitiveManifestSignatures manifest))
@@ -86,7 +85,7 @@ main = do
   assertEqual
     "canonical fingerprint"
     (Fingerprint
-      "sha256:f85bce3e5dc32e8c096ceafaf0c44e2a0d5a4bef2b0b5454b3afae63588666bd")
+      "sha256:b7a05af81f6418b2163bd3ef280d911d6409564da41c96d455b872e62d120098")
     (primitiveManifestFingerprint manifest)
   assertEqual
     "manifest ID is its fingerprint"

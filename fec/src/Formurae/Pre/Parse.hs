@@ -517,6 +517,16 @@ validateDimensionFeatures m
          | step <- mSteps m
          , Just local <- [sLocalDecl step]]
 
+validateBoundaryDecls :: Model -> IO ()
+validateBoundaryDecls m = mapM_ check (mBoundaryDecls m)
+  where
+    check declaration
+      | boundaryAxisName declaration `elem` mAxes m = return ()
+      | otherwise = fatal
+          ("boundary declaration names unknown axis '"
+           ++ boundaryAxisName declaration ++ "' (line "
+           ++ show (boundarySourceLine declaration) ++ ")")
+
 parseDiscretizationDecl :: Int -> String -> IO DiscretizationDecl
 parseDiscretizationDecl lineNumber source =
   case words source of
@@ -570,6 +580,39 @@ parseDiscretizationDecl lineNumber source =
       ("bad discretization declaration (line " ++ show lineNumber ++ "): "
        ++ "discretization collocated [derivative ORDER] centered accuracy EVEN, "
        ++ "or discretization staggered [derivative ORDER] yee accuracy EVEN")
+
+-- boundary AXIS : sbp | periodic | ghost VALUE
+--
+-- The boundary is an axis property: one declaration fixes the treatment of
+-- every derivative along that axis, which is what makes a model-level
+-- energy-stability claim checkable.  The axis name is resolved against the
+-- axes declaration after the whole file is read.
+parseBoundaryDecl :: Int -> String -> IO BoundaryDecl
+parseBoundaryDecl lineNumber source =
+  case break (== ':') source of
+    (axisPart, ':' : kindPart)
+      | axisName <- strip axisPart
+      , not (null axisName) -> do
+          kind <- parseKind (strip kindPart)
+          return BoundaryDecl
+            { boundaryAxisName = axisName
+            , boundaryKind = kind
+            , boundarySourceLine = lineNumber
+            }
+    _ -> badSyntax
+  where
+    parseKind "sbp" = return SurfaceSbpBoundary
+    parseKind "periodic" = return SurfacePeriodicBoundary
+    parseKind spec
+      | Just fill <- stripPrefix "ghost " spec
+      , not (null (strip fill)) = return (SurfaceGhostBoundary (strip fill))
+      | spec == "ghost" = fatal ("ghost boundary needs a fill value (line "
+                                 ++ show lineNumber ++ "): boundary AXIS : ghost VALUE")
+      | otherwise = badSyntax
+    badSyntax = fatal
+      ("bad boundary declaration (line " ++ show lineNumber ++ "): "
+       ++ "boundary AXIS : sbp, boundary AXIS : periodic, "
+       ++ "or boundary AXIS : ghost VALUE")
 
 -- Parse and validate the source language without expanding definitions or
 -- selecting a discrete implementation.  pre-fec emits this model to Egison
@@ -635,6 +678,7 @@ parseModel sourceFile name txt = do
       , mEmbed = Nothing
       , mDefs = []
       , mDiscretizationDecls = []
+      , mBoundaryDecls = []
       }
     -- dimension and axes are required: they fix the coordinate frame
     -- that gives the operators their meaning (which axis ∂_theta is,
@@ -679,7 +723,9 @@ parseModel sourceFile name txt = do
                 , mSteps = reverse (mSteps m)
                 , mDefs = reverse (mDefs m)
                 , mDiscretizationDecls = reverse (mDiscretizationDecls m)
+                , mBoundaryDecls = reverse (mBoundaryDecls m)
                 }
+          validateBoundaryDecls ordered
           mUse <- expandMacros (ms ++ activePreludeMacros ordered) ordered
           validateValueBindingNames mUse
           validateMetricName mUse
@@ -827,6 +873,8 @@ parseModel sourceFile name txt = do
                           ++ "); expected mode collocated or mode dec")
       | Just r <- stripPrefix "discretization " s =
           parseDiscretizationDecl ln r >>= addDiscretizationDecl
+      | Just r <- stripPrefix "boundary " s =
+          parseBoundaryDecl ln r >>= addBoundaryDecl
       | Just r <- stripPrefix "def " s =
           addDefinition ln (sourceTextForRhs ln originalLine) r m
       | Just r <- stripPrefix "param " s =
@@ -924,6 +972,14 @@ parseModel sourceFile name txt = do
                then fatal ("duplicate discretization rule (line " ++ show ln ++ ")")
                else return m
                  { mDiscretizationDecls = declaration : mDiscretizationDecls m }
+        addBoundaryDecl declaration =
+          if any ((== boundaryAxisName declaration) . boundaryAxisName)
+               (mBoundaryDecls m)
+            then fatal ("duplicate boundary declaration for axis '"
+                        ++ boundaryAxisName declaration ++ "' (line "
+                        ++ show ln ++ ")")
+            else return m
+              { mBoundaryDecls = declaration : mBoundaryDecls m }
         dim r | all isDigit (strip r), n <- read (strip r) =
                   if n < (1 :: Int) || n > 3
                     then fatal ("Formurae currently supports dimension 1, 2, or 3 (got "
@@ -1432,10 +1488,13 @@ invalidDerivativeOp :: Model -> String -> Maybe String
 invalidDerivativeOp _ nm =
   case derivativeOpParts nm of
     Nothing ->
+      -- The sbpd spelling is retired: the boundary treatment is an axis
+      -- property, so the opaque per-call operator became a declaration.
       case sbpOpParts nm of
-        Just (order, _)
-          | order /= 1 && order /= 2 ->
-              Just ("SBP staggered derivative order must be 1 or 2: " ++ nm)
+        Just _ ->
+          Just (nm ++ " is retired: declare the boundary (boundary AXIS : sbp)"
+                ++ " and write the plain derivative"
+                ++ " (∂_x for sbpd_x, ∂^2_x for sbpd2_x)")
         _ -> Nothing
     Just (ordr, radius, part)
       | ordr < 1 ->

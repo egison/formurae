@@ -562,6 +562,7 @@ baseModel = Model
   , mEmbed = Nothing
   , mDefs = []
   , mDiscretizationDecls = []
+  , mBoundaryDecls = []
   }
 
 variableMetricModel :: Model

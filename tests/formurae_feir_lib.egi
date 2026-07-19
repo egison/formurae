@@ -234,12 +234,14 @@ def feirProgramFixture :=
               [ FEIR.field "id" (FEIR.int 1)
               , FEIR.field "source-name" (FEIR.string "x")
               , FEIR.field "canonical-name" (FEIR.string "x")
+              , FEIR.field "boundary" (FEIR.list [FEIR.atom "sbp"])
               , FEIR.field "origin" (FEIR.int 1)
               ]
           , FEIR.record "axis"
               [ FEIR.field "id" (FEIR.int 2)
               , FEIR.field "source-name" (FEIR.string "θ")
               , FEIR.field "canonical-name" (FEIR.string "y")
+              , FEIR.field "boundary" (FEIR.list [FEIR.atom "periodic"])
               , FEIR.field "origin" (FEIR.int 1)
               ]
           ])

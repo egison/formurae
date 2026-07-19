@@ -6,7 +6,6 @@ module Formurae.Post.Compile
   , SbpDerivativeError(..)
   , wideDerivativeOperationId
   , gridWholeDerivativeOperationId
-  , sbpStaggeredOperationId
   , compileProgram
   ) where
 
@@ -58,12 +57,17 @@ data GridWholeDerivativeError
   | GridWholeStencilFailure StencilError
   deriving (Eq, Show)
 
+-- | Failures of the summation-by-parts boundary treatment on a declared
+-- sbp axis.  The closure is a property of the axis, so these arise from
+-- ordinary derivative requests whose axis carries @boundary AXIS : sbp@.
 data SbpDerivativeError
-  = SbpMetadataError DerivativeMetadataError
-  | SbpOrderUnsupported Int
-  | SbpRadiusMustBeOne Int
-  | SbpRequiresStaggeredLattice
+  = SbpRequiresStaggeredLattice
   | SbpSecondOrderNeedsIntegerPlacement Placement
+  | SbpClosureUnavailable Int Int
+  | SbpProfileClosureUnavailable Int Int
+  | SbpClosureInsideStencil AxisId
+  | SbpOrderedChainUnsupported AxisId
+  | SbpResampleUnsupported AxisId
   | SbpClosureFailure StencilError
   deriving (Eq, Show)
 
@@ -72,9 +76,6 @@ wideDerivativeOperationId = Primitives.derivativeCoordinateWideOpId
 
 gridWholeDerivativeOperationId :: OpId
 gridWholeDerivativeOperationId = Primitives.derivativeGridWholeOpId
-
-sbpStaggeredOperationId :: OpId
-sbpStaggeredOperationId = Primitives.derivativeSbpStaggeredOpId
 
 orderedDerivativeOperationId :: OpId
 orderedDerivativeOperationId = Primitives.derivativeOrderedOpId
@@ -100,6 +101,7 @@ data PostError
   | PostWideDerivativeError SemanticKey WideDerivativeError
   | PostGridWholeDerivativeError SemanticKey GridWholeDerivativeError
   | PostSbpDerivativeError SemanticKey SbpDerivativeError
+  | PostSbpProfileError SbpDerivativeError
   | PostPrimitiveContractError SemanticKey PrimitiveContractError
   | PostExplicitStencilError SemanticKey ExplicitStencilError
   | PostDerivativeLatticeMismatch SemanticKey LatticeClass LatticeClass
@@ -486,9 +488,6 @@ lowerOpaqueShifted environment targetPlacement sampleOffsets opaque
       lowerWideDerivative environment targetPlacement sampleOffsets opaque
   | opaqueDiscreteOpId opaque == gridWholeDerivativeOperationId =
       lowerGridWholeDerivative environment targetPlacement sampleOffsets opaque
-  | opaqueDiscreteOpId opaque == sbpStaggeredOperationId =
-      lowerSbpStaggeredDerivative environment targetPlacement sampleOffsets
-        opaque
   | opaqueDiscreteOpId opaque == orderedDerivativeOperationId =
       lowerOrderedDerivative environment targetPlacement sampleOffsets opaque
   | opaqueDiscreteOpId opaque == resampleOperationId =
@@ -504,6 +503,15 @@ lowerOrderedDerivative
 lowerOrderedDerivative environment targetPlacement sampleOffsets opaque = do
   request <- mapPrimitiveContract opaque
     (parseOrderedDerivativeRequest (programDimension environment) opaque)
+  -- An ordered chain stages radius-one differences without closures, so a
+  -- declared sbp axis inside the chain would read outside the domain.
+  mapM_ (\axisId -> do
+      boundary <- axisBoundary environment axisId
+      case boundary of
+        SbpBoundary -> mapSbpError opaque
+          (Left (SbpOrderedChainUnsupported axisId))
+        _ -> Right ())
+    (orderedDerivativeAxes request)
   location <- inferScalarLocation environment
     (opaqueDiscreteSemanticKey opaque) (orderedDerivativeOperand request)
   let sourcePlacement = case scalarLocationCapability location of
@@ -561,6 +569,14 @@ lowerResample environment targetPlacement sampleOffsets opaque = do
       lowerScalarShifted environment explicitTarget sampleOffsets
         (resampleOperand request)
     LocatedCapability sourcePlacement -> do
+      -- Resampling toward integer points samples the half point below the
+      -- target, which reads outside the domain at the low wall of a
+      -- declared sbp axis; no closure exists for it yet.  The opposite
+      -- direction only feeds the out-of-domain half slot at the top, which
+      -- the closures never read, so it stays admissible.
+      mapM_ (checkResampleAxis sourcePlacement explicitTarget)
+        (zip [1 ..] (zip (placementBits sourcePlacement)
+          (placementBits explicitTarget)))
       stencil <- mapExplicitStencil opaque
         (resampleLinearStencil sourcePlacement explicitTarget)
       samples <- mapM (lowerSample sourcePlacement (resampleOperand request))
@@ -571,6 +587,15 @@ lowerResample environment targetPlacement sampleOffsets opaque = do
       shifted <- addSampleOffsets sampleOffsets offsets
       sample <- lowerScalarShifted environment sourcePlacement shifted operand
       Right (normalizeExpr (FMul [exactExpr coefficient, sample]))
+    checkResampleAxis _ _ (axisNumber, (sourceBit, targetBit))
+      | sourceBit /= targetBit
+      , sourceBit == HalfPoint = do
+          boundary <- axisBoundary environment (AxisId axisNumber)
+          case boundary of
+            SbpBoundary -> mapSbpError opaque
+              (Left (SbpResampleUnsupported (AxisId axisNumber)))
+            _ -> Right ()
+    checkResampleAxis _ _ _ = Right ()
 
 placementFromBits :: [Bool] -> Placement
 placementFromBits = Placement . map
@@ -617,36 +642,42 @@ lowerWideDerivative environment targetPlacement sampleOffsets opaque = do
   if naturalTarget == targetPlacement
     then Right ()
     else Left (PostInvalidReferencePlacement targetPlacement naturalTarget)
-  weights <-
-    if naturalTarget == sourcePlacement
-      then do
-        let accuracy = maximalCenteredAccuracy
-              (derivativeRequestOrder request) (derivativeRequestRadius request)
-        stencil <- mapWideError opaque
-          (mapLeft WideStencilFailure
-            (centeredTaylorAtRadius
-              (derivativeRequestOrder request) accuracy
-              (derivativeRequestRadius request)))
-        Right (centeredWeights stencil)
-      else do
-        -- Odd staggered orders land on the toggled sub-lattice; the samples
-        -- stay on the operand's own sub-lattice, so the attribute radius
-        -- counts sample pairs and the effective radius is radius − 1/2.
-        let pairs = derivativeRequestRadius request
-            accuracy = maximalStaggeredAccuracy
-              (derivativeRequestOrder request) pairs
-        stencil <- mapWideError opaque
-          (mapLeft WideStencilFailure
-            (staggeredTaylorAtPairs
-              (derivativeRequestOrder request) accuracy pairs))
-        staggeredStorageWeights sourcePlacement
-          (derivativeRequestAxis request) stencil
-  samples <- mapM (lowerSample request sourcePlacement) weights
-  step <- axisStep environment (derivativeRequestAxis request)
-  let numerator = normalizeExpr (FAdd samples)
-      denominator = FPow step
-        (FExact (toInteger (derivativeRequestOrder request)) 1)
-  Right (normalizeExpr (FDiv numerator denominator))
+  boundary <- axisBoundary environment (derivativeRequestAxis request)
+  case boundary of
+    SbpBoundary ->
+      lowerWideSbpDerivative environment sampleOffsets opaque request
+        sourcePlacement (scalarLocationLattice location)
+    _ -> do
+      weights <-
+        if naturalTarget == sourcePlacement
+          then do
+            let accuracy = maximalCenteredAccuracy
+                  (derivativeRequestOrder request) (derivativeRequestRadius request)
+            stencil <- mapWideError opaque
+              (mapLeft WideStencilFailure
+                (centeredTaylorAtRadius
+                  (derivativeRequestOrder request) accuracy
+                  (derivativeRequestRadius request)))
+            Right (centeredWeights stencil)
+          else do
+            -- Odd staggered orders land on the toggled sub-lattice; the samples
+            -- stay on the operand's own sub-lattice, so the attribute radius
+            -- counts sample pairs and the effective radius is radius − 1/2.
+            let pairs = derivativeRequestRadius request
+                accuracy = maximalStaggeredAccuracy
+                  (derivativeRequestOrder request) pairs
+            stencil <- mapWideError opaque
+              (mapLeft WideStencilFailure
+                (staggeredTaylorAtPairs
+                  (derivativeRequestOrder request) accuracy pairs))
+            staggeredStorageWeights sourcePlacement
+              (derivativeRequestAxis request) stencil
+      samples <- mapM (lowerSample request sourcePlacement) weights
+      step <- axisStep environment (derivativeRequestAxis request)
+      let numerator = normalizeExpr (FAdd samples)
+          denominator = FPow step
+            (FExact (toInteger (derivativeRequestOrder request)) 1)
+      Right (normalizeExpr (FDiv numerator denominator))
   where
     lowerSample request sourcePlacement (offset, coefficient) = do
       let AxisId axisNumber = derivativeRequestAxis request
@@ -654,6 +685,43 @@ lowerWideDerivative environment targetPlacement sampleOffsets opaque = do
       sample <- lowerScalarShifted environment sourcePlacement offsets
         (derivativeRequestOperand request)
       Right (normalizeExpr (FMul [exactExpr coefficient, sample]))
+
+-- | A wide request on a declared sbp axis: the only width with a closure so
+-- far is the composed second derivative at the minimal radius (the exact
+-- composition of the two staggered stages).  Every other width is a static
+-- error until the higher-order closure constructor lands; an sbp axis never
+-- silently lowers a closure-free stencil.
+lowerWideSbpDerivative
+    :: CompileEnvironment
+    -> [Int]
+    -> OpaqueDiscrete
+    -> CoordinateDerivativeRequest
+    -> Placement
+    -> Maybe LatticeClass
+    -> Either PostError FExpr
+lowerWideSbpDerivative environment sampleOffsets opaque request
+    sourcePlacement lattice = do
+  if lattice == Just StaggeredLattice
+    then Right ()
+    else mapSbpError opaque (Left SbpRequiresStaggeredLattice)
+  bit <- placementAxisBit sourcePlacement (derivativeRequestAxis request)
+  case (derivativeRequestOrder request, derivativeRequestRadius request) of
+    (2, 1) ->
+      case bit of
+        HalfPoint -> mapSbpError opaque
+          (Left (SbpSecondOrderNeedsIntegerPlacement sourcePlacement))
+        IntegerPoint ->
+          lowerSbpGuardedDerivative environment
+            (PostSbpDerivativeError (opaqueDiscreteSemanticKey opaque))
+            (derivativeRequestAxis request) 2 bit sampleOffsets lowerSample
+    (order, radius) -> mapSbpError opaque
+      (Left (SbpClosureUnavailable order radius))
+  where
+    lowerSample offset = do
+      let AxisId axisNumber = derivativeRequestAxis request
+          offsets = adjustOffset axisNumber offset sampleOffsets
+      lowerScalarShifted environment sourcePlacement offsets
+        (derivativeRequestOperand request)
 
 lowerGridWholeDerivative
     :: CompileEnvironment
@@ -678,83 +746,79 @@ lowerGridWholeDerivative environment targetPlacement sampleOffsets opaque = do
   if naturalTarget == targetPlacement
     then Right ()
     else Left (PostInvalidReferencePlacement targetPlacement naturalTarget)
-  weights <- gridWholeWeights opaque request sourcePlacement
-    (scalarLocationLattice location)
-  samples <- mapM (lowerSample request sourcePlacement) weights
-  step <- axisStep environment (derivativeRequestAxis request)
-  Right (normalizeExpr
-    (FDiv (normalizeExpr (FAdd samples)) step))
+  boundary <- axisBoundary environment (derivativeRequestAxis request)
+  case boundary of
+    SbpBoundary -> do
+      if scalarLocationLattice location == Just StaggeredLattice
+        then Right ()
+        else mapSbpError opaque (Left SbpRequiresStaggeredLattice)
+      bit <- placementAxisBit sourcePlacement (derivativeRequestAxis request)
+      lowerSbpGuardedDerivative environment
+        (PostSbpDerivativeError (opaqueDiscreteSemanticKey opaque))
+        (derivativeRequestAxis request) 1 bit sampleOffsets
+        (lowerSample request sourcePlacement)
+    _ -> do
+      weights <- gridWholeWeights opaque request sourcePlacement
+        (scalarLocationLattice location)
+      samples <- mapM (lowerWeighted request sourcePlacement) weights
+      step <- axisStep environment (derivativeRequestAxis request)
+      Right (normalizeExpr
+        (FDiv (normalizeExpr (FAdd samples)) step))
   where
-    lowerSample request sourcePlacement (offset, coefficient) = do
+    lowerSample request sourcePlacement offset = do
       let AxisId axisNumber = derivativeRequestAxis request
           offsets = adjustOffset axisNumber offset sampleOffsets
-      sample <- lowerScalarShifted environment sourcePlacement offsets
+      lowerScalarShifted environment sourcePlacement offsets
         (derivativeRequestOperand request)
+    lowerWeighted request sourcePlacement (offset, coefficient) = do
+      sample <- lowerSample request sourcePlacement offset
       Right (normalizeExpr (FMul [exactExpr coefficient, sample]))
 
--- | Lower the SBP staggered derivative: the interior rows are the ordinary
--- staggered stencils, and the rows nearest each physical boundary are
--- replaced by the summation-by-parts closure rows behind index guards, so
--- no sample ever reaches outside the domain.  Order 1 with an
--- integer-placed operand is the closure-free primal-to-dual direction;
--- order 1 with a half-placed operand and order 2 with an integer-placed
--- operand carry one closure row per end.
-lowerSbpStaggeredDerivative
+-- | Lower one derivative along a declared sbp axis: the interior rows are
+-- the ordinary staggered stencils, and the rows nearest each physical
+-- boundary are replaced by the summation-by-parts closure rows behind index
+-- guards, so no in-domain sample ever reaches outside the domain.  Order 1
+-- with an integer-placed operand is the closure-free primal-to-dual
+-- direction; order 1 with a half-placed operand and order 2 with an
+-- integer-placed operand carry one closure row per end.  The sample
+-- callback lowers the operand at one storage offset along the axis, which
+-- lets ordinary whole-expression requests and profile field jets share the
+-- one closure construction.
+lowerSbpGuardedDerivative
     :: CompileEnvironment
-    -> Placement
+    -> (SbpDerivativeError -> PostError)
+    -> AxisId
+    -> Int
+    -> HalfBit
     -> [Int]
-    -> OpaqueDiscrete
+    -> (Int -> Either PostError FExpr)
     -> Either PostError FExpr
-lowerSbpStaggeredDerivative environment targetPlacement sampleOffsets
-    opaque = do
-  request <- mapSbpError opaque
-    (mapLeft SbpMetadataError (parseDerivativeRequest opaque))
-  if derivativeRequestRadius request == 1
-    then Right ()
-    else mapSbpError opaque
-      (Left (SbpRadiusMustBeOne (derivativeRequestRadius request)))
-  if derivativeRequestOrder request == 1
-      || derivativeRequestOrder request == 2
-    then Right ()
-    else mapSbpError opaque
-      (Left (SbpOrderUnsupported (derivativeRequestOrder request)))
-  axis <- lookupAxis environment (derivativeRequestAxis request)
-  location <- inferScalarLocation environment
-    (opaqueDiscreteSemanticKey opaque) (derivativeRequestOperand request)
-  let sourcePlacement =
-        case scalarLocationCapability location of
-          LocatedCapability placement -> placement
-          ConstantCapability -> targetPlacement
-          SampleableCapability -> targetPlacement
-  if scalarLocationLattice location == Just StaggeredLattice
-    then Right ()
-    else mapSbpError opaque (Left SbpRequiresStaggeredLattice)
-  naturalTarget <- derivativeNaturalTarget request sourcePlacement
-    (scalarLocationLattice location)
-  if naturalTarget == targetPlacement
-    then Right ()
-    else Left (PostInvalidReferencePlacement targetPlacement naturalTarget)
-  pair <- mapSbpError opaque
-    (mapLeft SbpClosureFailure (sbpStaggeredPair 1))
-  bit <- placementAxisBit sourcePlacement (derivativeRequestAxis request)
-  step <- axisStep environment (derivativeRequestAxis request)
+lowerSbpGuardedDerivative environment wrapError axisId order bit
+    sampleOffsets lowerSample = do
+  pair <- mapLeft (wrapError . SbpClosureFailure) (sbpStaggeredPair 1)
+  axis <- lookupAxis environment axisId
+  step <- axisStep environment axisId
   indices <- indexNames environment
-  let AxisId axisNumber = derivativeRequestAxis request
+  let AxisId axisNumber = axisId
       indexVariable = FVariable (indices !! (axisNumber - 1))
       extentVariable = FVariable ("total_grid_" ++ axisDeclSourceName axis)
-      order = derivativeRequestOrder request
       denominator = FPow step (FExact (toInteger order) 1)
       lowerRow weights = do
         samples <- mapM lowerRowSample weights
         Right (normalizeExpr
           (FDiv (normalizeExpr (FAdd samples)) denominator))
       lowerRowSample (offset, coefficient) = do
-        let offsets = adjustOffset axisNumber offset sampleOffsets
-        sample <- lowerScalarShifted environment sourcePlacement offsets
-          (derivativeRequestOperand request)
+        sample <- lowerSample offset
         Right (normalizeExpr (FMul [exactExpr coefficient, sample]))
-      guardedRows lowRows highRows interiorWeights = do
-        interior <- lowerRow interiorWeights
+      guardedRows lowRows highRows interiorStencil = do
+        -- The guards compare the raw loop index, so a closure evaluated at
+        -- a shifted sample point would select the wrong rows; no enclosing
+        -- stencil may shift a guarded closure along its own axis.
+        case drop (axisNumber - 1) sampleOffsets of
+          shift : _ | shift /= 0 ->
+            Left (wrapError (SbpClosureInsideStencil axisId))
+          _ -> Right ()
+        interior <- lowerRow interiorStencil
         low <- mapM (boundaryBranch lowGuard) lowRows
         high <- mapM (boundaryBranch highGuard) highRows
         Right (foldr (\(condition, expr) rest ->
@@ -769,18 +833,17 @@ lowerSbpStaggeredDerivative environment targetPlacement sampleOffsets
         FCompare CompareEq indexVariable
           (normalizeExpr (FAdd
             [extentVariable, FExact (negate (toInteger (offset + 1))) 1]))
-  interiorWeights <- staggeredStorageWeights sourcePlacement
-    (derivativeRequestAxis request) (sbpInteriorStage pair)
+      interiorWeights =
+        staggeredStorageWeightsAtBit bit (sbpInteriorStage pair)
   case (order, bit) of
     (1, IntegerPoint) -> lowerRow interiorWeights
     (1, HalfPoint) ->
       guardedRows (sbpDualToPrimalLow pair) (sbpDualToPrimalHigh pair)
         interiorWeights
-    (_, IntegerPoint) ->
+    (2, IntegerPoint) ->
       guardedRows (sbpSecondLow pair) (sbpSecondHigh pair)
         [(-1, 1), (0, -2), (1, 1)]
-    (_, HalfPoint) -> mapSbpError opaque
-      (Left (SbpSecondOrderNeedsIntegerPlacement sourcePlacement))
+    _ -> Left (wrapError (SbpClosureUnavailable order 1))
 
 placementAxisBit :: Placement -> AxisId -> Either PostError HalfBit
 placementAxisBit (Placement bits) axisId@(AxisId axisNumber) =
@@ -789,21 +852,10 @@ placementAxisBit (Placement bits) axisId@(AxisId axisNumber) =
     [] -> Left (PostLocationError
       (InvalidDerivativeAxis axisId (length bits)))
 
-inferSbpStaggeredLocation
-    :: CompileEnvironment
-    -> OpaqueDiscrete
-    -> Either PostError ScalarLocationInfo
-inferSbpStaggeredLocation environment opaque = do
-  request <- mapSbpError opaque
-    (mapLeft SbpMetadataError (parseDerivativeRequest opaque))
-  location <- inferScalarLocation environment
-    (opaqueDiscreteSemanticKey opaque) (derivativeRequestOperand request)
-  case scalarLocationCapability location of
-    LocatedCapability source -> do
-      target <- derivativeNaturalTarget request source
-        (scalarLocationLattice location)
-      Right location { scalarLocationCapability = LocatedCapability target }
-    _ -> Right location
+axisBoundary
+    :: CompileEnvironment -> AxisId -> Either PostError BoundaryCondition
+axisBoundary environment axisId =
+  axisDeclBoundary <$> lookupAxis environment axisId
 
 mapSbpError
     :: OpaqueDiscrete
@@ -980,8 +1032,6 @@ inferScalarLocation environment semanticKey scalar =
           inferWideLocation environment opaque
       | opaqueDiscreteOpId opaque == gridWholeDerivativeOperationId ->
           inferGridWholeLocation environment opaque
-      | opaqueDiscreteOpId opaque == sbpStaggeredOperationId ->
-          inferSbpStaggeredLocation environment opaque
       | opaqueDiscreteOpId opaque == orderedDerivativeOperationId ->
           inferOrderedDerivativeLocation environment opaque
       | opaqueDiscreteOpId opaque == resampleOperationId ->
@@ -1311,32 +1361,37 @@ lowerFieldDerivativeShifted environment targetPlacement sampleOffsets jet = do
     (resolveFieldJetProfile
       (feProgramDiscretization (compileProgramInput environment))
       (logicalFieldPolicy field) jet)
-  axisStencils <- mapM (axisStencil sourcePlacement)
+  guardedAxes <- concatMapM (classifySbpAxis sourcePlacement)
     (fieldJetProfileAxes profilePlan)
-  indices <- indexNames environment
-  name <- mapFMRError (storageName field (fieldJetBasis jet))
-  denominatorFactors <- mapM denominatorFactor
-    (fieldJetProfileAxes profilePlan)
-  let storage =
-        case fieldJetTimeSlot jet of
-          CurrentTime -> name
-          NextTime -> name ++ "'"
-      weightedOffsets = foldl combineOffsets
-        [(sampleOffsets, 1)] axisStencils
-      numerator = FAdd
-        [ normalizeExpr (FMul
-            [ exactExpr coefficient
-            , FGridReference storage
-                (zipWith GridIndex indices (map fromIntegral offsets))
-            ])
-        | (offsets, coefficient) <- weightedOffsets
-        ]
-      denominator =
-        case denominatorFactors of
-          [] -> FExact 1 1
-          [factor] -> factor
-          factors -> FMul factors
-  Right (normalizeExpr (FDiv (normalizeExpr numerator) (normalizeExpr denominator)))
+  case guardedAxes of
+    guarded : _ -> peelGuardedAxis field sourcePlacement guarded
+    [] -> do
+      axisStencils <- mapM (axisStencil sourcePlacement)
+        (fieldJetProfileAxes profilePlan)
+      indices <- indexNames environment
+      name <- mapFMRError (storageName field (fieldJetBasis jet))
+      denominatorFactors <- mapM denominatorFactor
+        (fieldJetProfileAxes profilePlan)
+      let storage =
+            case fieldJetTimeSlot jet of
+              CurrentTime -> name
+              NextTime -> name ++ "'"
+          weightedOffsets = foldl combineOffsets
+            [(sampleOffsets, 1)] axisStencils
+          numerator = FAdd
+            [ normalizeExpr (FMul
+                [ exactExpr coefficient
+                , FGridReference storage
+                    (zipWith GridIndex indices (map fromIntegral offsets))
+                ])
+            | (offsets, coefficient) <- weightedOffsets
+            ]
+          denominator =
+            case denominatorFactors of
+              [] -> FExact 1 1
+              [factor] -> factor
+              factors -> FMul factors
+      Right (normalizeExpr (FDiv (normalizeExpr numerator) (normalizeExpr denominator)))
   where
     denominatorFactor resolvedAxis = do
       step <- axisStep environment (resolvedAxisId resolvedAxis)
@@ -1353,6 +1408,61 @@ lowerFieldDerivativeShifted environment targetPlacement sampleOffsets jet = do
             staggeredStorageWeights sourcePlacement
               (resolvedAxisId resolvedAxis) stage
       Right (axisNumber, weights)
+
+    -- Classify one profile factor against its axis boundary.  On a declared
+    -- sbp axis only the minimal staggered widths exist so far: the
+    -- closure-free primal-to-dual first stage lowers inline, the
+    -- dual-to-primal first stage and the composed second stage need guarded
+    -- closure rows, and every other order or accuracy is a static error
+    -- until the higher-order closure constructor lands.
+    classifySbpAxis sourcePlacement resolvedAxis = do
+      boundary <- axisBoundary environment (resolvedAxisId resolvedAxis)
+      case boundary of
+        SbpBoundary -> do
+          let rule = resolvedAxisRule resolvedAxis
+              order = resolvedAxisDerivativeOrder resolvedAxis
+              accuracy = resolvedRuleFormalAccuracy rule
+          if resolvedRuleLatticeClass rule == StaggeredLattice
+            then Right ()
+            else Left (PostSbpProfileError SbpRequiresStaggeredLattice)
+          if accuracy == 2
+            then Right ()
+            else Left (PostSbpProfileError
+              (SbpProfileClosureUnavailable order accuracy))
+          bit <- placementAxisBit sourcePlacement (resolvedAxisId resolvedAxis)
+          case (order, bit) of
+            (1, IntegerPoint) -> Right []
+            (1, HalfPoint) -> Right [(resolvedAxis, bit)]
+            (2, IntegerPoint) -> Right [(resolvedAxis, bit)]
+            (2, HalfPoint) -> Left (PostSbpProfileError
+              (SbpSecondOrderNeedsIntegerPlacement sourcePlacement))
+            _ -> Left (PostSbpProfileError
+              (SbpProfileClosureUnavailable order accuracy))
+        _ -> Right []
+
+    -- Lower the guarded factor outermost and recurse on the jet without
+    -- that axis: each closure row samples the remaining derivative at the
+    -- row's storage offset, so mixed jets compose with the same closure
+    -- rows as the pure ones.
+    peelGuardedAxis field sourcePlacement (resolvedAxis, bit) = do
+      let axisId = resolvedAxisId resolvedAxis
+          AxisId axisNumber = axisId
+          order = resolvedAxisDerivativeOrder resolvedAxis
+          reducedJet = jet
+            { fieldJetMultiIndex =
+                [ entry
+                | entry@(entryAxis, _) <- fieldJetMultiIndex jet
+                , entryAxis /= axisId
+                ]
+            }
+      reducedTarget <- mapLocationError
+        (derivativePlacementForPolicy (logicalFieldPolicy field)
+          (fieldJetMultiIndex reducedJet) sourcePlacement)
+      lowerSbpGuardedDerivative environment PostSbpProfileError axisId order
+        bit sampleOffsets
+        (\offset -> lowerScalarShifted environment reducedTarget
+          (adjustOffset axisNumber offset sampleOffsets)
+          (FieldJet reducedJet))
 
 yeeFirstWeights :: Placement -> Int -> Either PostError [(Int, Rational)]
 yeeFirstWeights (Placement bits) axisNumber =
@@ -1371,16 +1481,22 @@ staggeredStorageWeights
     -> Either PostError [(Int, Rational)]
 staggeredStorageWeights (Placement bits) axisId@(AxisId axisNumber) stencil =
   case drop (axisNumber - 1) bits of
-    IntegerPoint : _ -> Right
+    bit : _ -> Right (staggeredStorageWeightsAtBit bit stencil)
+    [] -> Left (PostLocationError
+      (InvalidDerivativeAxis axisId (length bits)))
+
+staggeredStorageWeightsAtBit
+    :: HalfBit -> StaggeredStencil -> [(Int, Rational)]
+staggeredStorageWeightsAtBit bit stencil =
+  case bit of
+    IntegerPoint ->
       [ ((twiceOffset + 1) `div` 2, weight)
       | (twiceOffset, weight) <- staggeredTwiceWeights stencil
       ]
-    HalfPoint : _ -> Right
+    HalfPoint ->
       [ ((twiceOffset - 1) `div` 2, weight)
       | (twiceOffset, weight) <- staggeredTwiceWeights stencil
       ]
-    [] -> Left (PostLocationError
-      (InvalidDerivativeAxis axisId (length bits)))
 
 combineOffsets
     :: [([Int], Rational)]
