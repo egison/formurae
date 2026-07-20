@@ -305,7 +305,8 @@ typed `local`として物質化し、`lbm_d3q19`は中心1階・2階差分の恒
 | `spec/feir-primitives.sexp` | 5 primitiveのfull signatureを規定する唯一のmanifest source |
 | `spec/egison-normalization.list` | Egison normalization libraryの規範load順 |
 | `examples/` | model、生成artifact、C numerical check |
-| `gallery/` | sourceと数値結果のgallery |
+| `gallery/` | galleryのasset(画像・動画・データ)と生成スクリプト |
+| `html/ja/`・`html/en/` | gallery・usage guideのHTML(日本語/英語) |
 
 galleryの時間場は、初期・最終画像の補間ではなく、数値計算中に等間隔で保存した実データから
 H.264動画を生成します。`ffmpeg`を用意し、全exampleのC生成後に次を実行します。
@@ -344,7 +345,8 @@ make all
 ## 関連資料
 
 - [`DSL-DESIGN.md`](DSL-DESIGN.md): 表層構文と設計履歴
-- [`gallery/usage.html`](gallery/usage.html): tutorialとusage guide
+- [`html/ja/usage.html`](html/ja/usage.html)/[`html/en/usage.html`](html/en/usage.html): tutorialとusage guide
+- [`html/ja/gallery.html`](html/ja/gallery.html)/[`html/en/gallery.html`](html/en/gallery.html): 検証済み応用のgallery
 - [`APPLICATIONS.md`](APPLICATIONS.md): 応用例一覧
 - [`UPSTREAM.md`](UPSTREAM.md): Formura側の拡張計画
 

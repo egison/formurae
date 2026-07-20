@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Formurae Usage Guide</title>
+<style>
+  :root { --ink:#1c1e21; --sub:#5a6270; --line:#e3e6ea; --accent:#0b5fa5; }
+  * { box-sizing:border-box; }
+  body { margin:0; color:var(--ink); background:#f6f7f9;
+         font-family:"Hiragino Sans","Noto Sans JP",Helvetica,Arial,sans-serif; }
+  header { padding:28px 32px; background:#fff; border-bottom:1px solid var(--line); }
+  header h1 { margin:0 0 6px; font-size:22px; }
+  header p { margin:4px 0; max-width:980px; color:var(--sub); font-size:13.5px; }
+  main { max-width:920px; margin:auto; padding:12px 24px 80px; font-size:14px; line-height:1.8; }
+  h2 { margin:40px 0 10px; padding-left:10px; color:var(--accent);
+       border-left:4px solid var(--accent); font-size:17px; }
+  h3 { margin:24px 0 6px; font-size:14.5px; }
+  a { color:var(--accent); }
+  code { padding:1px 5px; border-radius:4px; background:#eef1f4;
+         font:12.5px "SF Mono",Menlo,Consolas,monospace; }
+  pre { overflow-x:auto; padding:12px 15px; border-radius:8px;
+        color:#dbe7f6; background:#0e1726;
+        font:12.5px/1.6 "SF Mono",Menlo,Consolas,monospace; }
+  pre .c { color:#6f8cac; }
+  table { width:100%; margin:10px 0; border-collapse:collapse; font-size:13px; }
+  th,td { padding:7px 10px; border:1px solid var(--line); background:#fff; text-align:left; }
+  th { background:#f0f3f7; }
+  .toc,.note { margin:18px 0; padding:11px 16px; border:1px solid var(--line);
+               border-radius:8px; background:#fff; font-size:13px; }
+  .note { background:#fff9e9; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Formurae Usage Guide</h1>
+  <p>A guide to evaluating tensor index notation, differential forms, and analytic derivatives in Egison,
+     performing only the discretization in post-fec,
+     and connecting to Formura's MPI, temporal-blocking C code.
+     Worked examples live in the <a href="gallery.html">Formurae gallery</a>.</p>
+</header>
+<main>
+
+<div class="toc">
+  <b>Contents:</b>
+  <a href="#pipeline">pipeline</a> / <a href="#setup">setup</a> /
+  <a href="#tutorial">tutorial</a> / <a href="#syntax">syntax</a> /
+  <a href="#operators">operator classification</a> / <a href="#derivative">derivatives and accuracy</a> /
+  <a href="#tensor">tensor &amp; form</a> /
+  <a href="#geometry">geometry</a> / <a href="#artifacts">artifacts and verification</a>
+</div>
+
+<h2 id="pipeline">1. The four-stage pipeline</h2>
+
+<pre>model.fme    Formurae source
+   │ pre-fec: parse / scope / declaration / source map
+model.egi    Egison normalization unit
+   │ Egison: tensor/index algebra / analytic derivative / CAS
+model.feir   canonical Formurae Egison IR
+   │ post-fec: placement / exact stencil / auxiliary fields / storage
+model.fmr    Formura source
+   │ Formura
+model.c/.h   MPI + temporal blocking C library</pre>
+
+<p>Operators definable as pure analytic expressions belong to Egison; the discrete semantics — concrete
+finite differences, grid placement, storage — belong to opaque requests and post-fec;
+loops and communication belong to Formura.
+On success, Egison's stdout is exactly one FEIR. Warnings and type/evaluation errors are rejected by the machine runner.</p>
+
+<h2 id="setup">2. Setup</h2>
+
+<pre><span class="c"># Requires GHC 9.6.x, cabal, stack (for Formura), and an adjacent ../egison</span>
+make setup
+cabal build
+make diffusion3d
+make all</pre>
+
+<p class="note">Formurae and Egison are built with cabal. stack is used only to build Formura upstream.
+A 1-rank stub is bundled for environments without MPI.</p>
+
+<h2 id="tutorial">3. The diffusion equation</h2>
+
+<pre>mode collocated
+dimension 3
+axes x, y, z
+
+param κ = 1.0
+param dt = 0.1*dx*dx
+
+raw gauss = fun(x,y,z) exp(-((x-32*dx)/(5*dx))**2 - ...)
+
+field u : scalar
+
+init:
+  u = gauss(i*dx,j*dy,k*dz)
+
+step:
+  u' = u + dt * κ * Δ u</pre>
+
+<p><code>make diffusion3d</code> generates the four intermediate artifacts and runs through Formura and the C check.
+<code>Δ</code> is the canonical scalar Laplacian of <code>mode collocated</code>; the discretization accuracy is chosen from the model profile.</p>
+
+<h2 id="syntax">4. Surface syntax</h2>
+
+<table>
+<tr><th>Syntax</th><th>Meaning</th></tr>
+<tr><td><code>mode collocated</code> / <code>mode dec</code></td><td>Grid and operator context of the model. Required</td></tr>
+<tr><td><code>dimension 1..3</code></td><td>Dimension of the Formura backend</td></tr>
+<tr><td><code>axes x, y, z</code></td><td>Coordinate names and AxisIds. Required</td></tr>
+<tr><td><code>param dt = ...</code></td><td>Formura parameter</td></tr>
+<tr><td><code>extern exp</code></td><td>external scalar function</td></tr>
+<tr><td><code>raw NAME = ...</code></td><td>verbatim Formura helper</td></tr>
+<tr><td><code>Δ u</code></td><td>Canonical Laplacian of a collocated scalar</td></tr>
+<tr><td><code>field u : scalar</code></td><td>scalar state field</td></tr>
+<tr><td><code>field E_i @ primal</code></td><td>Rank-1 field with variance</td></tr>
+<tr><td><code>field σ{~i~j} @ primal</code></td><td>symmetric rank-2 field</td></tr>
+<tr><td><code>field B : 2-form</code></td><td>Differential form. The default policy is Primal</td></tr>
+<tr><td><code>let q = ...</code></td><td>Pure binding inside a step</td></tr>
+<tr><td><code>local q_i @ primal = ...</code></td><td>Step-local grid field with a type, variance, and policy</td></tr>
+<tr><td><code>u' = ...</code></td><td>next-time field update</td></tr>
+</table>
+
+<p>Contraction is written explicitly with <code>contractWith</code> or <code>.</code>. The mere appearance
+of matching upper and lower indices with the same letter does not trigger implicit summation on the surface.
+The single exception is <code>∂</code> with a symbolic index, which auto-applies <code>contractWith (+)</code>
+only when the operand repeats <b>an index introduced by the derivative</b> (<code>∂_i X~i</code> is a
+divergence, <code>∂_j σ~i~j</code> is a vector). <code>withSymbols</code>, <code>tensorMap</code>, <code>subrefs</code>,
+<code>transpose</code>, and <code>!.</code> are passed through to Egison tensor algebra.</p>
+
+<h2 id="operators">5. Operators are classified by "does it have a short pure definition?"</h2>
+
+<p>The dividing line is not "primitive versus composite operator" but whether the operator's meaning itself
+can be defined in one to a few lines as an ordinary Egison mathematical expression. Pure operators are
+normalized by Egison — via tensor/index algebra and analytic differentiation — down to expressions containing
+FieldJets; only the subsequent stencil selection is left to post-fec.</p>
+
+<h3>Quick reference: built-in versus library</h3>
+
+<p>"What is built in and what is a library function" is determined by the following four layers. Only the
+first layer is compiler-owned; users can neither define nor override it. Every other name follows ordinary
+lexical shadowing, and user definitions go through the same completion and placement paths as the bottom layer.</p>
+
+<table>
+<tr><th>Layer</th><th>surface</th><th>Owner of the semantics</th><th>shadow</th></tr>
+<tr><td>Syntax (primitive)</td>
+    <td><code>∂/∂ e a</code>, <code>∂_a</code>, <code>∂^m_a</code>, <code>∂'^m_a</code>,
+        backquote chains (2+ stages), <code>boundary a : sbp|periodic|ghost v</code>,
+        boundary extrapolation <code>sbpx_a</code> and the SAT macros <code>satDirichlet_a</code>/<code>satNeumann_a</code>,
+        <code>resample</code>, component projection <code>q_x</code>, index/variance notation,
+        <code>let</code>/<code>local</code> and <code>@</code> policy</td>
+    <td>pre-fec parsing + Egison's <code>∂/∂</code> (unknown derivative rules are errors) + the opaque manifest.
+        Analytic differentiation is <code>∂/∂</code> only. Indexed <code>∂</code> is always discrete:
+        the bare first order (axis and symbolic indices alike) is the placement-induced radius-1 finite
+        difference (a symbolic index lays it out per axis and auto-contracts
+        repetitions of the introduced index); order/prime forms are explicit-radius centered stencils
+        (collocated: radius = quote count + 1; staggered odd orders: half-integer radius = quote count + 1/2).
+        Boundaries are owned by the axis declaration <code>boundary</code>; on sbp axes the bare ∂ lowers
+        to its SBP-closured form (§6).
+        An index that is a declared axis name selects a concrete component, anything else is symbolic
+        (the same rule for ∂ and field references)</td>
+    <td>No</td></tr>
+<tr><td>Ambient bindings</td>
+    <td><code>dimension</code>, <code>coordinates</code>, <code>volume</code>, <code>epsilon</code>,
+        <code>metric</code>, <code>inverseMetric</code> (+ any declared metric names)</td>
+    <td>Bound once per model by pre-fec</td>
+    <td>Reserved in model scope</td></tr>
+<tr><td>canonical keyword</td>
+    <td><code>d</code>, <code>hodge</code>, <code>δ</code>, <code>Δ</code>, <code>Δ_H</code></td>
+    <td>The semantics is exactly the visible library composition. Names are resolved before normalization
+        and used for static kind checking; only the variable-metric <code>δ</code> and <code>Δ</code>
+        lower to an internal discrete plan</td>
+    <td>Yes</td></tr>
+<tr><td>Library functions</td>
+    <td><code>grad</code>, <code>dGrad</code>, <code>divg</code>, <code>curl</code>,
+        <code>hessian</code>, <code>lap</code></td>
+    <td>Ordinary definitions in <a href="../../lib/formurae-operators.egi"><code>lib/formurae-operators.egi</code></a></td>
+    <td>Yes (same path as user defs)</td></tr>
+</table>
+
+<p>The <code>∂</code> family is the visible spelling of the primitive layer and the only operators users
+cannot define (they are the side that creates FieldJets). <code>contractWith</code>, <code>.</code>, and
+<code>withSymbols</code> are Egison's own notation machinery and pass through as Egison code as-is.
+The subsections below refine this classification from the viewpoints of "where it is defined" and
+"which ambient values it needs".</p>
+
+<h3>Operators definable as concisely as in Egison</h3>
+
+<p>The following three-way split is by which definition a <code>.fme</code> name resolves to, and by whether
+model ambient values such as <code>coordinates</code>, <code>dimension</code>, or the metric are needed at
+generation time. It classifies by the context required for definition and binding in Formurae, not by
+mathematical coordinate invariance itself.</p>
+
+<h4>1. Functions loaded from the Egison standard library (and core syntax)</h4>
+
+<table>
+<tr><th>Function / syntax</th><th>Defined in</th><th>Meaning</th></tr>
+<tr><td><code>.</code>, <code>.'</code>, <code>contractWith</code></td><td><a href="../../../egison/lib/math/algebra/tensor.egi"><code>algebra/tensor.egi</code></a></td><td>Explicit tensor contraction</td></tr>
+<tr><td><code>trace</code>, <code>sym</code>, <code>antisym</code></td><td><a href="../../../egison/lib/math/algebra/matrix.egi"><code>algebra/matrix.egi</code></a></td><td>Trace, symmetric part, and antisymmetric part of a rank-2 tensor</td></tr>
+<tr><td><code>wedge</code>, <code>∧</code></td><td><a href="../../../egison/lib/math/geometry/differential-form.egi"><code>geometry/differential-form.egi</code></a></td><td>Wedge product of differential forms</td></tr>
+<tr><td><code>!.</code></td><td>Egison core tensor algebra</td><td>Tensor product syntax. Not a named function</td></tr>
+<tr><td><code>∂/∂</code>, arithmetic, <code>sin</code>, <code>exp</code>, <code>sqrt</code>, etc.</td><td><a href="../../../egison/lib/math/analysis/derivative.egi"><code>analysis/derivative.egi</code></a> and the Egison standard math library</td><td>Analytic derivative rules and scalar algebra. An unknown derivative rule is an error, not 0</td></tr>
+</table>
+
+<p>Formurae loads these without holding definitions of the same names. Egison also has a <code>grad</code>, but the
+Formurae surface <code>grad</code> resolves to the operand-only function below and reads the coordinates from
+the ambient environment, so it is not placed in this category.</p>
+
+<h4>2. Functions defined in the Formurae library but independent of the coordinate system</h4>
+
+<table>
+<tr><th>Function</th><th>Defined in</th><th>Meaning</th></tr>
+<tr><td><code>norm2</code></td><td><a href="../../lib/formurae-tensor.egi"><code>lib/formurae-tensor.egi</code></a></td><td>Squared norm of a tensor, contracting all components at every rank</td></tr>
+</table>
+
+<p>Currently <code>norm2</code> is the only ordinary <code>.fme</code> surface operator in this category.
+<code>FE.canonicalFormTensor</code>, <code>FE.tensorComponentAt</code>,
+<code>FE.formBasis</code>, and <code>FE.formComponents</code> in the same library are Formurae-specific
+differential-form representation utilities; they do not depend on the coordinate system but are not exposed
+as surface operators.</p>
+
+<h4>3. Functions defined in the Formurae library that depend on the coordinate system (including canonical keywords)</h4>
+
+<p class="note">Indexed <code>∂</code> has been removed from this table — it is syntax
+(layer 1 of the quick reference), not a library function. Within this table, <code>d</code>, <code>hodge</code>,
+<code>δ</code>, <code>Δ</code>, and <code>Δ_H</code> are canonical keywords (shadowable, name-resolved before
+normalization), while <code>grad</code> and below are purely ordinary library functions.</p>
+
+<table>
+<tr><th>surface operator</th><th>Required ambient values</th><th>Meaning expressed by the short definition</th></tr>
+<tr><td><code>grad</code>, <code>dGrad</code>, <code>divg</code>, <code>hessian</code>, <code>lap</code></td><td><code>coordinates</code></td><td>Compositions of derivatives and contractions preserving the variance of the derivative index</td></tr>
+<tr><td><code>curl</code></td><td><code>coordinates</code>, <code>dimension</code>, <code>epsilon</code></td><td>Composition of the Levi-Civita tensor with analytic derivatives</td></tr>
+<tr><td><code>d</code></td><td><code>coordinates</code></td><td>Exterior derivative of <code>mode dec</code></td></tr>
+<tr><td><code>hodge</code></td><td><code>dimension</code>, geometry scale</td><td>Hodge star via the basis complement and metric coefficients</td></tr>
+<tr><td><code>δ</code></td><td><code>coordinates</code>, <code>dimension</code>, geometry scale</td><td>Codifferential. Under constant geometry, a pure composition of <code>d</code> and <code>hodge</code> (<code>mode dec</code>). Under declared geometry it expands as a prelude macro into <code>dFluxWeights</code>/<code>dFluxScale</code>/<code>dFluxDiv</code>, and the coefficients become init-frozen state arrays</td></tr>
+<tr><td><code>Δ</code></td><td><code>coordinates</code>, <code>dimension</code>, geometry scale</td><td>Canonical Laplacian of a collocated scalar. Under constant geometry, the pure composition <code>−δ(d u)</code> = <code>divg (grad u)</code>. Under declared geometry, the prelude-macro expansion of <code>−δ(dExterior u)</code> (conservative flux form)</td></tr>
+<tr><td><code>Δ_H</code></td><td><code>coordinates</code>, <code>dimension</code>, geometry scale</td><td>Hodge--de Rham Laplacian <code>d (δ A) + δ (d A)</code> over constant geometry</td></tr>
+<tr><td><code>dExterior</code></td><td><code>dimension</code></td><td>Discrete exterior derivative as an alternating sum of placement-induced grid ∂ (creates no analytic jet)</td></tr>
+<tr><td><code>dFlux</code></td><td><code>volume</code>, <code>inverseMetric</code></td><td>Weighted flux w<sub>I</sub> = V·∏g<sup>ii</sup>·A<sub>I</sub> (preserves the index set, consistent with staggered parity)</td></tr>
+<tr><td><code>dFluxDiv</code></td><td><code>volume</code>, <code>metric</code></td><td>Sign-carrying adjoint divergence −(∏g<sub>kk</sub>/V)·Σ<sub>i</sub>∂<sub>i</sub>w<sub>iK</sub>. Its composition with <code>dFlux</code> is the codifferential</td></tr>
+<tr><td><code>dHodge</code></td><td><code>volume</code>, <code>inverseMetric</code></td><td>Weighted Hodge star (components move to the complement basis, so it is for diagnostics and flat use, not for materialization)</td></tr>
+</table>
+
+<p><code>metric</code>, <code>inverseMetric</code>, <code>volume</code>, and <code>epsilon</code> themselves
+are not functions but ambient tensors/values generated from the model declarations. Note that even
+<code>d</code>, mathematically coordinate-invariant, references the ambient <code>coordinates</code> in the
+current Formurae implementation because its components are computed with <code>∂/∂</code>.</p>
+
+<p><code>d</code>, <code>hodge</code>, <code>δ</code>, and <code>Δ_H</code> are used in <code>mode dec</code>;
+the canonical <code>Δ</code> is used for scalars in <code>mode collocated</code>.
+<code>curl</code> resolves to a short definition that uses the ambient <code>epsilon</code> and <code>coordinates</code>.</p>
+
+<p>User operators can therefore be written while keeping their mathematical shape. Beyond composing library
+operators, applying <code>∂/∂</code> to the ambient <code>coordinates</code> vector (unindexed or indexed)
+writes the analytic tensor derivative itself; either way the expression stays analytic (FieldJet) and the
+profile discretizes it.</p>
+
+<pre>def symmetricGrad X = sym (dGrad X)
+def bilaplacian u = lap (lap u)
+
+def gradLike u = ∂/∂ u coordinates         <span class="c">-- analytic gradient (the derivative axis is anonymous)</span>
+
+def curlLike X =
+  withSymbols [i, j, k]
+    (epsilon_i~j~k . ∂/∂ X_k coordinates~j) <span class="c">-- analytic curl (same body as the library curl)</span>
+
+metric g
+field u : scalar
+field q_i
+field A_i
+field X~i
+
+step:
+  q' = gradLike u
+  X'~i = withSymbols [j] (g~i~j . A_j)
+  A'_i = withSymbols [j] (g_i_j . X~j)</pre>
+
+<p>Writing the same operator with indexed <code>∂</code> (e.g. <code>withSymbols [i] (∂_i u)</code>) instead
+yields an operator that assembles a tensor of discrete requests (placement-induced radius-1 finite
+differences) and does not follow the profile (the curl of maxwell3d deliberately uses this discrete form,
+and it is measured to compile to the same C as the analytic route under the default profile).</p>
+
+<h3>macro — templates that expand into statement sequences</h3>
+
+<p>Whereas <code>def</code> defines an "expression" (evaluated to a value by Egison), <code>macro</code>
+defines a "statement sequence" (expanded by pre-fec). The body is a sequence of <code>local</code> bindings
+plus an <code>in</code> expression, and calls can be written inside step expressions:</p>
+
+<pre>macro Δc u =
+  local q~i @ primal = withSymbols [j] (volume * (inverseMetric~i~j . ∂_j u))
+  in (divg q) / volume
+
+step:
+  u' = u + dt * Δc u</pre>
+
+<p>Expansion happens right after parsing and before all analysis: the <code>local</code>s are hoisted with
+fresh names to just before the calling step (let-insertion), and the <code>in</code> expression is placed at
+the call site. Downstream effect, placement, and kind checks act on the expansion result as-is. The
+<code>Δc</code> above is exactly the conservative-form Laplacian of the declared orthogonal metric, and the
+generated .fmr matches the hand-written expansion (checked by tests/pre_macro_expansion.sh). Macros are for
+step expressions only; using one inside init, def, or a geometry declaration is an error.</p>
+
+<p>Static checking distinguishes only scalar versus tensor; the degree of a differential form is carried by
+the value itself (<code>dfOrder</code>) at normalization time. A <b>deferred local</b> declared as
+<code>local w : tensor @ primal = …</code> writes no rank, variance, or degree, and assembles its FEIR
+declaration from the materialized value. On top of this, using the weighted flux <code>dFlux</code>
+(w<sub>I</sub> = V·∏<sub>i∈I</sub>g<sup>ii</sup>·A<sub>I</sub>), the sign-carrying adjoint divergence
+<code>dFluxDiv</code> ((δw)<sub>K</sub> = −(∏<sub>k∈K</sub>g<sub>kk</sub>/V)·Σ<sub>i</sub>∂<sub>i</sub>w<sub>iK</sub>),
+and the alternating sum of placement-induced grid ∂, <code>dExterior</code>,
+<b>the codifferential becomes a single macro independent of the degree</b>:</p>
+
+<pre>macro δc A =
+  local w : tensor @ primal = dFlux A
+  in dFluxDiv w</pre>
+
+<p>The same definition works for the scalar Laplacian on a staggered torus
+(<code>u' = u + dt * (0 - δc (dExterior u))</code> matches the hand-written conservative form in .fmr up to
+local names) and for Maxwell on a flat Yee grid
+(<code>E' = E + dt * δc B</code>, a 2-form operand! — bit-identical C execution with the built-in δ)
+(checked by tests/pre_generic_codiff.sh). No degree dispatch appears anywhere —
+the library functions read <code>dfOrder</code>, and the deferred local materializes at that degree.</p>
+
+<p>The anonymous rank-1 axis coming out of <code>gradLike</code> is completed with a fresh subscript.
+pre-fec does not infer a result variance from the function name or body; only when the value is assigned
+directly to an ordinary covector equation target does it map that anonymous down axis to the target's
+subscript. It therefore does not implicitly merge the anonymous axis of <code>E_i + gradLike u</code> into
+the existing <code>i</code>. To combine along the same axis, make the subscript explicit at the
+call site, as in <code>withSymbols [i] (E_i + (gradLike u)..._i)</code>.</p>
+
+<p>Formurae does not attach a result signature by analyzing the expression structure or computation history
+of a user function body. After Egison evaluates the RHS, only the declared target's shape, logical variance,
+and <code>dfOrder</code> are checked against the actual value when storing into an equation or an indexed
+<code>local</code>. For raising and lowering indices, the standard form is to write the contraction with the
+metric directly into an indexed target, as with <code>X'~i</code> and <code>A'_i</code> above.
+Formurae provides neither result indices on function heads nor <code>flat</code> / <code>sharp</code> as
+public operators.</p>
+
+<p><code>dimension</code>, <code>coordinates</code>, <code>metric</code>, <code>inverseMetric</code>,
+<code>volume</code>, and <code>epsilon</code> are ambient values bound from the model.
+Declaring <code>metric g</code> makes the same metric available covariantly as <code>g_i_j</code> / <code>g_#_#</code>
+and contravariantly as <code>g~i~j</code>. The contravariant view is used directly in indexed equations/locals.
+There is no need to pass hidden context as arguments to user operators.</p>
+
+<h3>Surface forms with grid semantics</h3>
+
+<p>When a formula needs a stencil, an absolute grid position, a conserved flux, or temporary storage,
+the following surface forms preserve the intent structurally. Only the necessary parts remain in the FEIR as opaque requests.</p>
+
+<table>
+<tr><th>surface</th><th>Meaning on the grid</th></tr>
+<tr><td><code>∂_x expr</code>, <code>∂_i expr</code> (symbolic index)</td><td>Placement-induced radius-1 finite difference of the whole expression. A symbolic index lays it out per axis and auto-contracts repetitions of the introduced index</td></tr>
+<tr><td><code>∂^m_x expr</code>, <code>∂'^m_x expr</code></td><td>Explicit-radius centered stencil over the whole expression (radius = quote count + 1). Bypasses the profile</td></tr>
+<tr><td><code>`(∂_y (`(∂_x expr)))</code></td><td>Discrete derivative chain preserving inside-out axis order and repetition (2+ stages; a single quote is an error)</td></tr>
+<tr><td><code>resample(value, bit...)</code></td><td>Absolute placement of the interpolation target</td></tr>
+<tr><td><code>local q_i @ primal = ...</code></td><td>Type, component placement, lifetime, and schedule of an intermediate grid field</td></tr>
+<tr><td><code>Δ</code> / <code>δ</code> with geometry</td><td>Prelude-macro expansion: materialized weights (init-frozen), flux locals, and whole-operand finite differences</td></tr>
+</table>
+
+<p class="note">The canonical <code>Δ</code> is for collocated scalars, and <code>Δ_H</code> is for DEC forms
+only. <code>δ</code> is DEC-form-only under constant geometry, but under declared geometry it becomes a
+prelude macro (the mode gate of the request era is gone), so it can also be written in collocated mode.
+Under declared geometry, <code>δ</code> and the scalar <code>Δ</code> lower to conservative flux form via
+prelude-macro expansion.
+The general variable-metric <code>Δ_H</code> cannot be expressed in the current IR and is a compile-time
+error; only under constant geometry is it treated as the pure composition <code>d δ + δ d</code>.</p>
+
+<p>Coordinate-independent contraction has <a href="../../../egison/lib/math/algebra/tensor.egi"><code>egison/lib/math/algebra/tensor.egi</code></a>,
+rank-2 operations have <a href="../../../egison/lib/math/algebra/matrix.egi"><code>egison/lib/math/algebra/matrix.egi</code></a>,
+and <code>wedge</code> has <a href="../../../egison/lib/math/geometry/differential-form.egi"><code>egison/lib/math/geometry/differential-form.egi</code></a> as its single source of definition.
+The analytic-derivative core is <a href="../../../egison/lib/math/analysis/derivative.egi"><code>egison/lib/math/analysis/derivative.egi</code></a>,
+and the model-local calculus, form, and geometry definitions are in <a href="../../lib/formurae-operators.egi"><code>lib/formurae-operators.egi</code></a>.
+The authoritative list of opaque operators is <a href="../../spec/feir-primitives.sexp"><code>spec/feir-primitives.sexp</code></a>,
+and the lowering to grid programs lives in <a href="../../fec/src/Formurae/Post/Compile.hs"><code>Compile.hs</code></a> and
+<a href="../../fec/src/Formurae/Post/BackendPlan.hs"><code>BackendPlan.hs</code></a>.</p>
+
+<h2 id="derivative">6. Derivatives and discretization accuracy</h2>
+
+<h3>Analytic derivatives</h3>
+
+<pre>∂/∂ (u * u) x   <span class="c">-- 2*u*FieldJet(u,{x:1}); the profile decides the discretization</span>
+∂/∂ (∂/∂ u x) x <span class="c">-- FieldJet(u,{x:2})</span>
+∂/∂ u coordinates <span class="c">-- tensor carrying the derivative axis (the axis is anonymous; = the body of grad)</span></pre>
+
+<p>Analytic differentiation is <code>∂/∂ e a</code> (the same spelling as Egison) and nothing else. Egison
+applies the product/quotient/chain rules, derivatives are converted from FunctionData user indices to
+FEIR FieldJet multi-indices, and the stencils are chosen by the model profile.
+Library operators such as <code>grad</code>, <code>curl</code>, and <code>Δ</code> are analytic compositions
+of this <code>∂/∂</code>, so switching the profile accuracy applies to all of them at once.</p>
+
+<h3>Indexed ∂ = discrete derivatives</h3>
+
+<pre>∂_x (u * u)    <span class="c">-- radius-1 finite difference of the whole expression (placement-induced, not expanded)</span>
+∂^2_x u        <span class="c">-- 3-point second-derivative centered stencil (radius 1)</span>
+∂'^2_x u       <span class="c">-- 5-point second-derivative centered stencil (radius 2 = quote count + 1)</span>
+∂'_x q         <span class="c">-- on staggered fields, effective radius 3/2 = the 4 points of FDTD(2,4) (±9/8, ∓1/24)</span>
+∂''_x q        <span class="c">-- likewise, radius 5/2: 6 points, 6th order</span>
+∂_i X~i        <span class="c">-- auto-contracts the per-axis placement-induced radius-1 differences (= discrete div)</span>
+∂_j σ~i~j      <span class="c">-- same; on staggered fields the half-cell Yee difference is derived from placement</span></pre>
+
+<p>Indexed <code>∂</code> is a discrete request regardless of the kind of index. The <b>bare first order</b>
+is the placement-induced radius-1 finite difference (<code>derivative.grid-whole</code>): a centered
+difference on collocated grids, a half-cell Yee difference on staggered grids. A symbolic index is the
+tensor of these laid out per axis, auto-applying <code>contractWith (+)</code> only when the operand
+repeats an index introduced by the derivative. <b>Order/prime forms</b> are
+explicit-radius centered stencils (<code>derivative.coordinate-wide</code>;
+independently of the model profile, post-fec solves exact rational coefficients from Taylor moment conditions).
+The width rule — "bare form = the grid's minimal stencil, one prime = +1 ring" — is uniform across all grids:
+on collocated grids radius = quote count + 1; for odd orders on staggered grids the result lands on the
+dual subgrid, so the <b>half-integer effective radius = quote count + 1/2</b> (a symmetric stencil at
+±1/2 … ±(2k−1)/2 around the target center). The admissible radii satisfy
+2r ≡ m (mod 2) (parity consistency), with 2r+1 points and formal accuracy 2r − m + 2.
+<b>The half-integer radius itself is never written</b>: no fraction appears in the surface language or the
+FEIR (the radius attribute stays a positive integer); post-fec merely interprets "staggered × odd order
+means effective radius = attribute − 1/2". A prime is a parity-neutral
+"+1 ring", and whether it shifts by a half is supplied by the grid, so
+a parity mismatch like "3/2 on collocated" cannot even be expressed —
+the same principle as deriving placement from (policy, index structure) rather than from a declaration.
+Under the default profile (accuracy 2) these fall to the same stencils as via <code>∂/∂</code>
+(byte-identical generated C confirmed on elastic3d/maxwell3d/diffusion1d, etc.).</p>
+
+<h3>model profile</h3>
+
+<pre>discretization collocated derivative 2 centered accuracy 4
+u' = u + dt * Δ u
+
+discretization staggered yee accuracy 4   <span class="c">-- Δ, grad, and divg on staggered fields become 4th order too</span></pre>
+
+<p>Accuracy is independent of the operator bodies. post-fec searches for the minimal radius satisfying the
+formal accuracy and solves exact rational coefficients from Taylor moment conditions. The example above becomes the compact 5-point second-derivative difference.
+On the staggered/yee side, the order-m rule is the <b>m-fold self-composition of the accuracy-2k first-order
+half-integer stage</b>, so Δ = divg∘grad, ∂³ = grad∘Δ, and ∂⁴ = Δ∘Δ hold identically at every order and accuracy
+(at accuracy 2 this degenerates to the Yee pair and [1,−2,1], matching the previous behavior). At minimal
+width, the collapse "composition = direct solution" holds at every order.</p>
+
+<h3>Ordered derivative chains</h3>
+
+<pre>`(∂_y (`(∂_x (`(∂_x q))))  <span class="c">-- applied in the order x, x, y</span></pre>
+
+<p>The backquote is reserved for derivative chains of two or more stages. It preserves the axis application
+order and repetitions as-is in a single opaque request (no Schwarz canonicalization is applied) and bypasses
+the model profile. A single quote <code>`(∂_x e)</code> would be synonymous with the bare <code>∂_x e</code>
+and is therefore an error.</p>
+
+<h3>boundary declarations — SBP boundary closures (the width belongs to the operator, the boundary to the declaration)</h3>
+
+<pre>boundary x : sbp                   <span class="c">-- physical boundary: every x derivative gets its SBP closure</span>
+<span class="c">-- boundary y : periodic          -- default (no declaration = periodic = legacy-compatible)</span>
+<span class="c">-- boundary z : ghost 0.0         -- makes the fork's ghost-fill idiom explicit</span>
+
+field u : scalar @ primal
+param sat = τ*κ*sbpHinvX/dx        <span class="c">-- composes the declaration-supplied inverse boundary norm (2/dx)</span>
+step:
+  local q @ dual = κ * ∂_x u       <span class="c">-- D⁺: no closure needed (every row stays inside the domain)</span>
+  u' = u + dt * (∂_x q             <span class="c">-- D⁻: only one row at each end is replaced by the SBP closure row</span>
+    + satDirichlet_x(u, 0.0, sat)) <span class="c">-- Dirichlet penalty on both walls (macro)</span>
+
+  u' = u + dt * (∂_x q + satNeumann_x(q, 0.0, 0.0))  <span class="c">-- adiabatic walls: exact replacement of the boundary flux</span>
+  u' = u + dt * κ * ∂^2_x u        <span class="c">-- the composed second derivative (= closured D⁻∘D⁺) written directly</span></pre>
+
+<p>Boundary treatment is a property of <b>the domain (the axis)</b>, not of individual derivative
+applications: declaring <code>boundary x : sbp</code> makes not only the <b>bare</b> <code>∂_x</code> and
+<code>∂^2_x</code> along that axis boundary-aware, but also <b>the prime widths <code>∂'_x</code>
+(first derivatives at every radius) and first/second derivatives at every profile accuracy</b> (the SBP
+pairs for k≥2 are constructed automatically as exact solutions of the Q=H·D linearization, with boundary
+order k). The interior remains the ordinary
+staggered difference; only the rows closest to the boundary are replaced by summation-by-parts closure
+rows via an index guard (<code>if i == 0 then … else …</code>), so
+no sample ever reads outside the domain. Paired with the norm matrix H, the closures are
+chosen to satisfy the discrete integration by parts H_d D⁺ + (H_p D⁻)ᵀ = d_N e_Nᵀ − d₀ e₀ᵀ <b>exactly</b>,
+and post-fec verifies this every time as a finite-N matrix identity (the basis of energy-method stability).
+Energy stability is a global property — "all derivatives in the model share the same boundary treatment" —
+so it is precisely the declaration that lets <b>a closure-less path mixed onto an sbp axis be a static error</b>:
+the wide explicit second derivative <code>∂'^2</code> (its compact stencil is distinct from the D⁻D⁺ composition and has no SBP factorization),
+third order and above, collocated operands, crossing an ordered chain, and half→integer resample are
+compile-time errors. The old <code>sbpd_x</code>/<code>sbpd2_x</code> spellings are retired, and a migration
+diagnostic guides the rewrite to declaration + bare ∂.
+Boundary conditions are SATs (penalty terms), and <b>the sbp declaration supplies named constants</b>:
+the wall thresholds <code>sbpLoX</code>/<code>sbpHiX</code> and the inverse boundary norm
+<code>sbpHinvX</code> (= 1/(h_p,0 dx), 2/dx for the minimal pair; models using <code>∂'</code> or
+profile accuracy 4 also get <code>sbpHinv4X</code> = 18/(7dx).
+Axis names are appended capitalized — an underscore would be read as an Egison index).
+Coefficients live in <code>param</code>s composing these (dx is unbound on the CAS side),
+and the standard forms expand via the per-axis prelude macros <code>satDirichlet_x(u, g, coef)</code> and
+<code>satNeumann_x(flux, glo, ghi)</code>. The boundary values required by Neumann and characteristic SATs
+are supplied by <b>boundary extrapolation <code>sbpx_x e</code></b> (extrapolates a
+dual-placed expression to the wall row via the SBP pair's d₀/d_N; zero in the interior); characteristic SATs
+(transparent boundaries: left wall <code>sbpHinvX*(p + sbpx_x v')</code>,
+right wall <code>sbpHinvX*(p - sbpx_x v')</code>) are equation content, so they are written explicitly on the surface.
+First derivatives close both ends in the half→integer direction,
+integer→half needs no closure only at k=1, and second derivatives are limited to integer placement. Measured:
+<code>examples/sbp_diffusion1d</code> (order-2.02 convergence + monotone energy),
+<code>sbp_wave1d</code> (pressure-release, one-period return),
+<code>sbp_diffusion2d</code> (corners hold automatically by per-axis additivity),
+<code>sbp_highorder4</code> (interior 4th-order <code>∂'</code> in both directions, measured order-3.03 convergence),
+<code>sbp_neumann</code> (adiabatic walls, exact heat conservation with 3.4e-15 drift + measured order 2.04),
+<code>sbp_wave_open</code> (transparent boundaries, no energy growth + mid-flight measured order 1.98).</p>
+
+<h3>Placement and intermediate storage</h3>
+
+<pre>resample(q, 0, 1)   <span class="c">-- linear interpolation to an absolute placement</span>
+
+field u : scalar @ primal
+step:
+  local q_i @ primal = [| -κ * ∂_x u, -κ * ∂_y u |]_i
+  u' = u - dt * divg q</pre>
+
+<p><code>resample</code> is used only to avoid implicit interpolation by making the absolute placement
+explicit. Intermediate fields are declared with typed <code>local</code>. Above, <code>q_i @ primal</code>
+is the per-component face flux, and <code>divg q</code> is the conservative difference back to cells. The
+telescoping conservation guarantee holds under periodic boundaries, or under
+ghost/boundary handling consistent with the flux.
+Physical boundary conditions are authoritatively Formura's YAML boundary settings (ghost fill);
+when a bounded domain needs guarantees up to and including the boundary, use the SBP+SAT above.</p>
+
+<h2 id="tensor">7. Tensor, form, placement</h2>
+
+<p><code>Collocated</code> keeps cell positions. Under <code>Primal</code>/<code>Dual</code>, the half-cell
+bit of each axis is derived from the policy and the parity of the component basis. Derivatives move to their
+natural target placement, and adding different placements is an explicit error. There is no implicit interpolation.</p>
+
+<h3>Component projection — q_x versus q_i</h3>
+
+<pre>boundary x : sbp
+boundary y : sbp
+field q_i @ primal
+step:
+  local w_i @ primal = [| κ * ∂_x u, κ * ∂_y u |]_i
+  u' = u + dt * (∂_x w_x + ∂_y w_y)   <span class="c">-- w_x = the x component of w (a scalar living on the x faces)</span></pre>
+
+<p>The index classification rule is the same as for <code>∂</code>: <b>a declared axis name selects a
+concrete component, anything else is a symbolic index</b>. <code>q_x</code> extracts the x component of a
+declared indexed field/local as a scalar (<code>T_x_y</code> is a concrete rank-2 component), and placement
+is derived as always from (policy, component basis) — the <code>w_x</code> above lives at [½, 0], and
+<code>∂_x</code> on an sbp axis automatically selects the closured half→integer direction. Mirror
+components of symmetric/antisymmetric tensors are carried by the bound tensor value with signs and the zero
+diagonal included, so <code>ω_y_x</code> correctly reads the negative value.
+Variance must match the declaration (<code>q~x</code> against a <code>q_i</code> declaration is an error;
+raising and lowering is written explicitly as contraction with the metric). Mixed indices <code>T_x_j</code>
+and rank mismatches are compile-time errors. Projection is RHS-only; updates keep whole-field targets.</p>
+
+<pre>mode dec
+dimension 3
+axes x, y, z
+
+field E : 1-form
+field B : 2-form
+
+step:
+  E' = E + dt * δ B
+  B' = B - dt * d E'</pre>
+
+<p><code>mode dec</code> uses <code>d</code>, <code>hodge</code>, <code>δ</code>, and <code>Δ_H</code>.
+Under constant geometry <code>Δ_H</code> is <code>d (δ A) + δ (d A)</code>; under declared geometry
+<code>δ</code> expands as a prelude macro into materialized locals and public operators (§7).
+The general variable-metric <code>Δ_H</code> is currently a compile-time error.
+<code>d(d A) = 0</code> is checked by the compiler suite as a theorem of the operator library, and
+conservation of the discrete <code>div B = 0</code> is measured by the check driver.</p>
+
+<h2 id="geometry">8. Orthogonal geometry and the canonical Δ</h2>
+
+<pre>axes θ, φ, z
+embedding [ `(2 + cos θ) * cos φ, `(2 + cos θ) * sin φ, sin θ, z ]
+
+u' = u + dt * Δ u</pre>
+
+<p><code>metric scale [...]</code> specifies the Lamé factors directly; with <code>embedding [...]</code>, Egison
+derives the induced metric and gates on orthogonality. The metric, its inverse, the scales, and the volume enter the GeometryNF.</p>
+
+<p>The canonical <code>Δ</code> with geometry requires coefficient sampling, a cell-to-face gradient, a conserved flux,
+a face-to-cell divergence, and division by the volume. Under declared geometry, <code>Δ</code>/<code>δ</code>
+expand as prelude macros into materialized locals plus the public operators (<code>dFluxWeights</code>/<code>dFluxScale</code>/<code>dFluxDiv</code>)
+(§7), and geometry-only coefficient locals are frozen by post-fec into state arrays computed once at init and carried by identity.</p>
+
+<h2 id="artifacts">9. Generated artifacts and verification</h2>
+
+<p><code>.fme</code> is what you edit. For each FME example, the following are tracked for review.</p>
+
+<ol>
+  <li><code>.egi</code>: pre-fec output</li>
+  <li><code>.feir</code>: Egison normalization result</li>
+  <li><code>.fmr</code>: post-fec output</li>
+</ol>
+
+<pre>python3 gallery/tools/embed_src.py  <span class="c"># re-embed the four-stage sources into the gallery</span>
+make all                           <span class="c"># C numerical check for all examples</span>
+make gallery-assets                <span class="c"># regenerate stills and H.264 videos from real computed frames (requires ffmpeg)</span></pre>
+
+<p>Focused tests cover the FEIR codec/fingerprint, source diagnostics, effects, operators, placement, Taylor stencils, geometry-aware <code>Δ</code>/<code>δ</code>,
+and the end-to-end pipeline. When Egison itself is modified, also run the representative math samples,
+the full mini-test set, and <code>cabal test</code>.</p>
+
+<p>For the responsibility boundaries, the FEIR protocol, and verification methodology, see the compiler
+pipeline and repository layout in the <a href="../../README.md">README</a>.</p>
+
+</main>
+</body>
+</html>
