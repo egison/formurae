@@ -9,7 +9,7 @@ WORK=$(mktemp -d "$TMPDIR_ROOT/formurae-pre-egison-diagnostic.XXXXXX")
 trap 'rm -rf "$WORK"' EXIT HUP INT TERM
 
 cd "$ROOT"
-cabal run -v0 -j1 pre-fec -- tests/fixtures/pre_egison_diagnostic_error.fme \
+cabal run -v0 -j1 formurae-pre -- tests/fixtures/pre_egison_diagnostic_error.fme \
   > "$WORK/model.egi"
 
 if "$ROOT/tools/run_formurae_normalization.sh" "$EGISON_DIR" \
@@ -23,7 +23,7 @@ if [ -s "$WORK/model.feir" ]; then
   exit 1
 fi
 
-grep -F 'pre-fec: error: tests/fixtures/pre_egison_diagnostic_error.fme:11:8: Egison normalization failed' \
+grep -F 'formurae-pre: error: tests/fixtures/pre_egison_diagnostic_error.fme:11:8: Egison normalization failed' \
   "$WORK/model.err" >/dev/null
 grep -F 'expanded from outer at tests/fixtures/pre_egison_diagnostic_error.fme:11:8 (defined at tests/fixtures/pre_egison_diagnostic_error.fme:7:15)' \
   "$WORK/model.err" >/dev/null
@@ -37,7 +37,7 @@ if grep -F '@@FORMURAE_ACTIVE_ORIGIN:' "$WORK/model.err" >/dev/null; then
   exit 1
 fi
 
-cabal run -v0 -j1 pre-fec -- tests/fixtures/pre_fec_curl_dimension_error.fme \
+cabal run -v0 -j1 formurae-pre -- tests/fixtures/pre_curl_dimension_error.fme \
   > "$WORK/curl-dimension.egi"
 
 if "$ROOT/tools/run_formurae_normalization.sh" "$EGISON_DIR" \
@@ -52,14 +52,14 @@ if [ -s "$WORK/curl-dimension.feir" ]; then
   exit 1
 fi
 
-grep -F 'pre-fec: error: tests/fixtures/pre_fec_curl_dimension_error.fme:7:8: Egison normalization failed' \
+grep -F 'formurae-pre: error: tests/fixtures/pre_curl_dimension_error.fme:7:8: Egison normalization failed' \
   "$WORK/curl-dimension.err" >/dev/null
 grep -F 'Assertion failed: "curl requires three-dimensional coordinates and a vector"' \
   "$WORK/curl-dimension.err" >/dev/null
 
 for metric_use in bare mixed; do
-  source="tests/fixtures/pre_fec_metric_${metric_use}_error.fme"
-  cabal run -v0 -j1 pre-fec -- "$source" > "$WORK/metric-$metric_use.egi"
+  source="tests/fixtures/pre_metric_${metric_use}_error.fme"
+  cabal run -v0 -j1 formurae-pre -- "$source" > "$WORK/metric-$metric_use.egi"
   if "$ROOT/tools/run_formurae_normalization.sh" "$EGISON_DIR" \
        "$WORK/metric-$metric_use.egi" \
        > "$WORK/metric-$metric_use.feir" \
@@ -75,7 +75,7 @@ for metric_use in bare mixed; do
 done
 
 # The static layer distinguishes only scalar and tensor, so form-degree
-# misuse passes pre-fec and must fail here with the library and encode
+# misuse passes formurae-pre and must fail here with the library and encode
 # guards, keeping the origin-resolved source position of the offending
 # expression where one exists.
 expect_normalization_failure() {
@@ -83,7 +83,7 @@ expect_normalization_failure() {
   location=$2
   message=$3
   source="tests/fixtures/$fixture.fme"
-  cabal run -v0 -j1 pre-fec -- "$source" > "$WORK/$fixture.egi"
+  cabal run -v0 -j1 formurae-pre -- "$source" > "$WORK/$fixture.egi"
   if "$ROOT/tools/run_formurae_normalization.sh" "$EGISON_DIR" \
        "$WORK/$fixture.egi" \
        > "$WORK/$fixture.feir" 2> "$WORK/$fixture.err"; then
@@ -95,21 +95,21 @@ expect_normalization_failure() {
     exit 1
   fi
   if [ -n "$location" ]; then
-    grep -F "pre-fec: error: $source:$location: Egison normalization failed" \
+    grep -F "formurae-pre: error: $source:$location: Egison normalization failed" \
       "$WORK/$fixture.err" >/dev/null
   fi
   grep -F "Assertion failed: \"$message\"" "$WORK/$fixture.err" >/dev/null
 }
 
-expect_normalization_failure pre_fec_codiff_tensor_error '6:10' \
+expect_normalization_failure pre_codiff_tensor_error '6:10' \
   'canonical codifferential requires a scalar or differential form value'
-expect_normalization_failure pre_fec_shadowed_intrinsic_kind_error '9:8' \
+expect_normalization_failure pre_shadowed_intrinsic_kind_error '9:8' \
   'canonical codifferential requires a scalar or differential form value'
-expect_normalization_failure pre_fec_divg_rank_unknown_error '7:8' \
+expect_normalization_failure pre_divg_rank_unknown_error '7:8' \
   'divg requires coordinates and a vector of the same dimension'
-expect_normalization_failure pre_fec_form_local_kind_mismatch '7:31' \
+expect_normalization_failure pre_form_local_kind_mismatch '7:31' \
   'normalized equation tensor metadata mismatch'
-expect_normalization_failure pre_fec_degree_mismatch '8:8' \
+expect_normalization_failure pre_degree_mismatch '8:8' \
   'normalized equation tensor metadata mismatch'
 
-printf 'pre-fec Egison source-diagnostic tests: ok\n'
+printf 'formurae-pre Egison source-diagnostic tests: ok\n'

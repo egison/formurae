@@ -1,7 +1,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 
 -- | Syntax support for the mathematical surface expressions accepted by
--- pre-fec.  This module deliberately stops at parsing, source spans,
+-- formurae-pre.  This module deliberately stops at parsing, source spans,
 -- coordinate-name preprocessing, and rendering; Egison owns tensor
 -- elaboration and symbolic normalization.
 module Formurae.TensorExpr

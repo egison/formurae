@@ -3,7 +3,7 @@
 ## 現状(v2.19 / v2.22)
 
 - 切り分けは v2.19 で確定: **.fme = semantics(compile-time)、yaml =
-  runtime 設定**。fec は yaml を一切読まない(ツール契約の一部)。
+  runtime 設定**。Formurae は yaml を一切読まない(ツール契約の一部)。
 - sbp 軸ではゴーストが読まれないので yaml の boundary はプレースホルダ
   (`fixed 0.0`)のまま。`boundary z : ghost 0.0` の fill 値と yaml の
   `fixed` 値の**不一致は現在どこも検査しない**(既知の silent の穴)。
@@ -17,7 +17,7 @@
    壊す。boundary 行だけの部分生成は「生成半分・手書き半分」の運用に
    割れる。実利のほぼ全部は ghost fill の不一致検出にある。
 2. **置き場所 = Makefile 段の独立チェッカ**: 宣言は .feir(axis レコードの
-   boundary 属性)から読めるので、fec に yaml 読みを入れず「fec は yaml を
+   boundary 属性)から読めるので、Formurae に yaml 読みを入れず「Formurae は yaml を
    読まない」契約を保てる。
 3. **語彙の対応規則**: periodic ↔ periodic、ghost VALUE ↔ fixed VALUE
    (値の一致まで検査)。sbp 軸はゴースト不読なので「検査免除」か

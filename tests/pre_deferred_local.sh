@@ -24,7 +24,7 @@ compare_pair() {
   base=$1
   for side in declared deferred; do
     source="tests/fixtures/${base}_${side}.fme"
-    cabal run -v0 -j1 pre-fec -- "$source" > "$WORK/${side}.egi"
+    cabal run -v0 -j1 formurae-pre -- "$source" > "$WORK/${side}.egi"
     "$ROOT/tools/run_formurae_normalization.sh" "$EGISON_DIR" \
       "$WORK/${side}.egi" > "$WORK/${side}.feir"
     mask_identity < "$WORK/${side}.feir" > "$WORK/${side}.masked"
@@ -37,9 +37,9 @@ compare_pair() {
 }
 
 # 2-form intermediate: FormLayout declaration, ordered component bases.
-compare_pair pre_fec_deferred_form
+compare_pair pre_deferred_form
 # Rank-zero and rank-one intermediates: scalar wrapper and vector layout
 # with attached variances.
-compare_pair pre_fec_deferred_mixed
+compare_pair pre_deferred_mixed
 
-printf 'pre-fec deferred-local tests: ok\n'
+printf 'formurae-pre deferred-local tests: ok\n'

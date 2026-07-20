@@ -1,7 +1,7 @@
 -- Yee-FDTD Maxwell solver derived from tensor component indices.
 -- E is a primal vector on edge centers; B is its dual-vector partner on
 -- face centers.  The standard curl definition and the two field policies
--- determine every source/target placement lowered by post-fec.
+-- determine every source/target placement lowered by formurae-post.
 
 mode collocated
 dimension 3

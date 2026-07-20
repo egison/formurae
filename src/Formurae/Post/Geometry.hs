@@ -2,7 +2,7 @@
 --
 -- Egison evaluates the actual tensor algebra before FEIR is emitted.  This
 -- module therefore does not reimplement @d@, Hodge star, or the
--- codifferential.  It records the small amount of geometry that post-fec must
+-- codifferential.  It records the small amount of geometry that formurae-post must
 -- still know in order to check component placement and to project a whole
 -- form to storage.
 module Formurae.Post.Geometry

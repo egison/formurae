@@ -1,5 +1,5 @@
--- | Canonical identity for the logical registry shared by pre-fec and
--- post-fec.  Runtime equations, normalized geometry expressions, the
+-- | Canonical identity for the logical registry shared by formurae-pre and
+-- formurae-post.  Runtime equations, normalized geometry expressions, the
 -- discretization profile, and provenance are deliberately outside this
 -- identity: changing any of those must not make stable logical IDs belong to
 -- a different registry.

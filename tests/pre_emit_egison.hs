@@ -178,9 +178,9 @@ main = do
     mixedResultUnit
 
   rawRaisedSource <- readFile
-    "tests/fixtures/pre_fec_user_result_variance_raw_error.fme"
+    "tests/fixtures/pre_user_result_variance_raw_error.fme"
   rawRaisedModel <- parseModel
-    "tests/fixtures/pre_fec_user_result_variance_raw_error.fme"
+    "tests/fixtures/pre_user_result_variance_raw_error.fme"
     "pre-raised-result-raw" rawRaisedSource
   rawRaisedUnit <- requireRight =<<
     emitNormalizationUnit manifestId rawRaisedModel
@@ -190,9 +190,9 @@ main = do
   assertAbsent rawRaisedUnit "FormuraeInternalValidateDefinitionResult"
 
   rawPrimitiveSource <- readFile
-    "tests/fixtures/pre_fec_user_result_variance_raw_primitive.fme"
+    "tests/fixtures/pre_user_result_variance_raw_primitive.fme"
   rawPrimitiveModel <- parseModel
-    "tests/fixtures/pre_fec_user_result_variance_raw_primitive.fme"
+    "tests/fixtures/pre_user_result_variance_raw_primitive.fme"
     "pre-raised-result-raw-primitive" rawPrimitiveSource
   rawPrimitiveUnit <- requireRight =<<
     emitNormalizationUnit manifestId rawPrimitiveModel
@@ -200,16 +200,16 @@ main = do
     "norm2 raised" rawPrimitiveUnit
 
   rawNearMissSource <- readFile
-    "tests/fixtures/pre_fec_user_result_variance_raw_near_miss.fme"
+    "tests/fixtures/pre_user_result_variance_raw_near_miss.fme"
   rawNearMissModel <- parseModel
-    "tests/fixtures/pre_fec_user_result_variance_raw_near_miss.fme"
+    "tests/fixtures/pre_user_result_variance_raw_near_miss.fme"
     "pre-raised-result-raw-near-miss" rawNearMissSource
   _ <- requireRight =<< emitNormalizationUnit manifestId rawNearMissModel
 
   scalarReducerSource <- readFile
-    "tests/fixtures/pre_fec_user_result_scalar_reducer.fme"
+    "tests/fixtures/pre_user_result_scalar_reducer.fme"
   scalarReducerModel <- parseModel
-    "tests/fixtures/pre_fec_user_result_scalar_reducer.fme"
+    "tests/fixtures/pre_user_result_scalar_reducer.fme"
     "pre-result-scalar-reducer" scalarReducerSource
   scalarReducerUnit <- requireRight =<<
     emitNormalizationUnit manifestId scalarReducerModel
@@ -221,9 +221,9 @@ main = do
     scalarReducerUnit
 
   rawPreservedSource <- readFile
-    "tests/fixtures/pre_fec_user_result_variance_raw_preserved.fme"
+    "tests/fixtures/pre_user_result_variance_raw_preserved.fme"
   rawPreservedModel <- parseModel
-    "tests/fixtures/pre_fec_user_result_variance_raw_preserved.fme"
+    "tests/fixtures/pre_user_result_variance_raw_preserved.fme"
     "pre-result-variance-raw-preserved" rawPreservedSource
   rawPreservedUnit <- requireRight =<<
     emitNormalizationUnit manifestId rawPreservedModel
@@ -233,9 +233,9 @@ main = do
   assertAbsent rawPreservedUnit "FormuraeInternalValidateDefinitionResult"
 
   preservedResultSource <- readFile
-    "tests/fixtures/pre_fec_user_result_variance_preserved.fme"
+    "tests/fixtures/pre_user_result_variance_preserved.fme"
   preservedResultModel <- parseModel
-    "tests/fixtures/pre_fec_user_result_variance_preserved.fme"
+    "tests/fixtures/pre_user_result_variance_preserved.fme"
     "pre-result-variance-preserved" preservedResultSource
   preservedResultUnit <- requireRight =<<
     emitNormalizationUnit manifestId preservedResultModel
@@ -257,9 +257,9 @@ main = do
   assertAbsent preservedResultUnit "FormuraeInternalDefinitionMetadataMatches"
 
   higherOrderSqrtSource <- readFile
-    "tests/fixtures/pre_fec_definition_higher_order_sqrt.fme"
+    "tests/fixtures/pre_definition_higher_order_sqrt.fme"
   higherOrderSqrtModel <- parseModel
-    "tests/fixtures/pre_fec_definition_higher_order_sqrt.fme"
+    "tests/fixtures/pre_definition_higher_order_sqrt.fme"
     "pre-definition-higher-order-sqrt" higherOrderSqrtSource
   higherOrderSqrtUnit <- requireRight =<<
     emitNormalizationUnit manifestId higherOrderSqrtModel
@@ -296,9 +296,9 @@ main = do
     "withSymbols [i, j, k, l, m, n] (FormuraeInternalDefinition1 a b)"
     dotShadowed
 
-  conditionalSource <- readFile "tests/fixtures/pre_fec_conditional.fme"
-  conditionalModel <- parseModel "tests/fixtures/pre_fec_conditional.fme"
-    "pre-fec-conditional" conditionalSource
+  conditionalSource <- readFile "tests/fixtures/pre_conditional.fme"
+  conditionalModel <- parseModel "tests/fixtures/pre_conditional.fme"
+    "formurae-pre-conditional" conditionalSource
   conditional <- requireRight =<< emitNormalizationUnit manifestId conditionalModel
   assertContains "surface if emits a symbolic canonical Select"
     "Formurae.select (Formurae.predicateOr" conditional
@@ -409,10 +409,10 @@ main = do
     "[| u, u |]~i" upperLiteralUnit
 
   conservativeSource <- readFile
-    "tests/fixtures/pre_fec_conservative_local.fme"
+    "tests/fixtures/pre_conservative_local.fme"
   conservativeModel <- parseModel
-    "tests/fixtures/pre_fec_conservative_local.fme"
-    "pre-fec-conservative-local" conservativeSource
+    "tests/fixtures/pre_conservative_local.fme"
+    "formurae-pre-conservative-local" conservativeSource
   conservativeUnit <- requireRight =<< emitNormalizationUnit manifestId
     conservativeModel
   assertContains "tensor literal remains structured through contextualization"
@@ -506,7 +506,7 @@ main = do
   assertLeft "decimal with inexact backend division operands is rejected"
     (isDecimalMessage "without inexact numerator/denominator rounding")
     =<< emitNormalizationUnit manifestId inexactBackendModel
-  putStrLn "pre-fec Egison emitter tests: ok"
+  putStrLn "formurae-pre Egison emitter tests: ok"
 
 manifestId :: PrimitiveManifestId
 manifestId = PrimitiveManifestId "sha256:test-manifest"

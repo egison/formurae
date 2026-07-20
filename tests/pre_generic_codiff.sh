@@ -31,14 +31,14 @@ cd "$ROOT"
 compile_pipeline() {
   source=$1
   stem=$2
-  cabal run -v0 -j1 pre-fec -- "$source" > "$WORK/$stem.egi"
+  cabal run -v0 -j1 formurae-pre -- "$source" > "$WORK/$stem.egi"
   "$ROOT/tools/run_formurae_normalization.sh" "$EGISON_DIR" \
     "$WORK/$stem.egi" > "$WORK/$stem.feir"
-  cabal run -v0 -j1 post-fec -- "$WORK/$stem.feir" > "$WORK/$stem.fmr"
+  cabal run -v0 -j1 formurae-post -- "$WORK/$stem.feir" > "$WORK/$stem.fmr"
 }
 
-compile_pipeline tests/fixtures/pre_fec_macro_torus.fme hand-torus
-compile_pipeline tests/fixtures/pre_fec_macro_codiff_torus.fme generic-torus
+compile_pipeline tests/fixtures/pre_macro_torus.fme hand-torus
+compile_pipeline tests/fixtures/pre_macro_codiff_torus.fme generic-torus
 sed 's/w_\([123]\)/q_up\1/g' "$WORK/generic-torus.fmr" \
   > "$WORK/generic-torus-renamed.fmr"
 if ! cmp -s "$WORK/hand-torus.fmr" "$WORK/generic-torus-renamed.fmr"; then
@@ -48,7 +48,7 @@ if ! cmp -s "$WORK/hand-torus.fmr" "$WORK/generic-torus-renamed.fmr"; then
 fi
 
 compile_pipeline examples/maxwell_dec/maxwell_dec.fme builtin-maxwell
-compile_pipeline tests/fixtures/pre_fec_macro_codiff_maxwell.fme generic-maxwell
+compile_pipeline tests/fixtures/pre_macro_codiff_maxwell.fme generic-maxwell
 python3 - "$WORK" <<'EOF'
 import re
 import sys

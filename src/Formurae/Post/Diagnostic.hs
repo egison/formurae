@@ -1,8 +1,8 @@
--- | Source-aware diagnostics for FEIR validation and post-fec lowering.
+-- | Source-aware diagnostics for FEIR validation and formurae-post lowering.
 --
 -- FEIR semantic nodes carry stable IDs rather than source spans.  This module
 -- is the single place where those IDs are joined back to the OriginTable.  It
--- is deliberately separate from the post-fec executable so callers can use
+-- is deliberately separate from the formurae-post executable so callers can use
 -- the same rendering in tests, editors, and future library APIs.
 module Formurae.Post.Diagnostic
   ( Diagnostic(..)
@@ -796,7 +796,7 @@ backendErrorMessage backendError =
       "conflicting opaque request group " ++ show group
     Backend.UnsupportedEffectfulOperation opId key _ ->
       "effectful operation " ++ show opId ++ " (" ++ show key
-      ++ ") is not supported by this post-fec"
+      ++ ") is not supported by this formurae-post"
 
 fmrErrorMessage :: FMRError -> String
 fmrErrorMessage fmrError =

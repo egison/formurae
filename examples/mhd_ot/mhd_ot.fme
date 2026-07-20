@@ -4,7 +4,7 @@
 --   dU/dt + div F(U) = 0,  U = (rho, m, B, en)
 --
 -- The 19 flux components are typed step-local fields.  Their spatial
--- derivatives and the Rusanov dissipation are selected by post-fec, so the
+-- derivatives and the Rusanov dissipation are selected by formurae-post, so the
 -- source contains the conservation law rather than explicit grid offsets.
 
 mode collocated

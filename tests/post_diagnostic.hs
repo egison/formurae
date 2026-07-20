@@ -103,7 +103,7 @@ testPostIdentifierResolution = do
 testBackendPlanResolution :: IO ()
 testBackendPlanResolution = do
   assertRendered "origin-bearing backend error"
-    "/workspace/model.fme:40:3: effectful operation OpId \"operator.retired\" (SemanticKey \"opaque-key\") is not supported by this post-fec"
+    "/workspace/model.fme:40:3: effectful operation OpId \"operator.retired\" (SemanticKey \"opaque-key\") is not supported by this formurae-post"
     (renderPostError fixture
       (PostBackendPlanError (Backend.UnsupportedEffectfulOperation
         retiredOperationId opaqueKey (OriginId 7))))

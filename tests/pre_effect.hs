@@ -473,7 +473,7 @@ main = do
     [("genericQuote", PureFunction)]
     (effectSummaryDefinitions genericQuoteSummary)
 
-  putStrLn "pre-fec effect tests: ok"
+  putStrLn "formurae-pre effect tests: ok"
 
 isDerivativeBarrier :: EffectError -> Bool
 isDerivativeBarrier problem =

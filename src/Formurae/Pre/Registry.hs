@@ -95,7 +95,7 @@ data TraceDefinition = TraceDefinition
   -- Definitions outside the small tensor-expression grammar are emitted as
   -- pure Egison expressions.  We can still identify a call to such a
   -- definition from a step/initializer, but deliberately stop the expansion
-  -- trace at that frame because pre-fec does not parse the raw Egison body.
+  -- trace at that frame because formurae-pre does not parse the raw Egison body.
   , traceDefinitionExpression :: Maybe TensorExpr
   } deriving (Eq, Show)
 

@@ -157,7 +157,7 @@ main = do
   assertEqual "typed fields and prior scalar local aliases are accepted"
     (Right ()) (validateModelOperatorTypes valid)
 
-  putStrLn "pre-fec canonical operator kind tests: ok"
+  putStrLn "formurae-pre canonical operator kind tests: ok"
 
 model :: String -> String -> IO Model
 model name = parseModel (name ++ ".fme") name

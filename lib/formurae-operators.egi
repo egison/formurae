@@ -3,7 +3,7 @@
 --
 -- These definitions deliberately contain no grid callback, component loop,
 -- tensor generator, or stencil choice.  Egison performs tensor algebra and
--- analytic differentiation here; post-fec owns discretization.
+-- analytic differentiation here; formurae-post owns discretization.
 --
 
 -- Opaque requests carry their semantic payload in a reserved FunctionData
@@ -140,7 +140,7 @@ def Formurae.select
 
 -- Every subscripted ∂ is an explicit-radius centered request (radius =
 -- primes + 1), independent of the model discretization profile.  Its axis,
--- derivative order, and radius stay atomic until post-fec selects the
+-- derivative order, and radius stay atomic until formurae-post selects the
 -- explicitly requested coordinate stencil.
 def Formurae.coordinateWideDerivative
       (axisId: Integer) (order: Integer) (radius: Integer)
@@ -159,7 +159,7 @@ def Formurae.coordinateWideDerivative
             [value, axisId, order, radius])
 
 -- Whole-expression first derivative. Unlike analytic ∂/∂, this keeps
--- products and nonlinear calls inside one operand so post-fec applies one
+-- products and nonlinear calls inside one operand so formurae-post applies one
 -- conservative/reference grid stencil to the complete expression.
 def Formurae.gridWholeDerivative
       (axisId: Integer) (value: MathValue) : MathValue :=
@@ -174,7 +174,7 @@ def Formurae.gridWholeDerivative
 -- The SBP boundary trace: the wall value of a dual-placed expression,
 -- extrapolated by the pair's boundary vector at the first and last primal
 -- rows and zero elsewhere.  Like the derivatives it keeps the complete
--- operand as one sample; post-fec supplies the extrapolation rows behind
+-- operand as one sample; formurae-post supplies the extrapolation rows behind
 -- index guards on the declared sbp axis.
 def Formurae.sbpTrace
       (axisId: Integer) (value: MathValue) : MathValue :=
@@ -295,7 +295,7 @@ def Formurae.d
                 (!(flip ∂/∂) coordinates A)
 
 -- Orthogonal-metric Hodge star.  The scale vector is the same symbolic value
--- serialized into GeometryNF; post-fec therefore samples each coefficient at
+-- serialized into GeometryNF; formurae-post therefore samples each coefficient at
 -- the source component placement without a model-specific callback here.
 -- Its component convention is
 --   (*A)_J = sign(I ++ J) (V / product(i in I, h_i^2)) A_I.

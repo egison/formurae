@@ -19,7 +19,7 @@ main = do
     (TensorType [2] [VarianceDown] 1)
   assertEquationType program "H"
     (TensorType [2] [VarianceDown] 1)
-  putStrLn "pre-fec structural index completion FEIR test: ok"
+  putStrLn "formurae-pre structural index completion FEIR test: ok"
 
 assertEquationType :: FEProgram -> String -> TensorType -> IO ()
 assertEquationType program fieldName expected = do

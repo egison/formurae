@@ -19,7 +19,7 @@ main = do
     ["first", "second"] (map defName (mDefs model))
   case mDefs model of
     firstDef : _ ->
-      assertEqual "analytic derivative retains the pre-fec syntax tag"
+      assertEqual "analytic derivative retains the formurae-pre syntax tag"
         "pd2r1_x u" (defBody firstDef)
     [] -> fail "missing definitions"
   case mSteps model of
@@ -27,7 +27,7 @@ main = do
       assertEqual "step expression is not macro-expanded"
         "second u" (sEx firstStep)
     [] -> fail "missing step"
-  putStrLn "pre-fec profile parser tests: ok"
+  putStrLn "formurae-pre profile parser tests: ok"
   where
     source = unlines
       [ "mode collocated"

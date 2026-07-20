@@ -1,7 +1,7 @@
 -- Maxwell's equations in vacuum (c = 1), collocated grid
 --   dE/dt =  curl B
 --   dB/dt = -curl E'     (the B update uses the updated E': symplectic)
--- curl is an ordinary short user operator; post-fec chooses its stencil.
+-- curl is an ordinary short user operator; formurae-post chooses its stencil.
 
 mode collocated
 dimension 3

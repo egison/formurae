@@ -36,7 +36,7 @@ main = do
     | (fieldId, _) <- materializations
     ]
   mapM_ (checkMaterialization fields) materializations
-  putStrLn "pre-fec typed-local metadata FEIR test: ok"
+  putStrLn "formurae-pre typed-local metadata FEIR test: ok"
 
 checkMaterialization
     :: [LogicalFieldDecl]

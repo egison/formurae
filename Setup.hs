@@ -13,7 +13,7 @@ hooks = simpleUserHooks
       -- Generated bindings are checked, not repaired, so a build never hides
       -- an unreviewed manifest change in the working tree.
       status <- rawSystem "runghc"
-        [ "-ifec/src"
+        [ "-isrc"
         , "tools/generate-feir-primitives.hs"
         , "--check"
         ]

@@ -59,7 +59,7 @@ main = do
     "FEIR.atom \"expansion-frame\"" unit
   assertContains "generated FEIR wire carries the nested definition name"
     "FEIR.string \"outer\"" unit
-  putStrLn "pre-fec provenance tests: ok"
+  putStrLn "formurae-pre provenance tests: ok"
 
 source :: String
 source = unlines

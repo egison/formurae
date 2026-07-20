@@ -6,7 +6,7 @@ ROOT=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 EGISON_DIR=${EGISON_DIR:-"$ROOT/../egison"}
 
 cd "$ROOT"
-runghc -ifec/src tools/generate-feir-primitives.hs --check
+runghc -isrc tools/generate-feir-primitives.hs --check
 cabal build -v0 -j1 all
 
 for test in \
@@ -48,7 +48,7 @@ for test in \
   post_compile_explicit_effects \
   post_diagnostic
 do
-  cabal exec -v0 runghc -- -ifec/src "tests/$test.hs"
+  cabal exec -v0 runghc -- -isrc "tests/$test.hs"
 done
 
 "$ROOT/tools/run_egison_machine.sh" "$EGISON_DIR" -t \
@@ -77,7 +77,7 @@ sh tests/formurae_operator_errors.sh
 
 "$ROOT/tools/run_formurae_normalization.sh" "$EGISON_DIR" \
   "$ROOT/tests/formurae_feir_lib.egi" \
-  | cabal exec -v0 runghc -- -ifec/src tests/feir_egison_wire.hs
+  | cabal exec -v0 runghc -- -isrc tests/feir_egison_wire.hs
 
 sh tests/formurae_opaque_errors.sh
 sh tests/egison_machine_output.sh "$EGISON_DIR"
@@ -92,6 +92,6 @@ sh tests/post_diagnostic_cli.sh
 sh tests/pre_provenance_e2e.sh
 # Includes the typed conservative-local FEIR check in
 # tests/pre_conservative_local_feir.hs.
-sh tests/pre_fec_pipeline.sh
+sh tests/pre_pipeline.sh
 
 printf 'Formurae compiler suite: ok\n'

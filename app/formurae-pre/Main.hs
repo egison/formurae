@@ -14,7 +14,7 @@ import Formurae.Pre.EmitEgison
 import Formurae.Pre.Parse (parseModel)
 import Formurae.Pre.TypeCheck
 import qualified Formurae.Syntax as Surface
-import Paths_fec (getDataFileName)
+import Paths_formurae (getDataFileName)
 import Text.Read (readMaybe)
 
 main :: IO ()
@@ -22,7 +22,7 @@ main = do
   arguments <- getArgs
   path <- case arguments of
     [sourcePath] -> pure sourcePath
-    _ -> failWith "usage: pre-fec MODEL.fme"
+    _ -> failWith "usage: formurae-pre MODEL.fme"
   source <- readFile path
   model <- parseModel path (takeBaseName path) source
   manifestPath <- getDataFileName "spec/feir-primitives.sexp"
@@ -141,5 +141,5 @@ renderSourceStart source =
 
 failWith :: String -> IO a
 failWith message = do
-  hPutStrLn stderr ("pre-fec: error: " ++ message)
+  hPutStrLn stderr ("formurae-pre: error: " ++ message)
   exitFailure

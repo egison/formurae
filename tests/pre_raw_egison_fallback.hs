@@ -90,7 +90,7 @@ main = do
     [FEIR.expansionFrameName frame
     | frame <- FEIR.sourceOriginTrace stepOrigin]
 
-  putStrLn "pre-fec raw Egison fallback tests: ok"
+  putStrLn "formurae-pre raw Egison fallback tests: ok"
 
 definition :: Int -> String -> [String] -> String -> Def
 definition line name parameters body =

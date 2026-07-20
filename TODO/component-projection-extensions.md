@@ -31,7 +31,7 @@ TEIdent 直付けの添字だけでなく、括弧つき式への射影。文法
 x-flux だけを状態として持ちたい場合(残成分の記憶域が無駄)。
 `LogicalFieldDecl` に宣言 basis を足す = **FEIR スキーマ変更**
 (fingerprint 更新・全例題再生成の随伴作業)。placement は従来どおり
-`componentPlacement(policy, basis)` 導出なので post-fec の意味論は不変。
+`componentPlacement(policy, basis)` 導出なので formurae-post の意味論は不変。
 v2.18 の (B)+indexed local で当面代替できるため、必要が実証されてから。
 
 ## 完了条件(拡張 1 の場合)

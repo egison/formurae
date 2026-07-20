@@ -26,7 +26,7 @@ main = do
     ] actionOrigin
   assertEqual "BindValue provenance points to its traced origin"
     [actionOriginId] (findProvenance program nodeId)
-  putStrLn "pre-fec FEIR provenance sidecar tests: ok"
+  putStrLn "formurae-pre FEIR provenance sidecar tests: ok"
 
 findOrigin :: FEProgram -> OriginId -> SourceOrigin
 findOrigin program identifier =

@@ -95,58 +95,58 @@ representation for these requirements, not a current contract.</p>
     <td>the <code>lb.orthogonal@1</code> manifest</td></tr>
 </table>
 
-<h3>&#9313; pre-fec</h3>
+<h3>&#9313; formurae-pre</h3>
 <table>
 <tr><th>File</th><th>Dependency</th></tr>
-<tr><td><code>fec/src/Formurae/Pre/EmitEgison.hs</code></td>
+<tr><td><code>src/Formurae/Pre/EmitEgison.hs</code></td>
     <td><code>prepareGeometryDeclarations</code> emits the CAS assert that off-diagonal
         components are zero (<code>feGeometryOrthogonalityVerified</code>) and defines
         <code>feGeometryScale</code>/<code>feGeometryVolume</code>/<code>feGeometryInverseMetric</code>
         under the diagonal assumption</td></tr>
-<tr><td><code>fec/src/Formurae/Pre/Registry.hs</code></td>
+<tr><td><code>src/Formurae/Pre/Registry.hs</code></td>
     <td>construction of <code>OrthogonalScaleGeometry</code> / <code>EmbeddedOrthogonalGeometry</code></td></tr>
-<tr><td><code>fec/src/Formurae/Pre/Effect.hs</code></td>
+<tr><td><code>src/Formurae/Pre/Effect.hs</code></td>
     <td>fixed mapping from surface <code>lb</code> to <code>lb.orthogonal@1</code></td></tr>
-<tr><td><code>fec/src/Formurae/Pre/Parse.hs</code></td>
+<tr><td><code>src/Formurae/Pre/Parse.hs</code></td>
     <td>reserved ambient-name list (<code>feGeometryOrthogonalityVerified</code>, &hellip;)</td></tr>
 </table>
 
 <h3>&#9314; FEIR contract</h3>
 <table>
 <tr><th>File</th><th>Dependency</th></tr>
-<tr><td><code>fec/src/Formurae/FEIR/Syntax.hs</code></td>
+<tr><td><code>src/Formurae/FEIR/Syntax.hs</code></td>
     <td><code>GeometryKind</code> (<code>OrthogonalScaleGeometry</code> / <code>EmbeddedOrthogonalGeometry</code>)
         and <code>GeometryNF.geometryOrthogonalityVerified :: Bool</code>.
         Note that <code>GeometryNF</code> already carries the full metric and inverse metric
         as <code>TensorNF</code> &mdash; the data is there; it is the consumers that assume
         diagonality</td></tr>
-<tr><td><code>fec/src/Formurae/FEIR/Validate.hs</code></td>
+<tr><td><code>src/Formurae/FEIR/Validate.hs</code></td>
     <td>the <code>UnverifiedOrthogonalGeometry</code> error</td></tr>
-<tr><td><code>fec/src/Formurae/FEIR/Codec.hs</code></td>
+<tr><td><code>src/Formurae/FEIR/Codec.hs</code></td>
     <td>serialization of the <code>orthogonality-verified</code> field</td></tr>
-<tr><td><code>fec/src/Formurae/FEIR/RegistryFingerprint.hs</code></td>
+<tr><td><code>src/Formurae/FEIR/RegistryFingerprint.hs</code></td>
     <td>geometry kind tags (<code>orthogonal-scale</code> / <code>embedded-orthogonal</code>)</td></tr>
-<tr><td><code>fec/src/Formurae/FEIR/PrimitiveBindings.hs</code> +
+<tr><td><code>src/Formurae/FEIR/PrimitiveBindings.hs</code> +
         <code>spec/feir-primitives-v1.sexp</code> +
         <code>lib/formurae-primitives.egi</code></td>
     <td>three synchronized copies of the <code>lb.orthogonal@1</code> manifest
         (guarded by the registry fingerprint)</td></tr>
 </table>
 
-<h3>&#9315; post-fec</h3>
+<h3>&#9315; formurae-post</h3>
 <table>
 <tr><th>File</th><th>Dependency</th></tr>
-<tr><td><code>fec/src/Formurae/Post/BackendPlan.hs</code></td>
+<tr><td><code>src/Formurae/Post/BackendPlan.hs</code></td>
     <td>lowering of <code>lb.orthogonal@1</code>: per-axis coefficient fields
         V/h<sub>a</sub>&sup2; (<code>OrthogonalCoefficientRole</code>), a volume field,
         and flux fields; the <code>LbNeedsOrthogonalMetric</code> /
         <code>LbUnverifiedOrthogonalMetric</code> errors.
         <code>makeHodgeCoefficient</code> just samples one coefficient at the
         source component&rsquo;s placement</td></tr>
-<tr><td><code>fec/src/Formurae/Post/Compile.hs</code></td>
+<tr><td><code>src/Formurae/Post/Compile.hs</code></td>
     <td>the orthogonality gate of the metric codifferential
         (<code>metricCodifferentialGeometryNF</code>)</td></tr>
-<tr><td><code>fec/src/Formurae/Post/Diagnostic.hs</code></td>
+<tr><td><code>src/Formurae/Post/Diagnostic.hs</code></td>
     <td>the diagnostic message surface</td></tr>
 </table>
 
@@ -294,7 +294,7 @@ structured-grid version of that special structure.</p>
 
 <h3>4.4 What this means for Formurae &mdash; a contract conflict</h3>
 
-<p>As the paper&rsquo;s analytic/discrete-boundary paragraph states, post-fec&rsquo;s design
+<p>As the paper&rsquo;s analytic/discrete-boundary paragraph states, formurae-post&rsquo;s design
 principles are: never insert interpolation between incompatible placements implicitly, and
 make resampling a versioned opaque primitive whenever it is semantically observable.
 A general &#8902; on staggered form fields applies averaging to fields the user declared,
@@ -324,7 +324,7 @@ without ever crossing a user-visible placement.</p>
         Do not reintroduce the removed public <code>flat</code>/<code>sharp</code> API.
         Confirm &radic;det g closes under Egison&rsquo;s sqrt
         simplification rules</td></tr>
-<tr><td>Phase 2<br>pre-fec</td>
+<tr><td>Phase 2<br>formurae-pre</td>
     <td>Replace the assert in <code>EmitEgison.hs</code> with classification
         (all off-diagonals reduce to 0 &rarr; orthogonal class, otherwise general class)
         plus symmetry and nondegeneracy checks.
@@ -337,7 +337,7 @@ without ever crossing a user-visible placement.</p>
         validation errors follow. The primitive manifest must stay synchronized in three
         places (<code>PrimitiveBindings.hs</code> / <code>formurae-primitives.egi</code> /
         <code>feir-primitives-v1.sexp</code>)</td></tr>
-<tr><td>Phase 4<br>post-fec</td>
+<tr><td>Phase 4<br>formurae-post</td>
     <td>New <code>lb.general@1</code>: coefficient fields go from d per-axis to
         d(d+1)/2 symmetric pairs (C<sup>ab</sup> = &radic;g g<sup>ab</sup>).
         Cross terms &part;<sub>b</sub>u (b&ne;a) in the face-a flux use the standard

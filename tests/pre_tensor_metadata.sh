@@ -13,7 +13,7 @@ run_machine() {
 }
 
 cd "$ROOT"
-cabal run -v0 -j1 pre-fec -- tests/fixtures/pre_fec_materialized_metadata.fme \
+cabal run -v0 -j1 formurae-pre -- tests/fixtures/pre_materialized_metadata.fme \
   > "$WORK/materialized.egi"
 grep -F 'def FormuraeInternalValue1~i : Tensor MathValue := X~i' \
   "$WORK/materialized.egi" >/dev/null
@@ -24,14 +24,14 @@ grep -F 'FormuraeInternalEncodeTensor [2] ["up"] 0 FormuraeInternalValue1' \
 grep -F 'FormuraeInternalEncodeTensor [2] ["down"] 1 FormuraeInternalValue2' \
   "$WORK/materialized.egi" >/dev/null
 run_machine "$WORK/materialized.egi" > "$WORK/materialized.feir"
-cabal exec -v0 runghc -- -ifec/src tests/pre_materialized_metadata_feir.hs \
+cabal exec -v0 runghc -- -isrc tests/pre_materialized_metadata_feir.hs \
   < "$WORK/materialized.feir"
 
 expect_metadata_failure() {
   kind=$1
   location=$2
-  source="tests/fixtures/pre_fec_${kind}_mismatch.fme"
-  cabal run -v0 -j1 pre-fec -- "$source" > "$WORK/$kind.egi"
+  source="tests/fixtures/pre_${kind}_mismatch.fme"
+  cabal run -v0 -j1 formurae-pre -- "$source" > "$WORK/$kind.egi"
   if run_machine "$WORK/$kind.egi" \
        > "$WORK/$kind.feir" 2> "$WORK/$kind.err"; then
     printf 'Egison accepted a %s metadata mismatch\n' "$kind" >&2
@@ -41,7 +41,7 @@ expect_metadata_failure() {
     printf '%s metadata failure leaked FEIR output\n' "$kind" >&2
     exit 1
   fi
-  grep -F "pre-fec: error: $source:$location: Egison normalization failed" \
+  grep -F "formurae-pre: error: $source:$location: Egison normalization failed" \
     "$WORK/$kind.err" >/dev/null
   grep -F 'Assertion failed: "normalized equation tensor metadata mismatch"' \
     "$WORK/$kind.err" >/dev/null
@@ -50,4 +50,4 @@ expect_metadata_failure() {
 expect_metadata_failure variance 7:8
 expect_metadata_failure degree 8:8
 
-printf 'pre-fec structural tensor metadata tests: ok\n'
+printf 'formurae-pre structural tensor metadata tests: ok\n'

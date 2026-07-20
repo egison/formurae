@@ -46,7 +46,7 @@ main = do
   assertAbsent "ambient operators do not construct a context"
     "Formurae.operatorContext" embeddedUnit
   assertAbsent "no eager whole-expression expansion" "expandAll" embeddedUnit
-  putStrLn "pre-fec geometry emitter tests: ok"
+  putStrLn "formurae-pre geometry emitter tests: ok"
 
 manifestId :: PrimitiveManifestId
 manifestId = PrimitiveManifestId

@@ -8,15 +8,15 @@ MPI・temporal blocking付きC codeを生成するための実験的な言語処
 
 ```text
 model.fme
-  └─ pre-fec ──> model.egi
+  └─ formurae-pre ──> model.egi
                     └─ Egison ──> model.feir
-                                      └─ post-fec ──> model.fmr
+                                      └─ formurae-post ──> model.fmr
                                                          └─ Formura ──> C
 ```
 
-- `pre-fec` は構文、scope、宣言、source mapを検査し、Egison normalization unitを生成します。
+- `formurae-pre` は構文、scope、宣言、source mapを検査し、Egison normalization unitを生成します。
 - Egison はuser definition、tensor/index algebra、analytic differentiationを評価し、canonical FEIRを出力します。
-- `post-fec` はplacement、stencil、補助field、storageを決め、Formura programを生成します。
+- `formurae-post` はplacement、stencil、補助field、storageを決め、Formura programを生成します。
 - Formura は配列、loop、MPI通信、temporal blockingを含むC codeを生成します。
 
 純粋な数学演算子はEgisonにだけ定義されます。`grad`、`divg`、`curl`、`hessian`、`lap`、
@@ -25,7 +25,7 @@ model.fme
 
 user tensor operatorも同じ経路です。例えば次の`withSymbols`を出た自由な下添字は、Egisonでは
 添字を省略したtensor軸になります。省略軸には既存の明示添字とは異なるfreshな下添字が補われ、
-pre-fecは関数名や本体からresult varianceのsignatureを推論・付与しません。EgisonがRHSを評価した後、
+formurae-preは関数名や本体からresult varianceのsignatureを推論・付与しません。EgisonがRHSを評価した後、
 宣言済みのequation targetまたはindexed `local`へ値を格納する時点で、targetが要求するshape、logical
 variance、`dfOrder`と実際の値を照合します。degree-zero covariant tensor targetへ代入する場合に限り、
 構造的index completionがcompatibleなanonymous down軸をtargetの下添字へ対応付けます。anonymous down軸を
@@ -109,7 +109,7 @@ step:
 discretization collocated derivative 2 centered accuracy 4
 ```
 
-Egisonはgeometryのない`Δ u`を二階のFieldJetへ正規化し、post-fecが4次精度を満たす最小半径2の
+Egisonはgeometryのない`Δ u`を二階のFieldJetへ正規化し、formurae-postが4次精度を満たす最小半径2の
 compact 5点stencilをexact rational coefficientで導出します。一階wide stencilを二重適用しません。
 
 ## 微分の意味
@@ -173,7 +173,7 @@ step:
 ```
 
 配置は`Collocated`、`Primal`、`Dual`のいずれかです。Primal/Dualの具体的な半セル位置は
-field policyとcomponent basisのparityからpost-fecが推論します。異なるplacement間の補間は
+field policyとcomponent basisのparityからformurae-postが推論します。異なるplacement間の補間は
 暗黙に行わず、必要なら`resample(value, bit...)`を使います。
 
 Maxwellはcollocated vector、Yee vector、DEC formの各形式で記述できます。
@@ -193,7 +193,7 @@ step:
 
 `mode dec`のcanonical form演算子は`d`、`hodge`、`δ`、`Δ_H`です。
 `δ`は余微分、`Δ_H A = d (δ A) + δ (d A)`はHodge--de Rham Laplacianです。
-宣言幾何の`δ`はpreludeマクロとして`dFluxWeights`/`dFluxScale`/`dFluxDiv`へ展開され、幾何のみの係数localはpost-fecがinit凍結のstate配列にします。
+宣言幾何の`δ`はpreludeマクロとして`dFluxWeights`/`dFluxScale`/`dFluxDiv`へ展開され、幾何のみの係数localはformurae-postがinit凍結のstate配列にします。
 `Δ_H`はconstant geometryでのpureな合成をサポートし、general variable-metric formは現IRで表せないためcompile-time errorにします。
 これらのform演算子は宣言済みscalar/`k-form`だけを受け取り、ordinary tensorを暗黙にformへ変換しません。
 quoted derivativeとcollocated scalar `Δ`もscalar-onlyです。型annotationを持たないuser `def` parameterの
@@ -218,21 +218,21 @@ Egisonはmetric、inverse metric、scale factor、volumeを記号的に作り、
 検査します。geometryを宣言したモデルの`Δ u`はpreludeマクロとして、実体化した重み・flux
 localと符号付きadjoint divergenceへ展開されます。FEIRに残るのはordinaryなMaterialize
 actionとwhole-operandな`derivative.grid-whole` requestだけで、幾何のみの係数local
-はpost-fecが凍結してinit一回+恒等carryのpersistent stateにします(mirror/fixed壁の
+はformurae-postが凍結してinit一回+恒等carryのpersistent stateにします(mirror/fixed壁の
 境界処理もstate配列として宣言どおりに受けます)。
 
 ## FEIR
 
-FEIR (Formurae Egison IR) はEgisonとpost-fecのcanonical protocolです。その同一性は
+FEIR (Formurae Egison IR) はEgisonとformurae-postのcanonical protocolです。その同一性は
 手で振る版番号ではなくfingerprint(内容ハッシュ)が固定します。
 
 `.fme` のgeometry、`:=` analytic initializer、step、parse可能な`def`に書いた
-小数・指数リテラルは、pre-fecが綴りどおりのexact rationalへ変換します。
+小数・指数リテラルは、formurae-preが綴りどおりのexact rationalへ変換します。
 raw Egison `def`本体と`=` raw initializerはEgisonのFloat/生文字列の意味論を保ちます。
 有限なdouble backendへ安全に下ろせない指数、または約分後の分子・分母をbinary64へ
 正確に渡せない非整数リテラルは、丸めて続行せずcompile-time errorにします。
 Unicode `π` はEgison CASでシンボリックに簡約され、残った値はFEIRの
-`(named-constant pi)`としてpost-fecまで保持されます。FMRをrenderするときだけ、binary64のπと
+`(named-constant pi)`としてformurae-postまで保持されます。FMRをrenderするときだけ、binary64のπと
 同値で両operandが2^53未満の`(884279719003555 / 281474976710656)`へ変換します。
 ASCII `pi`はEgisonのFloatと衝突するためaliasではありません。parameter値と`=` raw initializerは
 symbolic FEIRを通らないので、そこでは`π`を使わずbackend数値を明示します。
@@ -254,8 +254,42 @@ evaluation error、余分なstdoutはmachine runnerが拒否します。
 
 ## クイックスタート
 
-前提はGHC 9.6系と、隣接する`../egison`の開発treeです。Formuraのbuildには`stack`を使いますが、
-FormuraeとEgison自身は`cabal`でbuildします。1-rank用MPI stubを同梱しています。
+### インストール
+
+Formurae、Egison、検証済みFormuraはすべてCabalでインストールできます。
+`cabal install`の実行ファイルディレクトリ(通常は`~/.local/bin`)を`PATH`に加えてください。
+
+```sh
+cabal install egison-5.1.0
+
+git clone https://github.com/egison/formura.git
+cd formura
+git checkout 3bc74b5c6f1a24dfffe869839d75fd44b8aa2eb0
+cabal install exe:formura --overwrite-policy=always
+cd ..
+
+git clone https://github.com/egison/formurae.git
+cd formurae
+cabal install exe:formurae exe:formurae-pre exe:formurae-post \
+  --overwrite-policy=always
+```
+
+一括CLIは`.egi`、`.feir`、`.fmr`を入力ファイルと同じディレクトリへ書き、
+`compile`では続けてFormuraを呼び出します。
+
+```sh
+formurae compile examples/diffusion3d/diffusion3d.fme
+formurae lower examples/diffusion3d/diffusion3d.fme
+```
+
+`compile`には入力と同じbasenameの`.yaml`が必要です。`lower`は`.fmr`生成で停止します。
+`EGISON`、`FORMURA`、`FORMURAE_PRE`、`FORMURAE_POST`環境変数で各実行ファイルを明示できます。
+
+### 開発と検証
+
+リポジトリ全体の試験はGHC 9.6系、隣接する`../egison`開発tree、および検証済みFormuraを使います。
+`make setup`はFormuraを固定commitからCabalで`bin/formura`へインストールします。
+1-rank用MPI stubを同梱しています。
 
 ```sh
 make setup
@@ -274,12 +308,12 @@ make all
 各stageを直接確認する場合:
 
 ```sh
-cabal run -v0 pre-fec -- examples/diffusion3d/diffusion3d.fme > /tmp/model.egi
+cabal run -v0 formurae-pre -- examples/diffusion3d/diffusion3d.fme > /tmp/model.egi
 
 tools/run_formurae_normalization.sh ../egison \
   /tmp/model.egi > /tmp/model.feir
 
-cabal run -v0 post-fec -- /tmp/model.feir > /tmp/model.fmr
+cabal run -v0 formurae-post -- /tmp/model.feir > /tmp/model.fmr
 ```
 
 ## 生成物
@@ -294,11 +328,12 @@ typed `local`として物質化し、`lbm_d3q19`は中心1階・2階差分の恒
 
 | パス | 役割 |
 |---|---|
-| `fec/app/pre-fec/` | Formurae frontend CLI |
-| `fec/app/post-fec/` | FEIR validation・discretization・Formura backend CLI |
-| `fec/src/Formurae/FEIR/` | FEIR syntax、codec、validation、fingerprint |
-| `fec/src/Formurae/Pre/` | parse、registry、effect analysis、Egison emitter |
-| `fec/src/Formurae/Post/` | placement、stencil、geometry/backend plan、FMR AST/printer |
+| `app/formurae/` | インストール済みtoolchainを駆動する一括CLI |
+| `app/formurae-pre/` | Formurae frontend CLI |
+| `app/formurae-post/` | FEIR validation・discretization・Formura backend CLI |
+| `src/Formurae/FEIR/` | FEIR syntax、codec、validation、fingerprint |
+| `src/Formurae/Pre/` | parse、registry、effect analysis、Egison emitter |
+| `src/Formurae/Post/` | placement、stencil、geometry/backend plan、FMR AST/printer |
 | `lib/formurae-operators.egi` | pure continuum operatorとopaque request constructor |
 | `lib/formurae-primitives.egi` | primitive manifestから自動生成するfull-signature binding |
 | `lib/formurae-feir.egi` | MathValue/Tensorからcanonical FEIRへのencoder |
@@ -330,9 +365,9 @@ make all
 ```
 
 - FEIR round-trip、malformed input、fingerprint、source diagnostic
-- pre-fec scope/effect/ambient-binding tests
+- formurae-pre scope/effect/ambient-binding tests
 - Egison analytic differentiation、FieldJet、tensor/form operator tests
-- post-fec profile、exact Taylor stencil、placement、quoted derivative、geometry-aware `Δ` / `δ` tests
+- formurae-post profile、exact Taylor stencil、placement、quoted derivative、geometry-aware `Δ` / `δ` tests
 - collocated/Yee/DEC/variable-metric exampleのFormura parseとC numerical checks
 - Egison math representative samples、mini-test全件、`cabal test`
 

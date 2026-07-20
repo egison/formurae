@@ -2,8 +2,8 @@
 -- Parse and validate Formurae's mathematical surface language.
 --
 -- This is intentionally only a front-end parser.  It preserves analytic
--- tensor expressions and exact source maps for pre-fec; Egison performs
--- continuum normalization and post-fec selects discrete implementations.
+-- tensor expressions and exact source maps for formurae-pre; Egison performs
+-- continuum normalization and formurae-post selects discrete implementations.
 module Formurae.Pre.Parse
   ( parseModel
   ) where
@@ -741,7 +741,7 @@ parseBoundaryDecl lineNumber source =
        ++ "or boundary AXIS : ghost VALUE")
 
 -- Parse and validate the source language without expanding definitions or
--- selecting a discrete implementation.  pre-fec emits this model to Egison
+-- selecting a discrete implementation.  formurae-pre emits this model to Egison
 -- for mathematical normalization.
 parseModel :: FilePath -> String -> String -> IO Model
 parseModel sourceFile name txt = do
@@ -1423,8 +1423,8 @@ parseModel sourceFile name txt = do
         componentCount Nothing = mDim m
 
     -- Step equations keep superscripts (~i) and subscripts (_i) distinct.
-    -- pre-fec preserves that variance in the logical tensor type; Egison
-    -- evaluates the indexed equation and post-fec alone projects storage.
+    -- formurae-pre preserves that variance in the logical tensor type; Egison
+    -- evaluates the indexed equation and formurae-post alone projects storage.
     stp sourceLines s0 m
       | Just bad <- banned =
           fatal (bad ++ " (line " ++ show ln ++ ")")

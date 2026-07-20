@@ -7,7 +7,7 @@ import System.Exit (exitFailure)
 import System.IO (hPutStrLn, stderr)
 
 fatal :: String -> IO a
-fatal msg = hPutStrLn stderr ("pre-fec: error: " ++ msg) >> exitFailure
+fatal msg = hPutStrLn stderr ("formurae-pre: error: " ++ msg) >> exitFailure
 
 strip, rstrip :: String -> String
 rstrip = dropWhileEnd isSpace

@@ -2,7 +2,7 @@
 -- formurae-geometry.egi : differential-form geometry on structured grids
 --
 -- Load formurae-tensor.egi before this file.  This library contains only
--- continuum form and metric algebra; post-fec owns grid placement, stencils,
+-- continuum form and metric algebra; formurae-post owns grid placement, stencils,
 -- conservative fluxes, and auxiliary storage.
 --
 

@@ -1,7 +1,7 @@
 -- | Versioned, backend-independent wire types for the Formurae Egison IR.
 --
 -- This module deliberately does not reuse the surface-language syntax types.
--- The pre-fec producer, the Egison encoder, and post-fec must agree on these
+-- The formurae-pre producer, the Egison encoder, and formurae-post must agree on these
 -- types without importing parser or backend implementation details.
 module Formurae.FEIR.Syntax where
 
@@ -225,7 +225,7 @@ data LogicalFieldDecl = LogicalFieldDecl
   , logicalFieldLayout            :: Layout
   -- | A 'Nothing' entry represents a syntactically unmarked tensor axis.  Its
   -- semantic variance is still explicit in 'logicalFieldTensorType', while
-  -- post-fec uses this declaration metadata for deterministic storage
+  -- formurae-post uses this declaration metadata for deterministic storage
   -- projection without confusing an unmarked axis with an explicit subscript.
   , logicalFieldDeclaredVariances :: [Maybe Variance]
   , logicalFieldLifetime          :: Lifetime

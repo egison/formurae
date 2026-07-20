@@ -2,7 +2,7 @@
 -- declares
 --   boundary x : sbp
 -- and spells the wide staggered first derivative ∂' in both directions, so
--- post-fec lowers the fourth-order interior stage with the constructed
+-- formurae-post lowers the fourth-order interior stage with the constructed
 -- summation-by-parts closure rows on both ends (the wide primal-to-dual
 -- direction needs closures too, unlike the minimal stage).  The penalty
 -- (SAT) strength multiplies the declared inverse boundary norm sbpHinv4X

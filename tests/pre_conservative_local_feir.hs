@@ -65,7 +65,7 @@ main = do
       `notElem` operationIds)
   assert "no materialized opaque primitive"
     (OpId "operator.materialized" `notElem` operationIds)
-  putStrLn "pre-fec conservative local FEIR test: ok"
+  putStrLn "formurae-pre conservative local FEIR test: ok"
 
 actionOpaqueCalls :: FEAction -> [OpaqueDiscrete]
 actionOpaqueCalls action =

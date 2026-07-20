@@ -1009,7 +1009,7 @@ def FEIR.encodeTensorWithMetadata
 -- ----------------------------------------------------------------- deferred
 -- A step local declared `: tensor` defers its rank, variances, and form
 -- degree to the value computed during normalization.  These builders
--- reproduce exactly the declaration and reader entries pre-fec would have
+-- reproduce exactly the declaration and reader entries formurae-pre would have
 -- emitted had the metadata been written, so downstream FEIR consumers see
 -- a fully concrete field.
 

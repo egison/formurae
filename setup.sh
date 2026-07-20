@@ -1,5 +1,5 @@
 #!/bin/sh
-# Build the Formura compiler used by this repo into ./bin/formura.
+# Build the Formura compiler used by this repo with Cabal into ./bin/formura.
 # Preferred source: the sibling clone ../formura (github.com/egison/formura,
 # our fork carrying the GHC 9.6 port and fixes). Fallback: clone the fork at
 # the exact revision validated by this repository.
@@ -26,5 +26,6 @@ if [ "$actual_rev" != "$FORMURA_REV" ]; then
   exit 1
 fi
 
-(cd vendor/formura && stack install --local-bin-path "$ROOT/bin")
+(cd vendor/formura && cabal install exe:formura \
+  --installdir="$ROOT/bin" --overwrite-policy=always)
 "$ROOT/bin/formura" --version

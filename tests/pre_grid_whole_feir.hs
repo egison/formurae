@@ -43,7 +43,7 @@ checkGridWhole opaque = do
     , Attribute (AttributeId "radius") (AttributeNatural 1)
     ]
     (opaqueDiscreteAttributes opaque)
-  putStrLn "pre-fec grid-whole FEIR test: ok"
+  putStrLn "formurae-pre grid-whole FEIR test: ok"
 
 expectedOperand :: ScalarNF
 expectedOperand = Mul

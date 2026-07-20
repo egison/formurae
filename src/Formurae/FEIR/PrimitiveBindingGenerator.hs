@@ -25,7 +25,7 @@ defaultGeneratedPrimitivePaths :: FilePath -> GeneratedPrimitivePaths
 defaultGeneratedPrimitivePaths root = GeneratedPrimitivePaths
   { generatedManifestPath = root </> "spec/feir-primitives.sexp"
   , generatedHaskellPath =
-      root </> "fec/src/Formurae/FEIR/PrimitiveBindings.hs"
+      root </> "src/Formurae/FEIR/PrimitiveBindings.hs"
   , generatedEgisonPath = root </> "lib/formurae-primitives.egi"
   }
 

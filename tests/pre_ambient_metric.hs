@@ -49,7 +49,7 @@ main = do
   assertContains "raw coordinate spelling inside strings is preserved"
     "label := \"~theta\"" renamed
 
-  putStrLn "pre-fec ambient metric tests: ok"
+  putStrLn "formurae-pre ambient metric tests: ok"
 
 emit :: FilePath -> String -> IO String
 emit path source = do

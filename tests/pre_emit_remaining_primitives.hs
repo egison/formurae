@@ -8,8 +8,8 @@ import Formurae.Pre.Parse (parseModel)
 
 main :: IO ()
 main = do
-  source <- readFile "tests/fixtures/pre_fec_remaining_primitives.fme"
-  model <- parseModel "tests/fixtures/pre_fec_remaining_primitives.fme"
+  source <- readFile "tests/fixtures/pre_remaining_primitives.fme"
+  model <- parseModel "tests/fixtures/pre_remaining_primitives.fme"
     "remaining-primitives" source
   unit <- requireRight =<< emitNormalizationUnit
     Primitives.primitiveManifestId model
@@ -87,7 +87,7 @@ main = do
     badBitsSource
   badBits <- emitNormalizationUnit Primitives.primitiveManifestId badBitsModel
   assertLeft "resample requires dimension-many literal bits" isBadBits badBits
-  putStrLn "pre-fec remaining primitive emitter tests: ok"
+  putStrLn "formurae-pre remaining primitive emitter tests: ok"
 
 indexedTargetSource :: String
 indexedTargetSource = unlines

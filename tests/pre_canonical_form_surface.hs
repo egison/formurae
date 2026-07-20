@@ -80,7 +80,7 @@ main = do
     (Just "canonical δ requires mode dec")
     (canonicalOperatorModeError CollocatedMode CanonicalCodifferential)
 
-  putStrLn "pre-fec canonical form surface parser tests: ok"
+  putStrLn "formurae-pre canonical form surface parser tests: ok"
 
 source :: String
 source = unlines

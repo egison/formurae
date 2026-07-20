@@ -1,15 +1,15 @@
 # Egison -> Formura -> C -> run, end to end.
 #
 #   make setup        : fetch + patch + build Formura (vendor/, bin/formura)
-#   cabal build       : build the Formurae compilers (pre-fec and post-fec)
-#   make <example>    : .fme -> pre-fec -> Egison -> FEIR -> post-fec -> Formura -> cc -> check
+#   cabal build       : build the Formurae compilers (formurae-pre and formurae-post)
+#   make <example>    : .fme -> formurae-pre -> Egison -> FEIR -> formurae-post -> Formura -> cc -> check
 #   make all          : every example (each check exits nonzero on failure)
 #   make yinyang_diffusion-long : standard Yin-Yang check, then its 3000-step regression
 #   make compiler-tests : FEIR/pre/Egison/post focused and vertical tests
 #   make formurae-tensor-tests : shared Egison tensor/geometry library tests
 #
-# The Egison interpreter must be the development tree (the installed
-# binary ships an older math library); set EGISON_DIR accordingly.
+# Repository tests run the adjacent Egison tree through Cabal so compiler and
+# library changes are tested together; set EGISON_DIR to override it.
 
 EGISON_DIR ?= $(abspath ../egison)
 FORMURA    ?= $(abspath bin/formura)
@@ -20,8 +20,8 @@ FEGEOMETRY := $(abspath lib/formurae-geometry.egi)
 CC      ?= cc
 CFLAGS  ?= -O2 -std=c11
 
-PRE_FEC_RUN  = cabal run -v0 -j1 pre-fec --
-POST_FEC_RUN = cabal run -v0 -j1 post-fec --
+PRE_FEC_RUN  = cabal run -v0 -j1 formurae-pre --
+POST_FEC_RUN = cabal run -v0 -j1 formurae-post --
 EGISON_STRICT = $(abspath tools/run_egison_machine.sh) $(EGISON_DIR)
 EGISON_NORMALIZE = $(abspath tools/run_formurae_normalization.sh) $(EGISON_DIR)
 

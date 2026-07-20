@@ -35,7 +35,7 @@
 <header>
   <h1>Formurae Usage Guide</h1>
   <p>A guide to evaluating tensor index notation, differential forms, and analytic derivatives in Egison,
-     performing only the discretization in post-fec,
+     performing only the discretization in formurae-post,
      and connecting to Formura's MPI, temporal-blocking C code.
      Worked examples live in the <a href="gallery.html">Formurae gallery</a>.</p>
 </header>
@@ -53,17 +53,17 @@
 <h2 id="pipeline">1. The four-stage pipeline</h2>
 
 <pre>model.fme    Formurae source
-   │ pre-fec: parse / scope / declaration / source map
+   │ formurae-pre: parse / scope / declaration / source map
 model.egi    Egison normalization unit
    │ Egison: tensor/index algebra / analytic derivative / CAS
 model.feir   canonical Formurae Egison IR
-   │ post-fec: placement / exact stencil / auxiliary fields / storage
+   │ formurae-post: placement / exact stencil / auxiliary fields / storage
 model.fmr    Formura source
    │ Formura
 model.c/.h   MPI + temporal blocking C library</pre>
 
 <p>Operators definable as pure analytic expressions belong to Egison; the discrete semantics — concrete
-finite differences, grid placement, storage — belong to opaque requests and post-fec;
+finite differences, grid placement, storage — belong to opaque requests and formurae-post;
 loops and communication belong to Formura.
 On success, Egison's stdout is exactly one FEIR. Warnings and type/evaluation errors are rejected by the machine runner.</p>
 
@@ -132,7 +132,7 @@ divergence, <code>∂_j σ~i~j</code> is a vector). <code>withSymbols</code>, <c
 <p>The dividing line is not "primitive versus composite operator" but whether the operator's meaning itself
 can be defined in one to a few lines as an ordinary Egison mathematical expression. Pure operators are
 normalized by Egison — via tensor/index algebra and analytic differentiation — down to expressions containing
-FieldJets; only the subsequent stencil selection is left to post-fec.</p>
+FieldJets; only the subsequent stencil selection is left to formurae-post.</p>
 
 <h3>Quick reference: built-in versus library</h3>
 
@@ -148,7 +148,7 @@ lexical shadowing, and user definitions go through the same completion and place
         boundary extrapolation <code>sbpx_a</code> and the SAT macros <code>satDirichlet_a</code>/<code>satNeumann_a</code>,
         <code>resample</code>, component projection <code>q_x</code>, index/variance notation,
         <code>let</code>/<code>local</code> and <code>@</code> policy</td>
-    <td>pre-fec parsing + Egison's <code>∂/∂</code> (unknown derivative rules are errors) + the opaque manifest.
+    <td>formurae-pre parsing + Egison's <code>∂/∂</code> (unknown derivative rules are errors) + the opaque manifest.
         Analytic differentiation is <code>∂/∂</code> only. Indexed <code>∂</code> is always discrete:
         the bare first order (axis and symbolic indices alike) is the placement-induced radius-1 finite
         difference (a symbolic index lays it out per axis and auto-contracts
@@ -162,7 +162,7 @@ lexical shadowing, and user definitions go through the same completion and place
 <tr><td>Ambient bindings</td>
     <td><code>dimension</code>, <code>coordinates</code>, <code>volume</code>, <code>epsilon</code>,
         <code>metric</code>, <code>inverseMetric</code> (+ any declared metric names)</td>
-    <td>Bound once per model by pre-fec</td>
+    <td>Bound once per model by formurae-pre</td>
     <td>Reserved in model scope</td></tr>
 <tr><td>canonical keyword</td>
     <td><code>d</code>, <code>hodge</code>, <code>δ</code>, <code>Δ</code>, <code>Δ_H</code></td>
@@ -282,7 +282,7 @@ and it is measured to compile to the same C as the analytic route under the defa
 <h3>macro — templates that expand into statement sequences</h3>
 
 <p>Whereas <code>def</code> defines an "expression" (evaluated to a value by Egison), <code>macro</code>
-defines a "statement sequence" (expanded by pre-fec). The body is a sequence of <code>local</code> bindings
+defines a "statement sequence" (expanded by formurae-pre). The body is a sequence of <code>local</code> bindings
 plus an <code>in</code> expression, and calls can be written inside step expressions:</p>
 
 <pre>macro Δc u =
@@ -320,7 +320,7 @@ local names) and for Maxwell on a flat Yee grid
 the library functions read <code>dfOrder</code>, and the deferred local materializes at that degree.</p>
 
 <p>The anonymous rank-1 axis coming out of <code>gradLike</code> is completed with a fresh subscript.
-pre-fec does not infer a result variance from the function name or body; only when the value is assigned
+formurae-pre does not infer a result variance from the function name or body; only when the value is assigned
 directly to an ordinary covector equation target does it map that anonymous down axis to the target's
 subscript. It therefore does not implicitly merge the anonymous axis of <code>E_i + gradLike u</code> into
 the existing <code>i</code>. To combine along the same axis, make the subscript explicit at the
@@ -369,8 +369,8 @@ and <code>wedge</code> has <a href="../../../egison/lib/math/geometry/differenti
 The analytic-derivative core is <a href="../../../egison/lib/math/analysis/derivative.egi"><code>egison/lib/math/analysis/derivative.egi</code></a>,
 and the model-local calculus, form, and geometry definitions are in <a href="../../lib/formurae-operators.egi"><code>lib/formurae-operators.egi</code></a>.
 The authoritative list of opaque operators is <a href="../../spec/feir-primitives.sexp"><code>spec/feir-primitives.sexp</code></a>,
-and the lowering to grid programs lives in <a href="../../fec/src/Formurae/Post/Compile.hs"><code>Compile.hs</code></a> and
-<a href="../../fec/src/Formurae/Post/BackendPlan.hs"><code>BackendPlan.hs</code></a>.</p>
+and the lowering to grid programs lives in <a href="../../src/Formurae/Post/Compile.hs"><code>Compile.hs</code></a> and
+<a href="../../src/Formurae/Post/BackendPlan.hs"><code>BackendPlan.hs</code></a>.</p>
 
 <h2 id="derivative">6. Derivatives and discretization accuracy</h2>
 
@@ -402,14 +402,14 @@ difference on collocated grids, a half-cell Yee difference on staggered grids. A
 tensor of these laid out per axis, auto-applying <code>contractWith (+)</code> only when the operand
 repeats an index introduced by the derivative. <b>Order/prime forms</b> are
 explicit-radius centered stencils (<code>derivative.coordinate-wide</code>;
-independently of the model profile, post-fec solves exact rational coefficients from Taylor moment conditions).
+independently of the model profile, formurae-post solves exact rational coefficients from Taylor moment conditions).
 The width rule — "bare form = the grid's minimal stencil, one prime = +1 ring" — is uniform across all grids:
 on collocated grids radius = quote count + 1; for odd orders on staggered grids the result lands on the
 dual subgrid, so the <b>half-integer effective radius = quote count + 1/2</b> (a symmetric stencil at
 ±1/2 … ±(2k−1)/2 around the target center). The admissible radii satisfy
 2r ≡ m (mod 2) (parity consistency), with 2r+1 points and formal accuracy 2r − m + 2.
 <b>The half-integer radius itself is never written</b>: no fraction appears in the surface language or the
-FEIR (the radius attribute stays a positive integer); post-fec merely interprets "staggered × odd order
+FEIR (the radius attribute stays a positive integer); formurae-post merely interprets "staggered × odd order
 means effective radius = attribute − 1/2". A prime is a parity-neutral
 "+1 ring", and whether it shifts by a half is supplied by the grid, so
 a parity mismatch like "3/2 on collocated" cannot even be expressed —
@@ -424,7 +424,7 @@ u' = u + dt * Δ u
 
 discretization staggered yee accuracy 4   <span class="c">-- Δ, grad, and divg on staggered fields become 4th order too</span></pre>
 
-<p>Accuracy is independent of the operator bodies. post-fec searches for the minimal radius satisfying the
+<p>Accuracy is independent of the operator bodies. formurae-post searches for the minimal radius satisfying the
 formal accuracy and solves exact rational coefficients from Taylor moment conditions. The example above becomes the compact 5-point second-derivative difference.
 On the staggered/yee side, the order-m rule is the <b>m-fold self-composition of the accuracy-2k first-order
 half-integer stage</b>, so Δ = divg∘grad, ∂³ = grad∘Δ, and ∂⁴ = Δ∘Δ hold identically at every order and accuracy
@@ -466,7 +466,7 @@ staggered difference; only the rows closest to the boundary are replaced by summ
 rows via an index guard (<code>if i == 0 then … else …</code>), so
 no sample ever reads outside the domain. Paired with the norm matrix H, the closures are
 chosen to satisfy the discrete integration by parts H_d D⁺ + (H_p D⁻)ᵀ = d_N e_Nᵀ − d₀ e₀ᵀ <b>exactly</b>,
-and post-fec verifies this every time as a finite-N matrix identity (the basis of energy-method stability).
+and formurae-post verifies this every time as a finite-N matrix identity (the basis of energy-method stability).
 Energy stability is a global property — "all derivatives in the model share the same boundary treatment" —
 so it is precisely the declaration that lets <b>a closure-less path mixed onto an sbp axis be a static error</b>:
 the wide explicit second derivative <code>∂'^2</code> (its compact stencil is distinct from the D⁻D⁺ composition and has no SBP factorization),
@@ -568,16 +568,16 @@ derives the induced metric and gates on orthogonality. The metric, its inverse, 
 <p>The canonical <code>Δ</code> with geometry requires coefficient sampling, a cell-to-face gradient, a conserved flux,
 a face-to-cell divergence, and division by the volume. Under declared geometry, <code>Δ</code>/<code>δ</code>
 expand as prelude macros into materialized locals plus the public operators (<code>dFluxWeights</code>/<code>dFluxScale</code>/<code>dFluxDiv</code>)
-(§7), and geometry-only coefficient locals are frozen by post-fec into state arrays computed once at init and carried by identity.</p>
+(§7), and geometry-only coefficient locals are frozen by formurae-post into state arrays computed once at init and carried by identity.</p>
 
 <h2 id="artifacts">9. Generated artifacts and verification</h2>
 
 <p><code>.fme</code> is what you edit. For each FME example, the following are tracked for review.</p>
 
 <ol>
-  <li><code>.egi</code>: pre-fec output</li>
+  <li><code>.egi</code>: formurae-pre output</li>
   <li><code>.feir</code>: Egison normalization result</li>
-  <li><code>.fmr</code>: post-fec output</li>
+  <li><code>.fmr</code>: formurae-post output</li>
 </ol>
 
 <pre>python3 gallery/tools/embed_src.py  <span class="c"># re-embed the four-stage sources into the gallery</span>

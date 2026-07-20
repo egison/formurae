@@ -19,7 +19,7 @@ main = do
     case arguments of
       ["-"] -> getContents
       [path] -> readFile path
-      _ -> failWith "usage: post-fec MODEL.feir (or - for stdin)"
+      _ -> failWith "usage: formurae-post MODEL.feir (or - for stdin)"
   program <- either (failWith . show) pure (parseFEProgram source)
   let validationConfig = ValidationConfig
         { validationExpectedRegistryId = Just (computeRegistryId program)
@@ -39,5 +39,5 @@ main = do
 
 failWith :: String -> IO a
 failWith message = do
-  hPutStrLn stderr ("post-fec: error: " ++ message)
+  hPutStrLn stderr ("formurae-post: error: " ++ message)
   exitFailure
