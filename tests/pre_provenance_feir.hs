@@ -17,12 +17,12 @@ main = do
   let initializerOrigin = findOrigin program initializerOriginId
       actionOrigin = findOrigin program actionOriginId
   assertTrace "initializer FEIR sidecar"
-    [ ("outer", (7, 15), (9, 8))
-    , ("inner", (6, 15), (7, 15))
+    [ ("outer", (6, 15), (8, 8))
+    , ("inner", (5, 15), (6, 15))
     ] initializerOrigin
   assertTrace "action FEIR sidecar"
-    [ ("outer", (7, 15), (11, 14))
-    , ("inner", (6, 15), (7, 15))
+    [ ("outer", (6, 15), (10, 14))
+    , ("inner", (5, 15), (6, 15))
     ] actionOrigin
   assertEqual "BindValue provenance points to its traced origin"
     [actionOriginId] (findProvenance program nodeId)

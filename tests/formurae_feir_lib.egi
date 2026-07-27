@@ -226,7 +226,6 @@ def feirProgramFixture :=
     , FEIR.field "registry-id" (FEIR.string "registry:fixture")
     , FEIR.field "primitive-manifest-id" (FEIR.string "primitives@1")
     , FEIR.field "discretization" feirEmptyProfile
-    , FEIR.field "mode" (FEIR.atom "collocated")
     , FEIR.field "dimension" (FEIR.int 2)
     , FEIR.field "axes"
         (FEIR.list

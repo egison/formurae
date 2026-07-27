@@ -72,7 +72,6 @@ data EffectIssue
   | AnalyticDerivativeOfDiscrete [OpId]
   | GridDerivativeOfDiscrete [OpId]
   | EffectfulHigherOrderArgument String [OpId]
-  | CanonicalOperatorModeMismatch String
   | VariableMetricHodgeLaplacianUnsupported
   | VariableMetricHodgeCompositionUnsupported
   deriving (Eq, Ord, Show)
@@ -370,8 +369,7 @@ analyzeExpression environment expression
   , metricSemanticsContainUnsafeComposition
       (expressionMetricSemantics environment expression) =
       effectFailure VariableMetricHodgeCompositionUnsupported
-  | selectedMode (environmentModel environment) == CollocatedMode
-  , Just operand <- matchScalarDeltaExpression
+  | Just operand <- matchScalarDeltaExpression
       (effectOperatorScope environment) expression = do
       operandEffect <- analyzeExpression environment operand
       operatorEffect <- canonicalOperatorEffect environment
@@ -666,18 +664,14 @@ canonicalOperatorEffect
     :: EffectEnvironment
     -> CanonicalOperator
     -> Either EffectError FunctionEffect
-canonicalOperatorEffect environment operator =
-  case canonicalOperatorModeError
-      (selectedMode (environmentModel environment)) operator of
-    Just message -> effectFailure (CanonicalOperatorModeMismatch message)
-    Nothing
-      | operator == CanonicalHodgeLaplacian
-      , hasVariableGeometry (environmentModel environment) ->
-          effectFailure VariableMetricHodgeLaplacianUnsupported
-      -- Canonical Δ/δ on declared geometry are prelude macros expanded
-      -- during parsing, so only their constant-geometry analytic
-      -- compositions can reach this classification.
-      | otherwise -> pure PureFunction
+canonicalOperatorEffect environment operator
+  | operator == CanonicalHodgeLaplacian
+  , hasVariableGeometry (environmentModel environment) =
+      effectFailure VariableMetricHodgeLaplacianUnsupported
+  -- Canonical Δ/δ on declared geometry are prelude macros expanded
+  -- during parsing, so only their constant-geometry analytic
+  -- compositions can reach this classification.
+  | otherwise = pure PureFunction
 
 primitiveEffect
     :: EffectEnvironment -> OpId -> Either EffectError FunctionEffect

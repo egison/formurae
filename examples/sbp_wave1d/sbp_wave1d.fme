@@ -9,7 +9,6 @@
 -- accuracy over a full period, which the check driver asserts together
 -- with the mode returning to its initial shape.
 
-mode collocated
 dimension 1
 axes x
 

@@ -13,7 +13,6 @@
 -- pinned walls; the measured convergence of the mode error (third order
 -- globally, from the order-two closures) is recorded in the design log.
 
-mode collocated
 dimension 1
 axes x
 

@@ -12,7 +12,7 @@ main = do
       , discretizationDerivativeOrder = Just 2
       , discretizationStencilFamily = SurfaceCentered
       , discretizationFormalAccuracy = 4
-      , discretizationSourceLine = 4
+      , discretizationSourceLine = 3
       }]
     (mDiscretizationDecls model)
   assertEqual "user definitions stay in source order"
@@ -30,8 +30,7 @@ main = do
   putStrLn "formurae-pre profile parser tests: ok"
   where
     source = unlines
-      [ "mode collocated"
-      , "dimension 1"
+      [ "dimension 1"
       , "axes x"
       , "discretization collocated derivative 2 centered accuracy 4"
       , "field u : scalar"

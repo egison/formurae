@@ -8,7 +8,6 @@
 -- and the extra 1/dx of the second-order form.  The check driver asserts the exact-mode decay,
 -- monotone energy in the SBP norm, and that the walls stay pinned.
 
-mode collocated
 dimension 1
 axes x
 

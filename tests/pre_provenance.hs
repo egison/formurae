@@ -22,23 +22,23 @@ main = do
       nestedOrigin = originFor registry nestedId
 
   assertLocation "multiline analytic initializer location"
-    (8, 9, 8, 6) (sourceOriginLocation initializerOrigin)
+    (7, 8, 8, 6) (sourceOriginLocation initializerOrigin)
   assertTrace "analytic initializer trace"
-    [ ("outer", (6, 6, 15, 17), (8, 8, 8, 12))
-    , ("phi", (5, 5, 11, 15), (6, 6, 15, 15))
+    [ ("outer", (5, 5, 15, 17), (7, 7, 8, 12))
+    , ("phi", (4, 4, 11, 15), (5, 5, 15, 15))
     ] (sourceOriginTrace initializerOrigin)
 
   assertLocation "direct call expression location"
-    (11, 11, 16, 18) (sourceOriginLocation directOrigin)
+    (10, 10, 16, 18) (sourceOriginLocation directOrigin)
   assertTrace "direct unicode call maps to the original source column"
-    [("phi", (5, 5, 11, 15), (11, 11, 16, 16))]
+    [("phi", (4, 4, 11, 15), (10, 10, 16, 16))]
     (sourceOriginTrace directOrigin)
 
   assertLocation "nested call expression location"
-    (12, 12, 8, 14) (sourceOriginLocation nestedOrigin)
+    (11, 11, 8, 14) (sourceOriginLocation nestedOrigin)
   assertTrace "nested definition expansion is outer-to-inner"
-    [ ("outer", (6, 6, 15, 17), (12, 12, 8, 12))
-    , ("phi", (5, 5, 11, 15), (6, 6, 15, 15))
+    [ ("outer", (5, 5, 15, 17), (11, 11, 8, 12))
+    , ("phi", (4, 4, 11, 15), (5, 5, 15, 15))
     ] (sourceOriginTrace nestedOrigin)
 
   let rendered = renderDiagnostic Diagnostic
@@ -48,9 +48,9 @@ main = do
         }
   assertEqual "post diagnostic renders the original expansion stack"
     (unlinesWithoutFinal
-      [ "trace.fme:12:8: lowering failed"
-      , "  expanded from outer at trace.fme:12:8 (defined at trace.fme:6:15)"
-      , "  expanded from phi at trace.fme:6:15 (defined at trace.fme:5:11)"
+      [ "trace.fme:11:8: lowering failed"
+      , "  expanded from outer at trace.fme:11:8 (defined at trace.fme:5:15)"
+      , "  expanded from phi at trace.fme:5:15 (defined at trace.fme:4:11)"
       ]) rendered
 
   unit <- requireEmit =<< emitNormalizationUnit
@@ -63,8 +63,7 @@ main = do
 
 source :: String
 source = unlines
-  [ "mode collocated"
-  , "dimension 1"
+  [ "dimension 1"
   , "axes x"
   , "field u : scalar"
   , "def \966 q = lap q"

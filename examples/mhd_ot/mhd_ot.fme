@@ -7,7 +7,6 @@
 -- derivatives and the Rusanov dissipation are selected by formurae-post, so the
 -- source contains the conservation law rather than explicit grid offsets.
 
-mode collocated
 dimension 3
 axes x, y, z
 

@@ -9,7 +9,6 @@
 -- cos(pi x/L) e^{-kappa (pi/L)^2 t}; the check driver asserts the mode
 -- decay, monotone energy in the SBP norm, and exact heat conservation.
 
-mode collocated
 dimension 1
 axes x
 

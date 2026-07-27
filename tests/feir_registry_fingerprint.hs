@@ -40,7 +40,6 @@ programFrom model registry = FEProgram
   , feProgramRegistryId = RegistryId "pending"
   , feProgramPrimitiveManifestId = PrimitiveManifestId "manifest-test"
   , feProgramDiscretization = preRegistryDiscretization registry
-  , feProgramMode = CollocatedMode
   , feProgramDimension = Surface.mDim model
   , feProgramAxes = preRegistryAxes registry
   , feProgramGeometry = preRegistryGeometry registry
@@ -56,8 +55,7 @@ programFrom model registry = FEProgram
 
 source :: String
 source = unlines
-  [ "mode collocated"
-  , "dimension 1"
+  [ "dimension 1"
   , "axes x"
   , "param alpha = 0.25"
   , "field u : scalar"

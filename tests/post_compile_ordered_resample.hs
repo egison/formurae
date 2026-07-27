@@ -114,7 +114,6 @@ fixture = FEProgram
         [DerivativeRule CollocatedLattice Nothing CenteredTaylor
           (PositiveEven 4) (OriginId 1)]
         FixedAxisOrder)
-  , feProgramMode = CollocatedMode
   , feProgramDimension = 2
   , feProgramAxes =
       [ AxisDecl (AxisId 1) "x" "x" PeriodicBoundary (OriginId 1)

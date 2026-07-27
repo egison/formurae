@@ -126,7 +126,6 @@ prepareProgram manifestId model registry = pure $ do
         , FEIR.feProgramRegistryId = FEIR.RegistryId "pending"
         , FEIR.feProgramPrimitiveManifestId = manifestId
         , FEIR.feProgramDiscretization = preRegistryDiscretization registry
-        , FEIR.feProgramMode = mapMode (Surface.selectedMode model)
         , FEIR.feProgramDimension = Surface.mDim model
         , FEIR.feProgramAxes = preRegistryAxes registry
         , FEIR.feProgramGeometry = geometry
@@ -406,10 +405,6 @@ fieldNamed :: PreRegistry -> String -> Either EmitError FEIR.LogicalFieldDecl
 fieldNamed registry name =
   maybe (Left (EmitMissingField name)) Right $ find
     ((== name) . FEIR.logicalFieldSourceName) (preRegistryFields registry)
-
-mapMode :: Surface.Mode -> FEIR.Mode
-mapMode Surface.CollocatedMode = FEIR.CollocatedMode
-mapMode Surface.DecMode = FEIR.DecMode
 
 mapVariance :: Surface.Variance -> FEIR.Variance
 mapVariance Surface.VUp = FEIR.VarianceUp
@@ -703,8 +698,7 @@ contextualize model userDefinitions shadowedNames boundNames expression
   , Just _ <- matchHodgeExteriorHodge operatorScope expression =
       Left (EmitExpressionError
         "hodge (d (hodge A)) cannot be analytically expanded on variable metric geometry; write canonical δ A so the compiler preserves the weighted discrete adjoint")
-  | Surface.selectedMode model == Surface.CollocatedMode
-  , Just operand <- matchScalarDeltaExpression operatorScope expression = do
+  | Just operand <- matchScalarDeltaExpression operatorScope expression = do
       operand' <- walk operand
       Right (TEApply (TEIdent "FormuraeInternalScalarDelta" [])
         [applicationArgument operand'])
@@ -863,14 +857,11 @@ contextualize model userDefinitions shadowedNames boundNames expression
     operatorScope = OperatorScope
       (boundNames ++ shadowedNames ++ map fst userDefinitions
         ++ map Surface.defName (Surface.mDefs model))
-    resolveCanonicalOperator operator =
-      case canonicalOperatorModeError (Surface.selectedMode model) operator of
-        Just message -> Left (EmitExpressionError message)
-        Nothing
-          | operator == CanonicalHodgeLaplacian
-          , hasVariableGeometry model -> Left (EmitExpressionError
-              "canonical Δ_H is not supported for variable metric geometry; write its metric-dependent discretization explicitly")
-          | otherwise -> Right (canonicalInternalName operator)
+    resolveCanonicalOperator operator
+      | operator == CanonicalHodgeLaplacian
+      , hasVariableGeometry model = Left (EmitExpressionError
+          "canonical Δ_H is not supported for variable metric geometry; write its metric-dependent discretization explicitly")
+      | otherwise = Right (canonicalInternalName operator)
     isLexicallyShadowed name =
       name `elem` boundNames
       || name `elem` shadowedNames

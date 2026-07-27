@@ -12,7 +12,6 @@
 -- (sin^2 + cos^2 collapses to 1, sqrt of the quoted square reduces),
 -- and quote-transparent substitution keeps the reduced factor compact.
 
-mode collocated
 dimension 3
 axes θ, φ, z
 

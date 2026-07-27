@@ -86,7 +86,6 @@ step-level `let` / `local`では予約されます。Egison expression block内�
 ## 最小例
 
 ```formurae
-mode collocated
 dimension 3
 axes x, y, z
 
@@ -102,7 +101,7 @@ step:
   u' = u + dt * κ * Δ u
 ```
 
-`Δ`は`mode collocated`のcanonical scalar Laplacianです。精度に依存しないため、
+`Δ`はcanonical scalar Laplacianです。精度に依存しないため、
 4次精度へ変更するときも別の数学演算子を定義せず、model-level profileを追加します。
 
 ```formurae
@@ -179,7 +178,6 @@ field policyとcomponent basisのparityからformurae-postが推論します。�
 Maxwellはcollocated vector、Yee vector、DEC formの各形式で記述できます。
 
 ```formurae
-mode dec
 dimension 3
 axes x, y, z
 
@@ -191,7 +189,7 @@ step:
   B' = B - dt * d E'
 ```
 
-`mode dec`のcanonical form演算子は`d`、`hodge`、`δ`、`Δ_H`です。
+canonical form演算子は`d`、`hodge`、`δ`、`Δ_H`です。
 `δ`は余微分、`Δ_H A = d (δ A) + δ (d A)`はHodge--de Rham Laplacianです。
 宣言幾何の`δ`はpreludeマクロとして`dFluxWeights`/`dFluxScale`/`dFluxDiv`へ展開され、幾何のみの係数localはformurae-postがinit凍結のstate配列にします。
 `Δ_H`はconstant geometryでのpureな合成をサポートし、general variable-metric formは現IRで表せないためcompile-time errorにします。

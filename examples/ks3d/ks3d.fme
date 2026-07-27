@@ -5,7 +5,6 @@
 -- telescopes under periodic boundaries and sum u is conserved exactly.
 -- L = 22: spatio-temporal chaos.
 
-mode collocated
 dimension 3
 axes x, y, z
 

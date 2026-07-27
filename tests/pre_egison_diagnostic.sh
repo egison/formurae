@@ -23,11 +23,11 @@ if [ -s "$WORK/model.feir" ]; then
   exit 1
 fi
 
-grep -F 'formurae-pre: error: tests/fixtures/pre_egison_diagnostic_error.fme:11:8: Egison normalization failed' \
+grep -F 'formurae-pre: error: tests/fixtures/pre_egison_diagnostic_error.fme:10:8: Egison normalization failed' \
   "$WORK/model.err" >/dev/null
-grep -F 'expanded from outer at tests/fixtures/pre_egison_diagnostic_error.fme:11:8 (defined at tests/fixtures/pre_egison_diagnostic_error.fme:7:15)' \
+grep -F 'expanded from outer at tests/fixtures/pre_egison_diagnostic_error.fme:10:8 (defined at tests/fixtures/pre_egison_diagnostic_error.fme:6:15)' \
   "$WORK/model.err" >/dev/null
-grep -F 'expanded from inner at tests/fixtures/pre_egison_diagnostic_error.fme:7:15 (defined at tests/fixtures/pre_egison_diagnostic_error.fme:6:15)' \
+grep -F 'expanded from inner at tests/fixtures/pre_egison_diagnostic_error.fme:6:15 (defined at tests/fixtures/pre_egison_diagnostic_error.fme:5:15)' \
   "$WORK/model.err" >/dev/null
 grep -F 'Assertion failed: "normalized equation tensor metadata mismatch"' \
   "$WORK/model.err" >/dev/null
@@ -52,7 +52,7 @@ if [ -s "$WORK/curl-dimension.feir" ]; then
   exit 1
 fi
 
-grep -F 'formurae-pre: error: tests/fixtures/pre_curl_dimension_error.fme:7:8: Egison normalization failed' \
+grep -F 'formurae-pre: error: tests/fixtures/pre_curl_dimension_error.fme:6:8: Egison normalization failed' \
   "$WORK/curl-dimension.err" >/dev/null
 grep -F 'Assertion failed: "curl requires three-dimensional coordinates and a vector"' \
   "$WORK/curl-dimension.err" >/dev/null
@@ -101,15 +101,15 @@ expect_normalization_failure() {
   grep -F "Assertion failed: \"$message\"" "$WORK/$fixture.err" >/dev/null
 }
 
-expect_normalization_failure pre_codiff_tensor_error '6:10' \
+expect_normalization_failure pre_codiff_tensor_error '5:10' \
   'canonical codifferential requires a scalar or differential form value'
-expect_normalization_failure pre_shadowed_intrinsic_kind_error '9:8' \
+expect_normalization_failure pre_shadowed_intrinsic_kind_error '8:8' \
   'canonical codifferential requires a scalar or differential form value'
-expect_normalization_failure pre_divg_rank_unknown_error '7:8' \
+expect_normalization_failure pre_divg_rank_unknown_error '6:8' \
   'divg requires coordinates and a vector of the same dimension'
-expect_normalization_failure pre_form_local_kind_mismatch '7:31' \
+expect_normalization_failure pre_form_local_kind_mismatch '6:31' \
   'normalized equation tensor metadata mismatch'
-expect_normalization_failure pre_degree_mismatch '8:8' \
+expect_normalization_failure pre_degree_mismatch '7:8' \
   'normalized equation tensor metadata mismatch'
 
 printf 'formurae-pre Egison source-diagnostic tests: ok\n'

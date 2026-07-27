@@ -1,4 +1,3 @@
-mode collocated
 dimension 1
 axes x
 field helper : scalar

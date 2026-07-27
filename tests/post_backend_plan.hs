@@ -87,7 +87,6 @@ fixture = FEProgram
   , feProgramDiscretization = setProfileFingerprint
       (DiscretizationProfile
         (Fingerprint "") [] FixedAxisOrder)
-  , feProgramMode = CollocatedMode
   , feProgramDimension = 2
   , feProgramAxes =
       [ AxisDecl (AxisId 1) "x" "x" PeriodicBoundary (OriginId 1)

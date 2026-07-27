@@ -42,8 +42,7 @@ assertIndexedSurfaceAst = do
     steps -> fail ("expected one indexed step, got " ++ show steps)
   where
     source = unlines
-      [ "mode collocated"
-      , "dimension 2"
+      [ "dimension 2"
       , "axes x, y"
       , "metric g"
       , "field A_j"
@@ -63,24 +62,23 @@ assertLocalSurfaceAst = do
       assertEqual "indexed local retains its declared policy and vector kind"
         (Just (LocalDecl "q"
           (Just (FieldIndex (Plain [IxPart VDown "i"])))
-          Primal Vector 6))
+          Primal Vector 5))
         (sLocalDecl vectorLocal)
       assertEqual "rank-two local retains mixed variance and dual policy"
         (Just (LocalDecl "A"
           (Just (FieldIndex
             (Plain [IxPart VUp "i", IxPart VDown "j"])))
-          Dual Tensor2 7))
+          Dual Tensor2 6))
         (sLocalDecl tensorLocal)
       assertEqual "form local is a whole-tensor target"
         (IndexedTarget "omega" []) (sTarget formLocal)
       assertEqual "omitted local form policy defaults to collocated"
-        (Just (LocalDecl "omega" Nothing Collocated (Form 2) 8))
+        (Just (LocalDecl "omega" Nothing Collocated (Form 2) 7))
         (sLocalDecl formLocal)
     steps -> fail ("expected three local steps, got " ++ show steps)
   where
     source = unlines
-      [ "mode dec"
-      , "dimension 3"
+      [ "dimension 3"
       , "axes x, y, z"
       , "field u : scalar"
       , "step:"

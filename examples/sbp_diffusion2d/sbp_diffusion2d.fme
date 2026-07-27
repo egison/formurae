@@ -6,7 +6,6 @@
 -- product-mode decay, monotone energy in the tensor SBP norm, and pinned
 -- edges including the four corners.
 
-mode collocated
 dimension 2
 axes x, y
 

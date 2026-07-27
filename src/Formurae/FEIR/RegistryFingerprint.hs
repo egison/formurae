@@ -25,8 +25,8 @@ registryIdMatches program =
 registryFingerprintPayload :: FEProgram -> SExpr
 registryFingerprintPayload program = List
   [ Atom "logical-registry"
-  , List [Atom "schema", Atom "formurae-logical-registry", Atom "2"]
-  , named "mode" (programField "mode")
+  -- Schema 3 drops the retired mode declaration from the identity.
+  , List [Atom "schema", Atom "formurae-logical-registry", Atom "3"]
   , named "dimension" (programField "dimension")
   , named "axes" (programField "axes")
   , named "geometry" (geometryIdentity (feProgramGeometry program))

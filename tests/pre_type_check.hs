@@ -164,8 +164,7 @@ model name = parseModel (name ++ ".fme") name
 
 quotedTensorSource :: String
 quotedTensorSource = unlines
-  [ "mode collocated"
-  , "dimension 2"
+  [ "dimension 2"
   , "axes x, y"
   , "field V_i"
   , "field u : scalar"
@@ -176,8 +175,7 @@ quotedTensorSource = unlines
 
 deltaTensorSource :: String
 deltaTensorSource = unlines
-  [ "mode collocated"
-  , "dimension 2"
+  [ "dimension 2"
   , "axes x, y"
   , "field V_i"
   , "step:"
@@ -186,8 +184,7 @@ deltaTensorSource = unlines
 
 codiffTensorSource :: String
 codiffTensorSource = unlines
-  [ "mode dec"
-  , "dimension 2"
+  [ "dimension 2"
   , "axes x, y"
   , "field V_i @ primal"
   , "step:"
@@ -196,8 +193,7 @@ codiffTensorSource = unlines
 
 topDegreeSource :: String
 topDegreeSource = unlines
-  [ "mode dec"
-  , "dimension 2"
+  [ "dimension 2"
   , "axes x, y"
   , "field A : 2-form @ primal"
   , "step:"
@@ -206,8 +202,7 @@ topDegreeSource = unlines
 
 unknownDefinitionSource :: String
 unknownDefinitionSource = unlines
-  [ "mode collocated"
-  , "dimension 1"
+  [ "dimension 1"
   , "axes x"
   , "field u : scalar"
   , "def hidden q = Δ q"
@@ -217,8 +212,7 @@ unknownDefinitionSource = unlines
 
 rawDefinitionSource :: String
 rawDefinitionSource = unlines
-  [ "mode dec"
-  , "dimension 2"
+  [ "dimension 2"
   , "axes x, y"
   , "field A : 1-form"
   , "def hidden X ="
@@ -230,8 +224,7 @@ rawDefinitionSource = unlines
 
 shadowedIntrinsicSource :: String
 shadowedIntrinsicSource = unlines
-  [ "mode dec"
-  , "dimension 2"
+  [ "dimension 2"
   , "axes x, y"
   , "field u : scalar"
   , "field V_i"
@@ -243,8 +236,7 @@ shadowedIntrinsicSource = unlines
 
 rankUnknownDivergenceSource :: String
 rankUnknownDivergenceSource = unlines
-  [ "mode dec"
-  , "dimension 2"
+  [ "dimension 2"
   , "axes x, y"
   , "field T_i_j"
   , "field q : scalar"
@@ -254,8 +246,7 @@ rankUnknownDivergenceSource = unlines
 
 wrongAritySource :: String
 wrongAritySource = unlines
-  [ "mode dec"
-  , "dimension 2"
+  [ "dimension 2"
   , "axes x, y"
   , "field A : 1-form"
   , "step:"
@@ -264,8 +255,7 @@ wrongAritySource = unlines
 
 canonicalAliasSource :: String
 canonicalAliasSource = unlines
-  [ "mode dec"
-  , "dimension 2"
+  [ "dimension 2"
   , "axes x, y"
   , "field V_i"
   , "field q : scalar"
@@ -276,8 +266,7 @@ canonicalAliasSource = unlines
 
 computedCanonicalAliasSource :: String
 computedCanonicalAliasSource = unlines
-  [ "mode dec"
-  , "dimension 2"
+  [ "dimension 2"
   , "axes x, y"
   , "field V_i"
   , "field q : scalar"
@@ -287,8 +276,7 @@ computedCanonicalAliasSource = unlines
 
 rawShadowSource :: String
 rawShadowSource = unlines
-  [ "mode dec"
-  , "dimension 2"
+  [ "dimension 2"
   , "axes x, y"
   , "field A : 1-form"
   , "def hodge X = X"
@@ -301,8 +289,7 @@ rawShadowSource = unlines
 
 formZeroScalarMixSource :: String
 formZeroScalarMixSource = unlines
-  [ "mode dec"
-  , "dimension 1"
+  [ "dimension 1"
   , "axes x"
   , "field A : 0-form @ primal"
   , "field q : scalar"
@@ -312,8 +299,7 @@ formZeroScalarMixSource = unlines
 
 scalarDeltaIdentitySource :: String
 scalarDeltaIdentitySource = unlines
-  [ "mode collocated"
-  , "dimension 1"
+  [ "dimension 1"
   , "axes x"
   , "field u : scalar"
   , "field q : scalar"
@@ -324,8 +310,7 @@ scalarDeltaIdentitySource = unlines
 
 scalarLocalMismatchSource :: String
 scalarLocalMismatchSource = unlines
-  [ "mode collocated"
-  , "dimension 1"
+  [ "dimension 1"
   , "axes x"
   , "field V_i"
   , "field u : scalar"
@@ -336,8 +321,7 @@ scalarLocalMismatchSource = unlines
 
 formLocalMismatchSource :: String
 formLocalMismatchSource = unlines
-  [ "mode dec"
-  , "dimension 2"
+  [ "dimension 2"
   , "axes x, y"
   , "field V_i"
   , "field A : 2-form"
@@ -348,8 +332,7 @@ formLocalMismatchSource = unlines
 
 dotShadowKindSource :: String
 dotShadowKindSource = unlines
-  [ "mode dec"
-  , "dimension 2"
+  [ "dimension 2"
   , "axes x, y"
   , "field u : scalar"
   , "field V_i"
@@ -361,8 +344,7 @@ dotShadowKindSource = unlines
 
 nestedTraversalSource :: String -> String
 nestedTraversalSource expression = unlines
-  [ "mode collocated"
-  , "dimension 2"
+  [ "dimension 2"
   , "axes x, y"
   , "field V_i"
   , "step:"
@@ -371,8 +353,7 @@ nestedTraversalSource expression = unlines
 
 canonicalFunctionTraversalSource :: String -> String
 canonicalFunctionTraversalSource expression = unlines
-  [ "mode dec"
-  , "dimension 2"
+  [ "dimension 2"
   , "axes x, y"
   , "field V_i"
   , "step:"
@@ -381,8 +362,7 @@ canonicalFunctionTraversalSource expression = unlines
 
 updateKindMismatchSource :: String
 updateKindMismatchSource = unlines
-  [ "mode dec"
-  , "dimension 1"
+  [ "dimension 1"
   , "axes x"
   , "field A : 0-form @ primal"
   , "field u : scalar"
@@ -394,8 +374,7 @@ updateKindMismatchSource = unlines
 
 initializerKindMismatchSource :: String
 initializerKindMismatchSource = unlines
-  [ "mode dec"
-  , "dimension 1"
+  [ "dimension 1"
   , "axes x"
   , "field A : 0-form @ primal"
   , "field u : scalar"
@@ -408,8 +387,7 @@ initializerKindMismatchSource = unlines
 
 formUpdateFromScalarSource :: String
 formUpdateFromScalarSource = unlines
-  [ "mode dec"
-  , "dimension 1"
+  [ "dimension 1"
   , "axes x"
   , "field A : 0-form @ primal"
   , "step:"
@@ -418,8 +396,7 @@ formUpdateFromScalarSource = unlines
 
 metricKindMismatchSource :: String
 metricKindMismatchSource = unlines
-  [ "mode collocated"
-  , "dimension 1"
+  [ "dimension 1"
   , "axes x"
   , "field V_i"
   , "metric scale [V]"
@@ -429,8 +406,7 @@ metricKindMismatchSource = unlines
 
 genericGeometryQuoteSource :: String
 genericGeometryQuoteSource = unlines
-  [ "mode collocated"
-  , "dimension 1"
+  [ "dimension 1"
   , "axes x"
   , "field u : scalar"
   , "metric scale [`(1 + x)]"
@@ -440,8 +416,7 @@ genericGeometryQuoteSource = unlines
 
 rawGeometryCanonicalSource :: String
 rawGeometryCanonicalSource = unlines
-  [ "mode dec"
-  , "dimension 1"
+  [ "dimension 1"
   , "axes x"
   , "field A : 0-form @ primal"
   , "metric scale [`(hodge A)]"
@@ -451,8 +426,7 @@ rawGeometryCanonicalSource = unlines
 
 symbolicPiSource :: String
 symbolicPiSource = unlines
-  [ "mode collocated"
-  , "dimension 1"
+  [ "dimension 1"
   , "axes x"
   , "embedding [sin π + x]"
   , "field u : scalar"
@@ -464,8 +438,7 @@ symbolicPiSource = unlines
 
 validSource :: String
 validSource = unlines
-  [ "mode collocated"
-  , "dimension 1"
+  [ "dimension 1"
   , "axes x"
   , "field u : scalar"
   , "field V_i"

@@ -20,11 +20,11 @@ main = do
     [(axisDeclId axis, axisDeclSourceName axis, axisDeclCanonicalName axis)
     | axis <- preRegistryAxes registry]
   assertEqual "axes declaration origin line"
-    [3, 3]
+    [2, 2]
     [originLine registry (axisDeclOrigin axis) | axis <- preRegistryAxes registry]
 
   assertEqual "stable parameter IDs and declaration origin"
-    [(ParamId 1, "alpha", "0.25", 7)]
+    [(ParamId 1, "alpha", "0.25", 6)]
     [(parameterDeclId parameter, parameterDeclSourceName parameter,
       parameterDeclRawValue parameter,
       originLine registry (parameterDeclOrigin parameter))
@@ -34,18 +34,18 @@ main = do
         ((== "potential") . functionDeclSourceName)
         (preRegistryFunctions registry)
   assertEqual "external helper classification"
-    (ExternalFunction, Just 8)
+    (ExternalFunction, Just 7)
     (functionDeclClass potential,
      fmap (originLine registry) (functionDeclOrigin potential))
   let exponential = requireJust "intrinsic external declaration" $ find
         ((== "exp") . functionDeclSourceName)
         (preRegistryFunctions registry)
   assertEqual "surface-declared intrinsic keeps its helper origin"
-    (IntrinsicFunction, Just 9)
+    (IntrinsicFunction, Just 8)
     (functionDeclClass exponential,
      fmap (originLine registry) (functionDeclOrigin exponential))
   assertEqual "raw helper is not reclassified by its text"
-    [(RawHelperId 1, "extern function :: raw_only", 10)]
+    [(RawHelperId 1, "extern function :: raw_only", 9)]
     [(rawHelperId helper, rawHelperText helper,
       originLine registry (rawHelperOrigin helper))
     | helper <- preRegistryRawHelpers registry]
@@ -72,14 +72,14 @@ main = do
     ([Just VarianceUp], DualPolicy)
     (logicalFieldDeclaredVariances vectorB, logicalFieldPolicy vectorB)
   assertEqual "local becomes a collocated step-local logical field"
-    (StepLocalLifetime, CollocatedPolicy, TensorType [] [] 0, 17)
+    (StepLocalLifetime, CollocatedPolicy, TensorType [] [] 0, 16)
     (logicalFieldLifetime localFlux, logicalFieldPolicy localFlux,
      logicalFieldTensorType localFlux,
      originLine registry (logicalFieldOrigin localFlux))
   assertEqual "indexed local reuses vector descriptor and explicit policy"
     ( StepLocalLifetime, PrimalPolicy
     , TensorType [2] [VarianceDown] 0, VectorLayout
-    , [Just VarianceDown], 18
+    , [Just VarianceDown], 17
     )
     ( logicalFieldLifetime localFace, logicalFieldPolicy localFace
     , logicalFieldTensorType localFace, logicalFieldLayout localFace
@@ -89,7 +89,7 @@ main = do
   assertEqual "rank-two local preserves mixed variance and full layout"
     ( StepLocalLifetime, DualPolicy
     , TensorType [2, 2] [VarianceUp, VarianceDown] 0, FullLayout
-    , [Just VarianceUp, Just VarianceDown], 19
+    , [Just VarianceUp, Just VarianceDown], 18
     )
     ( logicalFieldLifetime localStress, logicalFieldPolicy localStress
     , logicalFieldTensorType localStress, logicalFieldLayout localStress
@@ -99,7 +99,7 @@ main = do
   assertEqual "form local preserves degree/layout and explicit policy"
     ( StepLocalLifetime, PrimalPolicy
     , TensorType [2, 2] [VarianceDown, VarianceDown] 2, FormLayout
-    , [Nothing, Nothing], 20
+    , [Nothing, Nothing], 19
     )
     ( logicalFieldLifetime localOmega, logicalFieldPolicy localOmega
     , logicalFieldTensorType localOmega, logicalFieldLayout localOmega
@@ -110,9 +110,9 @@ main = do
   let profile = preRegistryDiscretization registry
   assert "profile fingerprint is canonical" (profileFingerprintMatches profile)
   assertEqual "default and order-specific profile rules"
-    [ (CollocatedLattice, Nothing, CenteredTaylor, PositiveEven 2, 4)
-    , (CollocatedLattice, Just (Positive 2), CenteredTaylor, PositiveEven 4, 5)
-    , (StaggeredLattice, Nothing, Yee, PositiveEven 2, 6)
+    [ (CollocatedLattice, Nothing, CenteredTaylor, PositiveEven 2, 3)
+    , (CollocatedLattice, Just (Positive 2), CenteredTaylor, PositiveEven 4, 4)
+    , (StaggeredLattice, Nothing, Yee, PositiveEven 2, 5)
     ]
     [ (derivativeRuleLatticeClass rule, derivativeRuleOrder rule,
        derivativeRuleFamily rule, derivativeRuleAccuracy rule,
@@ -152,8 +152,7 @@ main = do
 
 source :: String
 source = unlines
-  [ "mode dec"
-  , "dimension 2"
+  [ "dimension 2"
   , "axes r, theta"
   , "discretization collocated centered accuracy 2"
   , "discretization collocated derivative 2 centered accuracy 4"
@@ -177,8 +176,7 @@ source = unlines
 
 quotedTraceSource :: String
 quotedTraceSource = unlines
-  [ "mode collocated"
-  , "dimension 1"
+  [ "dimension 1"
   , "axes x"
   , "field u : scalar"
   , "def inner x = x + 1"
@@ -189,8 +187,7 @@ quotedTraceSource = unlines
 
 literalTraceSource :: String
 literalTraceSource = unlines
-  [ "mode collocated"
-  , "dimension 1"
+  [ "dimension 1"
   , "axes x"
   , "field u : scalar"
   , "def first x = x + 1"

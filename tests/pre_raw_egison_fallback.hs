@@ -119,7 +119,6 @@ baseModel definitions = Model
   , mDim = 1
   , mAxes = ["x"]
   , mAxesSourceLine = Just 2
-  , mMode = Just CollocatedMode
   , mMetricName = Nothing
   , mParams = []
   , mParamSourceLines = []

@@ -1,6 +1,5 @@
 -- The 1D diffusion equation: du/dt = kappa * laplacian(u)
 
-mode collocated
 dimension 1
 axes x
 

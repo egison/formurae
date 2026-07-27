@@ -3,7 +3,6 @@
 -- face centers.  The standard curl definition and the two field policies
 -- determine every source/target placement lowered by formurae-post.
 
-mode collocated
 dimension 3
 axes x, y, z
 

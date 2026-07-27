@@ -56,7 +56,6 @@ validProgram = FEProgram
   , feProgramRegistryId = RegistryId "registry-test"
   , feProgramPrimitiveManifestId = knownManifestId
   , feProgramDiscretization = validProfile
-  , feProgramMode = CollocatedMode
   , feProgramDimension = 2
   , feProgramAxes = validAxes
   , feProgramGeometry = GeometryDecl

@@ -91,8 +91,7 @@ main = do
 
 indexedTargetSource :: String
 indexedTargetSource = unlines
-  [ "mode collocated"
-  , "dimension 2"
+  [ "dimension 2"
   , "axes x, y"
   , "metric g"
   , "field B_i"
@@ -104,8 +103,7 @@ indexedTargetSource = unlines
 
 indexedLetCompletionSource :: String
 indexedLetCompletionSource = unlines
-  [ "mode collocated"
-  , "dimension 2"
+  [ "dimension 2"
   , "axes x, y"
   , "field B_i"
   , "field M~i_j"
@@ -122,8 +120,7 @@ indexedLetCompletionSource = unlines
 
 tensorLocalSource :: String
 tensorLocalSource = unlines
-  [ "mode dec"
-  , "dimension 2"
+  [ "dimension 2"
   , "axes x, y"
   , "field A : 1-form @ primal"
   , "field Q_i @ primal"
@@ -137,8 +134,7 @@ tensorLocalSource = unlines
 
 badBitsSource :: String
 badBitsSource = unlines
-  [ "mode collocated"
-  , "dimension 2"
+  [ "dimension 2"
   , "axes x, y"
   , "field u : scalar"
   , "step:"

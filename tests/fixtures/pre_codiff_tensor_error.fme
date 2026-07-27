@@ -1,4 +1,3 @@
-mode dec
 dimension 2
 axes x, y
 field V_i @ primal

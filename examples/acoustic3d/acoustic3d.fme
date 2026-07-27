@@ -9,7 +9,6 @@
 -- kap = rho0 = 1 the impedance is 1 and p = vx launches a pure
 -- right-moving plane pulse.
 
-mode collocated
 dimension 3
 axes x, y, z
 

@@ -3,7 +3,6 @@
 -- embedding, so the emitted ambient binding must be quote-free before
 -- the FEIR scalar encoder sees the step expressions.
 
-mode collocated
 dimension 3
 axes θ, φ, z
 

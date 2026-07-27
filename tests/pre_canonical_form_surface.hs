@@ -37,8 +37,8 @@ main = do
     "ΔH A" (sourceTranslated sourceText)
   let start = sourceColumn sourceText
   assertEqual "atomic spelling maps across the source underscore"
-    [ SourcePosition 8 start
-    , SourcePosition 8 (start + 2)
+    [ SourcePosition 7 start
+    , SourcePosition 7 (start + 2)
     ]
     (take 2 (sourcePositionMap sourceText))
 
@@ -73,19 +73,12 @@ main = do
   assertEqual "shadowed hodge is not treated as the canonical adjoint"
     Nothing (matchHodgeExteriorHodge (OperatorScope ["hodge"])
       (parseTensorExpr "hodge (d (hodge A))"))
-  assertEqual "scalar Delta is collocated-only"
-    (Just "canonical scalar Δ requires mode collocated; use Δ_H for differential forms")
-    (canonicalOperatorModeError DecMode CanonicalScalarLaplacian)
-  assertEqual "codifferential is DEC-only"
-    (Just "canonical δ requires mode dec")
-    (canonicalOperatorModeError CollocatedMode CanonicalCodifferential)
 
   putStrLn "formurae-pre canonical form surface parser tests: ok"
 
 source :: String
 source = unlines
-  [ "mode dec"
-  , "dimension 2"
+  [ "dimension 2"
   , "axes x, y"
   , "field A : 1-form"
   , "def delta x = 0"
@@ -98,8 +91,7 @@ source = unlines
 
 asciiSource :: String
 asciiSource = unlines
-  [ "mode collocated"
-  , "dimension 1"
+  [ "dimension 1"
   , "axes x"
   , "field u : scalar"
   , "def dForm x = x"

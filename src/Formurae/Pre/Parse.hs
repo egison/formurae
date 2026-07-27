@@ -496,9 +496,6 @@ data Section = STop | SInit | SStep
 
 validateDimensionFeatures :: Model -> IO ()
 validateDimensionFeatures m
-  | selectedMode m == CollocatedMode
-  , any isFormField fieldKinds =
-      fatal "differential-form fields require mode dec"
   | any isAntiField fieldKinds && mDim m < 2 =
       fatal "antisymmetric rank-2 fields require dimension at least 2"
   | Just k <- firstBadFormDegree =
@@ -507,8 +504,6 @@ validateDimensionFeatures m
   where
     isAntiField (_, AntiM) = True
     isAntiField _ = False
-    isFormField (_, Form _) = True
-    isFormField _ = False
     firstBadFormDegree =
       case [k | (_, Form k) <- fieldKinds, k < 0 || k > mDim m] of
         k:_ -> Just k
@@ -789,7 +784,6 @@ parseModel sourceFile name txt = do
       , mDim = 0
       , mAxes = []
       , mAxesSourceLine = Nothing
-      , mMode = Nothing
       , mMetricName = Nothing
       , mParams = []
       , mParamSourceLines = []
@@ -835,7 +829,6 @@ parseModel sourceFile name txt = do
       | length (mAxes m) /= mDim m =
           fatal ("axes declares " ++ show (length (mAxes m))
                  ++ " names for dimension " ++ show (mDim m))
-      | mMode m == Nothing = fatal "mode declaration is required (mode collocated or mode dec)"
       | otherwise = do
           let ordered = m
                 { mParams = reverse (mParams m)
@@ -993,12 +986,10 @@ parseModel sourceFile name txt = do
                     (lineNumber, original) : moreSourceLines, rest')
 
     top ln originalLine s m
-      | Just r <- stripPrefix "mode " s =
-          case strip r of
-            "collocated" -> setMode CollocatedMode
-            "dec" -> setMode DecMode
-            bad -> fatal ("unknown mode " ++ bad ++ " (line " ++ show ln
-                          ++ "); expected mode collocated or mode dec")
+      | Just _ <- stripPrefix "mode " s =
+          fatal ("the mode declaration was retired (line " ++ show ln
+                 ++ "); delete this line -- every model can use tensor and"
+                 ++ " differential-form fields and operators together")
       | Just r <- stripPrefix "discretization " s =
           parseDiscretizationDecl ln r >>= addDiscretizationDecl
       | Just r <- stripPrefix "boundary " s =
@@ -1086,10 +1077,6 @@ parseModel sourceFile name txt = do
             }
       | otherwise = fatal ("unrecognized: " ++ s ++ " (line " ++ show ln ++ ")")
       where
-        setMode mode =
-          case mMode m of
-            Nothing -> return m { mMode = Just mode }
-            Just _ -> fatal ("mode may be declared only once (line " ++ show ln ++ ")")
         addField fd =
           return m { mFieldDecls = fd : mFieldDecls m }
         addDiscretizationDecl declaration =

@@ -3,7 +3,6 @@
 -- check driver compares against -- the regression benchmark for
 -- NONLINEAR term generation (products of grid references).
 
-mode collocated
 dimension 3
 axes x, y, z
 

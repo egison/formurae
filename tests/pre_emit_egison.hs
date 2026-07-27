@@ -104,16 +104,16 @@ main = do
 
   collocatedDeltaModel <- parseModel "pre-collocated-codiff.fme"
     "pre-collocated-codiff" collocatedCodiffSource
-  collocatedDeltaResult <- emitNormalizationUnit manifestId collocatedDeltaModel
-  assertLeft "canonical delta is rejected outside DEC mode"
-    (isModeMessage "canonical δ requires mode dec") collocatedDeltaResult
+  collocatedDeltaUnit <- requireRight =<<
+    emitNormalizationUnit manifestId collocatedDeltaModel
+  assertContains "canonical codifferential is available in every model"
+    "FormuraeInternalCodiff" collocatedDeltaUnit
   decScalarModel <- parseModel "pre-dec-scalar-delta.fme"
     "pre-dec-scalar-delta" decScalarSource
-  decScalarResult <- emitNormalizationUnit manifestId decScalarModel
-  assertLeft "canonical scalar Delta is rejected in DEC mode"
-    (isModeMessage
-      "canonical scalar Δ requires mode collocated; use Δ_H for differential forms")
-    decScalarResult
+  decScalarUnit <- requireRight =<<
+    emitNormalizationUnit manifestId decScalarModel
+  assertContains "canonical scalar Delta is available in every model"
+    "FormuraeInternalScalarDelta" decScalarUnit
 
   canonicalShadowModel <- parseModel "pre-canonical-shadow.fme"
     "pre-canonical-shadow" canonicalShadowSource
@@ -513,8 +513,7 @@ manifestId = PrimitiveManifestId "sha256:test-manifest"
 
 source :: String
 source = unlines
-  [ "mode collocated"
-  , "dimension 1"
+  [ "dimension 1"
   , "axes r"
   , "discretization collocated derivative 2 centered accuracy 4"
   , "param alpha = 0.25"
@@ -535,8 +534,7 @@ source = unlines
 
 decAliasSource :: String
 decAliasSource = unlines
-  [ "mode dec"
-  , "dimension 2"
+  [ "dimension 2"
   , "axes x, y"
   , "field A : 1-form"
   , "def ext X = d X"
@@ -546,8 +544,7 @@ decAliasSource = unlines
 
 variableScalarSource :: String
 variableScalarSource = unlines
-  [ "mode collocated"
-  , "dimension 1"
+  [ "dimension 1"
   , "axes x"
   , "metric scale [1 + x]"
   , "field u : scalar @ primal"
@@ -557,8 +554,7 @@ variableScalarSource = unlines
 
 variableCodiffSource :: String
 variableCodiffSource = unlines
-  [ "mode dec"
-  , "dimension 2"
+  [ "dimension 2"
   , "axes x, y"
   , "metric scale [1 + x, 1]"
   , "field A : 1-form"
@@ -568,8 +564,7 @@ variableCodiffSource = unlines
 
 constantHodgeSource :: String
 constantHodgeSource = unlines
-  [ "mode dec"
-  , "dimension 2"
+  [ "dimension 2"
   , "axes x, y"
   , "field A : 1-form"
   , "def hodgeLap A = Δ_H A"
@@ -579,8 +574,7 @@ constantHodgeSource = unlines
 
 variableHodgeSource :: String
 variableHodgeSource = unlines
-  [ "mode dec"
-  , "dimension 2"
+  [ "dimension 2"
   , "axes x, y"
   , "metric scale [1 + x, 1]"
   , "field A : 1-form"
@@ -591,8 +585,7 @@ variableHodgeSource = unlines
 
 collocatedCodiffSource :: String
 collocatedCodiffSource = unlines
-  [ "mode collocated"
-  , "dimension 1"
+  [ "dimension 1"
   , "axes x"
   , "field u : scalar"
   , "def co u = δ u"
@@ -602,8 +595,7 @@ collocatedCodiffSource = unlines
 
 decScalarSource :: String
 decScalarSource = unlines
-  [ "mode dec"
-  , "dimension 1"
+  [ "dimension 1"
   , "axes x"
   , "field u : 0-form"
   , "def scalarLap u = Δ u"
@@ -613,8 +605,7 @@ decScalarSource = unlines
 
 canonicalShadowSource :: String
 canonicalShadowSource = unlines
-  [ "mode collocated"
-  , "dimension 1"
+  [ "dimension 1"
   , "axes x"
   , "metric scale [1 + x]"
   , "field u : scalar"
@@ -627,8 +618,7 @@ canonicalShadowSource = unlines
 
 canonicalNearMissSource :: String
 canonicalNearMissSource = unlines
-  [ "mode collocated"
-  , "dimension 1"
+  [ "dimension 1"
   , "axes x"
   , "metric scale [1 + x]"
   , "field u : scalar @ primal"
@@ -638,8 +628,7 @@ canonicalNearMissSource = unlines
 
 kroneckerSource :: String
 kroneckerSource = unlines
-  [ "mode collocated"
-  , "dimension 2"
+  [ "dimension 2"
   , "axes x, y"
   , "field X_i"
   , "def delta x = 0"
@@ -649,8 +638,7 @@ kroneckerSource = unlines
 
 epsilonSource :: String
 epsilonSource = unlines
-  [ "mode collocated"
-  , "dimension 3"
+  [ "dimension 3"
   , "axes x, y, z"
   , "field X_i"
   , "field Y_i"
@@ -660,8 +648,7 @@ epsilonSource = unlines
 
 userOperatorSource :: String
 userOperatorSource = unlines
-  [ "mode collocated"
-  , "dimension 3"
+  [ "dimension 3"
   , "axes x, y, z"
   , "metric g"
   , "metric scale [1, 2, 3]"
@@ -675,8 +662,7 @@ userOperatorSource = unlines
 
 raisedResultSource :: String
 raisedResultSource = unlines
-  [ "mode collocated"
-  , "dimension 2"
+  [ "dimension 2"
   , "axes x, y"
   , "metric g"
   , "field A_i"
@@ -687,8 +673,7 @@ raisedResultSource = unlines
 
 mixedResultSource :: String
 mixedResultSource = unlines
-  [ "mode collocated"
-  , "dimension 2"
+  [ "dimension 2"
   , "axes x, y"
   , "metric g"
   , "field A_i"
@@ -700,8 +685,7 @@ mixedResultSource = unlines
 
 shadowSource :: String
 shadowSource = unlines
-  [ "mode collocated"
-  , "dimension 1"
+  [ "dimension 1"
   , "axes x"
   , "field u : scalar"
   , "def lap u = u + 1"
@@ -714,8 +698,7 @@ shadowSource = unlines
 
 dotShadowSource :: String
 dotShadowSource = unlines
-  [ "mode collocated"
-  , "dimension 1"
+  [ "dimension 1"
   , "axes x"
   , "field u : scalar"
   , "def (.) a b = a + b"
@@ -728,8 +711,7 @@ dotShadowSource = unlines
 
 primitiveShadowSource :: String
 primitiveShadowSource = unlines
-  [ "mode collocated"
-  , "dimension 1"
+  [ "dimension 1"
   , "axes x"
   , "field u : scalar"
   , "def materialize x = x + 1"
@@ -741,8 +723,7 @@ primitiveShadowSource = unlines
 
 parameterSource :: String
 parameterSource = unlines
-  [ "mode collocated"
-  , "dimension 2"
+  [ "dimension 2"
   , "axes x, y"
   , "field X_i"
   , "def rankIdentity X... = X"
@@ -755,8 +736,7 @@ parameterSource = unlines
 
 quotedDerivativeSource :: String
 quotedDerivativeSource = unlines
-  [ "mode collocated"
-  , "dimension 2"
+  [ "dimension 2"
   , "axes r, s"
   , "field u : scalar"
   , "def ordinary u = d_r (u * u)"
@@ -768,8 +748,7 @@ quotedDerivativeSource = unlines
 
 sbpSource :: String
 sbpSource = unlines
-  [ "mode collocated"
-  , "dimension 1"
+  [ "dimension 1"
   , "axes x"
   , "boundary x : sbp"
   , "field u : scalar @ primal"
@@ -782,8 +761,7 @@ sbpSource = unlines
 
 ghostBoundarySource :: String
 ghostBoundarySource = unlines
-  [ "mode collocated"
-  , "dimension 2"
+  [ "dimension 2"
   , "axes x, y"
   , "boundary y : ghost 0.0"
   , "field u : scalar"
@@ -793,8 +771,7 @@ ghostBoundarySource = unlines
 
 projectionSource :: String
 projectionSource = unlines
-  [ "mode collocated"
-  , "dimension 2"
+  [ "dimension 2"
   , "axes x, y"
   , "field u : scalar @ primal"
   , "field q_i @ primal"
@@ -811,8 +788,7 @@ projectionSource = unlines
 
 singleQuotedSource :: String
 singleQuotedSource = unlines
-  [ "mode collocated"
-  , "dimension 1"
+  [ "dimension 1"
   , "axes r"
   , "field u : scalar"
   , "step:"
@@ -821,8 +797,7 @@ singleQuotedSource = unlines
 
 upperLiteralResultSource :: String
 upperLiteralResultSource = unlines
-  [ "mode collocated"
-  , "dimension 2"
+  [ "dimension 2"
   , "axes x, y"
   , "field u : scalar"
   , "def literal u = [| u, u |]~i"
@@ -832,8 +807,7 @@ upperLiteralResultSource = unlines
 
 invalidQuotedAxisSource :: String
 invalidQuotedAxisSource = unlines
-  [ "mode collocated"
-  , "dimension 1"
+  [ "dimension 1"
   , "axes x"
   , "field u : scalar"
   , "step:"
@@ -842,8 +816,7 @@ invalidQuotedAxisSource = unlines
 
 invalidQuotedVarianceSource :: String
 invalidQuotedVarianceSource = unlines
-  [ "mode collocated"
-  , "dimension 1"
+  [ "dimension 1"
   , "axes x"
   , "field u : scalar"
   , "step:"
@@ -852,8 +825,7 @@ invalidQuotedVarianceSource = unlines
 
 invalidWideAxisSource :: String
 invalidWideAxisSource = unlines
-  [ "mode collocated"
-  , "dimension 1"
+  [ "dimension 1"
   , "axes x"
   , "field u : scalar"
   , "step:"
@@ -862,8 +834,7 @@ invalidWideAxisSource = unlines
 
 invalidWideAritySource :: String
 invalidWideAritySource = unlines
-  [ "mode collocated"
-  , "dimension 1"
+  [ "dimension 1"
   , "axes x"
   , "field u : scalar"
   , "step:"
@@ -872,8 +843,7 @@ invalidWideAritySource = unlines
 
 decimalLiteralSource :: String
 decimalLiteralSource = unlines
-  [ "mode collocated"
-  , "dimension 2"
+  [ "dimension 2"
   , "axes x, y"
   , "param dt = 0.0003"
   , "embedding [ sin (0.25 + x), cos (0.25 + x), y ]"
@@ -889,8 +859,7 @@ decimalLiteralSource = unlines
 
 decimalExponentAxisSource :: String
 decimalExponentAxisSource = unlines
-  [ "mode collocated"
-  , "dimension 1"
+  [ "dimension 1"
   , "axes e3"
   , "embedding [ .5e2 + 1e3 * e3 ]"
   , "field u : scalar"
@@ -902,8 +871,7 @@ decimalExponentAxisSource = unlines
 
 unsafeDecimalSource :: String -> String
 unsafeDecimalSource literal = unlines
-  [ "mode collocated"
-  , "dimension 1"
+  [ "dimension 1"
   , "axes x"
   , "field u : scalar"
   , "init:"
@@ -994,9 +962,3 @@ isVariableHodgeLaplacian problem =
         `isInfixOf` message
     _ -> False
 
-isModeMessage :: String -> EmitError -> Bool
-isModeMessage expected problem =
-  case problem of
-    EmitAtSource _ nested -> isModeMessage expected nested
-    EmitExpressionError message -> message == expected
-    _ -> False

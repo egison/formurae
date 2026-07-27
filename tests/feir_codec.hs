@@ -63,9 +63,9 @@ main = do
   assertDecodeError "unknown top-level field" "unknown field"
     (decodeFEProgram (appendTopField "mystery" (Atom "x") encoded))
   assertDecodeError "missing top-level field" "missing field"
-    (decodeFEProgram (removeTopField "mode" encoded))
+    (decodeFEProgram (removeTopField "dimension" encoded))
   assertDecodeError "duplicate top-level field" "duplicate field"
-    (decodeFEProgram (appendTopField "mode" (Atom "collocated") encoded))
+    (decodeFEProgram (appendTopField "dimension" (Atom "3") encoded))
   assertDecodeError "unknown top-level tag" "unknown top-level tag"
     (decodeFEProgram (replaceTopTag "not-feir" encoded))
   assertDecodeError "profile fingerprint tampering" "fingerprint mismatch"
@@ -82,7 +82,6 @@ fixtureProgram =
     , feProgramRegistryId = RegistryId "sha256:registry"
     , feProgramPrimitiveManifestId = PrimitiveManifestId "formurae-primitives"
     , feProgramDiscretization = fixtureProfile
-    , feProgramMode = CollocatedMode
     , feProgramDimension = 2
     , feProgramAxes =
         [ AxisDecl (AxisId 1) "r" "x" SbpBoundary (OriginId 1)

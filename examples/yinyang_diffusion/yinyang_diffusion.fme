@@ -17,7 +17,6 @@
 -- driver rewrites both panels with each of the three global l=1
 -- Cartesian modes in turn, and checks their exact decay e^{-2t}.
 
-mode collocated
 dimension 3
 axes θ, φ, z
 

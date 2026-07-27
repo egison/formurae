@@ -1,0 +1,22 @@
+-- Mixed model: a policy scalar field, form fields, the scalar Laplacian,
+-- form operators, and an indexed antisymmetric read of a 2-form coexist
+-- in one model (the combination the retired mode declaration forbade).
+dimension 3
+axes x, y, z
+
+param dt = 0.1*dx
+
+field u : scalar
+field E : 1-form
+field B : 2-form
+
+init:
+  u = 0.0
+  E = [| 0, 0, 0 |]
+  B = [| 0, 0, 0 |]
+
+step:
+  local mir_a_b = B_a_b + B_b_a
+  u' = u + dt * Δ u
+  E' = E + dt * δ B
+  B' = B - dt * d E'

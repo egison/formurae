@@ -54,8 +54,7 @@ manifestId = PrimitiveManifestId
 
 scaleSource :: String
 scaleSource = unlines
-  [ "mode collocated"
-  , "dimension 3"
+  [ "dimension 3"
   , "axes x, y, z"
   , "metric scale [1 / (1 + y), 1 / (1 + y), 1]"
   , "field u : scalar @ primal"
@@ -67,8 +66,7 @@ scaleSource = unlines
 
 embeddedSource :: String
 embeddedSource = unlines
-  [ "mode collocated"
-  , "dimension 3"
+  [ "dimension 3"
   , "axes theta, phi, z"
   , "embedding [`(2 + cos theta) * cos phi, `(2 + cos theta) * sin phi, sin theta, z]"
   , "field u : scalar @ primal"

@@ -1,6 +1,5 @@
 -- 2D divergence smoke test using the shared one-line Egison operator.
 
-mode collocated
 dimension 2
 axes x, y
 

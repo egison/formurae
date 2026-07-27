@@ -12,7 +12,6 @@
 -- samples cancel identically.  Chaining materialized x/y/z stages therefore
 -- gives the diagonal D3Q19 streaming offsets without a backend-only shift.
 
-mode collocated
 dimension 3
 axes x, y, z
 

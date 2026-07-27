@@ -123,11 +123,6 @@ newtype ProvenanceTable = ProvenanceTable [(NodeId, [OriginId])]
 
 -- -------------------------------------------------------------- core enums
 
-data Mode
-  = CollocatedMode
-  | DecMode
-  deriving (Eq, Ord, Show)
-
 data GridPolicy
   = CollocatedPolicy
   | PrimalPolicy
@@ -417,7 +412,6 @@ data FEProgram = FEProgram
   , feProgramRegistryId          :: RegistryId
   , feProgramPrimitiveManifestId :: PrimitiveManifestId
   , feProgramDiscretization      :: DiscretizationProfile
-  , feProgramMode                :: Mode
   , feProgramDimension           :: Int
   , feProgramAxes                :: [AxisDecl]
   , feProgramGeometry            :: GeometryDecl

@@ -205,14 +205,13 @@ infer
   -> TensorExpr
   -> Either OperatorTypeError StaticKind
 infer model shadowed environment source expression
-  -- In collocated mode this exact surface identity is the canonical scalar
+  -- On a scalar operand this exact surface identity is the canonical scalar
   -- Laplacian spelling accepted by the effect and emission passes.  Preserve
   -- its scalar result here as well instead of exposing the intermediate
-  -- differential-form kinds of d and δ.
-  | selectedMode model == CollocatedMode
-  , Just operand <- matchScalarDeltaExpression operatorScope expression = do
-      operandKind <- inferHere operand
-      requireScalar "scalar Δ" operandKind
+  -- differential-form kinds of d and δ; a form operand keeps the ordinary
+  -- d/δ reading below.
+  | Just operand <- matchScalarDeltaExpression operatorScope expression
+  , Right StaticScalar <- inferHere operand =
       pure StaticScalar
   | otherwise = case expression of
     TENumber _ -> pure StaticScalar

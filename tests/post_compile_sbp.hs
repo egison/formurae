@@ -320,7 +320,6 @@ fixture = FEProgram
   , feProgramPrimitiveManifestId = PrimitiveManifestId "manifest"
   , feProgramDiscretization = setProfileFingerprint
       (DiscretizationProfile (Fingerprint "") [] FixedAxisOrder)
-  , feProgramMode = CollocatedMode
   , feProgramDimension = 1
   , feProgramAxes = [AxisDecl (AxisId 1) "x" "x" SbpBoundary (OriginId 1)]
   , feProgramGeometry = GeometryDecl (GeometryId 1) Nothing Nothing

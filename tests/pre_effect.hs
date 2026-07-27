@@ -42,41 +42,39 @@ main = do
       "discrete exterior derivative" (parseTensorExpr "dExterior u"))
   assertEqual "the adjoint flux divergence is a grid-whole operation"
     (Right (DiscreteFunction [OpId "derivative.grid-whole"]))
-    (expressionEffect manifest variableMetricDecModel (EffectSummary [])
+    (expressionEffect manifest variableMetricModel (EffectSummary [])
       "adjoint flux divergence" (parseTensorExpr "dFluxDiv u"))
   assertEqual "constant-geometry Hodge Laplacian remains continuum-pure"
     (Right PureFunction)
-    (expressionEffect manifest decModel (EffectSummary [])
-      "canonical Hodge Laplacian" (parseTensorExpr "ΔH u"))
-  assertLeft "scalar Delta is collocated-only" isModeMismatch
-    (expressionEffect manifest decModel (EffectSummary [])
-      "wrong-mode scalar Delta" (parseTensorExpr "Δ u"))
-  assertLeft "codifferential is DEC-only" isModeMismatch
     (expressionEffect manifest baseModel (EffectSummary [])
-      "wrong-mode codifferential" (parseTensorExpr "δ u"))
+      "canonical Hodge Laplacian" (parseTensorExpr "ΔH u"))
+  assertEqual "canonical codifferential is available in every model"
+    (Right PureFunction)
+    (expressionEffect manifest baseModel (EffectSummary [])
+      "constant-geometry codifferential" (parseTensorExpr "δ u"))
   assertLeft "variable-metric Hodge Laplacian is explicitly unsupported"
     isVariableHodgeLaplacian
-    (expressionEffect manifest variableMetricDecModel (EffectSummary [])
+    (expressionEffect manifest variableMetricModel (EffectSummary [])
       "variable Hodge Laplacian" (parseTensorExpr "ΔH u"))
   assertEqual "constant-metric hodge-d-hodge remains continuum-pure"
     (Right PureFunction)
-    (expressionEffect manifest decModel (EffectSummary [])
+    (expressionEffect manifest baseModel (EffectSummary [])
       "constant hodge composition"
       (parseTensorExpr "hodge (d (hodge u))"))
   assertLeft "variable-metric hodge-d-hodge requires canonical codifferential"
     isVariableHodgeComposition
-    (expressionEffect manifest variableMetricDecModel (EffectSummary [])
+    (expressionEffect manifest variableMetricModel (EffectSummary [])
       "variable hodge composition"
       (parseTensorExpr "hodge (d (hodge u))"))
   assertLeft "raw Egison cannot hide variable-metric hodge-d-hodge in a binder"
     isVariableHodgeComposition
-    (inferModelEffects manifest variableMetricDecModel
+    (inferModelEffects manifest variableMetricModel
       { mDefs =
           [definition "rawAdjoint" ["A"]
             "let B := hodge A in hodge (d B)"]
       })
   shadowedRawSummary <- either (fail . show) pure
-    (inferModelEffects manifest variableMetricDecModel
+    (inferModelEffects manifest variableMetricModel
       { mDefs =
           [ definition "hodge" ["A"] "A"
           , definition "d" ["A"] "A"
@@ -93,7 +91,7 @@ main = do
 
   assertLeft "helper aliases cannot hide variable-metric hodge-d-hodge"
     isVariableHodgeComposition
-    (inferModelEffects manifest variableMetricDecModel
+    (inferModelEffects manifest variableMetricModel
       { mDefs =
           [ definition "hs" ["A"] "hodge A"
           , definition "ex" ["A"] "d A"
@@ -102,7 +100,7 @@ main = do
       })
   assertLeft "contractWith reducers retain variable-metric operator paths"
     isVariableHodgeComposition
-    (inferModelEffects manifest variableMetricDecModel
+    (inferModelEffects manifest variableMetricModel
       { mDefs =
           [definition "star" ["lhs", "rhs"] "hodge lhs"]
       , mSteps =
@@ -110,7 +108,7 @@ main = do
       })
   assertLeft "user-defined dot retains variable-metric operator paths"
     isVariableHodgeComposition
-    (inferModelEffects manifest variableMetricDecModel
+    (inferModelEffects manifest variableMetricModel
       { mDefs =
           [definition "." ["lhs", "rhs"] "hodge lhs"]
       , mSteps =
@@ -118,7 +116,7 @@ main = do
       })
   assertLeft "raw helper aliases cannot hide variable-metric hodge-d-hodge"
     isVariableHodgeComposition
-    (inferModelEffects manifest variableMetricDecModel
+    (inferModelEffects manifest variableMetricModel
       { mDefs =
           [ definition "hs" ["A"] "hodge A"
           , definition "ex" ["A"] "d A"
@@ -128,7 +126,7 @@ main = do
       })
   assertLeft "step lets retain the variable-metric operator path"
     isVariableHodgeComposition
-    (inferModelEffects manifest variableMetricDecModel
+    (inferModelEffects manifest variableMetricModel
       { mSteps =
           [ valueStep KLet "starred" "hodge u"
           , valueStep KLet "exterior" "d starred"
@@ -136,7 +134,7 @@ main = do
           ]
       })
   shadowedStructuredSummary <- either (fail . show) pure
-    (inferModelEffects manifest variableMetricDecModel
+    (inferModelEffects manifest variableMetricModel
       { mDefs =
           [ definition "hodge" ["A"] "A"
           , definition "d" ["A"] "A"
@@ -159,13 +157,13 @@ main = do
     (expressionEffect manifest variableMetricModel
       (EffectSummary [("δ", PureFunction)]) "shadowed scalar identity"
       (parseTensorExpr "0 - δ (d u)"))
-  assertLeft "a shadowed d prevents scalar-identity fusion"
-    isModeMismatch
+  assertEqual "a shadowed d keeps the ordinary operator reading"
+    (Right PureFunction)
     (expressionEffect manifest variableMetricModel
       (EffectSummary [("d", PureFunction)]) "shadowed exterior derivative"
       (parseTensorExpr "0 - δ (d u)"))
-  assertLeft "an algebraic near miss does not select scalar Delta"
-    isModeMismatch
+  assertEqual "an algebraic near miss keeps the ordinary operator reading"
+    (Right PureFunction)
     (expressionEffect manifest variableMetricModel (EffectSummary [])
       "near-miss scalar identity" (parseTensorExpr "1 - δ (d u)"))
   mapM_ (\name -> assertEqual ("removed ASCII surface name is ordinary: " ++ name)
@@ -506,12 +504,6 @@ isForwardUse problem =
     ForwardDefinitionUse "second" -> True
     _ -> False
 
-isModeMismatch :: EffectError -> Bool
-isModeMismatch problem =
-  case effectErrorIssue problem of
-    CanonicalOperatorModeMismatch _ -> True
-    _ -> False
-
 isVariableHodgeLaplacian :: EffectError -> Bool
 isVariableHodgeLaplacian problem =
   case effectErrorIssue problem of
@@ -547,7 +539,6 @@ baseModel = Model
   , mDim = 1
   , mAxes = ["x"]
   , mAxesSourceLine = Just 1
-  , mMode = Just CollocatedMode
   , mMetricName = Nothing
   , mParams = []
   , mParamSourceLines = []
@@ -567,12 +558,6 @@ baseModel = Model
 
 variableMetricModel :: Model
 variableMetricModel = baseModel { mMetric = Just ["1"] }
-
-decModel :: Model
-decModel = baseModel { mMode = Just DecMode }
-
-variableMetricDecModel :: Model
-variableMetricDecModel = variableMetricModel { mMode = Just DecMode }
 
 assertEqual :: (Eq a, Show a) => String -> a -> a -> IO ()
 assertEqual label expected actual

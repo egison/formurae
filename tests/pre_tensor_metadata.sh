@@ -47,7 +47,7 @@ expect_metadata_failure() {
     "$WORK/$kind.err" >/dev/null
 }
 
-expect_metadata_failure variance 7:8
-expect_metadata_failure degree 8:8
+expect_metadata_failure variance 6:8
+expect_metadata_failure degree 7:8
 
 printf 'formurae-pre structural tensor metadata tests: ok\n'

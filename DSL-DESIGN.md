@@ -552,6 +552,27 @@ f(x+dt/2) で初期化、x0/w は v2.19 規準どおり物理値)。既存 sbp �
 suite 全緑+make all 33 例全緑(sbp 系 6 例の .fmr は意図どおり更新、
 非 sbp 例は manifest ハッシュ行のみ)。残: 特性 SAT の一般化(インピーダンス
 Z・2D 法線方向)・yaml boundary の宣言からの生成。
+
+**v2.23(2026-07-28): mode 宣言の全廃 — 「場の宣言が体制を決める」** —
+`mode collocated` / `mode dec` を撤去した。mode は field 宣言(`~i @ policy` か
+`: k-form` か)から完全に復元できる冗長情報で、意味論上の仕事は form 場と
+ポリシー場の共存禁止だけだった。撤去後は両演算子族(grad/dGrad/divg/curl/lap/Δ と
+d/hodge/δ/Δ_H)が常時可視になり、混在の検査は「変性・種は pre(既存の
+変性規律の適用)、配置は post(既存の target 一致+`resample` 明示)」に帰着する。
+`canonicalOperatorModeError` / `CanonicalOperatorModeMismatch` を削除し、
+`0 - δ (d u)` の scalar-Δ 融合は mode でなくオペランドの静的種で判定する
+(scalar なら従来どおり融合、form オペランドは通常の d/δ 読み — Egison 側
+`scalarLaplacian` は同一合成 `0 - codiff (d ·)` なので意味は不変)。FEIR から
+`(mode …)` フィールドを撤去し、logical-registry fingerprint を schema 3 に改版
+(mode を identity から除去)。表層の `mode` 行は sbpd と同様の移行診断つき
+エラー(fixture: pre_mode_retired_error)。form 場の添字アクセス(`B_a_b`:
+変性は下・反対称鏡像は符号解決)は従来から全層で成立しており(実測: dec 系
+モデルに `local mir_a_b = B_a_b + B_b_a` を足すと零テンソルに正規化されて
+.fmr まで降りる)、mode 撤去で form 場とポリシー場の同一モデル共存が開放された
+(fixture: pre_mixed_form_policy)。$\flat/\sharp/\iota$ 類の橋渡し演算子は
+設けない方針を維持し、上下の結合は計量との明示縮約で書く(規範 1 節の
+「計量操作の可視化」どおり)。全 33 例題から mode 行を削除し、.fmr は
+バイト不変・suite 全緑を確認。
 標準6演算子だけでなく、一般の indexed equation、implicit vector equation、rank-1/rank-2
 indexed `let`、indexed CAS initializer を、成分別 Haskell 式へ展開せず whole runtime tensor として
 Egison へ渡すようにした。`RuntimeTensorExpr` は symbolic index を予約内部名へ alpha rename し、
@@ -1179,10 +1200,12 @@ step:
    runtime Egison の `contractWith` が評価する。ユーザーが `def (.) ...` を定義した場合は
    そちらを優先する。
 
-3. **`mode` が標準演算子族を選ぶ**
-   旧 `use vector-calculus` / `use exterior-calculus` 宣言は撤去済みである。
-   `mode collocated` は native coordinate operator marker を登録し、`mode dec` は form context を
-   生成する。ユーザーの同名 `def` は標準定義を shadow する。通常の標準6演算子は whole-tensor の
+3. **標準演算子族は常時可視(mode 宣言は v2.23 で全廃)**
+   旧 `use vector-calculus` / `use exterior-calculus` 宣言、およびその後継の
+   `mode collocated` / `mode dec` 宣言はいずれも撤去済みである。標準6演算子
+   (grad/dGrad/divg/curl/lap/Δ)と form 演算子(d/hodge/δ/Δ_H)は every model で
+   可視であり、体制は場の宣言(policy か k-form か)とオペランドの種が決める。
+   ユーザーの同名 `def` は標準定義を shadow する。通常の標準6演算子は whole-tensor の
    `FE.*` 呼び出しとして Egison へ渡り、generated `feTensorDerivative` callback が
    target/source policy・component basis・微分軸列から stencil を選ぶ。
 

@@ -325,7 +325,6 @@ encodeFEProgram program =
         (encodePrimitiveManifestId (feProgramPrimitiveManifestId program))
     , field "discretization"
         (encodeDiscretizationProfile (feProgramDiscretization program))
-    , field "mode" (encodeMode (feProgramMode program))
     , field "dimension" (encodeInt (feProgramDimension program))
     , field "axes" (encodeList encodeAxisDecl (feProgramAxes program))
     , field "geometry" (encodeGeometryDecl (feProgramGeometry program))
@@ -349,7 +348,6 @@ decodeFEProgram expression =
         <*> (required "registry-id" fields >>= decodeRegistryId)
         <*> (required "primitive-manifest-id" fields >>= decodePrimitiveManifestId)
         <*> (required "discretization" fields >>= decodeDiscretizationProfile)
-        <*> (required "mode" fields >>= decodeMode)
         <*> (required "dimension" fields >>= decodeInt "dimension")
         <*> (required "axes" fields >>= decodeList "axes" decodeAxisDecl)
         <*> (required "geometry" fields >>= decodeGeometryDecl)
@@ -368,7 +366,7 @@ decodeFEProgram expression =
   where
     programFieldNames =
       [ "model", "registry-id", "primitive-manifest-id", "discretization"
-      , "mode", "dimension", "axes", "geometry", "parameters", "functions"
+      , "dimension", "axes", "geometry", "parameters", "functions"
       , "fields", "initializers", "step-actions", "raw-helpers", "origins"
       , "provenance"
       ]
@@ -500,15 +498,6 @@ decodeProvenanceTable expression = do
           <*> (required "origins" fields >>= decodeList "provenance-origins" decodeOriginId)
 
 -- -------------------------------------------------------------- core enums
-
-encodeMode :: Mode -> SExpr
-encodeMode CollocatedMode = Atom "collocated"
-encodeMode DecMode = Atom "dec"
-
-decodeMode :: SExpr -> Either CodecError Mode
-decodeMode (Atom "collocated") = Right CollocatedMode
-decodeMode (Atom "dec") = Right DecMode
-decodeMode expression = codecError "mode" ("unknown mode: " ++ renderSExpr expression)
 
 encodeGridPolicy :: GridPolicy -> SExpr
 encodeGridPolicy CollocatedPolicy = Atom "collocated"

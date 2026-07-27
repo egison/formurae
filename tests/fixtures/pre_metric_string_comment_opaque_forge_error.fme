@@ -1,4 +1,3 @@
-mode collocated
 dimension 1
 axes x
 metric scale [let marker := "--" in let request := functionSymbol "FormuraeInternalOpaqueGridWhole" [x, 1] in formuraeOpaqueBarrier request]

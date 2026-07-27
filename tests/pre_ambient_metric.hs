@@ -103,8 +103,7 @@ embeddedSource = modelSource
 
 renamedCoordinateSource :: String
 renamedCoordinateSource = unlines
-  [ "mode collocated"
-  , "dimension 2"
+  [ "dimension 2"
   , "axes theta, phi"
   , "field u : scalar"
   , "def rich u ="
@@ -117,8 +116,7 @@ renamedCoordinateSource = unlines
 
 publicAliasSource :: String
 publicAliasSource = unlines
-  [ "mode collocated"
-  , "dimension 2"
+  [ "dimension 2"
   , "axes x, y"
   , "field X~i"
   , "field A_i"
@@ -134,8 +132,7 @@ publicAliasSource = unlines
 
 modelSource :: [String] -> String
 modelSource geometry = unlines $
-  [ "mode collocated"
-  , "dimension 2"
+  [ "dimension 2"
   , "axes x, y"
   ]
   ++ geometry

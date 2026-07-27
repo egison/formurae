@@ -78,8 +78,7 @@ MPIがない環境向けに1-rank stubを同梱しています。</p>
 
 <h2 id="tutorial">3. 拡散方程式</h2>
 
-<pre>mode collocated
-dimension 3
+<pre>dimension 3
 axes x, y, z
 
 param κ = 1.0
@@ -96,13 +95,12 @@ step:
   u' = u + dt * κ * Δ u</pre>
 
 <p><code>make diffusion3d</code>で4つの中間artifactを生成し、FormuraとC checkまで実行します。
-<code>Δ</code>は<code>mode collocated</code>のcanonical scalar Laplacianで、離散化精度はmodel profileから選ばれます。</p>
+<code>Δ</code>はcanonical scalar Laplacianで、離散化精度はmodel profileから選ばれます。</p>
 
 <h2 id="syntax">4. 表層構文</h2>
 
 <table>
 <tr><th>構文</th><th>意味</th></tr>
-<tr><td><code>mode collocated</code> / <code>mode dec</code></td><td>modelの格子・演算子context。必須</td></tr>
 <tr><td><code>dimension 1..3</code></td><td>Formura backendの次元</td></tr>
 <tr><td><code>axes x, y, z</code></td><td>座標名とAxisId。必須</td></tr>
 <tr><td><code>param dt = ...</code></td><td>Formura parameter</td></tr>
@@ -218,9 +216,9 @@ Formurae表層の<code>grad</code>は下のoperand-only関数へ解決され、�
 <tr><th>surface演算子</th><th>必要なambient値</th><th>短い定義で表す意味</th></tr>
 <tr><td><code>grad</code>、<code>dGrad</code>、<code>divg</code>、<code>hessian</code>、<code>lap</code></td><td><code>coordinates</code></td><td>微分添字のvarianceを保つ微分・縮約の合成</td></tr>
 <tr><td><code>curl</code></td><td><code>coordinates</code>、<code>dimension</code>、<code>epsilon</code></td><td>Levi-Civita tensorと解析微分の合成</td></tr>
-<tr><td><code>d</code></td><td><code>coordinates</code></td><td><code>mode dec</code>の外微分</td></tr>
+<tr><td><code>d</code></td><td><code>coordinates</code></td><td>外微分</td></tr>
 <tr><td><code>hodge</code></td><td><code>dimension</code>、geometry scale</td><td>基底補集合とmetric係数によるHodge star</td></tr>
-<tr><td><code>δ</code></td><td><code>coordinates</code>、<code>dimension</code>、geometry scale</td><td>余微分。constant geometryでは<code>d</code>と<code>hodge</code>のpureな合成(<code>mode dec</code>)。宣言幾何ではpreludeマクロとして<code>dFluxWeights</code>/<code>dFluxScale</code>/<code>dFluxDiv</code>に展開され、係数はinit凍結のstate配列になる</td></tr>
+<tr><td><code>δ</code></td><td><code>coordinates</code>、<code>dimension</code>、geometry scale</td><td>余微分。constant geometryでは<code>d</code>と<code>hodge</code>のpureな合成。宣言幾何ではpreludeマクロとして<code>dFluxWeights</code>/<code>dFluxScale</code>/<code>dFluxDiv</code>に展開され、係数はinit凍結のstate配列になる</td></tr>
 <tr><td><code>Δ</code></td><td><code>coordinates</code>、<code>dimension</code>、geometry scale</td><td>collocated scalarのcanonical Laplacian。constant geometryでは<code>−δ(d u)</code>=<code>divg (grad u)</code>のpureな合成。宣言幾何では<code>−δ(dExterior u)</code>のpreludeマクロ展開(保存形flux)</td></tr>
 <tr><td><code>Δ_H</code></td><td><code>coordinates</code>、<code>dimension</code>、geometry scale</td><td>constant geometry上のHodge--de Rham Laplacian <code>d (δ A) + δ (d A)</code></td></tr>
 <tr><td><code>dExterior</code></td><td><code>dimension</code></td><td>placement誘導grid∂の交代和による離散外微分(解析jetを作らない)</td></tr>
@@ -233,8 +231,8 @@ Formurae表層の<code>grad</code>は下のoperand-only関数へ解決され、�
 model宣言から生成されるambient tensor/valueである。なお、数学的には座標不変な<code>d</code>も、
 現在のFormurae実装ではその成分を<code>∂/∂</code>で計算するためambient <code>coordinates</code>を参照する。</p>
 
-<p><code>d</code>、<code>hodge</code>、<code>δ</code>、<code>Δ_H</code>は<code>mode dec</code>、
-canonical <code>Δ</code>は<code>mode collocated</code>のscalarに使います。
+<p><code>d</code>、<code>hodge</code>、<code>δ</code>、<code>Δ_H</code>はform値に、
+canonical <code>Δ</code>はscalarに使います。
 <code>curl</code>はambientな<code>epsilon</code>と<code>coordinates</code>を使う短い定義へ解決されます。</p>
 
 <p>したがって、user operatorも数学の形を保ったまま書けます。ライブラリ演算子の合成に加えて、
@@ -519,8 +517,7 @@ varianceは宣言と一致が必要(<code>q_i</code>宣言に対する<code>q~x<
 上下の付け替えは計量との縮約を明示で)。混合添字<code>T_x_j</code>と
 ランク不一致はcompile-time errorです。射影はRHS専用で、更新はwhole-field targetのままです。</p>
 
-<pre>mode dec
-dimension 3
+<pre>dimension 3
 axes x, y, z
 
 field E : 1-form
@@ -530,7 +527,7 @@ step:
   E' = E + dt * δ B
   B' = B - dt * d E'</pre>
 
-<p><code>mode dec</code>では<code>d</code>、<code>hodge</code>、<code>δ</code>、<code>Δ_H</code>を使います。
+<p>form fieldでは<code>d</code>、<code>hodge</code>、<code>δ</code>、<code>Δ_H</code>を使います。
 constant geometryの<code>Δ_H</code>は<code>d (δ A) + δ (d A)</code>、宣言幾何の<code>δ</code>は
 preludeマクロとして実体化localと公開演算子へ展開されます(§7)。
 general variable-metric <code>Δ_H</code>は現時点でcompile-time errorです。

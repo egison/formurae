@@ -2,9 +2,6 @@ module Formurae.Syntax where
 
 import Data.Char (isAlpha, isAlphaNum, isSpace)
 
-data Mode = CollocatedMode | DecMode
-  deriving (Eq, Show)
-
 data GridPolicy = Collocated | Primal | Dual
   deriving (Eq, Show)
 
@@ -178,7 +175,6 @@ data Model = Model
   , mDim    :: Int
   , mAxes   :: [String]
   , mAxesSourceLine :: Maybe Int
-  , mMode   :: Maybe Mode
   , mMetricName :: Maybe String
   , mParams :: [(String, String)]
   , mParamSourceLines :: [Int]
@@ -195,12 +191,6 @@ data Model = Model
   , mDiscretizationDecls :: [DiscretizationDecl]
   , mBoundaryDecls :: [BoundaryDecl]
   }
-
-selectedMode :: Model -> Mode
-selectedMode m =
-  case mMode m of
-    Just mode -> mode
-    Nothing -> error "selectedMode: mode declaration has not been validated"
 
 data Tok = TId String Bool | TC Char
 

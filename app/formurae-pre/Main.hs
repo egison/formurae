@@ -92,7 +92,6 @@ renderEffectIssue issue =
       consumer ++ " receives discrete operation"
       ++ plural operations ++ " as a higher-order argument: "
       ++ renderOperations operations
-    CanonicalOperatorModeMismatch message -> message
     VariableMetricHodgeLaplacianUnsupported ->
       "canonical Δ_H is not supported for variable metric geometry; "
       ++ "write its metric-dependent discretization explicitly"

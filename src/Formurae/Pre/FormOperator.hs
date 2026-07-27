@@ -15,7 +15,6 @@ module Formurae.Pre.FormOperator
   , canonicalOperatorIsVisible
   , matchScalarDeltaExpression
   , matchHodgeExteriorHodge
-  , canonicalOperatorModeError
   , hasVariableGeometry
   ) where
 
@@ -112,19 +111,6 @@ matchHodgeExteriorHodge scope expression = do
   exteriorApplication <- matchCanonicalUnary scope CanonicalHodge expression
   innerHodge <- matchCanonicalUnary scope CanonicalExteriorD exteriorApplication
   matchCanonicalUnary scope CanonicalHodge innerHodge
-
--- Only the canonical standard name is mode-restricted.  A user definition
--- that shadows the same spelling remains an ordinary function.
-canonicalOperatorModeError :: Mode -> CanonicalOperator -> Maybe String
-canonicalOperatorModeError mode operator = case (mode, operator) of
-  (CollocatedMode, CanonicalCodifferential) -> decOnly
-  (CollocatedMode, CanonicalHodgeLaplacian) -> decOnly
-  (DecMode, CanonicalScalarLaplacian) ->
-    Just "canonical scalar Δ requires mode collocated; use Δ_H for differential forms"
-  _ -> Nothing
-  where
-    decOnly = Just ("canonical " ++ canonicalOperatorName operator
-      ++ " requires mode dec")
 
 hasVariableGeometry :: Model -> Bool
 hasVariableGeometry model = case (mMetric model, mEmbed model) of

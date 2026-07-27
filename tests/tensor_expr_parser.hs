@@ -163,8 +163,7 @@ assertRenderIsStable = do
 assertPreprocessing :: IO ()
 assertPreprocessing = do
   model <- parseModel "tensor-parser.fme" "tensor-parser" (unlines
-    [ "mode collocated"
-    , "dimension 1"
+    [ "dimension 1"
     , "axes r"
     , "field u : scalar"
     , "step:"
@@ -178,8 +177,7 @@ assertPreprocessing = do
 assertQuotedDerivativePreprocessing :: IO ()
 assertQuotedDerivativePreprocessing = do
   model <- parseModel "tensor-parser-grid.fme" "tensor-parser-grid" (unlines
-    [ "mode collocated"
-    , "dimension 2"
+    [ "dimension 2"
     , "axes r, s"
     , "field u : scalar"
     , "step:"
@@ -194,8 +192,7 @@ assertTensorLiteralPreprocessing :: IO ()
 assertTensorLiteralPreprocessing = do
   model <- parseModel "tensor-parser-literal.fme" "tensor-parser-literal"
     (unlines
-      [ "mode collocated"
-      , "dimension 2"
+      [ "dimension 2"
       , "axes r, s"
       , "field u : scalar"
       , "step:"
