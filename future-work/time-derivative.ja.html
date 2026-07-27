@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Formurae future work: 時間微分記法 ∂_t(検討のうえ不採用)</title>
+<style>
+  :root { --ink:#1c1e21; --sub:#5a6270; --line:#e3e6ea; --accent:#0b5fa5; }
+  * { box-sizing:border-box; }
+  body { margin:0; color:var(--ink); background:#f6f7f9;
+         font-family:"Hiragino Sans","Noto Sans JP",Helvetica,Arial,sans-serif; }
+  header { padding:28px 32px; background:#fff; border-bottom:1px solid var(--line); }
+  header h1 { margin:0 0 6px; font-size:22px; }
+  header p { margin:4px 0; max-width:980px; color:var(--sub); font-size:13.5px; }
+  main { max-width:920px; margin:auto; padding:12px 24px 80px; font-size:14px; line-height:1.8; }
+  h2 { margin:40px 0 10px; padding-left:10px; color:var(--accent);
+       border-left:4px solid var(--accent); font-size:17px; }
+  h3 { margin:24px 0 6px; font-size:14.5px; }
+  a { color:var(--accent); }
+  code { padding:1px 5px; border-radius:4px; background:#eef1f4;
+         font:12.5px "SF Mono",Menlo,Consolas,monospace; }
+  pre { overflow-x:auto; padding:12px 15px; border-radius:8px;
+        color:#dbe7f6; background:#0e1726;
+        font:12.5px/1.6 "SF Mono",Menlo,Consolas,monospace; }
+  pre code { padding:0; background:none; color:inherit; font:inherit; }
+  table { width:100%; margin:10px 0; border-collapse:collapse; font-size:13px; }
+  th,td { padding:7px 10px; border:1px solid var(--line); background:#fff; text-align:left; }
+  th { background:#f0f3f7; }
+  .toc,.note { margin:18px 0; padding:11px 16px; border:1px solid var(--line);
+               border-radius:8px; background:#fff; font-size:13px; }
+  .note { background:#fff9e9; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Formurae future work: 時間微分記法 ∂_t(検討のうえ不採用)</h1>
+  <p>検討メモ(2026-07-27)。<code>u' = u + dt * κ * Δ u</code> を
+     <code>∂_t u = κ * Δ u</code> と書けるようにする案を検討し、不採用と決定した記録。
+     結論と設計原理は GPCE 原稿 §7(Explicit time stepping 段落)に反映済み。
+     本メモは反例・棄却した代替案・スイート実測の全体を保存する。</p>
+  <p><a href="time-derivative.en.html">English version</a></p>
+</header>
+<main>
+
+<div class="toc">
+  <b>目次:</b>
+  <a href="#summary">要点</a> /
+  <a href="#counterexample">決定的な反例</a> /
+  <a href="#options">検討した設計案</a> /
+  <a href="#suite">スイート実測</a> /
+  <a href="#principle">採用した設計原理</a> /
+  <a href="#lexical">字句上の罠</a> /
+  <a href="#revisit">再検討の条件</a>
+</div>
+
+<h2 id="summary">1. 要点 — ∂_t 形は更新則を決定しない</h2>
+
+<p>提案は、現行の陽的更新則</p>
+<pre><code>step:
+  u' = u + dt * κ * Δ u</code></pre>
+<p>を PDE そのものの形</p>
+<pre><code>step:
+  ∂_t u = κ * Δ u</code></pre>
+<p>で書けるようにするものだった。空間側はすでに連続作用素(<code>Δ</code>、<code>curl</code>、
+<code>∂_x</code>)で書けるのだから、時間側も揃えたい、という動機である。</p>
+
+<p>不採用の核心は、<b>どの時点の値を右辺が読むか(旧値か更新後値か)はスキームの性質で
+あって方程式の性質ではない</b>こと。∂_t 形の字面からはこの情報が原理的に復元できず、
+注釈・宣言・暗黙規約のいずれかで必ず連れ戻すことになる。その時点で「純粋に PDE のまま
+書ける」という売りは崩れ、さらに LBM のストリーミングや診断場のように半離散流ですらない
+step が言語に残る以上、更新則記法はどのみち廃止できない。記法を二重化する対価がない、
+というのが結論である。</p>
+
+<h2 id="counterexample">2. 決定的な反例 — 同じ字面で逆の答え</h2>
+
+<p>∂_t 形では見分けのつかない 2 つの連立系が、逆の参照方針を要求する。</p>
+
+<h3>2.1 Maxwell 対 — 更新後値が正しい</h3>
+<pre><code>step:                          -- examples/maxwell3d_yee
+  E' = E + dt * curl B
+  B' = B - dt * curl E'        -- E' (更新後) を読むから安定</code></pre>
+<p>B の更新が更新後の <code>E'</code> を読むのは symplectic Euler/Yee スキームの本体であり、
+波動系のエネルギー安定性はここに懸かっている。∂_t 形
+<code>∂_t B = - curl E</code> と書くとこの選択が消える。</p>
+
+<h3>2.2 交換系 — 旧値が必要</h3>
+<pre><code>∂_t a = k * (b - a)
+∂_t b = k * (a - b)            -- 右辺の和は 0 → a + b は保存するはず</code></pre>
+<p>両方が旧値を読む(Jacobi)なら <code>a' + b' = a + b</code> が丸めを除いて厳密に成り立つ。
+「計算済みの最新値を使う」規約だと</p>
+<pre><code>a' = a + dt·k(b − a)
+b' = b + dt·k(a' − b) = b + dt·k(a − b) + dt²k²(b − a)
+⇒ a' + b' = a + b + dt²k²(b − a)</code></pre>
+<p>となり、毎ステップ O(dt²)、時刻 T までで O(dt) の総量ドリフトが生じる。
+逐次化(Gauss–Seidel)はむしろ減衰的で安定化するため爆発せず、
+<b>保存量を測るまで気づけない</b>。書いた式は「和が保存する」と主張しているのに、
+降ろし方が黙ってそれを破る、という最悪の形の silent change である。</p>
+
+<h3>2.3 そもそも半離散流でない step</h3>
+<pre><code>f11' = pullz 1 p11             -- examples/lbm_d3q19: collide–stream の streaming
+q'   = divg V                  -- examples/divergence2d: 診断場(時間発展でない)</code></pre>
+<p>これらは ODE の時間積分ではないので ∂_t 形に載らない。更新則記法は言語から消せない。</p>
+
+<h2 id="options">3. 検討した設計案と棄却理由</h2>
+
+<table>
+<tr><th>案</th><th>内容</th><th>棄却理由</th></tr>
+<tr><td>A. 最新値優先<br>(freshest-wins)</td>
+    <td>E' が計算済みなら E'、なければ E を自動選択</td>
+    <td>§2.2 の保存則を静かに破る。スイートでも pearson3d・tdgl3d が黙って別スキーム化
+        (§4)。行順が意味を持つのに参照箇所の字面が変わらないため diff に写らない。
+        Jacobi 結合を書く手段が消える(<code>local U0 = U</code> の退避のみ)。</td></tr>
+<tr><td>B. 積分法宣言<br><code>time : euler | symplectic</code></td>
+    <td>MOL として well-defined。euler=全旧値、symplectic=記載順に更新し既更新は ' 置換</td>
+    <td>意味は一意だが、symplectic では式の順序が意味を持つ点は変わらず、
+        非 MOL の step が残るため記法の二重化(方言分裂)は避けられない。</td></tr>
+<tr><td>C. plain=旧値+RHS の <code>'</code> で明示</td>
+    <td><code>∂_t B = - curl E'</code>。既存 prime 記法の再利用、先行更新の静的検査つき</td>
+    <td>silent change ゼロで 31/33 例が .fmr バイト一致移行可能だったが、結局 prime が
+        残る=「純 PDE で書ける」が崩れる。二重記法の対価が薄い。</td></tr>
+<tr><td>D. 時間スタガードのフィールド宣言</td>
+    <td><code>field B_i @ dual @ half-time</code> 的に、半整数「時刻」への配置を宣言し、
+        E/E' を配置から順序非依存に導出(v2.15 の半整数半径の時間版)</td>
+    <td>数学的には最も誠実(Yee の実体)だが、状態レイアウトと全層に波及する。
+        一般計量と同種の費用対効果評価が先。将来の再検討候補。</td></tr>
+</table>
+
+<h2 id="suite">4. スイート実測(2026-07-27、全 33 例)</h2>
+
+<table>
+<tr><th>クラス</th><th>数</th><th>例</th></tr>
+<tr><td>前進 Euler 形 <code>u' = u ± dt * R</code>(全旧値)</td><td>23</td>
+    <td>diffusion1d/2d/3d、dirichlet_diffusion、highorder4、hyperbolic、burgers3d、
+        cahnhilliard3d、ks3d、pearson3d、tdgl3d、euler_sod、shallowwater、mhd_ot、
+        metric_sphere、metric_torus、polar2d、spherical3d、yinyang_diffusion、
+        sbp_diffusion1d/2d、sbp_highorder4、sbp_neumann</td></tr>
+<tr><td>逐次更新形(RHS に prime)</td><td>8</td>
+    <td>maxwell3d、maxwell3d_yee、maxwell_dec、acoustic3d、elastic3d、kleingordon、
+        sbp_wave1d、sbp_wave_open</td></tr>
+<tr><td>非 MOL</td><td>2</td>
+    <td>lbm_d3q19(streaming)、divergence2d(診断)</td></tr>
+</table>
+
+<p>案 A(最新値優先)で<b>意味が変わってしまう</b>のは次の 2 例。どちらも反応拡散型で、
+現行は同時更新(Jacobi)が意図されている。</p>
+<pre><code>-- pearson3d: U' が先に計算されるため、V' の右辺の U が U' に化ける
+U' = U + dt * (Fu * (1 - U) - Fe * U * V^2 + Du * Δ U)
+V' = V + dt * (Fe * U * V^2 - Fv * V + Dv * Δ V)
+
+-- tdgl3d: 同様に b' の右辺の a が a' に化ける
+a' = a + dt * (a - (a^2 + b^2) * a + Δ a)
+b' = b + dt * (b - (a^2 + b^2) * b + Δ b)</code></pre>
+<p>他の Euler 系 21 例が無傷なのは「単一フィールド」「local 経由」「先頭の式だけが他を参照」
+のいずれかによる偶然であり、式の並べ替えで壊れる。この脆さ自体が案 A の問題を示している。</p>
+
+<h2 id="principle">5. 採用した設計原理(論文 §7 に記載)</h2>
+
+<p><b>宣言が一意に決定するものは生成し、数値的な選択であるものは式に書く。</b></p>
+
+<table>
+<tr><th>宣言が決定 → 生成される</th><th>数値的選択 → 式に書く</th></tr>
+<tr><td>計量係数(<code>metric scale</code> / <code>embedding</code>)</td>
+    <td>時間積分法(<code>u' = u + dt * R</code> の形そのもの)</td></tr>
+<tr><td>境界閉包(<code>boundary x : sbp</code>)</td>
+    <td>旧値/更新後値の参照(RHS の <code>'</code>)</td></tr>
+<tr><td>スタガードのパリティ・幅(profile / 半整数半径)</td>
+    <td>人工粘性(<code>λ * ∂²_x ρ</code>)・SAT ペナルティ項</td></tr>
+</table>
+
+<p>既存の標語「計量は宣言であって第 4 の記法ではない」の対句が
+「<b>時間積分は式であって宣言ではない</b>」。連続の方程式は
+<code>-- du/dt = kappa * laplacian(u)</code> のようにモデル先頭のコメントに住む、
+という現行慣行を公式のものとする。</p>
+
+<h2 id="lexical">6. 字句上の罠(実装済みの現仕様に対する注意)</h2>
+
+<div class="note">
+<p><code>src/Formurae/Pre/Parse.hs</code> の現仕様では、mark が宣言済み axis でない
+<code>∂</code> は indexed derivative に落ちる(<code>∂_j σ~i~j</code> の j と同じ扱い)。
+つまり今 RHS に <code>∂_t u</code> と書くと「添字 t の空間微分」として黙って解釈される。
+将来もし ∂_t を導入するなら、<code>t</code> を time mark として予約し、
+(a) RHS への出現、(b) <code>t</code> という名の axis/添字との衝突を静的エラーにする必要がある。</p>
+</div>
+
+<h2 id="revisit">7. 再検討の条件</h2>
+
+<ul>
+<li><b>RK 系列の需要が実例で出た場合</b>: <code>time : rk4</code> 宣言+ステージの
+local 合成(composeStages の時間版)は案 B の枠で追加可能。その場合も表層は
+∂_t 形ではなく、更新則記法の中のマクロ/宣言として納める道を先に検討する。</li>
+<li><b>案 D(時間スタガード宣言)</b>: 空間の <code>@ primal</code>/<code>@ dual</code> と
+対称な時間配置宣言は、一般計量(general-metric.ja.html)と同様の全層波及があるため、
+依存マップと費用対効果の評価を経てから。成立すれば Yee 対の prime も消え、
+順序非依存になる。</li>
+<li>いずれの場合も §2.2 の交換系が回帰テストの必須項目(保存量の厳密検査)。</li>
+</ul>
+
+</main>
+</body>
+</html>

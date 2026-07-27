@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Formurae future work: the ∂_t time-derivative notation (considered and rejected)</title>
+<style>
+  :root { --ink:#1c1e21; --sub:#5a6270; --line:#e3e6ea; --accent:#0b5fa5; }
+  * { box-sizing:border-box; }
+  body { margin:0; color:var(--ink); background:#f6f7f9;
+         font-family:"Helvetica Neue",Helvetica,Arial,sans-serif; }
+  header { padding:28px 32px; background:#fff; border-bottom:1px solid var(--line); }
+  header h1 { margin:0 0 6px; font-size:22px; }
+  header p { margin:4px 0; max-width:980px; color:var(--sub); font-size:13.5px; }
+  main { max-width:920px; margin:auto; padding:12px 24px 80px; font-size:14px; line-height:1.8; }
+  h2 { margin:40px 0 10px; padding-left:10px; color:var(--accent);
+       border-left:4px solid var(--accent); font-size:17px; }
+  h3 { margin:24px 0 6px; font-size:14.5px; }
+  a { color:var(--accent); }
+  code { padding:1px 5px; border-radius:4px; background:#eef1f4;
+         font:12.5px "SF Mono",Menlo,Consolas,monospace; }
+  pre { overflow-x:auto; padding:12px 15px; border-radius:8px;
+        color:#dbe7f6; background:#0e1726;
+        font:12.5px/1.6 "SF Mono",Menlo,Consolas,monospace; }
+  pre code { padding:0; background:none; color:inherit; font:inherit; }
+  table { width:100%; margin:10px 0; border-collapse:collapse; font-size:13px; }
+  th,td { padding:7px 10px; border:1px solid var(--line); background:#fff; text-align:left; }
+  th { background:#f0f3f7; }
+  .toc,.note { margin:18px 0; padding:11px 16px; border:1px solid var(--line);
+               border-radius:8px; background:#fff; font-size:13px; }
+  .note { background:#fff9e9; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Formurae future work: the ∂_t time-derivative notation (considered and rejected)</h1>
+  <p>Design note (2026-07-27). We considered letting
+     <code>u' = u + dt * κ * Δ u</code> be written as
+     <code>∂_t u = κ * Δ u</code> and decided against it.  The conclusion and the
+     design principle are recorded in §7 of the GPCE draft (the &ldquo;Explicit time
+     stepping&rdquo; paragraph); this note preserves the full counterexamples, the
+     rejected alternatives, and the suite measurements.</p>
+  <p><a href="time-derivative.ja.html">日本語版</a></p>
+</header>
+<main>
+
+<div class="toc">
+  <b>Contents:</b>
+  <a href="#summary">Summary</a> /
+  <a href="#counterexample">Decisive counterexamples</a> /
+  <a href="#options">Alternatives considered</a> /
+  <a href="#suite">Suite measurements</a> /
+  <a href="#principle">Adopted design principle</a> /
+  <a href="#lexical">Lexical trap</a> /
+  <a href="#revisit">Conditions for revisiting</a>
+</div>
+
+<h2 id="summary">1. Summary — the ∂_t form does not determine the update</h2>
+
+<p>The proposal was to replace the explicit update rule</p>
+<pre><code>step:
+  u' = u + dt * κ * Δ u</code></pre>
+<p>by the PDE itself:</p>
+<pre><code>step:
+  ∂_t u = κ * Δ u</code></pre>
+<p>The motivation is symmetry: the spatial side is already written with continuum
+operators (<code>Δ</code>, <code>curl</code>, <code>∂_x</code>), so the time axis
+should match.</p>
+
+<p>The core of the rejection: <b>which values the right-hand side reads (previous
+or freshly updated) is a property of the scheme, not of the equation.</b>  The
+surface of the ∂_t form cannot recover this information, so it must be brought
+back by annotations, declarations, or an implicit convention — at which point the
+&ldquo;pure PDE&rdquo; selling point is gone.  Moreover, steps such as LBM streaming
+and diagnostic fields are not semidiscrete flows at all, so the update-rule
+notation cannot be removed from the language anyway.  Duplicating the notation
+buys nothing worth its cost.</p>
+
+<h2 id="counterexample">2. Decisive counterexamples — same surface, opposite answers</h2>
+
+<p>Two coupled systems that the ∂_t form cannot distinguish demand opposite
+reference policies.</p>
+
+<h3>2.1 The Maxwell pair — the updated value is correct</h3>
+<pre><code>step:                          -- examples/maxwell3d_yee
+  E' = E + dt * curl B
+  B' = B - dt * curl E'        -- reading the updated E' is what makes it stable</code></pre>
+<p>That B reads the updated <code>E'</code> is the substance of the symplectic-Euler/Yee
+scheme; the energy stability of the wave system hinges on it.  Writing
+<code>∂_t B = - curl E</code> erases the choice.</p>
+
+<h3>2.2 An exchange system — the previous values are required</h3>
+<pre><code>∂_t a = k * (b - a)
+∂_t b = k * (a - b)            -- the right-hand sides sum to zero → a + b should be conserved</code></pre>
+<p>If both sides read the previous values (Jacobi), then <code>a' + b' = a + b</code>
+holds exactly up to rounding.  Under a &ldquo;use the newest computed value&rdquo;
+convention,</p>
+<pre><code>a' = a + dt·k(b − a)
+b' = b + dt·k(a' − b) = b + dt·k(a − b) + dt²k²(b − a)
+⇒ a' + b' = a + b + dt²k²(b − a)</code></pre>
+<p>a drift of O(dt²) per step, O(dt) in total by time T.  Sequential
+(Gauss–Seidel) updates are dissipative and hence stabilizing, so nothing blows
+up: <b>the loss is invisible until you measure the invariant</b>.  The written
+equations claim the sum is conserved while the lowering silently breaks it —
+the worst kind of silent change.</p>
+
+<h3>2.3 Steps that are not semidiscrete flows at all</h3>
+<pre><code>f11' = pullz 1 p11             -- examples/lbm_d3q19: the streaming half of collide–stream
+q'   = divg V                  -- examples/divergence2d: a diagnostic field, no time evolution</code></pre>
+<p>These are not ODE integrations, so they cannot be written in ∂_t form; the
+update-rule notation stays in the language regardless.</p>
+
+<h2 id="options">3. Alternatives considered and why each was rejected</h2>
+
+<table>
+<tr><th>Option</th><th>Content</th><th>Rejection</th></tr>
+<tr><td>A. Newest value wins<br>(freshest-wins)</td>
+    <td>Automatically read E' if already computed, E otherwise</td>
+    <td>Silently breaks the conservation law of §2.2.  In the suite, pearson3d and
+        tdgl3d silently become a different scheme (§4).  Line order acquires meaning
+        while no token at the use site changes, so reorderings do not show in diffs.
+        Jacobi coupling becomes inexpressible (only workaround:
+        <code>local U0 = U</code> hoisting).</td></tr>
+<tr><td>B. Integrator declaration<br><code>time : euler | symplectic</code></td>
+    <td>Well-defined as method of lines: euler = all previous values;
+        symplectic = update in written order, references to already-updated fields
+        become primed</td>
+    <td>Unambiguous, but under symplectic the equation order still carries meaning,
+        and non-MOL steps remain — so the notation split (two dialects) is
+        unavoidable.</td></tr>
+<tr><td>C. Plain = previous + explicit <code>'</code> on the RHS</td>
+    <td><code>∂_t B = - curl E'</code>: reuse of the existing prime notation with a
+        static precedence check</td>
+    <td>Zero silent changes, and 31/33 examples would migrate with byte-identical
+        .fmr — but a prime survives, so &ldquo;written purely as the PDE&rdquo;
+        fails anyway.  Too little return for a duplicated notation.</td></tr>
+<tr><td>D. Temporal staggering as a field declaration</td>
+    <td>Declare placement at half-integer <em>time</em>, e.g.
+        <code>field B_i @ dual @ half-time</code>, deriving E vs. E' from placement,
+        order-independently (the temporal analogue of the v2.15 half-integer radii)</td>
+    <td>Mathematically the most honest (it is what Yee <em>is</em>), but it touches
+        the state layout and every layer.  Needs a cost/benefit evaluation of the
+        same kind as the general metric.  A candidate for future reconsideration.</td></tr>
+</table>
+
+<h2 id="suite">4. Suite measurements (2026-07-27, all 33 examples)</h2>
+
+<table>
+<tr><th>Class</th><th>Count</th><th>Examples</th></tr>
+<tr><td>Forward-Euler form <code>u' = u ± dt * R</code> (all previous values)</td><td>23</td>
+    <td>diffusion1d/2d/3d, dirichlet_diffusion, highorder4, hyperbolic, burgers3d,
+        cahnhilliard3d, ks3d, pearson3d, tdgl3d, euler_sod, shallowwater, mhd_ot,
+        metric_sphere, metric_torus, polar2d, spherical3d, yinyang_diffusion,
+        sbp_diffusion1d/2d, sbp_highorder4, sbp_neumann</td></tr>
+<tr><td>Sequential updates (primes on the RHS)</td><td>8</td>
+    <td>maxwell3d, maxwell3d_yee, maxwell_dec, acoustic3d, elastic3d, kleingordon,
+        sbp_wave1d, sbp_wave_open</td></tr>
+<tr><td>Not method-of-lines</td><td>2</td>
+    <td>lbm_d3q19 (streaming), divergence2d (diagnostic)</td></tr>
+</table>
+
+<p>Under option A (freshest-wins) the meaning of exactly two examples <b>changes
+silently</b>; both are reaction–diffusion models whose simultaneous (Jacobi)
+update is intended:</p>
+<pre><code>-- pearson3d: U' is computed first, so the U in V's right-hand side turns into U'
+U' = U + dt * (Fu * (1 - U) - Fe * U * V^2 + Du * Δ U)
+V' = V + dt * (Fe * U * V^2 - Fv * V + Dv * Δ V)
+
+-- tdgl3d: likewise the a in b's right-hand side turns into a'
+a' = a + dt * (a - (a^2 + b^2) * a + Δ a)
+b' = b + dt * (b - (a^2 + b^2) * b + Δ b)</code></pre>
+<p>The other 21 Euler examples survive only by accident — each is single-field,
+mediated by <code>local</code>s, or references other fields only in the first
+equation — and a reordering breaks the accident.  That fragility is itself the
+argument against option A.</p>
+
+<h2 id="principle">5. The adopted design principle (recorded in paper §7)</h2>
+
+<p><b>Declarations generate what they uniquely determine; genuine numerical
+choices stay written in the equations.</b></p>
+
+<table>
+<tr><th>Determined by a declaration → generated</th><th>Numerical choice → written in the step</th></tr>
+<tr><td>Metric coefficients (<code>metric scale</code> / <code>embedding</code>)</td>
+    <td>The time integrator (the shape <code>u' = u + dt * R</code> itself)</td></tr>
+<tr><td>Wall closures (<code>boundary x : sbp</code>)</td>
+    <td>Previous vs. updated references (the RHS <code>'</code>)</td></tr>
+<tr><td>Staggering parities and widths (profiles / half-integer radii)</td>
+    <td>Artificial dissipation (<code>λ * ∂²_x ρ</code>), SAT penalty terms</td></tr>
+</table>
+
+<p>The counterpart of the existing slogan &ldquo;the metric is a declaration, not a
+fourth notation&rdquo; is &ldquo;<b>time integration is an equation, not a
+declaration</b>.&rdquo;  The continuum equation lives in the model's comment
+header, as in <code>-- du/dt = kappa * laplacian(u)</code>; this note makes that
+existing habit official.</p>
+
+<h2 id="lexical">6. A lexical trap (a caution about the current implementation)</h2>
+
+<div class="note">
+<p>In the current <code>src/Formurae/Pre/Parse.hs</code>, a <code>∂</code> whose
+mark is not a declared axis falls back to the indexed derivative (the same
+treatment as the j of <code>∂_j σ~i~j</code>).  So writing <code>∂_t u</code> on a
+right-hand side today is silently interpreted as a spatial derivative with index
+t.  If ∂_t is ever adopted, <code>t</code> must be reserved as the time mark, and
+(a) RHS occurrences and (b) collisions with an axis or index named
+<code>t</code> must become static errors.</p>
+</div>
+
+<h2 id="revisit">7. Conditions for revisiting</h2>
+
+<ul>
+<li><b>If Runge–Kutta demand shows up in real examples</b>: a <code>time : rk4</code>
+declaration with stage synthesis via <code>local</code>s (the temporal counterpart
+of composeStages) fits within option B.  Even then, prefer a macro/declaration
+inside the update-rule notation over a ∂_t surface form.</li>
+<li><b>Option D (temporal staggering as declaration)</b>: a time-placement
+declaration symmetric to spatial <code>@ primal</code>/<code>@ dual</code> has
+whole-pipeline impact of the same kind as the general metric
+(general-metric.en.html), so it needs a dependency map and a cost/benefit
+evaluation first.  If it lands, the primes of the Maxwell pair disappear and the
+result is order-independent.</li>
+<li>In either case the exchange system of §2.2 is a mandatory regression test
+(exact conservation check).</li>
+</ul>
+
+</main>
+</body>
+</html>
