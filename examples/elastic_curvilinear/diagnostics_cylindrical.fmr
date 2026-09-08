@@ -1,0 +1,31 @@
+dimension :: 3
+axes :: r,theta,z
+
+double :: sbpLoR = 0.5*dr
+double :: sbpHiR = (total_grid_r - 1.5)*dr
+double :: sbpHinvR = 2.0/dr
+double :: sbpLoZ = 0.5*dz
+double :: sbpHiZ = (total_grid_z - 1.5)*dz
+double :: sbpHinvZ = 2.0/dz
+
+begin function (v_up1,v_up2,v_up3,compression,rotation_up1,rotation_up2,rotation_up3) = init()
+  double [] :: v_up1, v_up2, v_up3, compression, rotation_up1, rotation_up2, rotation_up3
+  v_up1[i,j,k] = 0.0
+  v_up2[i,j,k] = 0.0
+  v_up3[i,j,k] = 0.0
+  compression[i,j,k] = 0.0
+  rotation_up1[i,j,k] = 0.0
+  rotation_up2[i,j,k] = 0.0
+  rotation_up3[i,j,k] = 0.0
+end function
+
+begin function (v_up1',v_up2',v_up3',compression',rotation_up1',rotation_up2',rotation_up3') = step(v_up1,v_up2,v_up3,compression,rotation_up1,rotation_up2,rotation_up3)
+  double [] :: v_up1', v_up2', v_up3', compression', rotation_up1', rotation_up2', rotation_up3'
+  v_up1'[i,j,k] = v_up1[i,j,k]
+  v_up2'[i,j,k] = v_up2[i,j,k]
+  v_up3'[i,j,k] = v_up3[i,j,k]
+  compression'[i,j,k] = (((-1 / 2) * (v_up2[i,j-1,k] + dr * i * v_up2[i,j-1,k]) + (1 / 2) * (v_up2[i,j+1,k] + dr * i * v_up2[i,j+1,k])) / dtheta + (if i == 0 then (v_up1[i+1,j,k] + (-1) * (v_up1[i,j,k] + dr * i * v_up1[i,j,k]) + dr * v_up1[i+1,j,k] * (1 + i)) / dr else if i == (-1) + total_grid_r then (v_up1[i,j,k] + (-1) * (v_up1[i-1,j,k] + dr * v_up1[i-1,j,k] * ((-1) + i)) + dr * i * v_up1[i,j,k]) / dr else ((-1 / 2) * (v_up1[i-1,j,k] + dr * v_up1[i-1,j,k] * ((-1) + i)) + (1 / 2) * (v_up1[i+1,j,k] + dr * v_up1[i+1,j,k] * (1 + i))) / dr) + (if k == 0 then (v_up3[i,j,k+1] + (-1) * (v_up3[i,j,k] + dr * i * v_up3[i,j,k]) + dr * i * v_up3[i,j,k+1]) / dz else if k == (-1) + total_grid_z then (v_up3[i,j,k] + (-1) * (v_up3[i,j,k-1] + dr * i * v_up3[i,j,k-1]) + dr * i * v_up3[i,j,k]) / dz else ((-1 / 2) * (v_up3[i,j,k-1] + dr * i * v_up3[i,j,k-1]) + (1 / 2) * (v_up3[i,j,k+1] + dr * i * v_up3[i,j,k+1])) / dz)) / (1 + dr * i)
+  rotation_up1'[i,j,k] = ((-1) * (if k == 0 then (v_up2[i,j,k+1] + (-1) * (v_up2[i,j,k] + 2 * dr * i * v_up2[i,j,k] + v_up2[i,j,k] * (dr * i)**2) + 2 * dr * i * v_up2[i,j,k+1] + v_up2[i,j,k+1] * (dr * i)**2) / dz else if k == (-1) + total_grid_z then (v_up2[i,j,k] + (-1) * (v_up2[i,j,k-1] + 2 * dr * i * v_up2[i,j,k-1] + v_up2[i,j,k-1] * (dr * i)**2) + 2 * dr * i * v_up2[i,j,k] + v_up2[i,j,k] * (dr * i)**2) / dz else ((-1 / 2) * (v_up2[i,j,k-1] + 2 * dr * i * v_up2[i,j,k-1] + v_up2[i,j,k-1] * (dr * i)**2) + (1 / 2) * (v_up2[i,j,k+1] + 2 * dr * i * v_up2[i,j,k+1] + v_up2[i,j,k+1] * (dr * i)**2)) / dz) + ((-1 / 2) * v_up3[i,j-1,k] + (1 / 2) * v_up3[i,j+1,k]) / dtheta) / (1 + dr * i)
+  rotation_up2'[i,j,k] = ((-1) * (if i == 0 then (v_up3[i+1,j,k] + (-1) * v_up3[i,j,k]) / dr else if i == (-1) + total_grid_r then (v_up3[i,j,k] + (-1) * v_up3[i-1,j,k]) / dr else ((-1 / 2) * v_up3[i-1,j,k] + (1 / 2) * v_up3[i+1,j,k]) / dr) + (if k == 0 then (v_up1[i,j,k+1] + (-1) * v_up1[i,j,k]) / dz else if k == (-1) + total_grid_z then (v_up1[i,j,k] + (-1) * v_up1[i,j,k-1]) / dz else ((-1 / 2) * v_up1[i,j,k-1] + (1 / 2) * v_up1[i,j,k+1]) / dz)) / (1 + dr * i)
+  rotation_up3'[i,j,k] = ((-1) * ((-1 / 2) * v_up1[i,j-1,k] + (1 / 2) * v_up1[i,j+1,k]) / dtheta + (if i == 0 then (v_up2[i+1,j,k] + (-1) * (v_up2[i,j,k] + 2 * dr * i * v_up2[i,j,k] + v_up2[i,j,k] * (dr * i)**2) + 2 * dr * v_up2[i+1,j,k] * (1 + i) + v_up2[i+1,j,k] * (dr * (1 + i))**2) / dr else if i == (-1) + total_grid_r then (v_up2[i,j,k] + (-1) * (v_up2[i-1,j,k] + 2 * dr * v_up2[i-1,j,k] * ((-1) + i) + v_up2[i-1,j,k] * (dr * ((-1) + i))**2) + 2 * dr * i * v_up2[i,j,k] + v_up2[i,j,k] * (dr * i)**2) / dr else ((-1 / 2) * (v_up2[i-1,j,k] + 2 * dr * v_up2[i-1,j,k] * ((-1) + i) + v_up2[i-1,j,k] * (dr * ((-1) + i))**2) + (1 / 2) * (v_up2[i+1,j,k] + 2 * dr * v_up2[i+1,j,k] * (1 + i) + v_up2[i+1,j,k] * (dr * (1 + i))**2)) / dr)) / (1 + dr * i)
+end function

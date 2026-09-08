@@ -1,0 +1,85 @@
+{
+  "description": "Compact Cartesian x-velocity pulse; generated three-dimensional updates; physical meridional slices at t=0,0.2,0.4,0.6.",
+  "compiler": "Apple clang version 17.0.0 (clang-1700.6.4.2)",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "source_sha256": {
+    "tools/collect_elastic_propagation.py": "448f8cf0d0adb14f8e21531cff4a181eba17a2a5252a52964ad06ad51b6bf225",
+    "examples/elastic_curvilinear/propagation_check.h": "68047448be42ad7451da68f059fdcee435429a40d29778753f39e46c8cd09724",
+    "examples/elastic_curvilinear/elastic_check.h": "cc58ed5aa1ae4a117804e53e4006799534a948ee13873d080e11c27cafea7105",
+    "examples/elastic_cylindrical/elastic_cylindrical.fme": "30f6772b2774c17bae6901c2f53b5a98507fcd0a948f27029fa080d97ad584e3",
+    "examples/elastic_cylindrical/elastic_cylindrical.fmr": "49648da3f23a3f75473ec410b91f4763ebaa13010923ef2201ec098a49dbc9f5",
+    "examples/elastic_spherical/elastic_spherical.fme": "9a3ff0b295e27601a9401beb24057f581c2a24ebb8e177ae79777ef3c0429933",
+    "examples/elastic_spherical/elastic_spherical.fmr": "bd8f2dd17feed3ffac3283cdb9dac59273c4845a7c0bf79e2023dc34fd7d27d1"
+  },
+  "build_sha256": {
+    ".build/elastic-propagation/elastic_cylindrical/elastic_cylindrical.fmr": "49648da3f23a3f75473ec410b91f4763ebaa13010923ef2201ec098a49dbc9f5",
+    ".build/elastic-propagation/elastic_cylindrical/elastic_cylindrical.yaml": "5e5cc19e2e038f2b4028e920fddacc6842438f01e940c57f165420a8b51bff44",
+    ".build/elastic-propagation/elastic_cylindrical/elastic_cylindrical.c": "16dadf0ec2f18a48b0cbed2e7922796a08052e82b450fa807df75ce214b9c370",
+    ".build/elastic-propagation/elastic_cylindrical/elastic_cylindrical.h": "d309f953a24cee7f1452e0eec2dab4cac73ae72fdf722617ada46e6fd20590f3",
+    ".build/elastic-propagation/elastic_cylindrical/driver.c": "e95931aebad9f4de7855e12cee8cd5e2b997f1b45ea2b3fa1c3cbe03adbf9447",
+    ".build/elastic-propagation/elastic_cylindrical/check": "1fc5986eff0ce8818788934f430b701a314b75784b4bb27f9818381f3a0e0629",
+    ".build/elastic-propagation/elastic_spherical/elastic_spherical.fmr": "bd8f2dd17feed3ffac3283cdb9dac59273c4845a7c0bf79e2023dc34fd7d27d1",
+    ".build/elastic-propagation/elastic_spherical/elastic_spherical.yaml": "d19aadf030d1e2628512a28dbed9e047ae1872bc120fc741161808080b6dac8d",
+    ".build/elastic-propagation/elastic_spherical/elastic_spherical.c": "1356083bd2f59bfad30bdaa4a963f76998b298f7a2234e643b70e345deba3292",
+    ".build/elastic-propagation/elastic_spherical/elastic_spherical.h": "595ffea97c423528f31d99d36425c3a07c5ab1fa446dc28e2d528c4f15c768f5",
+    ".build/elastic-propagation/elastic_spherical/driver.c": "3a9ed6b9d1433df55f89e8ab2dd1e1a7a31002d8e39cc9034c197857f4fe99ad",
+    ".build/elastic-propagation/elastic_spherical/check": "1102f7c05c6f89ba92d1e9a3d3dd14bf60de75b163bd23512b08bff2200d2727"
+  },
+  "results": [
+    {
+      "coordinate": "cylindrical",
+      "grid": [
+        49,
+        128,
+        49
+      ],
+      "dt": 0.0010416666666666667,
+      "steps": 576,
+      "time": 0.6,
+      "initial_peak_speed": 1,
+      "pulse_radius": 0.35,
+      "reference_max_absolute_error": 5.551115123125783e-17,
+      "modified_energy_relative_drift": 8.268813226693625e-14,
+      "energy_min_ratio": 1,
+      "energy_max_ratio": 1.000042707285399,
+      "wall_velocity_error": 0,
+      "ok": true,
+      "elapsed_seconds": 90.59469399999999,
+      "data_sha256": {
+        "cylindrical/energy.dat": "de175b938b0852b8bc84081ce074f6a825dc088852a153ac203ce4ef199128e6",
+        "cylindrical/slice-0000.dat": "be7ecfe78ddd6e246f250bad9d46a9bf1e22b9eb6914f373b73cec69f4388265",
+        "cylindrical/slice-0192.dat": "aa1fde1939c8fbd00ad02ae52824bc0d40028c3127b4e553ebb2a6262a46d449",
+        "cylindrical/slice-0384.dat": "c4358cde3741c21bd7cba15d37b8dc4f70def8959db25bc575e82a5c633d8771",
+        "cylindrical/slice-0576.dat": "2df140b35927af9ba6c565074da429987207e4cb2870aae348ba84a268850e39"
+      }
+    },
+    {
+      "coordinate": "spherical",
+      "grid": [
+        49,
+        49,
+        128
+      ],
+      "dt": 0.0010416666666666667,
+      "steps": 576,
+      "time": 0.6,
+      "initial_peak_speed": 1,
+      "pulse_radius": 0.35,
+      "reference_max_absolute_error": 5.551115123125783e-17,
+      "modified_energy_relative_drift": 7.259883970424748e-14,
+      "energy_min_ratio": 1,
+      "energy_max_ratio": 1.0000424380006052,
+      "wall_velocity_error": 0,
+      "ok": true,
+      "elapsed_seconds": 211.68427475000001,
+      "data_sha256": {
+        "spherical/energy.dat": "4b1e52779b74c2caa6176813eab3da9684e3c88949b1270cdb20b3fcc1bc599c",
+        "spherical/slice-0000.dat": "e0dcd3569c7842ea4b22acbd88abf4e7b45ebc8aa1e0dad811fc5f8f7538ee10",
+        "spherical/slice-0192.dat": "9810e15f80611f3f1f881849e66522218ce9d23951094e6c799b2a26b2e8fbe2",
+        "spherical/slice-0384.dat": "60ff5a1381b452db6b849872da4e02e39971bdef3f3d973e5c367ef7263ecd48",
+        "spherical/slice-0576.dat": "898bd688d9ee8fdf208579666bfe7365f676b5198d71dd3587e15dd9056d8915"
+      }
+    }
+  ],
+  "all_passed": true
+}
