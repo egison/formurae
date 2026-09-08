@@ -147,6 +147,24 @@ static void exact_state(double *state,double t) {
     state[stress_id(0,c)*count+p]=(mode_derivative(R)-f/R)*sin(wave_number*t)/(wave_number*R);
   }
 }
+/* Optional numerical records for publication figures. Output is taken from
+ * the same state and analytic solution used by the validation checks. */
+static void write_profile(const double *state,double t) {
+  const char *path=getenv("FORMURAE_ELASTIC_PROFILE");
+  if(!path) return;
+  FILE *f=fopen(path,"w"); if(!f) { perror(path); exit(2); }
+  fprintf(f,"radius generated exact\n");
+  int c=SPHERICAL ? 2 : 1;
+  for(int i=0;i<dims[0];i++) {
+    int q[3]={i,dims[1]/2,dims[2]/2};
+    double g[3],dg[3][3],V; geometry(q,g,dg,&V);
+    double R=1+i*h[0],scale=sqrt(g[c]);
+    double exact=scale*mode_at(wave_number,R)*cos(wave_number*t)/(amplitude*R);
+    fprintf(f,"%.17g %.17g %.17g\n",R,
+      scale*state[c*count+offset(q[0],q[1],q[2])],exact);
+  }
+  if(fclose(f)) { perror(path); exit(2); }
+}
 /* A Cartesian affine velocity and uniform stress are an exact continuum
  * solution: v(X,t)=A X+b, sigma(X,t)=S+t[2 tr(A)I+A+A^T]. Transforming
  * these tensors excites every coordinate component and angular derivative.
@@ -229,6 +247,12 @@ int main(int argc,char **argv) {
   for (int c=0;c<9;c++) memcpy(fields[c],state+c*count,count*sizeof(double));
   memcpy(reference,state,9*count*sizeof(double)); reference_step(reference,a,rate);
   double e0=energy(state),m0=modified_energy(state,a),emin=e0,emax=e0,mdrift=0,referr=0;
+  const char *trace_path=getenv("FORMURAE_ELASTIC_TRACE");
+  FILE *trace=NULL;
+  if(trace_path) {
+    trace=fopen(trace_path,"w"); if(!trace) { perror(trace_path); return 2; }
+    fprintf(trace,"step time energy_relative modified_relative\n0 0 0 0\n");
+  }
   int steps=covariance ? 1 : (accuracy ? (int)ceil(2*M_PI/(wave_number*dt)) : 10000);
   if (argc>2) steps=atoi(argv[2]);
   for (int t=1;t<=steps;t++) {
@@ -237,11 +261,15 @@ int main(int argc,char **argv) {
     if (t==1 || t%50==0 || t==steps) {
       capture(state); double e=energy(state),m=modified_energy(state,a);
       if (!isfinite(e) || !isfinite(m)) return 1;
+      if(trace) fprintf(trace,"%d %.17g %.17g %.17g\n",t,t*dt,
+        (e-e0)/e0,(m-m0)/fabs(m0));
       if(e<emin) emin=e; if(e>emax) emax=e;
       double drift=fabs(m-m0)/fabs(m0); if(drift>mdrift) mdrift=drift;
       if(t==1) { int worst=0; for(int j=0;j<9*count;j++) { double d=fabs(state[j]-reference[j]); if(d>referr) {referr=d;worst=j;} } if(referr>1e-11) {int q[3]; indices(worst%count,q); fprintf(stderr,"reference mismatch c=%d q=%d,%d,%d generated=%.17g reference=%.17g\n",worst/count,q[0],q[1],q[2],state[worst],reference[worst]);} }
     }
   }
+  if(trace && fclose(trace)) { perror(trace_path); return 2; }
+  if(accuracy) write_profile(state,n.time_step*dt);
   double error=0;
   if(accuracy) { exact_state(reference,n.time_step*dt); for(int j=0;j<9*count;j++) reference[j]=state[j]-reference[j]; error=sqrt(energy(reference)/e0); }
   double rate_error=0;
