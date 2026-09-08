@@ -69,16 +69,18 @@ int main(int argc,char **argv) {
   for(int c=0;c<9;c++) memcpy(fields[c],state+c*count,count*sizeof(double));
   if(fabs(initial_peak-1)>1e-12) return 2;
   double e0=energy(state),m0=modified_energy(state,a),emax=e0,emin=e0,mdrift=0,referr=0,wallerr=0;
-  int frames[4]={0,(int)llround(0.2/dt),(int)llround(0.4/dt),(int)llround(0.6/dt)};
+  const int final_step=(int)llround(6.0/dt),frame_interval=(int)llround(0.1/dt);
+  int checks[5]={1,(int)llround(0.6/dt),(int)llround(2.4/dt),(int)llround(4.8/dt),final_step};
   write_volume(directory,state,0);
   char path[4096];snprintf(path,sizeof(path),"%s/energy.dat",directory);
   FILE *trace=fopen(path,"w");if(!trace) return 2;
   fprintf(trace,"step time energy_relative modified_relative\n0 0 0 0\n");
-  for(int step=1;step<=frames[3];step++) {
-    int check=step==1 || step==frames[1] || step==frames[2] || step==frames[3];
+  for(int step=1;step<=final_step;step++) {
+    int check=0;
+    for(int c=0;c<5;c++) if(step==checks[c]) check=1;
     if(check) {capture(reference);reference_step(reference,a,rate);}
     Formura_Forward(&n);if(n.time_step!=step) return 2;
-    if(check || step%16==0 || step%24==0) {
+    if(check || step%48==0) {
       capture(state);
       for(int c=0;c<9;c++) for(int p=0;p<count;p++) {
         double value=state[c*count+p];if(!isfinite(value)) return 1;
@@ -89,7 +91,7 @@ int main(int argc,char **argv) {
       if(e>emax) emax=e;if(e<emin) emin=e;
       double drift=fabs(m-m0)/m0;if(drift>mdrift) mdrift=drift;
       fprintf(trace,"%d %.17g %.17g %.17g\n",step,step*dt,(e-e0)/e0,(m-m0)/m0);
-      if(step%24==0) {
+      if(step%frame_interval==0) {
         write_volume(directory,state,step);
         fprintf(stderr,"%s frame at t=%.6g written\n",SPHERICAL ? "spherical" : "cylindrical",step*dt);
       }
@@ -97,7 +99,8 @@ int main(int argc,char **argv) {
   }
   if(fclose(trace)) return 2;
   int ok=referr<1e-11 && mdrift<1e-10 && wallerr==0 && emin/e0>0.97 && emax/e0<1.03;
-  printf("{\"coordinate\":\"%s\",\"grid\":[%d,%d,%d],\"dt\":%.17g,\"steps\":%d,\"time\":%.17g,\"initial_peak_speed\":%.17g,\"pulse_radius\":%.17g,\"reference_max_absolute_error\":%.17g,\"modified_energy_relative_drift\":%.17g,\"energy_min_ratio\":%.17g,\"energy_max_ratio\":%.17g,\"wall_velocity_error\":%.17g,\"ok\":%s}\n",
-    SPHERICAL ? "spherical" : "cylindrical",dims[0],dims[1],dims[2],dt,n.time_step,n.time_step*dt,initial_peak,pulse_radius,referr,mdrift,emin/e0,emax/e0,wallerr,ok ? "true" : "false");
+  printf("{\"coordinate\":\"%s\",\"grid\":[%d,%d,%d],\"dt\":%.17g,\"steps\":%d,\"time\":%.17g,\"frame_interval\":%d,\"reference_steps\":[%d,%d,%d,%d,%d],\"energy_interval\":48,\"initial_peak_speed\":%.17g,\"pulse_radius\":%.17g,\"reference_max_absolute_error\":%.17g,\"modified_energy_relative_drift\":%.17g,\"energy_min_ratio\":%.17g,\"energy_max_ratio\":%.17g,\"wall_velocity_error\":%.17g,\"ok\":%s}\n",
+    SPHERICAL ? "spherical" : "cylindrical",dims[0],dims[1],dims[2],dt,n.time_step,n.time_step*dt,frame_interval,
+    checks[0],checks[1],checks[2],checks[3],checks[4],initial_peak,pulse_radius,referr,mdrift,emin/e0,emax/e0,wallerr,ok ? "true" : "false");
   free(state);free(reference);free(a);free(rate);Formura_Finalize();return ok ? 0 : 1;
 }

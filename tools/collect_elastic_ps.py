@@ -158,9 +158,17 @@ def main():
         wave_records=[json.loads(line) for line in (wave.parent/'run.log').read_text().splitlines() if line.startswith('{')]
         assert len(wave_records)==1 and wave_records[0]['ok']
         result=wave_records[0];result['analytic']=analytic;result['frames']=[]
+        result['paper_steps']=[round(t/result['dt']) for t in [.6,2.4,4.8]]
         dims,spacing,xyz,basis,scale=grid_info(coordinate)
         dest=OUT/coordinate;dest.mkdir(exist_ok=True)
-        for step in range(0,577,24):
+        opposite_center=np.array([-1.5,0,.5 if coordinate=='cylindrical' else 0])
+        opposite=np.sum((xyz-opposite_center[:,None,None,None])**2,axis=0)<result['pulse_radius']**2
+        assert opposite.any()
+        result['opposite_region']={'center':opposite_center.tolist(),'radius':result['pulse_radius'],
+            'grid_points':int(opposite.sum()),'threshold':.01,
+            'definition':'Maximum a*|div v|/V0 or a*|curl v|/V0 in the physical ball opposite the initial pulse.'}
+        published=[]
+        for step in range(0,result['steps']+1,result['frame_interval']):
             velocity_file=frames/f'velocity-{step:04d}.bin'
             velocity=np.fromfile(velocity_file,dtype=np.float64).reshape((3,*dims))
             got=evaluate(diag,velocity_file,dims,frames/f'diagnostics-{step:04d}.bin')
@@ -169,15 +177,24 @@ def main():
             curl_norm=np.sqrt(np.sum((got[1:]*scale)**2,axis=0))
             # All frames remain available for the movie, with no time interpolation.
             np.savez_compressed(frames/f'ps-{step:04d}.npz',div=got[0],curl=curl_norm)
-            if step in [96,192,384]:
-                shutil.copy2(frames/f'ps-{step:04d}.npz',dest/f'ps-{step:04d}.npz')
+            if step in result['paper_steps']:
+                target=dest/f'ps-{step:04d}.npz'
+                shutil.copy2(frames/target.name,target);published.append(target)
             result['frames'].append({'step':step,'time':step*result['dt'],'reference_error':error,
                 'div_peak':float(np.max(np.abs(got[0]))),'curl_peak':float(np.max(curl_norm)),
+                'opposite_p_peak':float(result['pulse_radius']*np.max(np.abs(got[0][opposite]))/result['initial_peak_speed']),
+                'opposite_s_peak':float(result['pulse_radius']*np.max(curl_norm[opposite])/result['initial_peak_speed']),
                 'velocity_sha256':sha(velocity_file),'diagnostics_sha256':sha(frames/f'diagnostics-{step:04d}.bin'),
                 'plot_data_sha256':sha(frames/f'ps-{step:04d}.npz')})
-        result['data_sha256']={str(p.relative_to(OUT)):sha(p) for p in sorted(dest.glob('*.npz'))}
+        for wave_type in ['p','s']:
+            key=f'opposite_{wave_type}_peak'
+            arrival=next((f['time'] for f in result['frames'] if f[key]>=.01),None)
+            assert arrival is not None,(coordinate,wave_type,'opposite side not reached')
+            result['opposite_region'][f'{wave_type}_first_sample_above_threshold']=arrival
+        shutil.copy2(frames/'energy.dat',dest/'energy.dat');published.append(dest/'energy.dat')
+        result['data_sha256']={str(p.relative_to(OUT)):sha(p) for p in published}
         report['results'].append(result)
-        print(coordinate,'25 full-volume diagnostics passed',flush=True)
+        print(coordinate,len(result['frames']),'full-volume diagnostics passed;',result['opposite_region'],flush=True)
         (OUT/'records.json').write_text(json.dumps(report,indent=2)+'\n')
     sources=[Path(__file__),EX/'propagation_ps_check.h',EX/'diagnostics_check.h',EX/'elastic_check.h']
     sources+=list((ROOT/'src').rglob('*.hs'))+list((ROOT/'lib').glob('*.egi'))
