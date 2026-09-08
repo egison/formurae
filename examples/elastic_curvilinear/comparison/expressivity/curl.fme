@@ -1,0 +1,19 @@
+dimension 3
+axes x, y, z
+
+field A_i @ collocated
+field R_i @ collocated
+field S_i @ collocated
+
+def rotation X = withSymbols [i,j,k] (epsilon_i~j~k . ∂/∂ X_k coordinates~j)
+def apply op X = op X
+
+init:
+  A_i = [| 0, 0, 0 |]_i
+  R_i = [| 0, 0, 0 |]_i
+  S_i = [| 0, 0, 0 |]_i
+
+step:
+  A' = A
+  R'_i = (rotation A)..._i
+  S'_j = (apply rotation A)..._j

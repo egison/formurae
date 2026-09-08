@@ -83,6 +83,18 @@ ambient名と`metric g`の宣言名はfield、parameter、user definition、defi
 step-level `let` / `local`では予約されます。Egison expression block内の局所`let`やlambdaだけは
 通常のlexical scopeに従います。
 
+## 円筒・球座標の弾性波
+
+[円筒座標](examples/elastic_cylindrical/elastic_cylindrical.fme)と
+[球座標](examples/elastic_spherical/elastic_spherical.fme)の例では，
+ひずみ・構成則・応力の発散を表す三つの関数をそのまま共有します．
+計量の微分をEgisonで計算し，流束全体を格子上で差分化します．
+速度と応力を同じ点に置き，境界では部分積分に対応する離散恒等式を満たす差分を使います．
+解析解への2次収束と，1万ステップでの修正エネルギー保存を確認しています．
+
+依存先Egisonの固定版を含む[再現手順と数値結果](examples/elastic_curvilinear/README.md)，
+[関連研究との比較](examples/elastic_curvilinear/RELATED-WORK.md)を参照してください．
+
 ## 最小例
 
 ```formurae
@@ -113,16 +125,16 @@ compact 5点stencilをexact rational coefficientで導出します。一階wide 
 
 ## 微分の意味
 
-通常の`∂`は解析微分です。
+添字つきの `∂` は，式全体を格子上で評価してから差分する微分です．
 
 ```formurae
-∂_x (u * u)          -- Egison: 2 * u * FieldJet(u,{x:1})
+∂_x (u * u)          -- u*u 全体を参照先の点で評価して差分
 ```
 
-未知の解析微分則を0とみなすことはなく、Egisonの`∂/∂`がerrorにします。
-混合偏微分はcanonicalなmulti-indexへまとめられます。
+計量などを解析的に微分する場合は `∂/∂` を使います．
+未知の解析微分則を0とみなすことはなく，Egisonがエラーにします．
 
-式全体を先に格子上で評価してから差分したい保存形では、微分式をbackquoteします。
+通常の1階差分に対する次のbackquoteは同じ意味を持ちます．
 
 ```formurae
 `(∂_x (u * u / 2))  -- product ruleを開かないwhole-expression差分
@@ -153,7 +165,9 @@ step:
 
 `q_i @ primal`は成分ごとに対応軸のfaceへ保存され、`divg q`はcellへ戻る差分を作ります。
 このtelescopingによる保存保証は周期境界、または同じfluxと整合するghost/boundary処理の下でのものです。
-現在の`.fme`は物理境界条件自体を宣言せず、Formura側のYAML・boundary設定が権威です。
+`.fme` の `boundary x : sbp` は差分の境界行を選びます．
+物理的な壁条件は例題の更新式や境界項で与え，FormuraのYAML設定で
+実行時の境界処理を指定します．
 
 ## Tensor、form、格子配置
 

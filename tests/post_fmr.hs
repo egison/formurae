@@ -106,6 +106,7 @@ testProgramRendering = do
         , "end function"
         , ""
         , "begin function u' = step(u)"
+        , "  double [] :: u'"
         , "  u'[i] = u[i]"
         , "end function"
         ]

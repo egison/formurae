@@ -1,0 +1,10 @@
+dimension 3
+axes r, θ, z
+metric g
+metric scale [1, 1+r, 1]
+field e_i_j @ collocated
+field q~i~j @ collocated
+def stiffness G~a~b = withSymbols [i,j,k,l] (G~i~j * G~k~l + G~i~k * G~j~l + G~i~l * G~j~k)
+def constitutive E_i_j = withSymbols [i,j,k,l] ((stiffness g~i~j)~i~j~k~l . E_k_l)
+step:
+  q'~i~j = constitutive e

@@ -1,0 +1,27 @@
+{
+  "all_checks_passed": true,
+  "python": "3.9.6",
+  "packages": {
+    "sympy": "1.6.2",
+    "numpy": "1.26.4"
+  },
+  "runner_sha256": "0383c35c199e380a80035fb0c4899e2b78fab10809100cbd45a449dfe4de9905",
+  "results": {
+    "opensbli": {
+      "substitution_scalar": {
+        "accepted": true,
+        "result": "Eq(z, a0*b0 + a1*b1 + a2*b2)"
+      },
+      "substitution_with_caller_index_i": {
+        "accepted": false,
+        "exception": "ValueError",
+        "message": "LHS indices and rhs indices are not consistent"
+      },
+      "substitution_after_manual_dummy_index_rename": {
+        "accepted": true,
+        "result": "[Eq(q0, a0*b0*c0 + a1*b1*c0 + a2*b2*c0), Eq(q1, a0*b0*c1 + a1*b1*c1 + a2*b2*c1), Eq(q2, a0*b0*c2 + a1*b1*c2 + a2*b2*c2)]"
+      },
+      "stage": "EinsteinEquation.expand; no OPS backend execution"
+    }
+  }
+}

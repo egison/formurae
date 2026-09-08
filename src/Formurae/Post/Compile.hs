@@ -766,6 +766,11 @@ lowerGridWholeDerivative environment targetPlacement sampleOffsets opaque = do
     else Left (PostInvalidReferencePlacement targetPlacement naturalTarget)
   boundary <- axisBoundary environment (derivativeRequestAxis request)
   case boundary of
+    SbpBoundary | scalarLocationLattice location == Just CollocatedLattice ->
+      lowerCollocatedSbpDerivative environment
+        (PostSbpDerivativeError (opaqueDiscreteSemanticKey opaque))
+        (derivativeRequestAxis request) sampleOffsets
+        (lowerSample request sourcePlacement)
     SbpBoundary -> do
       if scalarLocationLattice location == Just StaggeredLattice
         then Right ()
@@ -791,6 +796,41 @@ lowerGridWholeDerivative environment targetPlacement sampleOffsets opaque = do
     lowerWeighted request sourcePlacement (offset, coefficient) = do
       sample <- lowerSample request sourcePlacement offset
       Right (normalizeExpr (FMul [exactExpr coefficient, sample]))
+
+-- The diagonal-norm collocated D2-1 operator: centered differences in
+-- the interior and forward/backward differences at the two end points.
+-- H = h diag(1/2,1,...,1,1/2) satisfies H D + D^T H = diag(-1,0,...,1).
+-- Every complete flux uses the same rows as a velocity derivative. This
+-- is essential when constructing a metric-weighted adjoint in a library.
+lowerCollocatedSbpDerivative
+    :: CompileEnvironment
+    -> (SbpDerivativeError -> PostError)
+    -> AxisId
+    -> [Int]
+    -> (Int -> Either PostError FExpr)
+    -> Either PostError FExpr
+lowerCollocatedSbpDerivative environment wrapError axisId sampleOffsets lowerSample = do
+  axis <- lookupAxis environment axisId
+  step <- axisStep environment axisId
+  indices <- indexNames environment
+  let AxisId axisNumber = axisId
+      indexVariable = FVariable (indices !! (axisNumber - 1))
+      extentVariable = FVariable ("total_grid_" ++ axisDeclSourceName axis)
+      row weights = do
+        terms <- mapM (\(offset, weight) -> do
+          value <- lowerSample offset
+          Right (FMul [exactExpr weight, value])) weights
+        Right (normalizeExpr (FDiv (FAdd terms) step))
+  case drop (axisNumber - 1) sampleOffsets of
+    shift : _ | shift /= 0 -> Left (wrapError (SbpClosureInsideStencil axisId))
+    _ -> Right ()
+  interior <- row [(-1, -1/2), (1, 1/2)]
+  low <- row [(0, -1), (1, 1)]
+  high <- row [(-1, -1), (0, 1)]
+  let lowGuard = FCompare CompareEq indexVariable (FExact 0 1)
+      highGuard = FCompare CompareEq indexVariable
+        (normalizeExpr (FAdd [extentVariable, FExact (-1) 1]))
+  Right (normalizeExpr (FSelect lowGuard low (FSelect highGuard high interior)))
 
 -- | Lower one derivative along a declared sbp axis: the interior rows are
 -- the ordinary staggered stencils, and the rows nearest each physical

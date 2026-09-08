@@ -1,0 +1,7 @@
+dimension 3
+axes x, y, z
+field e_i_j @ collocated
+field q~i~j @ collocated
+def passTensor T... = T
+step:
+  q' = passTensor e

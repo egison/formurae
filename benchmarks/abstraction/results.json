@@ -1,0 +1,902 @@
+{
+  "method": "ratio of median kernel times; serial alternating pairs; clock_gettime; no initialization, output, or compilation in timed region",
+  "host": {
+    "cpu": "Apple M5",
+    "os": "macOS-26.6.2-arm64-arm-64bit",
+    "cc": "Apple clang version 17.0.0 (clang-1700.6.4.2)"
+  },
+  "manifest": {
+    "cases": [
+      "diffusion3d",
+      "pearson3d",
+      "maxwell3d_yee",
+      "elastic3d",
+      "mhd_ot"
+    ],
+    "sizes": [
+      32,
+      64
+    ],
+    "temporal_blocking": 4,
+    "spatial_block": [
+      8,
+      8,
+      8
+    ],
+    "compiler_flags": [
+      "-O2",
+      "-std=c11"
+    ],
+    "processes": 1,
+    "egison_revision": "1a0298c67cc487dd4a73d96f526f3042b74d6570",
+    "formura_sha256": "e8d36abc20f6cf251ca805e9bc85ce8b5a8849d97fcf36bf327dc54025c16564",
+    "source_sha256": {
+      "examples/diffusion3d/diffusion3d.fme": "37d2d9efa7be87cd814b65aa90466d49aa3e2557f9f188ff9609eb8e1ef8733b",
+      "benchmarks/abstraction/manual/diffusion3d.fmr": "8bf68680a428f41d6a7482838a661295aeff0788454ec180e72cc5b1fb8af433",
+      "examples/pearson3d/pearson3d.fme": "0306fc3f88b17ddb422e5857dad053450dc5ab9e7fdcca3d0a961f5ce1bc7e14",
+      "benchmarks/abstraction/manual/pearson3d.fmr": "7a6b34aed6e30c86516f9aff51543b5f6717196f1bfea1ad9f5ccb08859f8cb7",
+      "examples/maxwell3d_yee/maxwell3d_yee.fme": "49c19a655182cbc46eef3d046457e74879eaaeb3fca1007f9c349a658ae66a64",
+      "benchmarks/abstraction/manual/maxwell3d_yee.fmr": "6f7f6b01e18e240a7b4058982148e86d1815bf21ae81e7b9284efd6c0d616695",
+      "examples/elastic3d/elastic3d.fme": "77073d3b8df8a36c09d80ea99e3eebbe60c50709c2c033d08d7819cf10abbf9a",
+      "benchmarks/abstraction/manual/elastic3d.fmr": "7a742a4223bfe6b051e933d72550dc5230522b8ec19864bf5ff08f668ab341e3",
+      "examples/mhd_ot/mhd_ot.fme": "d5dd0807057a9ad26a5deac8dc7c9b9a3905255c11756ac7c1d9a0d529930473",
+      "benchmarks/abstraction/manual/mhd_ot.fmr": "20af6235a716aefd2fa94176b3558fbe8c57e75b15ca5793f29b70fb2e2c4444",
+      "src/Formurae/Common.hs": "ef689a7231e81ca1cff02feb823b1d546c30d2d53f88ab0b03678ca0fc788acc",
+      "src/Formurae/FEIR/Codec.hs": "cd8efda705c18a751a7d6781e1ff3611c7fedecb1d4152c953b54477836d76e3",
+      "src/Formurae/FEIR/Fingerprint.hs": "6619d1793523678b44fdde391efad0767b786f15c93bf284bb611a9add009e01",
+      "src/Formurae/FEIR/PrimitiveBindingGenerator.hs": "e95c220828088c8681e88820559bc4a7da56d312b52d332352a345ee76c9d945",
+      "src/Formurae/FEIR/PrimitiveBindings.hs": "ab9f21483b22df54493ff3a2509df81fa797e8c8a7089b6918aa2a07093a5546",
+      "src/Formurae/FEIR/PrimitiveManifest.hs": "03055d41c2cd2f1fbd2140f41e48581da6ef0aedac4e0116b5ad4e5254a80224",
+      "src/Formurae/FEIR/RegistryFingerprint.hs": "07b80173430fa691bb346d78f70c562e7d7038991ae7f80bcb5ef9861dbbd406",
+      "src/Formurae/FEIR/SExpr.hs": "afa63844701378d501f7ef60e074c2c24155a48abaab2a5f7f755bafda697c16",
+      "src/Formurae/FEIR/Syntax.hs": "bedc1fb6c6409b4f85720fe2686b04836cc338f36efa650dc860c4901082ad07",
+      "src/Formurae/FEIR/Validate.hs": "7b7f651372617a3e6769149f6298872b04b4ace380affdfb6bbdbcb2209efddc",
+      "src/Formurae/Index.hs": "18f54596ca948ed46d6f0e74c1d6dcae625c4803c0d04d63b1f0d9cc27a8cb0a",
+      "src/Formurae/Post/BackendPlan.hs": "cfe6c1f47bcec8307d3353ac3645311422bfaa5288942b92ef20b8ba7fdd07cd",
+      "src/Formurae/Post/Compile.hs": "782244a49f5195da077575d119a0d9d1d284ffdd025fadb06c55f79017427614",
+      "src/Formurae/Post/Diagnostic.hs": "c6c71d71dc5cfbffc045d53315b3e0cc842fbb9d866adfebd4bd520d5c0938c1",
+      "src/Formurae/Post/ExplicitStencil.hs": "865623b43b38ee2e5ed13bc732684297da5d2cd88c30446da16580f632f20f9f",
+      "src/Formurae/Post/FMR.hs": "f3df66dfc3eb47a16ca6330037905cb573d44462c4c6a8ceeb32d47eda217e00",
+      "src/Formurae/Post/Geometry.hs": "b149023b75c49ceea13319ff9810c87e4c6330b35cd74b782a80e42e49404ffd",
+      "src/Formurae/Post/Location.hs": "eacfd6e6cf29f7096d961f2aa75047a9b2901a484464c28e5a6a9b572643ce10",
+      "src/Formurae/Post/Normalize.hs": "b82611587d90bced87e2f1b4d5fc4b22fa9cc8e19cac83fbc52cb1ddecd726f6",
+      "src/Formurae/Post/PrimitiveContract.hs": "d1616f21f9840cb7d852dc73f061096cfb21406ca68d30505eee7deee2880a3c",
+      "src/Formurae/Post/Profile.hs": "89f27a5c9e9fc013152fe5ae3804767b96d1bff50ac8b12d2353d9ac61f7b3cd",
+      "src/Formurae/Post/Stencil.hs": "93d186477e7e3cf7c1fdc67164cd0df9ad1d2b38e3b8bc750d1037846e6fb9c6",
+      "src/Formurae/Pre/Effect.hs": "1d8200a65ff38201f39e6bcd2bc9b529587749c06bc14e17b7e1a9e999ac486f",
+      "src/Formurae/Pre/EmitEgison.hs": "0b6596d3358122f2b3b7c678a24d1aa131753b2816e600e1793e2329f52a34ba",
+      "src/Formurae/Pre/FormOperator.hs": "c1d0d33746d7e237390da89ca444243c19cfe1bf04e062e048a87f0d4fcafaf3",
+      "src/Formurae/Pre/Parse.hs": "cc4e5d2fc489e781b0d94e497841bb51eaac28264ee2bdf0c27f17976b473d96",
+      "src/Formurae/Pre/Registry.hs": "d58b81d41234dca39df51586899eece127a4127f859227aa16c0c94b3ae433ed",
+      "src/Formurae/Pre/TypeCheck.hs": "eaef7f56f9e1408b6dcabb6c6c4044f46fccb3404c4b2cb2f0882c0528544ac3",
+      "src/Formurae/Syntax.hs": "cf2fd77be742b421fbc03b62633bbdf2adbad55939302a03e807791da352e410",
+      "src/Formurae/TensorExpr.hs": "cf9cec9fd2bfdced5b426f1d7898ee373cd623887ef96bb0c588a0aadd7b9acb",
+      "lib/fmrgen.egi": "a8ab93209d787ef09c4ce7dd27e7551b2dc112cfa6931edc4b2caea2590a2b98",
+      "lib/formurae-feir.egi": "26e46bea3c274d0a39d1e6ab862efc818cfc764621e47741da784ea321c1b44c",
+      "lib/formurae-geometry.egi": "41d963514726592f3d5bf9b1e3694f872257d16e281593e7581347dc587592ec",
+      "lib/formurae-operators.egi": "ddcf1c4e67c179d4e477b36f375d42a4ce4354944b7ea867d5475a9fbb75fe10",
+      "lib/formurae-primitives.egi": "8a927f3b27ba385ef04394d9f938e3ae5d5aea91408e654ae8a66e9f312732a2",
+      "lib/formurae-tensor.egi": "3179f86554732a5b329f94c448935f78f3c643b54df058bd62d8c6bc7764e218",
+      "spec/egison-normalization.list": "070493efa9bba7fac4f73038f1fd0abc28e872054a2cf7e1c8dec0586bcbc872",
+      "spec/feir-primitives.sexp": "d2deaab07d7899a75f6dff06d83e631105c62ac8adf5df1a5d98744fd4ca8a5f",
+      "benchmarks/abstraction/run.py": "bdeebb73880dfcd95e0d32059284e2f735228d050ce97c9218645f64e7835291"
+    },
+    "builds": {
+      "diffusion3d/32/generated": {
+        "model.fmr": "434600c309db933d9ac786e32bbd88e0dfb223cf41da57a5027617372c78f3b9",
+        "model.yaml": "9986f709b5c56f89c4bab7969b9be174a9641a3e0b1c881abcd551f9759bb170",
+        "model.c": "bee95712730606bcb9a30f602976e7ead40eda34d620d7fbdcec9cc49b2914e8",
+        "model.h": "cc533bb43a6c71022aada790233059c0acb26004b7ba0cf9bf938048d53662c8",
+        "driver.c": "3e89f1203b0849cbcc66d1497c79e100085b69da193c0fb0b3cf245cd2905f53",
+        "run": "05cc179cb5e45ce553630e812dca05437caaf2529eb7213e17c17c600772ef94"
+      },
+      "diffusion3d/32/manual": {
+        "model.fmr": "8bf68680a428f41d6a7482838a661295aeff0788454ec180e72cc5b1fb8af433",
+        "model.yaml": "9986f709b5c56f89c4bab7969b9be174a9641a3e0b1c881abcd551f9759bb170",
+        "model.c": "4f49c2919284fef74c1bffb843105c7dc06205bb2749851f89c3eb9a4197012a",
+        "model.h": "cc533bb43a6c71022aada790233059c0acb26004b7ba0cf9bf938048d53662c8",
+        "driver.c": "3e89f1203b0849cbcc66d1497c79e100085b69da193c0fb0b3cf245cd2905f53",
+        "run": "0e4da1c32cc28b0a0ad07089529e93838fb26dd1177ac5fd22957c28c5dc2c72"
+      },
+      "diffusion3d/64/generated": {
+        "model.fmr": "434600c309db933d9ac786e32bbd88e0dfb223cf41da57a5027617372c78f3b9",
+        "model.yaml": "1df40eac8aa3944d1560b74085dfc3b05a43592da5ff50a28cec380327ec2528",
+        "model.c": "2778b7cd0cf6c0fc5e99b6b78468b48179250cae19f2c0024c8d1856b4c7f1b9",
+        "model.h": "4c2c83cdb22ba6f4f6c9da799623a96b9a11ca1fbda86f19930567a00db0124b",
+        "driver.c": "3e89f1203b0849cbcc66d1497c79e100085b69da193c0fb0b3cf245cd2905f53",
+        "run": "f9bf3c70654bb4aab5820e9ced5fba922f2cf97022550ce132c5be112442725c"
+      },
+      "diffusion3d/64/manual": {
+        "model.fmr": "8bf68680a428f41d6a7482838a661295aeff0788454ec180e72cc5b1fb8af433",
+        "model.yaml": "1df40eac8aa3944d1560b74085dfc3b05a43592da5ff50a28cec380327ec2528",
+        "model.c": "fe543a14d7f129164282a9739567d2acd459675c0ee9fa99e2d7348ef81bacef",
+        "model.h": "4c2c83cdb22ba6f4f6c9da799623a96b9a11ca1fbda86f19930567a00db0124b",
+        "driver.c": "3e89f1203b0849cbcc66d1497c79e100085b69da193c0fb0b3cf245cd2905f53",
+        "run": "6026c369ad4611df2a885cbdd7d4cb44f3f4df8c44da45bff14760ebb4247eb2"
+      },
+      "pearson3d/32/generated": {
+        "model.fmr": "a5b5e6a34c3e20b1b49237d96c9ea0d7fe303ae08f72e413013f80b24adf2157",
+        "model.yaml": "19a8bcae3c824a7bde45c486255d0f79baf6b2f4b30b6c24ef6a3617fe0a647a",
+        "model.c": "850392d7bf3d478ea26de3b6bcc7d5e6717760d8d8a92e68a917061d468d67b7",
+        "model.h": "feac3b97cce0ac54989d3bf451bffc9ea4701a5f8646446f9e0a57b53dd4011f",
+        "driver.c": "aaa3a6e583dd706ab34136b14b51f2b7bb33c2cbab90040d069ca5fcc80490e4",
+        "run": "a4ac1f2ea6c444c63e19ee80553e7f32aa261f783d2ee0b5bdbe4ba53f19c221"
+      },
+      "pearson3d/32/manual": {
+        "model.fmr": "7a6b34aed6e30c86516f9aff51543b5f6717196f1bfea1ad9f5ccb08859f8cb7",
+        "model.yaml": "19a8bcae3c824a7bde45c486255d0f79baf6b2f4b30b6c24ef6a3617fe0a647a",
+        "model.c": "2ae70f1319e366acd722b2537cc9d13f1c273124b0459a9f81ccdb8e5e04de46",
+        "model.h": "feac3b97cce0ac54989d3bf451bffc9ea4701a5f8646446f9e0a57b53dd4011f",
+        "driver.c": "aaa3a6e583dd706ab34136b14b51f2b7bb33c2cbab90040d069ca5fcc80490e4",
+        "run": "2107949f96b5bc50e48ed64ded2013f191ddf005a3f5a2c7c01c1097634bcf11"
+      },
+      "pearson3d/64/generated": {
+        "model.fmr": "a5b5e6a34c3e20b1b49237d96c9ea0d7fe303ae08f72e413013f80b24adf2157",
+        "model.yaml": "7da8ef378b53b3059e7bbbb86c2bb69350c11063c9b2e8cb22a5e8e504543758",
+        "model.c": "ea14f6edde2d0d1f6608b532b85e2d99ea6f523fad25857a4fbaddd60210073b",
+        "model.h": "61c411d5b7381fcea99a9ce059382194e5a94c112e66667083cddb215241c747",
+        "driver.c": "aaa3a6e583dd706ab34136b14b51f2b7bb33c2cbab90040d069ca5fcc80490e4",
+        "run": "3dcd8dfbae5592182a6d4afc48261923ebb9b0947d60ce347cbaaa09fa128296"
+      },
+      "pearson3d/64/manual": {
+        "model.fmr": "7a6b34aed6e30c86516f9aff51543b5f6717196f1bfea1ad9f5ccb08859f8cb7",
+        "model.yaml": "7da8ef378b53b3059e7bbbb86c2bb69350c11063c9b2e8cb22a5e8e504543758",
+        "model.c": "16e4a3f74faf485fa51721413a4a9aae63bb114e192caa77494724100a49319f",
+        "model.h": "61c411d5b7381fcea99a9ce059382194e5a94c112e66667083cddb215241c747",
+        "driver.c": "aaa3a6e583dd706ab34136b14b51f2b7bb33c2cbab90040d069ca5fcc80490e4",
+        "run": "70502f4d801555e3857ff4712caa95855952eff022cb72606c072ada4146cd5a"
+      },
+      "maxwell3d_yee/32/generated": {
+        "model.fmr": "c9b64a0dc174b1b557d13439baa1bc900e46da46776530a303c578127f075119",
+        "model.yaml": "9986f709b5c56f89c4bab7969b9be174a9641a3e0b1c881abcd551f9759bb170",
+        "model.c": "627d12ebbe383df80f52812ee772185a4123f3b6d1c74c828c11f1eb1e3f955a",
+        "model.h": "08e65897659f4f93155f5ffd6bbb5c3718573b4d562e4d3eed07ed33027e85f6",
+        "driver.c": "312e84b2cb15a6112b6f1091481e43120bb34e06638293abb606ba46080179c9",
+        "run": "8a27ef5c358912552a4a20cac99099b52d550bc9a3681f54d5d03276d66d2602"
+      },
+      "maxwell3d_yee/32/manual": {
+        "model.fmr": "6f7f6b01e18e240a7b4058982148e86d1815bf21ae81e7b9284efd6c0d616695",
+        "model.yaml": "9986f709b5c56f89c4bab7969b9be174a9641a3e0b1c881abcd551f9759bb170",
+        "model.c": "1d3a863a90cafbdb43df60cc64406a805a636b7fdc4d3627fb793da71c13d81a",
+        "model.h": "08e65897659f4f93155f5ffd6bbb5c3718573b4d562e4d3eed07ed33027e85f6",
+        "driver.c": "312e84b2cb15a6112b6f1091481e43120bb34e06638293abb606ba46080179c9",
+        "run": "bc09f1bffc8494dd7b7cfd0985498e47581714f33631643cf7bb8c8d47f49286"
+      },
+      "maxwell3d_yee/64/generated": {
+        "model.fmr": "c9b64a0dc174b1b557d13439baa1bc900e46da46776530a303c578127f075119",
+        "model.yaml": "1df40eac8aa3944d1560b74085dfc3b05a43592da5ff50a28cec380327ec2528",
+        "model.c": "4028340b6eaea5552d6f97ab7818abe61f46dcdb6f6388e1b6ab78fa680a1cd1",
+        "model.h": "e850c3840372b4eddb70f143cb0844de1da9bb040c4e5dae6870525f8bc4799d",
+        "driver.c": "312e84b2cb15a6112b6f1091481e43120bb34e06638293abb606ba46080179c9",
+        "run": "57817ca4124f389be8534da8455ec3eefa792d89b70499569f99c5aac0fbbdf5"
+      },
+      "maxwell3d_yee/64/manual": {
+        "model.fmr": "6f7f6b01e18e240a7b4058982148e86d1815bf21ae81e7b9284efd6c0d616695",
+        "model.yaml": "1df40eac8aa3944d1560b74085dfc3b05a43592da5ff50a28cec380327ec2528",
+        "model.c": "0d434c1320c386ed57e95a5e1940efdd9dc891e74366749b7237383e3b469eb9",
+        "model.h": "e850c3840372b4eddb70f143cb0844de1da9bb040c4e5dae6870525f8bc4799d",
+        "driver.c": "312e84b2cb15a6112b6f1091481e43120bb34e06638293abb606ba46080179c9",
+        "run": "3f0287a7c185a92767cbe9749092d8993f21619a3d2953aca9c4aba8906f274b"
+      },
+      "elastic3d/32/generated": {
+        "model.fmr": "1e1455a59af5d8431445ca48a15c7fd4dbf15cd2f2a6a9ab4182a7cb46466aed",
+        "model.yaml": "9986f709b5c56f89c4bab7969b9be174a9641a3e0b1c881abcd551f9759bb170",
+        "model.c": "74bc429f38dd13ddb212eb55d1feef06a6ba2536e5a307c139aa3965e82d60ea",
+        "model.h": "32f1a12800dbb38de287ae17d2443515e4b1f471085fda95119893f0cb5d0ac8",
+        "driver.c": "8bda10834a35154246cc3e86bc01b39f3cfef895e201af744a2c17f8e13c9d26",
+        "run": "fc6d4cb4cc0407bc553a0c52f1f8136e754b8409cc93ced2e6a1676b3dcb6a49"
+      },
+      "elastic3d/32/manual": {
+        "model.fmr": "7a742a4223bfe6b051e933d72550dc5230522b8ec19864bf5ff08f668ab341e3",
+        "model.yaml": "9986f709b5c56f89c4bab7969b9be174a9641a3e0b1c881abcd551f9759bb170",
+        "model.c": "2265e49fa073b6aa4308424c877f6c07a3aa21d6555ba735dd5b491466ba990d",
+        "model.h": "32f1a12800dbb38de287ae17d2443515e4b1f471085fda95119893f0cb5d0ac8",
+        "driver.c": "8bda10834a35154246cc3e86bc01b39f3cfef895e201af744a2c17f8e13c9d26",
+        "run": "63e1ce172e433edb932f0b6c24c823ffdffff44b5233192410fcf74619c8c277"
+      },
+      "elastic3d/64/generated": {
+        "model.fmr": "1e1455a59af5d8431445ca48a15c7fd4dbf15cd2f2a6a9ab4182a7cb46466aed",
+        "model.yaml": "1df40eac8aa3944d1560b74085dfc3b05a43592da5ff50a28cec380327ec2528",
+        "model.c": "153c514d412599b322c7679ee384a9376e006dab10de5b22bc3ac2d566cc23a2",
+        "model.h": "e72af5c4dfcbd0bbd6a4a9a931a8a410f96db6d3578d16c4bb7b2f6ac13723f8",
+        "driver.c": "8bda10834a35154246cc3e86bc01b39f3cfef895e201af744a2c17f8e13c9d26",
+        "run": "c49f6e7155575dbb44d4a211ae34ff6ca1797d47b8bfa524b12904366ee1af3b"
+      },
+      "elastic3d/64/manual": {
+        "model.fmr": "7a742a4223bfe6b051e933d72550dc5230522b8ec19864bf5ff08f668ab341e3",
+        "model.yaml": "1df40eac8aa3944d1560b74085dfc3b05a43592da5ff50a28cec380327ec2528",
+        "model.c": "d85976e35c4d84c710c2135742b6c075913389fa2152c62f164e0859732d1b52",
+        "model.h": "e72af5c4dfcbd0bbd6a4a9a931a8a410f96db6d3578d16c4bb7b2f6ac13723f8",
+        "driver.c": "8bda10834a35154246cc3e86bc01b39f3cfef895e201af744a2c17f8e13c9d26",
+        "run": "499b6bc274ec0a623f604f058bbef02674e144867d6a7b34aab4b5d03c04617d"
+      },
+      "mhd_ot/32/generated": {
+        "model.fmr": "0321d8e60c53508aa5ac11b8cb3da501ef9c8752b0ec1ee4d6f289229fbb539a",
+        "model.yaml": "9986f709b5c56f89c4bab7969b9be174a9641a3e0b1c881abcd551f9759bb170",
+        "model.c": "318747fb25d9f753c488b832901a23977a69da1b45b799658d1403abbef04ee1",
+        "model.h": "09c7cd3af84dd9d1b5e78063ddac98aee04724054c6b0bb5e90882d3ec133241",
+        "driver.c": "75d68300672caf409c6eee251d3e11c4739e308df57f6b9f62183ceac9296e8f",
+        "run": "dcdd360da1ae9585a29318104ba18e5829678455ce1525fc66dfe4b91a7b0107"
+      },
+      "mhd_ot/32/manual": {
+        "model.fmr": "20af6235a716aefd2fa94176b3558fbe8c57e75b15ca5793f29b70fb2e2c4444",
+        "model.yaml": "9986f709b5c56f89c4bab7969b9be174a9641a3e0b1c881abcd551f9759bb170",
+        "model.c": "97c8dd5f9e49176df140e3e213bac1832d06f9588c27ddfda9e0f4e95b48dbea",
+        "model.h": "09c7cd3af84dd9d1b5e78063ddac98aee04724054c6b0bb5e90882d3ec133241",
+        "driver.c": "75d68300672caf409c6eee251d3e11c4739e308df57f6b9f62183ceac9296e8f",
+        "run": "133ffa1c0f5b4b345f516bb2af1a1bf2866e7d34425c9c66e5a7fdc58d3d5d4b"
+      },
+      "mhd_ot/64/generated": {
+        "model.fmr": "0321d8e60c53508aa5ac11b8cb3da501ef9c8752b0ec1ee4d6f289229fbb539a",
+        "model.yaml": "1df40eac8aa3944d1560b74085dfc3b05a43592da5ff50a28cec380327ec2528",
+        "model.c": "927faaf830494f38307e00cf0f98ec796b754d538036987d7d379e14e901d959",
+        "model.h": "5d0e71a9b0351c4a62033542d57fb32b35dc6785a04deed5e4bb9f025f5be9f2",
+        "driver.c": "75d68300672caf409c6eee251d3e11c4739e308df57f6b9f62183ceac9296e8f",
+        "run": "f461c288a5b6aa85cca633d16a1c3fb85fec5917b23632d6250cc579f5644cb8"
+      },
+      "mhd_ot/64/manual": {
+        "model.fmr": "20af6235a716aefd2fa94176b3558fbe8c57e75b15ca5793f29b70fb2e2c4444",
+        "model.yaml": "1df40eac8aa3944d1560b74085dfc3b05a43592da5ff50a28cec380327ec2528",
+        "model.c": "905072ed8f5622600ec387234176e9d208a169114d4379663fbc970ac5759434",
+        "model.h": "5d0e71a9b0351c4a62033542d57fb32b35dc6785a04deed5e4bb9f025f5be9f2",
+        "driver.c": "75d68300672caf409c6eee251d3e11c4739e308df57f6b9f62183ceac9296e8f",
+        "run": "f4026e97fe7dc9a81108db9eeb8de49790a1776a5cee37308d6d2c368ee03d8d"
+      }
+    }
+  },
+  "repetitions": 9,
+  "target_seconds": 0.4,
+  "results": [
+    {
+      "case": "diffusion3d",
+      "grid": [
+        32,
+        32,
+        32
+      ],
+      "steps": 6388,
+      "warmup_steps": 32,
+      "samples_seconds": {
+        "generated": [
+          0.5648259999870788,
+          0.5323860000062268,
+          0.5286650000198279,
+          0.5346169999975245,
+          0.5687909999978729,
+          0.5591259999782778,
+          0.5350800000014715,
+          0.5310980000067502,
+          0.5580799999879673
+        ],
+        "manual": [
+          0.5246170000173151,
+          0.5181490000104532,
+          0.4985119999910239,
+          0.49997699999948964,
+          0.5410870000196155,
+          0.533354999992298,
+          0.5058220000064466,
+          0.5097689999965951,
+          0.4989300000015646
+        ]
+      },
+      "median_seconds": {
+        "generated": 0.5350800000014715,
+        "manual": 0.5097689999965951
+      },
+      "generated_over_manual": 1.0496519011651266,
+      "interquartile_seconds": {
+        "generated": [
+          0.5323860000062268,
+          0.5591259999782778
+        ],
+        "manual": [
+          0.49997699999948964,
+          0.5246170000173151
+        ]
+      },
+      "validation": [
+        {
+          "steps": 4,
+          "warmup_steps": 0,
+          "values": 32768,
+          "max_absolute_error": 4.440892098500626e-16,
+          "max_scaled_error": 4.4338981794996352e-16
+        },
+        {
+          "steps": 6388,
+          "warmup_steps": 32,
+          "values": 32768,
+          "max_absolute_error": 1.4654943925052066e-14,
+          "max_scaled_error": 1.4654943925038542e-14
+        }
+      ]
+    },
+    {
+      "case": "diffusion3d",
+      "grid": [
+        64,
+        64,
+        64
+      ],
+      "steps": 1124,
+      "warmup_steps": 32,
+      "samples_seconds": {
+        "generated": [
+          0.5431190000090282,
+          0.5394019999948796,
+          0.5449670000234619,
+          0.536577999999281,
+          0.535158999991836,
+          0.5364960000151768,
+          0.5378410000121221,
+          0.5368559999915306,
+          0.5418460000073537
+        ],
+        "manual": [
+          0.5230739999969956,
+          0.5141650000005029,
+          0.5078790000115987,
+          0.5065560000075493,
+          0.5050500000070315,
+          0.5066530000185594,
+          0.510855000000447,
+          0.5083769999910146,
+          0.5043189999996684
+        ]
+      },
+      "median_seconds": {
+        "generated": 0.5378410000121221,
+        "manual": 0.5078790000115987
+      },
+      "generated_over_manual": 1.0589943667681458,
+      "interquartile_seconds": {
+        "generated": [
+          0.536577999999281,
+          0.5418460000073537
+        ],
+        "manual": [
+          0.5065560000075493,
+          0.510855000000447
+        ]
+      },
+      "validation": [
+        {
+          "steps": 4,
+          "warmup_steps": 0,
+          "values": 262144,
+          "max_absolute_error": 6.661338147750939e-16,
+          "max_scaled_error": 6.638586854776788e-16
+        },
+        {
+          "steps": 1124,
+          "warmup_steps": 32,
+          "values": 262144,
+          "max_absolute_error": 1.5543122344752192e-15,
+          "max_scaled_error": 1.520101763248809e-15
+        }
+      ]
+    },
+    {
+      "case": "pearson3d",
+      "grid": [
+        32,
+        32,
+        32
+      ],
+      "steps": 1556,
+      "warmup_steps": 32,
+      "samples_seconds": {
+        "generated": [
+          0.49425399999017827,
+          0.5040229999867734,
+          0.5016870000108611,
+          0.5027039999840781,
+          0.5010360000014771,
+          0.5008249999955297,
+          0.49989999999525025,
+          0.5061790000181645,
+          0.5071299999835901
+        ],
+        "manual": [
+          0.4883329999865964,
+          0.49048199999378994,
+          0.48433100001420826,
+          0.4840019999828655,
+          0.4854289999930188,
+          0.48615199999767356,
+          0.4883540000009816,
+          0.4877929999784101,
+          0.493562000017846
+        ]
+      },
+      "median_seconds": {
+        "generated": 0.5016870000108611,
+        "manual": 0.4877929999784101
+      },
+      "generated_over_manual": 1.0284833936384203,
+      "interquartile_seconds": {
+        "generated": [
+          0.5008249999955297,
+          0.5040229999867734
+        ],
+        "manual": [
+          0.4854289999930188,
+          0.4883540000009816
+        ]
+      },
+      "validation": [
+        {
+          "steps": 4,
+          "warmup_steps": 0,
+          "values": 65536,
+          "max_absolute_error": 5.551115123125783e-16,
+          "max_scaled_error": 5.551115123125783e-16
+        },
+        {
+          "steps": 1556,
+          "warmup_steps": 32,
+          "values": 65536,
+          "max_absolute_error": 1.709743457922741e-14,
+          "max_scaled_error": 1.709743457922741e-14
+        }
+      ]
+    },
+    {
+      "case": "pearson3d",
+      "grid": [
+        64,
+        64,
+        64
+      ],
+      "steps": 244,
+      "warmup_steps": 32,
+      "samples_seconds": {
+        "generated": [
+          0.4748709999839775,
+          0.47185599998920225,
+          0.4687570000241976,
+          0.46695899998303503,
+          0.4699900000123307,
+          0.4664830000256188,
+          0.46577899999101646,
+          0.46504900002037175,
+          0.4702030000044033
+        ],
+        "manual": [
+          0.469993999984581,
+          0.45958100000279956,
+          0.45728599998983555,
+          0.4550900000031106,
+          0.4544549999991432,
+          0.4554800000041723,
+          0.4532060000055935,
+          0.4530899999954272,
+          0.45510300001478754
+        ]
+      },
+      "median_seconds": {
+        "generated": 0.4687570000241976,
+        "manual": 0.45510300001478754
+      },
+      "generated_over_manual": 1.0300019995670573,
+      "interquartile_seconds": {
+        "generated": [
+          0.4664830000256188,
+          0.4702030000044033
+        ],
+        "manual": [
+          0.4544549999991432,
+          0.45728599998983555
+        ]
+      },
+      "validation": [
+        {
+          "steps": 4,
+          "warmup_steps": 0,
+          "values": 524288,
+          "max_absolute_error": 6.661338147750939e-16,
+          "max_scaled_error": 6.661338147750939e-16
+        },
+        {
+          "steps": 244,
+          "warmup_steps": 32,
+          "values": 524288,
+          "max_absolute_error": 9.43689570931383e-16,
+          "max_scaled_error": 9.43689570931383e-16
+        }
+      ]
+    },
+    {
+      "case": "maxwell3d_yee",
+      "grid": [
+        32,
+        32,
+        32
+      ],
+      "steps": 504,
+      "warmup_steps": 32,
+      "samples_seconds": {
+        "generated": [
+          0.5022259999823291,
+          0.5044690000067931,
+          0.49334499999531545,
+          0.4881900000036694,
+          0.49116599999251775,
+          0.4913410000153817,
+          0.49382600001990795,
+          0.48926199998822995,
+          0.48853599998983555
+        ],
+        "manual": [
+          0.47737800001050346,
+          0.5328509999962989,
+          0.46923899999819696,
+          0.46695800000452437,
+          0.47096700000111014,
+          0.470285999996122,
+          0.471785000001546,
+          0.4685260000114795,
+          0.47533999997540377
+        ]
+      },
+      "median_seconds": {
+        "generated": 0.4913410000153817,
+        "manual": 0.47096700000111014
+      },
+      "generated_over_manual": 1.0432599311931061,
+      "interquartile_seconds": {
+        "generated": [
+          0.48926199998822995,
+          0.49382600001990795
+        ],
+        "manual": [
+          0.46923899999819696,
+          0.47533999997540377
+        ]
+      },
+      "validation": [
+        {
+          "steps": 4,
+          "warmup_steps": 0,
+          "values": 196608,
+          "max_absolute_error": 2.7755575615628914e-17,
+          "max_scaled_error": 2.7755575615628914e-17
+        },
+        {
+          "steps": 504,
+          "warmup_steps": 32,
+          "values": 196608,
+          "max_absolute_error": 1.8388068845354155e-16,
+          "max_scaled_error": 1.8388068845354155e-16
+        }
+      ]
+    },
+    {
+      "case": "maxwell3d_yee",
+      "grid": [
+        64,
+        64,
+        64
+      ],
+      "steps": 76,
+      "warmup_steps": 32,
+      "samples_seconds": {
+        "generated": [
+          0.46852100000251085,
+          0.4656490000197664,
+          0.46075900000869296,
+          0.4598769999865908,
+          0.45977200000197627,
+          0.4683459999796469,
+          0.4605149999842979,
+          0.4610300000058487,
+          0.45894899999257177
+        ],
+        "manual": [
+          0.4432490000035614,
+          0.44052400000509806,
+          0.4334870000020601,
+          0.43387699997401796,
+          0.44025700000929646,
+          0.43836000000010245,
+          0.4400550000136718,
+          0.442295999993803,
+          0.43552999998792075
+        ]
+      },
+      "median_seconds": {
+        "generated": 0.46075900000869296,
+        "manual": 0.4400550000136718
+      },
+      "generated_over_manual": 1.0470486643587231,
+      "interquartile_seconds": {
+        "generated": [
+          0.4598769999865908,
+          0.4656490000197664
+        ],
+        "manual": [
+          0.43552999998792075,
+          0.44052400000509806
+        ]
+      },
+      "validation": [
+        {
+          "steps": 4,
+          "warmup_steps": 0,
+          "values": 1572864,
+          "max_absolute_error": 2.7755575615628914e-17,
+          "max_scaled_error": 2.7755575615628914e-17
+        },
+        {
+          "steps": 76,
+          "warmup_steps": 32,
+          "values": 1572864,
+          "max_absolute_error": 1.1102230246251565e-16,
+          "max_scaled_error": 1.1102230246251565e-16
+        }
+      ]
+    },
+    {
+      "case": "elastic3d",
+      "grid": [
+        32,
+        32,
+        32
+      ],
+      "steps": 180,
+      "warmup_steps": 32,
+      "samples_seconds": {
+        "generated": [
+          0.4926989999949001,
+          0.4834289999853354,
+          0.4833879999932833,
+          0.4794420000107493,
+          0.4791090000071563,
+          0.4864159999997355,
+          0.4851480000070296,
+          0.4850659999938216,
+          0.48641899999347515
+        ],
+        "manual": [
+          0.46393699999316595,
+          0.4610769999853801,
+          0.45625599997583777,
+          0.45230200001969934,
+          0.4530499999818858,
+          0.45461600000271574,
+          0.45394700000179,
+          0.45534699998097494,
+          0.4577080000017304
+        ]
+      },
+      "median_seconds": {
+        "generated": 0.4850659999938216,
+        "manual": 0.45534699998097494
+      },
+      "generated_over_manual": 1.065266708716843,
+      "interquartile_seconds": {
+        "generated": [
+          0.4833879999932833,
+          0.4864159999997355
+        ],
+        "manual": [
+          0.45394700000179,
+          0.4577080000017304
+        ]
+      },
+      "validation": [
+        {
+          "steps": 4,
+          "warmup_steps": 0,
+          "values": 294912,
+          "max_absolute_error": 4.163336342344337e-17,
+          "max_scaled_error": 4.163336342344337e-17
+        },
+        {
+          "steps": 180,
+          "warmup_steps": 32,
+          "values": 294912,
+          "max_absolute_error": 3.191891195797325e-16,
+          "max_scaled_error": 3.191891195797325e-16
+        }
+      ]
+    },
+    {
+      "case": "elastic3d",
+      "grid": [
+        64,
+        64,
+        64
+      ],
+      "steps": 32,
+      "warmup_steps": 32,
+      "samples_seconds": {
+        "generated": [
+          0.5124570000043605,
+          0.5167969999893103,
+          0.5180479999980889,
+          0.51191299999482,
+          0.5116119999729563,
+          0.5138740000256803,
+          0.5122700000065379,
+          0.5173249999934342,
+          0.5231349999958184
+        ],
+        "manual": [
+          0.4883280000067316,
+          0.491437999997288,
+          0.4887800000142306,
+          0.4886980000010226,
+          0.4865070000232663,
+          0.48587200001929887,
+          0.49126999999862164,
+          0.4911910000082571,
+          0.5487689999863505
+        ]
+      },
+      "median_seconds": {
+        "generated": 0.5138740000256803,
+        "manual": 0.4887800000142306
+      },
+      "generated_over_manual": 1.0513400712196062,
+      "interquartile_seconds": {
+        "generated": [
+          0.5122700000065379,
+          0.5173249999934342
+        ],
+        "manual": [
+          0.4883280000067316,
+          0.49126999999862164
+        ]
+      },
+      "validation": [
+        {
+          "steps": 4,
+          "warmup_steps": 0,
+          "values": 2359296,
+          "max_absolute_error": 4.85722573273506e-17,
+          "max_scaled_error": 4.85722573273506e-17
+        },
+        {
+          "steps": 32,
+          "warmup_steps": 32,
+          "values": 2359296,
+          "max_absolute_error": 1.8041124150158794e-16,
+          "max_scaled_error": 1.8041124150158794e-16
+        }
+      ]
+    },
+    {
+      "case": "mhd_ot",
+      "grid": [
+        32,
+        32,
+        32
+      ],
+      "steps": 108,
+      "warmup_steps": 32,
+      "samples_seconds": {
+        "generated": [
+          0.5348139999841806,
+          0.5208219999913126,
+          0.5180220000038389,
+          0.5248410000058357,
+          0.522380999987945,
+          0.519955999974627,
+          0.5220899999840185,
+          0.5189860000100452,
+          0.5197939999925438
+        ],
+        "manual": [
+          0.4083620000164956,
+          0.40578599998843856,
+          0.40299400000367314,
+          0.4166499999992084,
+          0.40869699997710995,
+          0.40714399999706075,
+          0.4081829999922775,
+          0.40591699999640696,
+          0.4083260000043083
+        ]
+      },
+      "median_seconds": {
+        "generated": 0.5208219999913126,
+        "manual": 0.4081829999922775
+      },
+      "generated_over_manual": 1.2759522077136143,
+      "interquartile_seconds": {
+        "generated": [
+          0.5197939999925438,
+          0.522380999987945
+        ],
+        "manual": [
+          0.40591699999640696,
+          0.4083620000164956
+        ]
+      },
+      "validation": [
+        {
+          "steps": 4,
+          "warmup_steps": 0,
+          "values": 262144,
+          "max_absolute_error": 2.220446049250313e-15,
+          "max_scaled_error": 1.1098149329425595e-15
+        },
+        {
+          "steps": 108,
+          "warmup_steps": 32,
+          "values": 262144,
+          "max_absolute_error": 3.1086244689504383e-15,
+          "max_scaled_error": 1.7638871519733508e-15
+        }
+      ]
+    },
+    {
+      "case": "mhd_ot",
+      "grid": [
+        64,
+        64,
+        64
+      ],
+      "steps": 32,
+      "warmup_steps": 32,
+      "samples_seconds": {
+        "generated": [
+          1.0725800000072923,
+          1.054035000008298,
+          1.037066999997478,
+          1.078494999994291,
+          1.066863000014564,
+          1.0577939999930095,
+          1.0404709999857005,
+          1.0668059999879915,
+          1.0879389999900013
+        ],
+        "manual": [
+          0.9318440000060946,
+          0.8442880000220612,
+          0.8300600000075065,
+          0.8176169999933336,
+          0.8301609999907669,
+          0.9356280000065453,
+          0.8028849999827798,
+          0.8258220000134315,
+          0.8099489999876823
+        ]
+      },
+      "median_seconds": {
+        "generated": 1.0668059999879915,
+        "manual": 0.8300600000075065
+      },
+      "generated_over_manual": 1.28521552656235,
+      "interquartile_seconds": {
+        "generated": [
+          1.054035000008298,
+          1.0725800000072923
+        ],
+        "manual": [
+          0.8176169999933336,
+          0.8442880000220612
+        ]
+      },
+      "validation": [
+        {
+          "steps": 4,
+          "warmup_steps": 0,
+          "values": 2097152,
+          "max_absolute_error": 2.6645352591003757e-15,
+          "max_scaled_error": 1.3289541353477917e-15
+        },
+        {
+          "steps": 32,
+          "warmup_steps": 32,
+          "values": 2097152,
+          "max_absolute_error": 2.6645352591003757e-15,
+          "max_scaled_error": 1.3322558662664687e-15
+        }
+      ]
+    }
+  ],
+  "all_passed": true
+}

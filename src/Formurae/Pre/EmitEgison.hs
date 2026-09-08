@@ -1126,6 +1126,11 @@ renderUnit model registry geometryDeclarations definitions dynamics program = un
           ["def FormuraeInternalOrderedDerivative axes value := Formurae.gridDerivativeChain axes value"]
       , whenUsed "FormuraeInternalResampleExplicit"
           ["def FormuraeInternalResampleExplicit bits value := Formurae.resampleExplicit bits value"]
+      -- Direct analytic calls are emitted as Egison's ∂/∂.  A function
+      -- value (including one in a raw Egison body) keeps the parser's
+      -- atomic spelling and therefore needs a binding as well.
+      , whenUsed analyticDerivativeName
+          ["def " ++ analyticDerivativeName ++ " := ∂/∂"]
       ]
     whenUsed name declarations
       | name `elem` requiredOperatorIdentifiers = declarations

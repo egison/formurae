@@ -1,0 +1,16 @@
+dimension :: 3
+axes :: x,y,z
+double :: kappa = 1.0, dt = 0.1*dx*dx
+dxx = fun(a) (a[i-1,j,k] - 2*a[i,j,k] + a[i+1,j,k]) / (dx*dx)
+dyy = fun(a) (a[i,j-1,k] - 2*a[i,j,k] + a[i,j+1,k]) / (dy*dy)
+dzz = fun(a) (a[i,j,k-1] - 2*a[i,j,k] + a[i,j,k+1]) / (dz*dz)
+lap = fun(a) dxx a + dyy a + dzz a
+
+begin function (u) = init()
+  double [] :: u
+  u[i,j,k] = 0.0
+end function
+
+begin function (u') = step(u)
+  u' = u + dt*kappa*lap u
+end function

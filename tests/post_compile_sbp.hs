@@ -20,8 +20,21 @@ main = do
   testWideRadiusClosures
   testProfileJetClosures
   testBoundaryTrace
+  testCollocatedClosures
   testRejections
   putStrLn "post compile sbp tests: ok"
+
+testCollocatedClosures :: IO ()
+testCollocatedClosures = do
+  rendered <- compileAndRender "collocated whole-flux D2-1 derivative"
+    (derivativeProgram CollocatedPolicy CollocatedPolicy
+      (gridWholeOpaque "sbp"))
+  assertContains "collocated low boundary guard" "if i == 0 then" rendered
+  assertContains "collocated high boundary guard"
+    "if i == (-1) + total_grid_x then" rendered
+  assertContains "collocated centered backward weight" "(-1 / 2) * u[i-1]" rendered
+  assertContains "collocated centered forward weight" "(1 / 2) * u[i+1]" rendered
+  assertNotContains "D2-1 uses no second neighbor" "u[i+2]" rendered
 
 -- The boundary trace extrapolates a dual-placed operand to the walls with
 -- the pair's boundary vector and is zero elsewhere; it is only meaningful
@@ -157,10 +170,10 @@ testRejections = do
     isHalfPlacement
     (compileProgram (derivativeProgram DualPolicy DualPolicy
       (wideOpaque "sbp" 2 1)))
-  assertSbpError "collocated operands have no SBP pair"
+  assertSbpError "collocated wide derivatives still need their own closure"
     (== SbpRequiresStaggeredLattice)
     (compileProgram (derivativeProgram CollocatedPolicy CollocatedPolicy
-      (gridWholeOpaque "sbp")))
+      (wideOpaque "sbp" 1 2)))
   assertSbpError "prime-ring second derivative has no closure yet"
     (== SbpClosureUnavailable 2 2)
     (compileProgram (derivativeProgram PrimalPolicy PrimalPolicy

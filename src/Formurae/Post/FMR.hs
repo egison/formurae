@@ -160,7 +160,12 @@ renderProgram program
             ++ map ("  " ++) initializerLines
             ++ ["end function"]
           stepFunction =
-            [ "begin function " ++ tuple primed ++ " = step(" ++ intercalate "," state ++ ")" ]
+            [ "begin function " ++ tuple primed ++ " = step(" ++ intercalate "," state ++ ")"
+            -- Normalization can turn an entire field update into a scalar
+            -- constant (for example d(d(f)) = 0).  It is still array state,
+            -- just as a constant initializer is, so retain that declaration.
+            , "  double [] :: " ++ intercalate ", " primed
+            ]
             ++ map ("  " ++) stepLines
             ++ ["end function"]
           sections = filter (not . null)

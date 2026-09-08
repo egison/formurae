@@ -1,0 +1,56 @@
+dimension :: 3
+axes :: x,y,z
+double :: gam = 1.6666666666666667, lambda = 3.0, dt = 0.0004
+dxx = fun(a) (a[i-1,j,k] - 2*a[i,j,k] + a[i+1,j,k]) / (dx*dx)
+dyy = fun(a) (a[i,j-1,k] - 2*a[i,j,k] + a[i,j+1,k]) / (dy*dy)
+dzz = fun(a) (a[i,j,k-1] - 2*a[i,j,k] + a[i,j,k+1]) / (dz*dz)
+lap = fun(a) dxx a + dyy a + dzz a
+cx = fun(a) (a[i+1,j,k]-a[i-1,j,k])/(2*dx)
+cy = fun(a) (a[i,j+1,k]-a[i,j-1,k])/(2*dy)
+cz = fun(a) (a[i,j,k+1]-a[i,j,k-1])/(2*dz)
+visc = fun(a) (lambda/2)*(dx*dxx a + dy*dyy a + dz*dzz a)
+
+begin function (rho,mx,my,mz,bx,by,bz,en) = init()
+  double [] :: rho, mx, my, mz, bx, by, bz, en
+  rho[i,j,k] = 0.0
+  mx[i,j,k] = 0.0
+  my[i,j,k] = 0.0
+  mz[i,j,k] = 0.0
+  bx[i,j,k] = 0.0
+  by[i,j,k] = 0.0
+  bz[i,j,k] = 0.0
+  en[i,j,k] = 0.0
+end function
+
+begin function (rho',mx',my',mz',bx',by',bz',en') = step(rho,mx,my,mz,bx,by,bz,en)
+  mm = mx*mx + my*my + mz*mz
+  bb = bx*bx + by*by + bz*bz
+  mB = mx*bx + my*by + mz*bz
+  pt = (gam-1)*(en-mm/(2*rho)-bb/2)+bb/2
+  fmx1 = mx*mx/rho-bx*bx+pt
+  fmx2 = my*mx/rho-by*bx
+  fmx3 = mz*mx/rho-bz*bx
+  fmy1 = mx*my/rho-bx*by
+  fmy2 = my*my/rho-by*by+pt
+  fmy3 = mz*my/rho-bz*by
+  fmz1 = mx*mz/rho-bx*bz
+  fmz2 = my*mz/rho-by*bz
+  fmz3 = mz*mz/rho-bz*bz+pt
+  fen1 = (en+pt)*mx/rho-bx*mB/rho
+  fen2 = (en+pt)*my/rho-by*mB/rho
+  fen3 = (en+pt)*mz/rho-bz*mB/rho
+  fbx2 = (my*bx-mx*by)/rho
+  fbx3 = (mz*bx-mx*bz)/rho
+  fby1 = (mx*by-my*bx)/rho
+  fby3 = (mz*by-my*bz)/rho
+  fbz1 = (mx*bz-mz*bx)/rho
+  fbz2 = (my*bz-mz*by)/rho
+  rho' = rho + dt*(visc rho - cx mx - cy my - cz mz)
+  mx' = mx + dt*(visc mx - cx fmx1 - cy fmx2 - cz fmx3)
+  my' = my + dt*(visc my - cx fmy1 - cy fmy2 - cz fmy3)
+  mz' = mz + dt*(visc mz - cx fmz1 - cy fmz2 - cz fmz3)
+  bx' = bx + dt*(visc bx - cy fbx2 - cz fbx3)
+  by' = by + dt*(visc by - cx fby1 - cz fby3)
+  bz' = bz + dt*(visc bz - cx fbz1 - cy fbz2)
+  en' = en + dt*(visc en - cx fen1 - cy fen2 - cz fen3)
+end function

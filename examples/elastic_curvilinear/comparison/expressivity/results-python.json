@@ -1,0 +1,192 @@
+{
+  "all_checks_passed": true,
+  "python": "3.12.14",
+  "packages": {
+    "sympy": "1.14.0",
+    "numpy": "2.4.3",
+    "fenics-ufl": "2026.1.0",
+    "nrpylatex": "1.4.0",
+    "devito": "4.8.23"
+  },
+  "runner_sha256": "0383c35c199e380a80035fb0c4899e2b78fab10809100cbd45a449dfe4de9905",
+  "results": {
+    "ufl": {
+      "direct_scalar_function": {
+        "tensor_arguments": {
+          "accepted": false,
+          "exception": "ValueError",
+          "message": "Invalid ranks 1 and 1 in product."
+        },
+        "same_free_index": {
+          "accepted": false,
+          "exception": "AssertionError",
+          "message": ""
+        },
+        "different_free_indices": {
+          "accepted": false,
+          "exception": "ValueError",
+          "message": "Can't add expressions with different free indices."
+        }
+      },
+      "working_aligned_values": [
+        3.5,
+        6.5,
+        10.5
+      ],
+      "working_pairs_values": [
+        [
+          3.5,
+          5.166666666666667,
+          7.166666666666667
+        ],
+        [
+          4.666666666666667,
+          6.5,
+          8.666666666666666
+        ],
+        [
+          6.166666666666667,
+          8.166666666666666,
+          10.5
+        ]
+      ],
+      "working_pairs_method": "as_matrix with explicit component indices",
+      "local_indices_avoid_capture": true,
+      "symmetric_user_function_values": "{ A | A_{i_{11}, i_{12}} = (([\n  [1.0, 2.0, 3.0],\n  [4.0, 5.0, 6.0],\n  [7.0, 8.0, 9.0]\n])[i_{11}, i_{12}] + ([\n  [1.0, 2.0, 3.0],\n  [4.0, 5.0, 6.0],\n  [7.0, 8.0, 9.0]\n])[i_{12}, i_{11}]) / 2 }",
+      "stage": "UFL expression construction and evaluation; no finite-element solver"
+    },
+    "sympy": {
+      "direct_scalar_function": {
+        "same_index": {
+          "accepted": false,
+          "exception": "ValueError",
+          "message": "Repeated index: i"
+        },
+        "different_indices": {
+          "accepted": false,
+          "exception": "ValueError",
+          "message": "Repeated index: i"
+        }
+      },
+      "standard_contraction": "a(L_0)*b(-L_0)",
+      "symmetry_residual": "0",
+      "derivative_free_indices": [
+        "i",
+        "-j"
+      ],
+      "working_pairs_values": [
+        [
+          "3.50000000000000",
+          "5.16666666666667",
+          "7.16666666666667"
+        ],
+        [
+          "4.66666666666667",
+          "6.50000000000000",
+          "8.66666666666667"
+        ],
+        [
+          "6.16666666666667",
+          "8.16666666666667",
+          "10.5000000000000"
+        ]
+      ],
+      "working_pairs_method": "expand to component arrays, then apply the scalar function",
+      "builtin_exterior_derivative": {
+        "df": [
+          "y*z",
+          "x*z",
+          "x*y"
+        ],
+        "dA": [
+          "-x",
+          "z",
+          "-y"
+        ],
+        "dB": "x + y - z",
+        "ddf": "0",
+        "method": "sympy.diffgeom.Differential"
+      },
+      "stage": "SymPy abstract tensor algebra, component arrays, and differential forms"
+    },
+    "numpy": {
+      "aligned_values": [
+        3.5,
+        6.5,
+        10.5
+      ],
+      "pairs_values": [
+        [
+          3.5,
+          5.166666666666667,
+          7.166666666666667
+        ],
+        [
+          4.666666666666667,
+          6.5,
+          8.666666666666666
+        ],
+        [
+          6.166666666666667,
+          8.166666666666666,
+          10.5
+        ]
+      ],
+      "pairs_method": "insert axes explicitly: a[:,None], b[None,:]",
+      "sum_aligned": 20.5
+    },
+    "nrpylatex": {
+      "custom_dot_macro_scalar_call": {
+        "accepted": true,
+        "result": "('aU', 'bD', 'cU', 's')"
+      },
+      "macro_with_caller_index_i": {
+        "accepted": false,
+        "exception": "GeneratorError",
+        "message": "illegal bound index 'i' in qU"
+      },
+      "macro_after_manual_dummy_index_rename": {
+        "accepted": true,
+        "result": "('aU', 'bD', 'cU', 'qU')"
+      },
+      "note": "This tests a custom replacement template. Built-in tensor derivatives have their own index generation."
+    },
+    "devito": {
+      "direct_vector_arguments": {
+        "accepted": false,
+        "exception": "ShapeError",
+        "message": "Matrix size mismatch: (3, 1) * (3, 1)."
+      },
+      "working_pairs_values": [
+        [
+          3.5,
+          5.166666666666666,
+          7.166666666666666
+        ],
+        [
+          4.666666666666666,
+          6.5,
+          8.666666666666666
+        ],
+        [
+          6.166666666666666,
+          8.166666666666666,
+          10.5
+        ]
+      ],
+      "working_pairs_method": "construct the component matrix with a Python function",
+      "pairs_max_error": 8.881784197001252e-16,
+      "user_defined_curl_values": [
+        -0.75,
+        -1.0,
+        -0.5
+      ],
+      "curl_sample_coordinates": [
+        0.5,
+        0.75,
+        1.0
+      ],
+      "compiled_c_executed": true
+    }
+  }
+}

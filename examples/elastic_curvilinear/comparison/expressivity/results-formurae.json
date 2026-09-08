@@ -1,0 +1,280 @@
+{
+  "egison_revision": "1a0298c67cc487dd4a73d96f526f3042b74d6570",
+  "all_passed": true,
+  "renaming_preserves_generated_formura": true,
+  "exterior_definition_shared_between_dimensions": true,
+  "source_sha256": {
+    "examples/elastic_curvilinear/comparison/expressivity/curl.fme": "4351877fc54051a529184cb30f62e2c00ac1af4a7dc0a78e576d79fe449a5dac",
+    "examples/elastic_curvilinear/comparison/expressivity/exterior_2d.fme": "514d9ae37739d75645998cd30d983229cf5e80da12a1ab326c6e13dd4cc36ac5",
+    "examples/elastic_curvilinear/comparison/expressivity/exterior_3d.fme": "92c3874f3008af35b79c5ff03335169d7e1a6edaa6f35e8fd71a302bb0ed03bb",
+    "examples/elastic_curvilinear/comparison/expressivity/indexed_functions.fme": "db3e5669cddbe12fbf20925c8d5c9e5954430c45d02b90bc1510a2f5404a3e9b",
+    "examples/elastic_curvilinear/comparison/expressivity/run_formurae.py": "cc282dd65f38f2f3c8ce48110420dc25025015b6ce6c31e62a8b0ed97c126682",
+    "lib/formurae-operators.egi": "ddcf1c4e67c179d4e477b36f375d42a4ce4354944b7ea867d5475a9fbb75fe10",
+    "lib/formurae-tensor.egi": "3179f86554732a5b329f94c448935f78f3c643b54df058bd62d8c6bc7764e218",
+    "src/Formurae/Post/FMR.hs": "f3df66dfc3eb47a16ca6330037905cb573d44462c4c6a8ceeb32d47eda217e00",
+    "src/Formurae/Pre/EmitEgison.hs": "0b6596d3358122f2b3b7c678a24d1aa131753b2816e600e1793e2329f52a34ba"
+  },
+  "results": {
+    "curl": {
+      "accepted": true,
+      "stage": "Formura source",
+      "input_sha256": "4351877fc54051a529184cb30f62e2c00ac1af4a7dc0a78e576d79fe449a5dac",
+      "numerical": {
+        "compiled_c_executed": true,
+        "sample_indices": [
+          2,
+          3,
+          4
+        ],
+        "component_names": [
+          "R_down1",
+          "R_down2",
+          "R_down3",
+          "S_down1",
+          "S_down2",
+          "S_down3"
+        ],
+        "values": [
+          -0.75,
+          -1,
+          -0.5,
+          -0.75,
+          -1,
+          -0.5
+        ],
+        "expected": [
+          -0.75,
+          -1.0,
+          -0.5,
+          -0.75,
+          -1.0,
+          -0.5
+        ],
+        "max_error": 0.0
+      }
+    },
+    "exterior_2d": {
+      "accepted": true,
+      "stage": "Formura source",
+      "input_sha256": "514d9ae37739d75645998cd30d983229cf5e80da12a1ab326c6e13dd4cc36ac5",
+      "numerical": {
+        "compiled_c_executed": true,
+        "sample_indices": [
+          2,
+          2
+        ],
+        "component_names": [
+          "G_1",
+          "G_2",
+          "H_1_2",
+          "Z_1_2"
+        ],
+        "values": [
+          0.5,
+          0.5,
+          0,
+          0
+        ],
+        "expected": [
+          0.5,
+          0.5,
+          0,
+          0
+        ],
+        "max_error": 0.0
+      }
+    },
+    "exterior_3d": {
+      "accepted": true,
+      "stage": "Formura source",
+      "input_sha256": "92c3874f3008af35b79c5ff03335169d7e1a6edaa6f35e8fd71a302bb0ed03bb",
+      "numerical": {
+        "compiled_c_executed": true,
+        "sample_indices": [
+          2,
+          2,
+          2
+        ],
+        "component_names": [
+          "G_1",
+          "G_2",
+          "G_3",
+          "H_1_2",
+          "H_1_3",
+          "H_2_3",
+          "K_1_2_3",
+          "Z_1_2",
+          "Z_1_3",
+          "Z_2_3",
+          "J_1",
+          "J_2",
+          "J_3"
+        ],
+        "values": [
+          0.25,
+          0.25,
+          0.25,
+          -0.625,
+          0.625,
+          -0.625,
+          0.625,
+          0,
+          0,
+          0,
+          0.25,
+          0.25,
+          0.25
+        ],
+        "expected": [
+          0.25,
+          0.25,
+          0.25,
+          -0.625,
+          0.625,
+          -0.625,
+          0.625,
+          0,
+          0,
+          0,
+          0.25,
+          0.25,
+          0.25
+        ],
+        "max_error": 0.0
+      }
+    },
+    "indexed_functions": {
+      "accepted": true,
+      "stage": "Formura source",
+      "input_sha256": "db3e5669cddbe12fbf20925c8d5c9e5954430c45d02b90bc1510a2f5404a3e9b",
+      "numerical": {
+        "compiled_c_executed": true,
+        "sample_indices": [
+          2,
+          2,
+          2
+        ],
+        "component_names": [
+          "aligned_down1",
+          "aligned_down2",
+          "aligned_down3",
+          "pairs_down1_down1",
+          "pairs_down1_down2",
+          "pairs_down1_down3",
+          "pairs_down2_down1",
+          "pairs_down2_down2",
+          "pairs_down2_down3",
+          "pairs_down3_down1",
+          "pairs_down3_down2",
+          "pairs_down3_down3",
+          "reduced",
+          "q_up1",
+          "q_up2",
+          "q_up3",
+          "r_up1",
+          "r_up2",
+          "r_up3",
+          "S_down1_down1",
+          "S_down2_down2",
+          "S_down3_down3",
+          "S_down1_down2",
+          "S_down1_down3",
+          "S_down2_down3"
+        ],
+        "values": [
+          3.5,
+          6.499999999999999,
+          10.5,
+          3.5,
+          5.166666666666666,
+          7.166666666666667,
+          4.666666666666666,
+          6.499999999999999,
+          8.666666666666666,
+          6.166666666666666,
+          8.166666666666666,
+          10.5,
+          20.5,
+          224,
+          256,
+          288,
+          224,
+          256,
+          288,
+          1,
+          5,
+          9,
+          3,
+          5,
+          7
+        ],
+        "expected": [
+          3.5,
+          6.5,
+          10.5,
+          3.5,
+          5.166666666666667,
+          7.166666666666667,
+          4.666666666666667,
+          6.5,
+          8.666666666666666,
+          6.166666666666667,
+          8.166666666666666,
+          10.5,
+          20.5,
+          224,
+          256,
+          288,
+          224,
+          256,
+          288,
+          1,
+          5,
+          9,
+          3,
+          5,
+          7
+        ],
+        "max_error": 8.881784197001252e-16
+      }
+    },
+    "curl_renamed": {
+      "accepted": true,
+      "stage": "Formura source",
+      "input_sha256": "5e1d7628fbf3219e5f371dc462204bf94b82b51599a11d0dce843a042ead8ade",
+      "numerical": {
+        "compiled_c_executed": true,
+        "sample_indices": [
+          2,
+          3,
+          4
+        ],
+        "component_names": [
+          "R_down1",
+          "R_down2",
+          "R_down3",
+          "S_down1",
+          "S_down2",
+          "S_down3"
+        ],
+        "values": [
+          -0.75,
+          -1,
+          -0.5,
+          -0.75,
+          -1,
+          -0.5
+        ],
+        "expected": [
+          -0.75,
+          -1.0,
+          -0.5,
+          -0.75,
+          -1.0,
+          -0.5
+        ],
+        "max_error": 0.0
+      }
+    }
+  }
+}

@@ -1,0 +1,14 @@
+dimension 3
+axes r, θ, z
+metric g
+metric scale [1, 1+r, 1]
+param α = 0.5
+field e{_i_j} @ collocated
+field q{~i~j} @ collocated
+def constitutive E_i_j = withSymbols [i,j,k,l] (2 * g~i~j * (g~k~l . E_k_l) + 2 * (g~i~k . g~j~l . E_k_l) + α * ([| 1, 0, 0 |]~i * [| 1, 0, 0 |]~j) * (([| 1, 0, 0 |]~k * [| 1, 0, 0 |]~l) . E_k_l))
+init:
+  e_i_j = [| [| 1, 2, 3 |], [| 4, 5 |], [| 6 |] |]_i_j
+  q~i~j = [| [| 0, 0, 0 |], [| 0, 0 |], [| 0 |] |]~i~j
+step:
+  e' = e
+  q'~i~j = constitutive e

@@ -1,0 +1,37 @@
+dimension 3
+axes x, y, z
+
+field f : 0-form @ primal
+field A : 1-form @ primal
+field B : 2-form @ primal
+field G : 1-form @ primal
+field H : 2-form @ primal
+field K : 3-form @ primal
+field Z : 2-form @ primal
+field J : 1-form @ primal
+
+def exterior A =
+  let degree := dfOrder A + 1
+   in degree * dfNormalize (!(flip ∂/∂) coordinates A)
+def differentiateWith op X = op X coordinates
+def firstDerivative X = differentiateWith (∂/∂) X
+
+init:
+  f = 0
+  A = [| 0, 0, 0 |]
+  B = [| 0, 0, 0 |]
+  G = [| 0, 0, 0 |]
+  H = [| 0, 0, 0 |]
+  K = [| 0 |]
+  Z = [| 0, 0, 0 |]
+  J = [| 0, 0, 0 |]
+
+step:
+  f' = f
+  A' = A
+  B' = B
+  G' = exterior f
+  H' = exterior A
+  K' = exterior B
+  Z' = exterior (exterior f)
+  J' = firstDerivative f

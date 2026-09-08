@@ -37,6 +37,10 @@ main = do
     "∂/∂ (∂/∂ u x) x" first
   assertContains "∂/∂ by the ambient coordinates vector stays analytic"
     "∂/∂ u coordinates" first
+  assertContains "analytic derivative is bound when used as a function value"
+    "def FormuraeInternalAnalyticDerivative := ∂/∂" first
+  assertContains "a raw local can refer to the analytic derivative function"
+    "let differentiate := FormuraeInternalAnalyticDerivative" first
   assertContains "unprimed coordinate derivative preserves the whole nonlinear operand"
     "FormuraeInternalGridWholeDerivative 1 ((u * u) / 2)"
     first
@@ -526,6 +530,10 @@ source = unlines
   , "def analytic u = ∂/∂ (∂/∂ u r) r"
   , "def analyticVec u = ∂/∂ u coordinates"
   , "def lapAlias u = Δ u"
+  , "def analyticPassed u = pass (∂/∂) u coordinates"
+  , "def analyticRaw u ="
+  , "  let differentiate := ∂/∂"
+  , "   in differentiate u coordinates"
   , "init:"
   , "  u = 0.0"
   , "step:"
@@ -961,4 +969,3 @@ isVariableHodgeLaplacian problem =
       "canonical Δ_H is not supported for variable metric geometry"
         `isInfixOf` message
     _ -> False
-

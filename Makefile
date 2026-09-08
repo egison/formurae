@@ -31,7 +31,7 @@ EGISON_NORMALIZE = $(abspath tools/run_formurae_normalization.sh) $(EGISON_DIR)
 # recipe compiles .fme -> .egi -> .feir -> .fmr -> C and runs the check driver).
 FME_EXAMPLES := acoustic3d diffusion1d diffusion2d divergence2d diffusion3d maxwell3d maxwell3d_yee maxwell_dec kleingordon ks3d \
                 burgers3d pearson3d cahnhilliard3d tdgl3d shallowwater \
-                euler_sod highorder4 dirichlet_diffusion elastic3d \
+                euler_sod highorder4 dirichlet_diffusion elastic3d elastic_cylindrical elastic_spherical \
                 sbp_diffusion1d sbp_wave1d sbp_diffusion2d sbp_highorder4 \
                 sbp_neumann sbp_wave_open \
                 metric_torus metric_sphere hyperbolic polar2d spherical3d yinyang_diffusion mhd_ot lbm_d3q19
@@ -59,6 +59,8 @@ CHECK_sbp_highorder4      := sbp_hi4_check.c
 CHECK_sbp_neumann         := sbp_nmn_check.c
 CHECK_sbp_wave_open       := sbp_open_check.c
 CHECK_elastic3d           := elastic_check.c
+CHECK_elastic_cylindrical := elastic_check.c
+CHECK_elastic_spherical   := elastic_check.c
 CHECK_metric_torus        := metric_check.c
 CHECK_metric_sphere       := sphere_check.c
 CHECK_hyperbolic          := hyp_check.c

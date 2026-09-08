@@ -1,0 +1,7 @@
+dimension 1
+axes x
+field u : scalar @ primal
+field q : scalar @ dual
+def fluxDerivative f = ∂_x (f * f / 2)
+step:
+  q' = fluxDerivative u

@@ -1,0 +1,35 @@
+dimension :: 3
+axes :: x,y,z
+double :: lambda = 2.0, mu = 1.0, rho0 = 1.0, dt = 0.0005
+xp = fun(a) (a[i+1,j,k] - a[i,j,k]) / dx
+xm = fun(a) (a[i,j,k] - a[i-1,j,k]) / dx
+yp = fun(a) (a[i,j+1,k] - a[i,j,k]) / dy
+ym = fun(a) (a[i,j,k] - a[i,j-1,k]) / dy
+zp = fun(a) (a[i,j,k+1] - a[i,j,k]) / dz
+zm = fun(a) (a[i,j,k] - a[i,j,k-1]) / dz
+
+begin function (v_up1,v_up2,v_up3,sigma_up1_up1,sigma_up2_up2,sigma_up3_up3,sigma_up1_up2,sigma_up1_up3,sigma_up2_up3) = init()
+  double [] :: v_up1, v_up2, v_up3, sigma_up1_up1, sigma_up2_up2, sigma_up3_up3, sigma_up1_up2, sigma_up1_up3, sigma_up2_up3
+  v_up1[i,j,k] = 0.0
+  v_up2[i,j,k] = 0.0
+  v_up3[i,j,k] = 0.0
+  sigma_up1_up1[i,j,k] = 0.0
+  sigma_up2_up2[i,j,k] = 0.0
+  sigma_up3_up3[i,j,k] = 0.0
+  sigma_up1_up2[i,j,k] = 0.0
+  sigma_up1_up3[i,j,k] = 0.0
+  sigma_up2_up3[i,j,k] = 0.0
+end function
+
+begin function (v_up1',v_up2',v_up3',sigma_up1_up1',sigma_up2_up2',sigma_up3_up3',sigma_up1_up2',sigma_up1_up3',sigma_up2_up3') = step(v_up1,v_up2,v_up3,sigma_up1_up1,sigma_up2_up2,sigma_up3_up3,sigma_up1_up2,sigma_up1_up3,sigma_up2_up3)
+  v_up1' = v_up1 + (dt/rho0)*(xp sigma_up1_up1 + ym sigma_up1_up2 + zm sigma_up1_up3)
+  v_up2' = v_up2 + (dt/rho0)*(xm sigma_up1_up2 + yp sigma_up2_up2 + zm sigma_up2_up3)
+  v_up3' = v_up3 + (dt/rho0)*(xm sigma_up1_up3 + ym sigma_up2_up3 + zp sigma_up3_up3)
+  tr = xm v_up1' + ym v_up2' + zm v_up3'
+  sigma_up1_up1' = sigma_up1_up1 + dt*(lambda*tr + 2*mu*xm v_up1')
+  sigma_up2_up2' = sigma_up2_up2 + dt*(lambda*tr + 2*mu*ym v_up2')
+  sigma_up3_up3' = sigma_up3_up3 + dt*(lambda*tr + 2*mu*zm v_up3')
+  sigma_up1_up2' = sigma_up1_up2 + dt*mu*(yp v_up1' + xp v_up2')
+  sigma_up1_up3' = sigma_up1_up3 + dt*mu*(zp v_up1' + xp v_up3')
+  sigma_up2_up3' = sigma_up2_up3 + dt*mu*(zp v_up2' + yp v_up3')
+end function

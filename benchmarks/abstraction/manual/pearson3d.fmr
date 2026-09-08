@@ -1,0 +1,19 @@
+dimension :: 3
+axes :: x,y,z
+double :: Fu = 1.0/86400.0, Fv = 6.0/86400.0, Fe = 1.0/900.0, Du = 2.3e-10, Dv = 6.1e-11, dt = 200.0
+dxx = fun(a) (a[i-1,j,k] - 2*a[i,j,k] + a[i+1,j,k]) / (dx*dx)
+dyy = fun(a) (a[i,j-1,k] - 2*a[i,j,k] + a[i,j+1,k]) / (dy*dy)
+dzz = fun(a) (a[i,j,k-1] - 2*a[i,j,k] + a[i,j,k+1]) / (dz*dz)
+lap = fun(a) dxx a + dyy a + dzz a
+
+begin function (U,V) = init()
+  double [] :: U, V
+  U[i,j,k] = 0.0
+  V[i,j,k] = 0.0
+end function
+
+begin function (U',V') = step(U,V)
+  reaction = Fe*U*V*V
+  U' = U + dt*(Fu*(1-U) - reaction + Du*lap U)
+  V' = V + dt*(reaction - Fv*V + Dv*lap V)
+end function

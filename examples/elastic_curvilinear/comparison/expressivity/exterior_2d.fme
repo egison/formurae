@@ -1,0 +1,26 @@
+dimension 2
+axes x, y
+
+field f : 0-form @ primal
+field A : 1-form @ primal
+field G : 1-form @ primal
+field H : 2-form @ primal
+field Z : 2-form @ primal
+
+def exterior A =
+  let degree := dfOrder A + 1
+   in degree * dfNormalize (!(flip ∂/∂) coordinates A)
+
+init:
+  f = 0
+  A = [| 0, 0 |]
+  G = [| 0, 0 |]
+  H = [| 0 |]
+  Z = [| 0 |]
+
+step:
+  f' = f
+  A' = A
+  G' = exterior f
+  H' = exterior A
+  Z' = exterior (exterior f)

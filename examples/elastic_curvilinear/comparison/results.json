@@ -1,0 +1,418 @@
+{
+  "protocol_date": "2026-09-07",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "formurae_git_head": "ffe778039052020994749bb73343a2fb16343d08",
+  "formurae_worktree_has_changes": true,
+  "source_revisions": {
+    "opensbli": "e37dc377fa9b27d6bfa6e9da2968b96bcd736f1d",
+    "nrpyplus": "a32e120f5642bee00e32e9e04dd8cb4c58ae661c",
+    "kranc": "b4b2b40103a706a29f8f6b3910110a30afff75aa"
+  },
+  "source_sha256": {
+    "examples/elastic_curvilinear/comparison/collect_results.py": "f8b550ddc36510935da4161e5c52bda4bedaaa99ebaf8b15a781aeb5a8d3ffcd",
+    "examples/elastic_curvilinear/comparison/fixtures/anisotropic_bad.fme": "c044418427d592ec41a634b3f42bf21273da9114103f391a3f35c419390c44f1",
+    "examples/elastic_curvilinear/comparison/fixtures/anisotropic_good.fme": "c6ca80e769e98c3d622d6d4bee65441f24e07262e0d8696b8e26684119f1d295",
+    "examples/elastic_curvilinear/comparison/fixtures/flux_collocated.fme": "d610d7418fe794d17c1033fc3e99f49a84834733ea08676fa1c5a9a70db66640",
+    "examples/elastic_curvilinear/comparison/fixtures/placement_bad.fme": "f5830f0fb3514d5ecb96c19bb8052c2431be0f2acd53386911e5661d77f0a646",
+    "examples/elastic_curvilinear/comparison/fixtures/placement_good.fme": "e5b7c1381728d3a3d628b567fde0d75ff9d2ccb3f772ec2efa39be7ffb8893c6",
+    "examples/elastic_curvilinear/comparison/fixtures/rank4_helper.fme": "7def1a3a71bdf1766b2ae1fa8c51b23be53f1f74a2a55cd14b7140a33ef96c8f",
+    "examples/elastic_curvilinear/comparison/fixtures/symmetry_bad.fme": "7d4ca49a00c44047428d71751923c80831c1c71bd3a74a8462ea892c422b54ac",
+    "examples/elastic_curvilinear/comparison/fixtures/symmetry_good.fme": "2475db71f6fe3bf8c4fc19babbec9787f9481fda6e5f534480cf30f9b2bffe7c",
+    "examples/elastic_curvilinear/comparison/fixtures/variance_bad.fme": "d3d57a7de830e23bb98236bd9cd434eca8fd748a869659de19c1e1ae5b36293a",
+    "examples/elastic_curvilinear/comparison/fixtures/variance_good.fme": "cb39002092b936ed23c1aa5bdd1513ee6f0134dd2140c2def7476a09068ab0ce",
+    "examples/elastic_curvilinear/comparison/formurae_probes.py": "7d8a64355f8e0c0ac1f96e50217238498eb942d48d3a1cc8b6d58d3562eb4079",
+    "examples/elastic_curvilinear/comparison/python_probes.py": "a356f5bbae6c4a7f8ed4378544496cbb369ce9b5adc8ac2d50597e3ab4bedabc",
+    "examples/elastic_curvilinear/comparison/requirements-opensbli.txt": "8f71a403445b045958e090bf709c19f4e684416ae512c07d4eb6d6b418d7d532",
+    "examples/elastic_curvilinear/comparison/requirements-python.txt": "cf2e0d4e0bbae6523ef9b280a29611bd2a63ee2c06d1f9f69fea5e88a4f22eae",
+    "examples/elastic_cylindrical/elastic_cylindrical.fme": "30f6772b2774c17bae6901c2f53b5a98507fcd0a948f27029fa080d97ad584e3",
+    "examples/elastic_spherical/elastic_spherical.fme": "9a3ff0b295e27601a9401beb24057f581c2a24ebb8e177ae79777ef3c0429933",
+    "lib/formurae-tensor.egi": "3179f86554732a5b329f94c448935f78f3c643b54df058bd62d8c6bc7764e218",
+    "src/Formurae/Post/Compile.hs": "782244a49f5195da077575d119a0d9d1d284ffdd025fadb06c55f79017427614",
+    "src/Formurae/Post/FMR.hs": "f3df66dfc3eb47a16ca6330037905cb573d44462c4c6a8ceeb32d47eda217e00",
+    "src/Formurae/Post/Stencil.hs": "93d186477e7e3cf7c1fdc67164cd0df9ad1d2b38e3b8bc750d1037846e6fb9c6",
+    "src/Formurae/Pre/EmitEgison.hs": "0b6596d3358122f2b3b7c678a24d1aa131753b2816e600e1793e2329f52a34ba"
+  },
+  "summary": {
+    "formurae_cases": 15,
+    "all_observations_verified": true,
+    "constitutive_max_error": 3.552713678800501e-15,
+    "constitutive_evaluations": 8,
+    "kranc_evidence": "source inspection, not Mathematica execution"
+  },
+  "systems": {
+    "formurae": {
+      "system": "Formurae",
+      "egison_revision": "1a0298c67cc487dd4a73d96f526f3042b74d6570",
+      "results": {
+        "anisotropic_bad": {
+          "accepted": false,
+          "stage": "egison",
+          "status": 1,
+          "diagnostic": "formurae-pre: error: .build/related-work/formurae/anisotropic_bad.fme:14:12: Egison normalization failed\n  expanded from constitutive at .build/related-work/formurae/anisotropic_bad.fme:14:12 (defined at .build/related-work/formurae/anisotropic_bad.fme:8:26)\nEvaluation error: Assertion failed: \"normalized symmetric tensor layout mismatch\"\n",
+          "source_sha256": "c044418427d592ec41a634b3f42bf21273da9114103f391a3f35c419390c44f1",
+          "source": ".build/related-work/formurae/anisotropic_bad.fme",
+          "matches_expectation": true
+        },
+        "anisotropic_good": {
+          "accepted": true,
+          "stage": "Formura source",
+          "source_sha256": "c6ca80e769e98c3d622d6d4bee65441f24e07262e0d8696b8e26684119f1d295",
+          "source": ".build/related-work/formurae/anisotropic_good.fme",
+          "matches_expectation": true,
+          "numerical": {
+            "values_in_order_00_11_22_01_02_12": [
+              20.055555555555557,
+              9.382716049382717,
+              29.555555555555557,
+              1.7777777777777777,
+              6,
+              4.444444444444445
+            ],
+            "max_error": 1.7763568394002505e-15,
+            "compiled_c_executed": true
+          }
+        },
+        "flux_collocated": {
+          "accepted": true,
+          "stage": "Formura source",
+          "source_sha256": "d610d7418fe794d17c1033fc3e99f49a84834733ea08676fa1c5a9a70db66640",
+          "source": ".build/related-work/formurae/flux_collocated.fme",
+          "matches_expectation": true,
+          "generated_update": "q'[i] = ((-1 / 4) * u[i-1]**2 + (1 / 4) * u[i+1]**2) / dx",
+          "whole_flux_centered_value": 80.0
+        },
+        "placement_bad": {
+          "accepted": false,
+          "stage": "post",
+          "status": 1,
+          "diagnostic": "formurae-post: error: .build/related-work/formurae/placement_bad.fme:7:8: grid placement mismatch: target Placement {placementBits = [IntegerPoint]}, expression Placement {placementBits = [HalfPoint]}\n  expanded from fluxDerivative at .build/related-work/formurae/placement_bad.fme:7:8 (defined at .build/related-work/formurae/placement_bad.fme:5:24)\n",
+          "source_sha256": "f5830f0fb3514d5ecb96c19bb8052c2431be0f2acd53386911e5661d77f0a646",
+          "source": ".build/related-work/formurae/placement_bad.fme",
+          "matches_expectation": true
+        },
+        "placement_good": {
+          "accepted": true,
+          "stage": "Formura source",
+          "source_sha256": "e5b7c1381728d3a3d628b567fde0d75ff9d2ccb3f772ec2efa39be7ffb8893c6",
+          "source": ".build/related-work/formurae/placement_good.fme",
+          "matches_expectation": true
+        },
+        "rank4_helper": {
+          "accepted": true,
+          "stage": "Formura source",
+          "source_sha256": "7def1a3a71bdf1766b2ae1fa8c51b23be53f1f74a2a55cd14b7140a33ef96c8f",
+          "source": ".build/related-work/formurae/rank4_helper.fme",
+          "matches_expectation": true
+        },
+        "symmetry_bad": {
+          "accepted": false,
+          "stage": "egison",
+          "status": 1,
+          "diagnostic": "formurae-pre: error: .build/related-work/formurae/symmetry_bad.fme:7:8: Egison normalization failed\n  expanded from passTensor at .build/related-work/formurae/symmetry_bad.fme:7:8 (defined at .build/related-work/formurae/symmetry_bad.fme:5:23)\nEvaluation error: Assertion failed: \"normalized symmetric tensor layout mismatch\"\n",
+          "source_sha256": "7d4ca49a00c44047428d71751923c80831c1c71bd3a74a8462ea892c422b54ac",
+          "source": ".build/related-work/formurae/symmetry_bad.fme",
+          "matches_expectation": true
+        },
+        "symmetry_good": {
+          "accepted": true,
+          "stage": "Formura source",
+          "source_sha256": "2475db71f6fe3bf8c4fc19babbec9787f9481fda6e5f534480cf30f9b2bffe7c",
+          "source": ".build/related-work/formurae/symmetry_good.fme",
+          "matches_expectation": true
+        },
+        "variance_bad": {
+          "accepted": false,
+          "stage": "egison",
+          "status": 1,
+          "diagnostic": "formurae-pre: error: .build/related-work/formurae/variance_bad.fme:7:8: Egison normalization failed\n  expanded from passTensor at .build/related-work/formurae/variance_bad.fme:7:8 (defined at .build/related-work/formurae/variance_bad.fme:5:23)\nEvaluation error: Assertion failed: \"normalized equation tensor metadata mismatch\"\n",
+          "source_sha256": "d3d57a7de830e23bb98236bd9cd434eca8fd748a869659de19c1e1ae5b36293a",
+          "source": ".build/related-work/formurae/variance_bad.fme",
+          "matches_expectation": true
+        },
+        "variance_good": {
+          "accepted": true,
+          "stage": "Formura source",
+          "source_sha256": "cb39002092b936ed23c1aa5bdd1513ee6f0134dd2140c2def7476a09068ab0ce",
+          "source": ".build/related-work/formurae/variance_good.fme",
+          "matches_expectation": true
+        },
+        "anisotropic_spherical_good": {
+          "accepted": true,
+          "stage": "Formura source",
+          "source_sha256": "4840557912b16807ad56ffb1e6ed8f4a7bd2cbca0b84879e7b15f41cdbaab2cc",
+          "source": ".build/related-work/formurae/anisotropic_spherical_good.fme",
+          "matches_expectation": true,
+          "numerical": {
+            "values_in_order_00_11_22_01_02_12": [
+              13.977718882563567,
+              6.6814553058307204,
+              8.587078692981992,
+              1.7777777777777777,
+              2.9610816635040056,
+              2.193393824817782
+            ],
+            "max_error": 1.7763568394002505e-15,
+            "compiled_c_executed": true
+          }
+        },
+        "elastic_cylindrical_good": {
+          "accepted": true,
+          "stage": "Formura source",
+          "source_sha256": "464893b983e0922c76dc23b6d0b53101aac5f960892f7f9a7e6b2b3989039c24",
+          "source": ".build/related-work/formurae/elastic_cylindrical_good.fme",
+          "matches_expectation": true
+        },
+        "elastic_cylindrical_bad": {
+          "accepted": false,
+          "stage": "egison",
+          "status": 1,
+          "diagnostic": "formurae-pre: error: .build/related-work/formurae/elastic_cylindrical_bad.fme:39:35: Egison normalization failed\n  expanded from stressRate at .build/related-work/formurae/elastic_cylindrical_bad.fme:39:35 (defined at .build/related-work/formurae/elastic_cylindrical_bad.fme:21:24)\nEvaluation error: Assertion failed: \"normalized symmetric tensor layout mismatch\"\n",
+          "source_sha256": "dfa9a4928832285bb13e99d9aa3b62043994f0c732acd7af9839121640921a74",
+          "source": ".build/related-work/formurae/elastic_cylindrical_bad.fme",
+          "matches_expectation": true
+        },
+        "elastic_spherical_good": {
+          "accepted": true,
+          "stage": "Formura source",
+          "source_sha256": "43a0fb2eb036d8b3b7f002412b5051696a35956005e235417999afc006e5be5a",
+          "source": ".build/related-work/formurae/elastic_spherical_good.fme",
+          "matches_expectation": true
+        },
+        "elastic_spherical_bad": {
+          "accepted": false,
+          "stage": "egison",
+          "status": 1,
+          "diagnostic": "formurae-pre: error: .build/related-work/formurae/elastic_spherical_bad.fme:39:35: Egison normalization failed\n  expanded from stressRate at .build/related-work/formurae/elastic_spherical_bad.fme:39:35 (defined at .build/related-work/formurae/elastic_spherical_bad.fme:21:24)\nEvaluation error: Assertion failed: \"normalized symmetric tensor layout mismatch\"\n",
+          "source_sha256": "28e8c4d3381ad6b76a858fb14a9b12ee5f8d15cdce2578cbbc4e86aede525f0c",
+          "source": ".build/related-work/formurae/elastic_spherical_bad.fme",
+          "matches_expectation": true
+        }
+      },
+      "all_expected": true
+    },
+    "nrpylatex": {
+      "system": "nrpylatex",
+      "python": "3.12.14",
+      "packages": {
+        "sympy": "1.14.0",
+        "numpy": "2.4.3",
+        "nrpylatex": "1.4.0"
+      },
+      "results": {
+        "anisotropic_symmetric": true,
+        "coordinates": {
+          "cylindrical": {
+            "max_error": 0.0,
+            "values": [
+              [
+                20.055555555555557,
+                1.7777777777777777,
+                6.0
+              ],
+              [
+                1.7777777777777777,
+                9.382716049382715,
+                4.444444444444445
+              ],
+              [
+                6.0,
+                4.444444444444445,
+                29.555555555555557
+              ]
+            ]
+          },
+          "spherical": {
+            "max_error": 8.881784197001252e-16,
+            "values": [
+              [
+                13.977718882563567,
+                1.7777777777777777,
+                2.9610816635040056
+              ],
+              [
+                1.7777777777777777,
+                6.681455305830721,
+                2.193393824817782
+              ],
+              [
+                2.9610816635040056,
+                2.193393824817782,
+                8.587078692981994
+              ]
+            ]
+          }
+        },
+        "asymmetric_update": {
+          "accepted": true,
+          "result_is_symmetric": false,
+          "difference_01_10": "alpha*(-eDD00*mU0*nU0**2*nU1 + eDD00*mU1*nU0**3 - 2*eDD01*mU0*nU0*nU1**2 + 2*eDD01*mU1*nU0**2*nU1 - 2*eDD02*mU0*nU0*nU1*nU2 + 2*eDD02*mU1*nU0**2*nU2 - eDD11*mU0*nU1**3 + eDD11*mU1*nU0*nU1**2 - 2*eDD12*mU0*nU1**2*nU2 + 2*eDD12*mU1*nU0*nU1*nU2 - eDD22*mU0*nU1*nU2**2 + eDD22*mU1*nU0*nU2**2)"
+        },
+        "invalid_contraction": {
+          "accepted": false,
+          "exception": "GeneratorError",
+          "message": "illegal bound index 'k' in qUU"
+        },
+        "nonlinear_flux": {
+          "expression": "u*u_dD0",
+          "value_with_centered_field_derivative": 64.0,
+          "whole_flux_centered_value": 80.0
+        }
+      }
+    },
+    "devito": {
+      "system": "devito",
+      "python": "3.12.14",
+      "packages": {
+        "sympy": "1.14.0",
+        "numpy": "2.4.3",
+        "devito": "4.8.23"
+      },
+      "results": {
+        "coordinates": {
+          "cylindrical": {
+            "max_error": 2.220446049250313e-16,
+            "values": [
+              [
+                20.055555555555557,
+                1.777777777777778,
+                6.0
+              ],
+              [
+                1.777777777777778,
+                9.382716049382715,
+                4.444444444444445
+              ],
+              [
+                6.0,
+                4.444444444444445,
+                29.555555555555557
+              ]
+            ],
+            "compiled_c_executed": true
+          },
+          "spherical": {
+            "max_error": 3.552713678800501e-15,
+            "values": [
+              [
+                13.977718882563568,
+                1.777777777777778,
+                2.961081663504006
+              ],
+              [
+                1.777777777777778,
+                6.681455305830717,
+                2.1933938248177802
+              ],
+              [
+                2.961081663504006,
+                2.1933938248177802,
+                8.587078692981994
+              ]
+            ],
+            "compiled_c_executed": true
+          }
+        },
+        "asymmetric_update": {
+          "accepted": true,
+          "rhs_is_symmetric": false,
+          "stored_q01": 1.777777777777778,
+          "stored_q10": 1.777777777777778,
+          "rhs_q01": 2.2777777777777777,
+          "rhs_q10": 1.7777777777777777
+        },
+        "nonlinear_flux": {
+          "expression": "-0.25*u(x - h_x, y, z)**2/h_x + 0.25*u(x + h_x, y, z)**2/h_x",
+          "whole_flux_centered_value": 80.0
+        },
+        "placement_policy": {
+          "accepted_explicit_half_location_to_node": true,
+          "explicit_derivative_expression": "-u(x, y, z)**2/(2*h_x) + u(x + h_x, y, z)**2/(2*h_x)"
+        }
+      }
+    },
+    "opensbli": {
+      "system": "opensbli",
+      "python": "3.9.6",
+      "packages": {
+        "sympy": "1.6.2",
+        "numpy": "1.26.4"
+      },
+      "results": {
+        "component_equations": 9,
+        "coordinates": {
+          "cylindrical": {
+            "max_error": 0.0,
+            "values": [
+              [
+                20.055555555555557,
+                1.7777777777777777,
+                6.0
+              ],
+              [
+                1.7777777777777777,
+                9.382716049382715,
+                4.444444444444445
+              ],
+              [
+                6.0,
+                4.444444444444445,
+                29.555555555555557
+              ]
+            ],
+            "stage": "expanded symbolic equations"
+          },
+          "spherical": {
+            "max_error": 8.881784197001252e-16,
+            "values": [
+              [
+                13.977718882563567,
+                1.7777777777777777,
+                2.9610816635040056
+              ],
+              [
+                1.7777777777777777,
+                6.681455305830721,
+                2.193393824817782
+              ],
+              [
+                2.9610816635040056,
+                2.193393824817782,
+                8.587078692981994
+              ]
+            ],
+            "stage": "expanded symbolic equations"
+          }
+        },
+        "asymmetric_update": {
+          "accepted_as_full_tensor": true,
+          "symmetric_output_declaration_in_this_api": false
+        },
+        "unbalanced_indices": {
+          "accepted": false,
+          "exception": "ValueError",
+          "message": "LHS indices and rhs indices are not consistent"
+        },
+        "nonlinear_flux": {
+          "expression": "[Eq(q0, CD u**2/2 x0), Eq(q1, CD u**2/2 x1), Eq(q2, CD u**2/2 x2)]",
+          "stage": "unexpanded conservative derivative"
+        }
+      }
+    },
+    "nrpyplus": {
+      "system": "nrpyplus",
+      "python": "3.12.14",
+      "packages": {
+        "sympy": "1.14.0",
+        "numpy": "2.4.3"
+      },
+      "results": {
+        "materialized_flux": {
+          "generated_centered_difference": true,
+          "input_grid_function": "F",
+          "required_computation": "fill F = u*u/2 before evaluating its derivative",
+          "kernel": "{\n  /*\n   * NRPy+ Finite Difference Code Generation, Step 1 of 2: Read from main memory and compute finite difference stencils:\n   */\n  const double F_i0m1_i1_i2 = in_gfs[IDX4S(FGF, i0-1,i1,i2)];\n  const double F_i0p1_i1_i2 = in_gfs[IDX4S(FGF, i0+1,i1,i2)];\n  const double FDPart1_Rational_1_2 = 1.0/2.0;\n  const double F_dD0 = FDPart1_Rational_1_2*invdx0*(-F_i0m1_i1_i2 + F_i0p1_i1_i2);\n  /*\n   * NRPy+ Finite Difference Code Generation, Step 2 of 2: Evaluate SymPy expressions and write to main memory:\n   */\n  q = F_dD0;\n}"
+        }
+      }
+    }
+  }
+}

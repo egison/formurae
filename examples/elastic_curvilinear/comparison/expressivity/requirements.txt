@@ -1,0 +1,2 @@
+-r ../requirements-python.txt
+fenics-ufl==2026.1.0

@@ -1,0 +1,47 @@
+dimension 3
+axes x, y, z
+
+field a_i @ collocated
+field b_i @ collocated
+field v~i @ collocated
+field c~i @ collocated
+field M_i_j @ collocated
+field aligned_i @ collocated
+field pairs_i_j @ collocated
+field reduced : scalar @ collocated
+field q~i @ collocated
+field r~i @ collocated
+field S{_i_j} @ collocated
+
+def scalarFlux a b = (a*a + a*b + b*b) / 6
+def plusValues X Y = X + Y
+def indexed f X Y = tensorMap2 f X Y
+def reduceWith combine reduce X Y = contractWith reduce (indexed combine X Y)
+def inner X~a Y_b = withSymbols [i] (X~i . Y_i)
+def symmetricPart T_a_b = withSymbols [i,j] ((T_i_j + T_j_i) / 2)
+
+init:
+  a_i = [| 1, 2, 3 |]_i
+  b_i = [| 4, 5, 6 |]_i
+  v~i = [| 1, 2, 3 |]~i
+  c~i = [| 7, 8, 9 |]~i
+  M_i_j = [| [| 1, 2, 3 |], [| 4, 5, 6 |], [| 7, 8, 9 |] |]_i_j
+  aligned_i = [| 0, 0, 0 |]_i
+  pairs_i_j = [| [| 0, 0, 0 |], [| 0, 0, 0 |], [| 0, 0, 0 |] |]_i_j
+  reduced = 0
+  q~i = [| 0, 0, 0 |]~i
+  r~i = [| 0, 0, 0 |]~i
+  S_i_j = [| [| 0, 0, 0 |], [| 0, 0 |], [| 0 |] |]_i_j
+
+step:
+  a' = a
+  b' = b
+  v' = v
+  c' = c
+  M' = M
+  aligned'_i = indexed scalarFlux a_i b_i
+  pairs'_i_j = indexed scalarFlux a_i b_j
+  reduced' = reduceWith scalarFlux plusValues v~i b_i
+  q'~i = c~i * inner v b
+  r'~j = c~j * inner v b
+  S' = symmetricPart M
