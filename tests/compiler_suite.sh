@@ -30,7 +30,6 @@ for test in \
   pre_ambient_metric \
   pre_emit_remaining_primitives \
   pre_geometry_emit \
-  native \
   post_stencil \
   post_location \
   post_fmr \
@@ -76,9 +75,11 @@ sh tests/formurae_operator_errors.sh
 "$ROOT/tools/run_formurae_normalization.sh" "$EGISON_DIR" -t \
   "$ROOT/tests/formurae_remaining_primitives_lib.egi" >/dev/null
 
+wire_output=$(mktemp "${TMPDIR:-/tmp}/formurae-wire.XXXXXX")
+trap 'rm -f "$wire_output"' EXIT HUP INT TERM
 "$ROOT/tools/run_formurae_normalization.sh" "$EGISON_DIR" \
-  "$ROOT/tests/formurae_feir_lib.egi" \
-  | cabal exec -v0 runghc -- -isrc tests/feir_egison_wire.hs
+  "$ROOT/tests/formurae_feir_lib.egi" > "$wire_output"
+cabal exec -v0 runghc -- -isrc tests/feir_egison_wire.hs < "$wire_output"
 
 sh tests/formurae_opaque_errors.sh
 sh tests/egison_machine_output.sh "$EGISON_DIR"

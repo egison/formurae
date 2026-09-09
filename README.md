@@ -367,29 +367,19 @@ make gallery-assets
 `render.py`が静止画、`render_video.py`が全フレーム共通の色スケールで動画を描画・encodeします。
 誤差曲線、厳密解比較、時空図は検証情報を同時に読める静止図のまま保持します。
 
-円筒・球面を使う三つのテンソル方程式のデモは，
-[異方性弾性体・粘弾性流体・球面の液晶](examples/tensor_demos/README.md)にまとめています．
-英語・日本語のギャラリーには，ボールを押す・管をねじる・液体をかき混ぜる三本の導入動画と，
-円筒と球殻の弾性体を含む四本の詳細動画を掲載しています．
-粘弾性流体は，一つの `.fme` に時間更新・境界値も記述し，
-`formurae run examples/tensor_demos/oldroyd_couette.fme` で C の生成から実行まで行います．
-Poisson 方程式も C で解き，Python は描画に使います．
-弾性体・液晶では生成 C と Python の時間積分を組み合わせ，
-`make tensor-demos` で検証・シミュレーション・描画を順番に再実行できます．
-Python の依存関係と境界条件はリンク先に記載しています．
-
-[テイラー・クエット流れ](examples/taylor_couette/README.md)では，内筒の回転速度を変え，
-三次元の渦の発生と円周方向の変化を比較します．運動方程式は Formurae から生成した C，
-圧力計算と時間積分は Python が担当します．検証，条件を変えた再実行，動画の生成手順を掲載しています．
-
 ## 検証
 
 変更は次の層で検査します。
 
 ```sh
-make compiler-tests
-make all
+EGISON_DIR=$(tools/prepare_elastic_validation.sh)
+make compiler-tests EGISON_DIR="$EGISON_DIR"
+make all EGISON_DIR="$EGISON_DIR"
 ```
+
+現行の検証では Egison の対応版 `1a0298c67cc487dd4a73d96f526f3042b74d6570`
+を使います。準備スクリプトは `.build/` に展開し、隣接する Egison の作業ツリーは変更しません。
+最新の型検査への対応は [移行課題](TODO/egison-type-checker-migration.md) にまとめています。
 
 - FEIR round-trip、malformed input、fingerprint、source diagnostic
 - formurae-pre scope/effect/ambient-binding tests

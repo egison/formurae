@@ -103,36 +103,6 @@ gallery-assets:
 	python3 gallery/tools/render.py
 	python3 gallery/tools/render_video.py
 
-# Couette simulation and validation run entirely in native generated C.
-# The other tensor demos currently include Python time integrators.
-# A single orchestrator keeps all compiler and simulation jobs serial.
-TENSOR_PYTHON ?= python3
-.PHONY: couette-build couette-check couette-simulate couette-render native-tests
-couette-build:
-	tools/tensor_demo_couette.sh build
-couette-check:
-	tools/tensor_demo_couette.sh check
-couette-simulate:
-	tools/tensor_demo_couette.sh simulate
-couette-render:
-	$(TENSOR_PYTHON) tools/tensor_demo_render.py couette
-	$(TENSOR_PYTHON) tools/tensor_demo_recoil.py
-	$(TENSOR_PYTHON) tools/tensor_demo_gallery.py
-native-tests:
-	cabal build exe:formurae-native exe:formurae-pre
-	cabal exec -v0 runghc -- -isrc tests/pre_type_check.hs
-	cabal exec -v0 runghc -- -isrc tests/native.hs
-	sh tests/native_cli.sh
-.PHONY: tensor-demos tensor-demo-checks tensor-demo-simulate tensor-demo-render
-tensor-demos:
-	PYTHONDONTWRITEBYTECODE=1 $(TENSOR_PYTHON) tools/tensor_demos.py all
-tensor-demo-checks:
-	PYTHONDONTWRITEBYTECODE=1 $(TENSOR_PYTHON) tools/tensor_demos.py checks
-tensor-demo-simulate:
-	PYTHONDONTWRITEBYTECODE=1 $(TENSOR_PYTHON) tools/tensor_demos.py simulate
-tensor-demo-render:
-	PYTHONDONTWRITEBYTECODE=1 $(TENSOR_PYTHON) tools/tensor_demos.py render
-
 # Kept out of all: yy_check runs the global x/y/z eigenmodes, so the long
 # regression is deliberately opt-in for local/CI endurance testing.
 yinyang_diffusion-long: yinyang_diffusion
@@ -161,20 +131,3 @@ clean:
 	rm -f examples/*/check examples/*/*.o examples/*/run examples/*/viz
 	rm -f $(foreach e,$(FME_EXAMPLES),examples/$(e)/$(e).c examples/$(e)/$(e).h)
 	rm -f examples/pearson3d/pearson_V.pgm examples/mhd_ot/mhd_rho.pgm
-
-# Taylor-Couette: Formura-generated momentum kernels with a Python pressure
-# projection and time integrator. Each command runs serially.
-.PHONY: taylor-couette taylor-couette-check taylor-couette-simulate taylor-couette-render
-taylor-couette:
-	$(MAKE) taylor-couette-check
-	$(MAKE) taylor-couette-simulate
-	$(MAKE) taylor-couette-render
-taylor-couette-check:
-	PYTHONDONTWRITEBYTECODE=1 $(TENSOR_PYTHON) tools/taylor_couette.py validate
-taylor-couette-simulate:
-	PYTHONDONTWRITEBYTECODE=1 $(TENSOR_PYTHON) tools/taylor_couette.py simulate --reynolds 60 --name re60
-	PYTHONDONTWRITEBYTECODE=1 $(TENSOR_PYTHON) tools/taylor_couette.py simulate --reynolds 150 --name re150
-	PYTHONDONTWRITEBYTECODE=1 $(TENSOR_PYTHON) tools/taylor_couette.py simulate --reynolds 600 --name re600
-	PYTHONDONTWRITEBYTECODE=1 $(TENSOR_PYTHON) tools/taylor_couette_analyze.py
-taylor-couette-render:
-	PYTHONDONTWRITEBYTECODE=1 $(TENSOR_PYTHON) tools/taylor_couette_render.py re60 re150 re600

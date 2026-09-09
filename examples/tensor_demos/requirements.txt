@@ -1,6 +1,0 @@
-numpy>=2.0,<3
-scipy>=1.14,<2
-matplotlib>=3.9,<4
-pillow>=10,<13
-pyvista>=0.48,<0.49
-imageio-ffmpeg>=0.6,<0.7

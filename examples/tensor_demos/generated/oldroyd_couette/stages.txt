@@ -1,6 +1,0 @@
-start
-velocity
-operators
-advance
-finish
-diagnostics

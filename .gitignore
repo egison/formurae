@@ -78,7 +78,6 @@ examples/*/viz
 gallery/data/
 dist-newstyle/
 .build/
-*.native/
 examples/elastic_cylindrical/elastic_cylindrical.c
 examples/elastic_cylindrical/elastic_cylindrical.h
 examples/elastic_spherical/elastic_spherical.c
