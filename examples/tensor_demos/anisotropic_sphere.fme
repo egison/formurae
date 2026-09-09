@@ -1,0 +1,39 @@
+-- Radially reinforced elastic hollow sphere; traction-free radial faces.
+-- The same kernel serves both full-sphere Yin-Yang panels.
+dimension 3
+axes r, θ, φ
+metric g
+metric scale [1, 1 + r, `(1 + r) * sin (π / 6 + θ)]
+boundary r : sbp
+param λ = 2.0
+param μ = 1.0
+param α = 6.0
+param ρ0 = 1.0
+
+def strain V~a = withSymbols [i,j,k] ((g_i_k . ∂_j V~k + g_j_k . ∂_i V~k + (∂/∂ g_i_j coordinates~k) . V~k) / 2)
+def stressRate E_i_j N~a = withSymbols [i,j,k,l] (λ * g~i~j * (g~k~l . E_k_l) + 2 * μ * (g~i~k . g~j~l . E_k_l) + α * N~i * N~j * (N~k . N~l . E_k_l))
+def stressDiv S~a~b = withSymbols [i,j,k,l] ((g~i~k . ∂_j (volume * (g_k_l . S~l~j))) / volume - (g~i~k . (∂/∂ g_j_l coordinates~k) . S~j~l) / 2)
+
+field v~i @ collocated
+field σ{~i~j} @ collocated
+field acceleration~i @ collocated
+field rate{~i~j} @ collocated
+
+init:
+  v~i = [| 0.0, 0.0, 0.0 |]~i
+  σ~i~j = [| [| 0.0, 0.0, 0.0 |], [| 0.0, 0.0 |], [| 0.0 |] |]~i~j
+  acceleration~i = [| 0.0, 0.0, 0.0 |]~i
+  rate~i~j = [| [| 0.0, 0.0, 0.0 |], [| 0.0, 0.0 |], [| 0.0 |] |]~i~j
+
+step:
+  let normal~i = [| 1, 0, 0 |]~i
+  let interior = if r < sbpLoR || r > sbpHiR then 0 else 1
+  local e{_i_j} @ collocated = strain v
+  let tangentTrace = g~2~2 * e_2_2 + g~3~3 * e_3_3
+  -- Compliance-orthogonal projection on both traction-free radial faces.
+  local surfaceE{_i_j} @ collocated = [| [| interior * e_1_1 - (1 - interior) * λ * tangentTrace / (λ + 2 * μ + α), interior * e_1_2, interior * e_1_3 |], [| interior * e_1_2, e_2_2, e_2_3 |], [| interior * e_1_3, e_2_3, e_3_3 |] |]_i_j
+  local force~i @ collocated = stressDiv σ
+  acceleration'~i = force~i / ρ0
+  rate'~i~j = stressRate surfaceE normal~i
+  v'~i = v~i
+  σ'~i~j = σ~i~j

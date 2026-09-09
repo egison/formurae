@@ -1,0 +1,1702 @@
+{
+  "case": "press-ball",
+  "radial": 16,
+  "angular": 48,
+  "dt": 0.0035714285714285713,
+  "release": 1.5,
+  "imposed_displacement": 0.035,
+  "display_magnification": 8,
+  "kernel": {
+    "name": "press_ball",
+    "shape": [
+      17,
+      33,
+      81
+    ],
+    "spacing": [
+      0.0625,
+      0.06544984694978735,
+      0.06544984694978735
+    ],
+    "periodic": [
+      false,
+      false,
+      false
+    ],
+    "fmr": "90f4f4c730f284e3abe0ebff872c58a1ed4bd49c4df629da35b3b450f76a9dad",
+    "formura": "e8d36abc20f6cf251ca805e9bc85ce8b5a8849d97fcf36bf327dc54025c16564",
+    "fields": [
+      "acceleration_up1",
+      "acceleration_up2",
+      "acceleration_up3",
+      "rate_up1_up1",
+      "rate_up1_up2",
+      "rate_up1_up3",
+      "rate_up2_up2",
+      "rate_up2_up3",
+      "rate_up3_up3",
+      "sigma_up1_up1",
+      "sigma_up1_up2",
+      "sigma_up1_up3",
+      "sigma_up2_up2",
+      "sigma_up2_up3",
+      "sigma_up3_up3",
+      "v_up1",
+      "v_up2",
+      "v_up3"
+    ],
+    "generated_c_sha256": "94d6ced9d71318c3ebe759d6b9dd18efddde2a95ac3b4009ece2b7507ee7d12a",
+    "generated_library_sha256": "1cf14b86bebf956987c07e1a1d8e1468c856d767d37eb784fe2b09fb0ba45289"
+  },
+  "frames": [
+    {
+      "time": 0.0,
+      "energy": 0.0,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.0,
+      "pressed_displacement": 0.0,
+      "opposite_displacement": -0.0
+    },
+    {
+      "time": 0.049999999999999996,
+      "energy": 1.2068530157089382e-08,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 1.2323456790123458e-05,
+      "pressed_displacement": -1.2323456790123454e-05,
+      "opposite_displacement": 2.526792270134609e-80
+    },
+    {
+      "time": 0.09999999999999999,
+      "energy": 3.04052188378459e-07,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 9.360987654320989e-05,
+      "pressed_displacement": -9.360987654320986e-05,
+      "opposite_displacement": 1.1042628857757121e-64
+    },
+    {
+      "time": 0.15,
+      "energy": 2.1179030510796573e-06,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.00029959999999999996,
+      "pressed_displacement": -0.00029959999999999986,
+      "opposite_displacement": 1.38904066043191e-56
+    },
+    {
+      "time": 0.19999999999999998,
+      "energy": 8.002438684962665e-06,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.0006725530864197532,
+      "pressed_displacement": -0.0006725530864197531,
+      "opposite_displacement": 5.97382879597002e-51
+    },
+    {
+      "time": 0.25,
+      "energy": 2.1471076188772144e-05,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.0012422839506172837,
+      "pressed_displacement": -0.0012422839506172835,
+      "opposite_displacement": 1.2930442245864196e-46
+    },
+    {
+      "time": 0.3,
+      "energy": 4.686984505917579e-05,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.0020272,
+      "pressed_displacement": -0.002027199999999999,
+      "opposite_displacement": 4.341320317456521e-43
+    },
+    {
+      "time": 0.35,
+      "energy": 8.894528441405006e-05,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.0030353382716049376,
+      "pressed_displacement": -0.0030353382716049367,
+      "opposite_displacement": 4.076318950041069e-40
+    },
+    {
+      "time": 0.39999999999999997,
+      "energy": 0.0001516636291913355,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.004265402469135803,
+      "pressed_displacement": -0.004265402469135802,
+      "opposite_displacement": 1.518920809688524e-37
+    },
+    {
+      "time": 0.45,
+      "energy": 0.0002376755562838966,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.005707799999999999,
+      "pressed_displacement": -0.005707799999999998,
+      "opposite_displacement": 2.8126834365737444e-35
+    },
+    {
+      "time": 0.5,
+      "energy": 0.00034863267315027904,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.007345679012345678,
+      "pressed_displacement": -0.0073456790123456765,
+      "opposite_displacement": 3.0150374213784386e-33
+    },
+    {
+      "time": 0.5499999999999999,
+      "energy": 0.00048470842183341654,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.009155965432098763,
+      "pressed_displacement": -0.009155965432098762,
+      "opposite_displacement": 2.0836138866008517e-31
+    },
+    {
+      "time": 0.6,
+      "energy": 0.0006437078523813441,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.011110400000000003,
+      "pressed_displacement": -0.011110400000000001,
+      "opposite_displacement": 1.0041906095774261e-29
+    },
+    {
+      "time": 0.65,
+      "energy": 0.0008215856144625104,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.013176575308641978,
+      "pressed_displacement": -0.013176575308641974,
+      "opposite_displacement": 3.5806218347634694e-28
+    },
+    {
+      "time": 0.7,
+      "energy": 0.0010134884906873671,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.015318972839506171,
+      "pressed_displacement": -0.015318972839506168,
+      "opposite_displacement": 9.887907545016584e-27
+    },
+    {
+      "time": 0.75,
+      "energy": 0.0012135549152469715,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.0175,
+      "pressed_displacement": -0.017499999999999998,
+      "opposite_displacement": 2.1928068326261538e-25
+    },
+    {
+      "time": 0.7999999999999999,
+      "energy": 0.0014147131743456982,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.019681027160493827,
+      "pressed_displacement": -0.019681027160493823,
+      "opposite_displacement": 4.021499924423472e-24
+    },
+    {
+      "time": 0.85,
+      "energy": 0.0016099129701892796,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.021823424691358017,
+      "pressed_displacement": -0.021823424691358013,
+      "opposite_displacement": 6.248198386826408e-23
+    },
+    {
+      "time": 0.9,
+      "energy": 0.0017931636273766309,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.02388959999999999,
+      "pressed_displacement": -0.023889599999999987,
+      "opposite_displacement": 8.391917271376716e-22
+    },
+    {
+      "time": 0.95,
+      "energy": 0.001959173578229738,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.025844034567901228,
+      "pressed_displacement": -0.025844034567901224,
+      "opposite_displacement": 9.911070818049758e-21
+    },
+    {
+      "time": 1.0,
+      "energy": 0.002103213072753486,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.027654320987654316,
+      "pressed_displacement": -0.02765432098765431,
+      "opposite_displacement": 1.0443985968369642e-19
+    },
+    {
+      "time": 1.05,
+      "energy": 0.002221993083696672,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.02929219999999999,
+      "pressed_displacement": -0.029292199999999984,
+      "opposite_displacement": 9.943025695368746e-19
+    },
+    {
+      "time": 1.0999999999999999,
+      "energy": 0.0023141469060503923,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.03073459753086419,
+      "pressed_displacement": -0.030734597530864185,
+      "opposite_displacement": 8.642810870878464e-18
+    },
+    {
+      "time": 1.15,
+      "energy": 0.0023800726427067992,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.03196466172839507,
+      "pressed_displacement": -0.031964661728395065,
+      "opposite_displacement": 6.918262355004942e-17
+    },
+    {
+      "time": 1.2,
+      "energy": 0.0024222506621564715,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.03307197404980974,
+      "pressed_displacement": -0.03297280000000003,
+      "opposite_displacement": 5.132764106232697e-16
+    },
+    {
+      "time": 1.25,
+      "energy": 0.0024455217432054034,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.03400976848688021,
+      "pressed_displacement": -0.03375771604938272,
+      "opposite_displacement": 3.54463879584048e-15
+    },
+    {
+      "time": 1.3,
+      "energy": 0.00245601463297443,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.034699494670953596,
+      "pressed_displacement": -0.034327446913580244,
+      "opposite_displacement": 2.2835486297005956e-14
+    },
+    {
+      "time": 1.3499999999999999,
+      "energy": 0.0024593298278695903,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.03524402125603589,
+      "pressed_displacement": -0.03470039999999998,
+      "opposite_displacement": 1.3730286737747166e-13
+    },
+    {
+      "time": 1.4,
+      "energy": 0.002459461225080282,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.035604302155690194,
+      "pressed_displacement": -0.03490639012345679,
+      "opposite_displacement": 7.700286737590839e-13
+    },
+    {
+      "time": 1.45,
+      "energy": 0.0024586603895170346,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.035938415077300175,
+      "pressed_displacement": -0.034987676543209854,
+      "opposite_displacement": 4.02347900086251e-12
+    },
+    {
+      "time": 1.5,
+      "energy": 0.0024372538285761264,
+      "relative_free_energy": 0.0,
+      "constraint_error": 0.0,
+      "max_displacement": 0.03615279805152898,
+      "pressed_displacement": -0.034999999999999996,
+      "opposite_displacement": 1.9564955764445253e-11
+    },
+    {
+      "time": 1.55,
+      "energy": 0.002436747474588668,
+      "relative_free_energy": -0.00020775595119471024,
+      "constraint_error": 0.0,
+      "max_displacement": 0.03701568454164016,
+      "pressed_displacement": -0.034503200751336026,
+      "opposite_displacement": 8.847075643580927e-11
+    },
+    {
+      "time": 1.5999999999999999,
+      "energy": 0.0024362510788063538,
+      "relative_free_energy": -0.00041142607225219674,
+      "constraint_error": 0.0,
+      "max_displacement": 0.03735450163311892,
+      "pressed_displacement": -0.033435968706754554,
+      "opposite_displacement": 3.719055811552109e-10
+    },
+    {
+      "time": 1.65,
+      "energy": 0.0024359189539995057,
+      "relative_free_energy": -0.0005476961656474266,
+      "constraint_error": 0.0,
+      "max_displacement": 0.03715377489427242,
+      "pressed_displacement": -0.03245730608715201,
+      "opposite_displacement": 1.4536202389719589e-09
+    },
+    {
+      "time": 1.7,
+      "energy": 0.0024357143010209047,
+      "relative_free_energy": -0.0006316648422791671,
+      "constraint_error": 0.0,
+      "max_displacement": 0.03643174851012499,
+      "pressed_displacement": -0.03156744720911441,
+      "opposite_displacement": 5.285581921450803e-09
+    },
+    {
+      "time": 1.75,
+      "energy": 0.0024354515005691295,
+      "relative_free_energy": -0.000739491301999462,
+      "constraint_error": 0.0,
+      "max_displacement": 0.03523518455499095,
+      "pressed_displacement": -0.030394289701116725,
+      "opposite_displacement": 1.7893911902909573e-08
+    },
+    {
+      "time": 1.8,
+      "energy": 0.0024350251383920534,
+      "relative_free_energy": -0.0009144267855658583,
+      "constraint_error": 0.0,
+      "max_displacement": 0.03379305506225459,
+      "pressed_displacement": -0.028944944149243385,
+      "opposite_displacement": 5.645306790010403e-08
+    },
+    {
+      "time": 1.8499999999999999,
+      "energy": 0.002434458011356995,
+      "relative_free_energy": -0.0011471177873849658,
+      "constraint_error": 0.0,
+      "max_displacement": 0.03204699315496242,
+      "pressed_displacement": -0.027456930479126153,
+      "opposite_displacement": 1.6612864198858778e-07
+    },
+    {
+      "time": 1.9,
+      "energy": 0.0024337617730388252,
+      "relative_free_energy": -0.0014327828707695334,
+      "constraint_error": 0.0,
+      "max_displacement": 0.029973208462001213,
+      "pressed_displacement": -0.025848467837134226,
+      "opposite_displacement": 4.5641279280295363e-07
+    },
+    {
+      "time": 1.95,
+      "energy": 0.0024328567123926073,
+      "relative_free_energy": -0.0018041273058899687,
+      "constraint_error": 0.0,
+      "max_displacement": 0.02789560569899924,
+      "pressed_displacement": -0.023888026472944423,
+      "opposite_displacement": 1.1715921558222595e-06
+    },
+    {
+      "time": 2.0,
+      "energy": 0.0024316663801963656,
+      "relative_free_energy": -0.0022925180439762327,
+      "constraint_error": 0.0,
+      "max_displacement": 0.026100446373961354,
+      "pressed_displacement": -0.02164592670550447,
+      "opposite_displacement": 2.812074056879538e-06
+    },
+    {
+      "time": 2.05,
+      "energy": 0.00243027449744464,
+      "relative_free_energy": -0.002863604541166742,
+      "constraint_error": 0.0,
+      "max_displacement": 0.023922430234391542,
+      "pressed_displacement": -0.019315928346243894,
+      "opposite_displacement": 6.3159325858306605e-06
+    },
+    {
+      "time": 2.1,
+      "energy": 0.0024289587481118643,
+      "relative_free_energy": -0.0034034536604290455,
+      "constraint_error": 0.0,
+      "max_displacement": 0.02180379236426489,
+      "pressed_displacement": -0.016854593310390298,
+      "opposite_displacement": 1.3285403799066012e-05
+    },
+    {
+      "time": 2.15,
+      "energy": 0.002427861422457019,
+      "relative_free_energy": -0.0038536840147646023,
+      "constraint_error": 0.0,
+      "max_displacement": 0.019624556199880017,
+      "pressed_displacement": -0.01419308946948359,
+      "opposite_displacement": 2.6198725278177548e-05
+    },
+    {
+      "time": 2.1999999999999997,
+      "energy": 0.0024267997401948025,
+      "relative_free_energy": -0.004289289961822096,
+      "constraint_error": 0.0,
+      "max_displacement": 0.018449618442845494,
+      "pressed_displacement": -0.011543245829570076,
+      "opposite_displacement": 4.849606104981606e-05
+    },
+    {
+      "time": 2.25,
+      "energy": 0.0024256629197070426,
+      "relative_free_energy": -0.004755724961094998,
+      "constraint_error": 0.0,
+      "max_displacement": 0.018278059970077615,
+      "pressed_displacement": -0.009161337251981502,
+      "opposite_displacement": 8.440076523242463e-05
+    },
+    {
+      "time": 2.3,
+      "energy": 0.002424622255504619,
+      "relative_free_energy": -0.00518270724345804,
+      "constraint_error": 0.0,
+      "max_displacement": 0.017123593575605296,
+      "pressed_displacement": -0.007066170918053257,
+      "opposite_displacement": 0.00013837294054888576
+    },
+    {
+      "time": 2.35,
+      "energy": 0.0024238345102540293,
+      "relative_free_energy": -0.0055059174242581,
+      "constraint_error": 0.0,
+      "max_displacement": 0.016652472330595726,
+      "pressed_displacement": -0.005238829054059217,
+      "opposite_displacement": 0.00021420855644018103
+    },
+    {
+      "time": 2.4,
+      "energy": 0.0024233417667197223,
+      "relative_free_energy": -0.005708089035819319,
+      "constraint_error": 0.0,
+      "max_displacement": 0.016664829716576665,
+      "pressed_displacement": -0.003801023714802245,
+      "opposite_displacement": 0.0003139611810470711
+    },
+    {
+      "time": 2.4499999999999997,
+      "energy": 0.0024230859820766996,
+      "relative_free_energy": -0.005813036924309123,
+      "constraint_error": 0.0,
+      "max_displacement": 0.016707547674266923,
+      "pressed_displacement": -0.002776087252837785,
+      "opposite_displacement": 0.0004369925304324991
+    },
+    {
+      "time": 2.5,
+      "energy": 0.0024231285872237844,
+      "relative_free_energy": -0.00579555612416216,
+      "constraint_error": 0.0,
+      "max_displacement": 0.01646535755764649,
+      "pressed_displacement": -0.001985110942946041,
+      "opposite_displacement": 0.0005794684057596179
+    },
+    {
+      "time": 2.55,
+      "energy": 0.0024236172265687866,
+      "relative_free_energy": -0.005595068452639018,
+      "constraint_error": 0.0,
+      "max_displacement": 0.01610609227058849,
+      "pressed_displacement": -0.00138035185733569,
+      "opposite_displacement": 0.0007344885678586589
+    },
+    {
+      "time": 2.6,
+      "energy": 0.0024244094178711593,
+      "relative_free_energy": -0.0052700340663618395,
+      "constraint_error": 0.0,
+      "max_displacement": 0.015763334170890035,
+      "pressed_displacement": -0.001192371255832111,
+      "opposite_displacement": 0.0008928454934917619
+    },
+    {
+      "time": 2.65,
+      "energy": 0.002425005714952839,
+      "relative_free_energy": -0.005025374657198878,
+      "constraint_error": 0.0,
+      "max_displacement": 0.015431841925233242,
+      "pressed_displacement": -0.0015844481336118998,
+      "opposite_displacement": 0.0010442605767062498
+    },
+    {
+      "time": 2.6999999999999997,
+      "energy": 0.002425155315063302,
+      "relative_free_energy": -0.00496399405387038,
+      "constraint_error": 0.0,
+      "max_displacement": 0.014880832246538992,
+      "pressed_displacement": -0.00240514523142813,
+      "opposite_displacement": 0.0011788980176808226
+    },
+    {
+      "time": 2.75,
+      "energy": 0.00242516276113837,
+      "relative_free_energy": -0.004960938945296589,
+      "constraint_error": 0.0,
+      "max_displacement": 0.01446389024432237,
+      "pressed_displacement": -0.003364297037373448,
+      "opposite_displacement": 0.0012889464413955206
+    },
+    {
+      "time": 2.8,
+      "energy": 0.002425222898107935,
+      "relative_free_energy": -0.004936264876120866,
+      "constraint_error": 0.0,
+      "max_displacement": 0.014156617144424689,
+      "pressed_displacement": -0.004247237773387251,
+      "opposite_displacement": 0.001369997321513753
+    },
+    {
+      "time": 2.85,
+      "energy": 0.0024252089169095247,
+      "relative_free_energy": -0.004942001331735946,
+      "constraint_error": 0.0,
+      "max_displacement": 0.013824561289499796,
+      "pressed_displacement": -0.005005608070152422,
+      "opposite_displacement": 0.0014218611742135357
+    },
+    {
+      "time": 2.9,
+      "energy": 0.0024250289228812103,
+      "relative_free_energy": -0.0050158524941401605,
+      "constraint_error": 0.0,
+      "max_displacement": 0.013749838303663059,
+      "pressed_displacement": -0.005866738503052826,
+      "opposite_displacement": 0.0014484984413806158
+    },
+    {
+      "time": 2.9499999999999997,
+      "energy": 0.0024247587094693426,
+      "relative_free_energy": -0.005126720475431057,
+      "constraint_error": 0.0,
+      "max_displacement": 0.013616509200934095,
+      "pressed_displacement": -0.007177054440668951,
+      "opposite_displacement": 0.0014570055497483525
+    },
+    {
+      "time": 3.0,
+      "energy": 0.0024244953457697193,
+      "relative_free_energy": -0.005234778034531096,
+      "constraint_error": 0.0,
+      "max_displacement": 0.013359637448533352,
+      "pressed_displacement": -0.008838320095469757,
+      "opposite_displacement": 0.0014559786280559906
+    },
+    {
+      "time": 3.05,
+      "energy": 0.002424238925397689,
+      "relative_free_energy": -0.005339986761264348,
+      "constraint_error": 0.0,
+      "max_displacement": 0.013081037595807775,
+      "pressed_displacement": -0.010165795948566207,
+      "opposite_displacement": 0.0014538267082202369
+    },
+    {
+      "time": 3.1,
+      "energy": 0.002423884665127615,
+      "relative_free_energy": -0.005485338987577526,
+      "constraint_error": 0.0,
+      "max_displacement": 0.013136993057574077,
+      "pressed_displacement": -0.010679259455499607,
+      "opposite_displacement": 0.001457560442343199
+    },
+    {
+      "time": 3.15,
+      "energy": 0.002423382196105571,
+      "relative_free_energy": -0.00569150094582449,
+      "constraint_error": 0.0,
+      "max_displacement": 0.013220359427349426,
+      "pressed_displacement": -0.010694914088684471,
+      "opposite_displacement": 0.001472296430931453
+    },
+    {
+      "time": 3.1999999999999997,
+      "energy": 0.002422795668896737,
+      "relative_free_energy": -0.005932151797187202,
+      "constraint_error": 0.0,
+      "max_displacement": 0.013210254772306779,
+      "pressed_displacement": -0.010677764315580814,
+      "opposite_displacement": 0.0015014155205575125
+    },
+    {
+      "time": 3.25,
+      "energy": 0.0024222551469771036,
+      "relative_free_energy": -0.006153926777411334,
+      "constraint_error": 0.0,
+      "max_displacement": 0.01319208242363005,
+      "pressed_displacement": -0.01041940302281264,
+      "opposite_displacement": 0.0015472468504968404
+    },
+    {
+      "time": 3.3,
+      "energy": 0.002421853656953183,
+      "relative_free_energy": -0.00631865727007197,
+      "constraint_error": 0.0,
+      "max_displacement": 0.01323580802402452,
+      "pressed_displacement": -0.009460179282269715,
+      "opposite_displacement": 0.001612351854509287
+    },
+    {
+      "time": 3.35,
+      "energy": 0.0024215715454655824,
+      "relative_free_energy": -0.006434407006227105,
+      "constraint_error": 0.0,
+      "max_displacement": 0.013456971131980605,
+      "pressed_displacement": -0.007962835564540915,
+      "opposite_displacement": 0.0017015521021605685
+    },
+    {
+      "time": 3.4,
+      "energy": 0.002421345240864523,
+      "relative_free_energy": -0.006527259296951304,
+      "constraint_error": 0.0,
+      "max_displacement": 0.013851448823057772,
+      "pressed_displacement": -0.006490678841621122,
+      "opposite_displacement": 0.0018242167684339263
+    },
+    {
+      "time": 3.4499999999999997,
+      "energy": 0.002421134145813291,
+      "relative_free_energy": -0.006613871142117755,
+      "constraint_error": 0.0,
+      "max_displacement": 0.014227447481259217,
+      "pressed_displacement": -0.005190075898155174,
+      "opposite_displacement": 0.0019950982910108754
+    },
+    {
+      "time": 3.5,
+      "energy": 0.0024209800829389913,
+      "relative_free_energy": -0.00667708280784296,
+      "constraint_error": 0.0,
+      "max_displacement": 0.014490681244020077,
+      "pressed_displacement": -0.0038559707417176693,
+      "opposite_displacement": 0.002231341245131292
+    },
+    {
+      "time": 3.55,
+      "energy": 0.0024210088379131856,
+      "relative_free_energy": -0.006665284703822327,
+      "constraint_error": 0.0,
+      "max_displacement": 0.014680947602381955,
+      "pressed_displacement": -0.00261224935207097,
+      "opposite_displacement": 0.002544520773427289
+    },
+    {
+      "time": 3.6,
+      "energy": 0.0024213203082982604,
+      "relative_free_energy": -0.006537489075224667,
+      "constraint_error": 0.0,
+      "max_displacement": 0.014828069879697267,
+      "pressed_displacement": -0.0019111741217573352,
+      "opposite_displacement": 0.002929764226871973
+    },
+    {
+      "time": 3.65,
+      "energy": 0.0024218987893917673,
+      "relative_free_energy": -0.006300139527662507,
+      "constraint_error": 0.0,
+      "max_displacement": 0.014959631304460541,
+      "pressed_displacement": -0.0019452960261486458,
+      "opposite_displacement": 0.0033575114738506433
+    },
+    {
+      "time": 3.6999999999999997,
+      "energy": 0.0024226587056985077,
+      "relative_free_energy": -0.005988347502625668,
+      "constraint_error": 0.0,
+      "max_displacement": 0.015098542087257106,
+      "pressed_displacement": -0.0025001806827360433,
+      "opposite_displacement": 0.0037746088778114347
+    },
+    {
+      "time": 3.75,
+      "energy": 0.002423505131549366,
+      "relative_free_energy": -0.00564106079783766,
+      "constraint_error": 0.0,
+      "max_displacement": 0.015225945427350968,
+      "pressed_displacement": -0.0032954516226182755,
+      "opposite_displacement": 0.004117979795995705
+    },
+    {
+      "time": 3.8,
+      "energy": 0.002424343808416928,
+      "relative_free_energy": -0.005296953484217437,
+      "constraint_error": 0.0,
+      "max_displacement": 0.015224913716919117,
+      "pressed_displacement": -0.004181195455844735,
+      "opposite_displacement": 0.0043365151618955265
+    },
+    {
+      "time": 3.85,
+      "energy": 0.002425083098763049,
+      "relative_free_energy": -0.004993624246428019,
+      "constraint_error": 0.0,
+      "max_displacement": 0.015247011002173438,
+      "pressed_displacement": -0.0051238943261701165,
+      "opposite_displacement": 0.00440995356068923
+    },
+    {
+      "time": 3.9,
+      "energy": 0.002425687520306168,
+      "relative_free_energy": -0.00474563138822337,
+      "constraint_error": 0.0,
+      "max_displacement": 0.015211176627224605,
+      "pressed_displacement": -0.006169194450941973,
+      "opposite_displacement": 0.004354106335202424
+    },
+    {
+      "time": 3.9499999999999997,
+      "energy": 0.0024261622359325963,
+      "relative_free_energy": -0.004550856588462104,
+      "constraint_error": 0.0,
+      "max_displacement": 0.015110899156402343,
+      "pressed_displacement": -0.007310673105905786,
+      "opposite_displacement": 0.004211117707845405
+    },
+    {
+      "time": 4.0,
+      "energy": 0.0024265547894715936,
+      "relative_free_energy": -0.004389792716330776,
+      "constraint_error": 0.0,
+      "max_displacement": 0.01503707027387119,
+      "pressed_displacement": -0.008412897175930979,
+      "opposite_displacement": 0.004033588111351407
+    },
+    {
+      "time": 4.05,
+      "energy": 0.0024269889071309916,
+      "relative_free_energy": -0.004211675175060381,
+      "constraint_error": 0.0,
+      "max_displacement": 0.014965868287693352,
+      "pressed_displacement": -0.009389318453385519,
+      "opposite_displacement": 0.003872528315986543
+    },
+    {
+      "time": 4.1,
+      "energy": 0.002427561238711234,
+      "relative_free_energy": -0.003976848759554508,
+      "constraint_error": 0.0,
+      "max_displacement": 0.014994143037524901,
+      "pressed_displacement": -0.010248863482574075,
+      "opposite_displacement": 0.0037710315323203846
+    },
+    {
+      "time": 4.1499999999999995,
+      "energy": 0.002428256916432834,
+      "relative_free_energy": -0.003691413687735845,
+      "constraint_error": 0.0,
+      "max_displacement": 0.014995916127886935,
+      "pressed_displacement": -0.010824772242168873,
+      "opposite_displacement": 0.0037582148211335914
+    },
+    {
+      "time": 4.2,
+      "energy": 0.002429011162521839,
+      "relative_free_energy": -0.003381948140831481,
+      "constraint_error": 0.0,
+      "max_displacement": 0.015186538252050904,
+      "pressed_displacement": -0.0108623563489007,
+      "opposite_displacement": 0.0038402118322777307
+    },
+    {
+      "time": 4.25,
+      "energy": 0.0024297258522280934,
+      "relative_free_energy": -0.003088712492629875,
+      "constraint_error": 0.0,
+      "max_displacement": 0.015488749577240389,
+      "pressed_displacement": -0.010546557508399952,
+      "opposite_displacement": 0.003994837183195184
+    },
+    {
+      "time": 4.3,
+      "energy": 0.002430256177811142,
+      "relative_free_energy": -0.0028711210473603144,
+      "constraint_error": 0.0,
+      "max_displacement": 0.015911654266071044,
+      "pressed_displacement": -0.010373126016127924,
+      "opposite_displacement": 0.0041822634887516575
+    },
+    {
+      "time": 4.35,
+      "energy": 0.0024305295666463933,
+      "relative_free_energy": -0.0027589501966898133,
+      "constraint_error": 0.0,
+      "max_displacement": 0.016441651252020826,
+      "pressed_displacement": -0.010316832158418757,
+      "opposite_displacement": 0.0043748655870141555
+    },
+    {
+      "time": 4.3999999999999995,
+      "energy": 0.0024306393294975066,
+      "relative_free_energy": -0.0027139147351279425,
+      "constraint_error": 0.0,
+      "max_displacement": 0.016990483446967467,
+      "pressed_displacement": -0.009832304812983764,
+      "opposite_displacement": 0.004589578914797914
+    },
+    {
+      "time": 4.45,
+      "energy": 0.0024307306659900733,
+      "relative_free_energy": -0.002676439568817579,
+      "constraint_error": 0.0,
+      "max_displacement": 0.017573680136767703,
+      "pressed_displacement": -0.008850886401285696,
+      "opposite_displacement": 0.004896016798980308
+    },
+    {
+      "time": 4.5,
+      "energy": 0.00243084178794798,
+      "relative_free_energy": -0.002630846468663739,
+      "constraint_error": 0.0,
+      "max_displacement": 0.01812192905252735,
+      "pressed_displacement": -0.007978127055857584,
+      "opposite_displacement": 0.005387121129983152
+    },
+    {
+      "time": 4.55,
+      "energy": 0.0024309028624487153,
+      "relative_free_energy": -0.002605787732466669,
+      "constraint_error": 0.0,
+      "max_displacement": 0.018582452358625733,
+      "pressed_displacement": -0.007557329885538121,
+      "opposite_displacement": 0.006126207424851727
+    },
+    {
+      "time": 4.6,
+      "energy": 0.0024308239745002734,
+      "relative_free_energy": -0.002638155287916555,
+      "constraint_error": 0.0,
+      "max_displacement": 0.018987971670885482,
+      "pressed_displacement": -0.007367927820256266,
+      "opposite_displacement": 0.007106060831489495
+    },
+    {
+      "time": 4.6499999999999995,
+      "energy": 0.002430582146078283,
+      "relative_free_energy": -0.002737376968955818,
+      "constraint_error": 0.0,
+      "max_displacement": 0.01935971417643667,
+      "pressed_displacement": -0.007324000175792413,
+      "opposite_displacement": 0.008258893757862104
+    },
+    {
+      "time": 4.7,
+      "energy": 0.0024302461434680496,
+      "relative_free_energy": -0.002875238116733514,
+      "constraint_error": 0.0,
+      "max_displacement": 0.01977793415351823,
+      "pressed_displacement": -0.007616374046362789,
+      "opposite_displacement": 0.009522550221538152
+    },
+    {
+      "time": 4.75,
+      "energy": 0.0024298888971382897,
+      "relative_free_energy": -0.0030218155169088323,
+      "constraint_error": 0.0,
+      "max_displacement": 0.020319824514932982,
+      "pressed_displacement": -0.008133538868966525,
+      "opposite_displacement": 0.010901939782257163
+    },
+    {
+      "time": 4.8,
+      "energy": 0.002429491819471663,
+      "relative_free_energy": -0.0031847356288688955,
+      "constraint_error": 0.0,
+      "max_displacement": 0.020786612350590414,
+      "pressed_displacement": -0.008535021446381968,
+      "opposite_displacement": 0.012442453509335165
+    },
+    {
+      "time": 4.85,
+      "energy": 0.0024290059296398106,
+      "relative_free_energy": -0.003384095181064639,
+      "constraint_error": 0.0,
+      "max_displacement": 0.021262397088115587,
+      "pressed_displacement": -0.008849654950829705,
+      "opposite_displacement": 0.014129257783676987
+    },
+    {
+      "time": 4.8999999999999995,
+      "energy": 0.002428469143710188,
+      "relative_free_energy": -0.0036043372926285455,
+      "constraint_error": 0.0,
+      "max_displacement": 0.021791908574183217,
+      "pressed_displacement": -0.009318338167289135,
+      "opposite_displacement": 0.015847596828151164
+    },
+    {
+      "time": 4.95,
+      "energy": 0.0024280777509857777,
+      "relative_free_energy": -0.003764924885033216,
+      "constraint_error": 0.0,
+      "max_displacement": 0.02236189822360932,
+      "pressed_displacement": -0.009833053364850982,
+      "opposite_displacement": 0.01748609846565401
+    },
+    {
+      "time": 5.0,
+      "energy": 0.002428021834016871,
+      "relative_free_energy": -0.0037878674970217574,
+      "constraint_error": 0.0,
+      "max_displacement": 0.022865450457410605,
+      "pressed_displacement": -0.010156038376194896,
+      "opposite_displacement": 0.019061965760467658
+    },
+    {
+      "time": 5.05,
+      "energy": 0.002428320482523595,
+      "relative_free_energy": -0.00366533265751412,
+      "constraint_error": 0.0,
+      "max_displacement": 0.02382134026608261,
+      "pressed_displacement": -0.010406631082377403,
+      "opposite_displacement": 0.020689658918561768
+    },
+    {
+      "time": 5.1,
+      "energy": 0.002428839499768483,
+      "relative_free_energy": -0.003452380999052207,
+      "constraint_error": 0.0,
+      "max_displacement": 0.024891234242737068,
+      "pressed_displacement": -0.010752442057651015,
+      "opposite_displacement": 0.02242908463126673
+    },
+    {
+      "time": 5.1499999999999995,
+      "energy": 0.002429331878992344,
+      "relative_free_energy": -0.003250358863282843,
+      "constraint_error": 0.0,
+      "max_displacement": 0.026185314965034543,
+      "pressed_displacement": -0.010954911215505115,
+      "opposite_displacement": 0.024230493334375106
+    },
+    {
+      "time": 5.2,
+      "energy": 0.002429627928939866,
+      "relative_free_energy": -0.003128890207022672,
+      "constraint_error": 0.0,
+      "max_displacement": 0.02768738895045065,
+      "pressed_displacement": -0.010753912460312076,
+      "opposite_displacement": 0.02604406922925732
+    },
+    {
+      "time": 5.25,
+      "energy": 0.0024298485965017973,
+      "relative_free_energy": -0.003038350781319865,
+      "constraint_error": 0.0,
+      "max_displacement": 0.029540517749872288,
+      "pressed_displacement": -0.010368548542768205,
+      "opposite_displacement": 0.027898588726054323
+    },
+    {
+      "time": 5.3,
+      "energy": 0.0024302586296907035,
+      "relative_free_energy": -0.002870115046453625,
+      "constraint_error": 0.0,
+      "max_displacement": 0.03146127700453818,
+      "pressed_displacement": -0.01014648909317213,
+      "opposite_displacement": 0.0298079110464588
+    },
+    {
+      "time": 5.35,
+      "energy": 0.0024310426354698504,
+      "relative_free_energy": -0.0025484391627378367,
+      "constraint_error": 0.0,
+      "max_displacement": 0.03361237012813016,
+      "pressed_displacement": -0.010031562963546261,
+      "opposite_displacement": 0.03166868467826059
+    },
+    {
+      "time": 5.3999999999999995,
+      "energy": 0.0024322344398851926,
+      "relative_free_energy": -0.0020594443763234382,
+      "constraint_error": 0.0,
+      "max_displacement": 0.035881091310396344,
+      "pressed_displacement": -0.009794273839169695,
+      "opposite_displacement": 0.033348845241536106
+    },
+    {
+      "time": 5.45,
+      "energy": 0.0024337070693538475,
+      "relative_free_energy": -0.0014552276749734139,
+      "constraint_error": 0.0,
+      "max_displacement": 0.03799951514633957,
+      "pressed_displacement": -0.009505728043168973,
+      "opposite_displacement": 0.03483478114102784
+    },
+    {
+      "time": 5.5,
+      "energy": 0.002435305886063361,
+      "relative_free_energy": -0.0007992366203003476,
+      "constraint_error": 0.0,
+      "max_displacement": 0.03984309560852037,
+      "pressed_displacement": -0.00939266665279357,
+      "opposite_displacement": 0.03618218047663039
+    },
+    {
+      "time": 5.55,
+      "energy": 0.0024370205794751964,
+      "relative_free_energy": -9.57016040739056e-05,
+      "constraint_error": 0.0,
+      "max_displacement": 0.041759040481006024,
+      "pressed_displacement": -0.009441360298099707,
+      "opposite_displacement": 0.03737121199689234
+    },
+    {
+      "time": 5.6,
+      "energy": 0.002438860913675245,
+      "relative_free_energy": 0.0006593835571313544,
+      "constraint_error": 0.0,
+      "max_displacement": 0.04356456885610813,
+      "pressed_displacement": -0.009502032161829526,
+      "opposite_displacement": 0.03836986185354639
+    },
+    {
+      "time": 5.6499999999999995,
+      "energy": 0.0024407332526169643,
+      "relative_free_energy": 0.001427600194958245,
+      "constraint_error": 0.0,
+      "max_displacement": 0.044824542491859756,
+      "pressed_displacement": -0.009620872431055144,
+      "opposite_displacement": 0.03931334127390163
+    },
+    {
+      "time": 5.7,
+      "energy": 0.002442491481621097,
+      "relative_free_energy": 0.002148997770999639,
+      "constraint_error": 0.0,
+      "max_displacement": 0.045750998468387684,
+      "pressed_displacement": -0.009921452659004962,
+      "opposite_displacement": 0.04040675468182308
+    },
+    {
+      "time": 5.75,
+      "energy": 0.0024440041712132372,
+      "relative_free_energy": 0.0027696510547916553,
+      "constraint_error": 0.0,
+      "max_displacement": 0.046689007853623475,
+      "pressed_displacement": -0.010263039341615841,
+      "opposite_displacement": 0.041606043403860475
+    },
+    {
+      "time": 5.8,
+      "energy": 0.0024452013169535885,
+      "relative_free_energy": 0.003260837375360648,
+      "constraint_error": 0.0,
+      "max_displacement": 0.04702156197362847,
+      "pressed_displacement": -0.010365090454985954,
+      "opposite_displacement": 0.04259343109358131
+    },
+    {
+      "time": 5.85,
+      "energy": 0.00244598018446459,
+      "relative_free_energy": 0.003580405038715817,
+      "constraint_error": 0.0,
+      "max_displacement": 0.04687233529382444,
+      "pressed_displacement": -0.01023638064572356,
+      "opposite_displacement": 0.04314456077107462
+    },
+    {
+      "time": 5.8999999999999995,
+      "energy": 0.0024461911403308415,
+      "relative_free_energy": 0.0036669597765843776,
+      "constraint_error": 0.0,
+      "max_displacement": 0.04701900796021434,
+      "pressed_displacement": -0.010157953765747423,
+      "opposite_displacement": 0.04335749918439771
+    },
+    {
+      "time": 5.95,
+      "energy": 0.0024458431750959907,
+      "relative_free_energy": 0.003524190389674109,
+      "constraint_error": 0.0,
+      "max_displacement": 0.046728648195256225,
+      "pressed_displacement": -0.010240708184354921,
+      "opposite_displacement": 0.043455597814218615
+    },
+    {
+      "time": 6.0,
+      "energy": 0.002445154304501651,
+      "relative_free_energy": 0.003241548267518768,
+      "constraint_error": 0.0,
+      "max_displacement": 0.04613992256334027,
+      "pressed_displacement": -0.010315448845069563,
+      "opposite_displacement": 0.043509083171953844
+    },
+    {
+      "time": 6.05,
+      "energy": 0.0024443523544593494,
+      "relative_free_energy": 0.0029125098912532454,
+      "constraint_error": 0.0,
+      "max_displacement": 0.04547137141207247,
+      "pressed_displacement": -0.01030010966036223,
+      "opposite_displacement": 0.04339203466110465
+    },
+    {
+      "time": 6.1,
+      "energy": 0.0024435255785039793,
+      "relative_free_energy": 0.002573285496290323,
+      "constraint_error": 0.0,
+      "max_displacement": 0.04450498911458507,
+      "pressed_displacement": -0.010377147938131256,
+      "opposite_displacement": 0.042881279174752256
+    },
+    {
+      "time": 6.1499999999999995,
+      "energy": 0.0024426599267829635,
+      "relative_free_energy": 0.002218110458357625,
+      "constraint_error": 0.0,
+      "max_displacement": 0.043086440055485745,
+      "pressed_displacement": -0.010715131772699815,
+      "opposite_displacement": 0.041792468784371734
+    },
+    {
+      "time": 6.2,
+      "energy": 0.0024418343945053714,
+      "relative_free_energy": 0.0018793963417100823,
+      "constraint_error": 0.0,
+      "max_displacement": 0.04188144265662528,
+      "pressed_displacement": -0.011232693279324519,
+      "opposite_displacement": 0.04016001243699552
+    },
+    {
+      "time": 6.25,
+      "energy": 0.002441130252520441,
+      "relative_free_energy": 0.0015904884008650644,
+      "constraint_error": 0.0,
+      "max_displacement": 0.04031851829925882,
+      "pressed_displacement": -0.011719771002542135,
+      "opposite_displacement": 0.03826720528467979
+    },
+    {
+      "time": 6.3,
+      "energy": 0.0024405315847222412,
+      "relative_free_energy": 0.0013448562918165763,
+      "constraint_error": 0.0,
+      "max_displacement": 0.03859154606450321,
+      "pressed_displacement": -0.012051360753355818,
+      "opposite_displacement": 0.036353994908256894
+    },
+    {
+      "time": 6.35,
+      "energy": 0.0024399494747766193,
+      "relative_free_energy": 0.0011060178340422944,
+      "constraint_error": 0.0,
+      "max_displacement": 0.03684318735193213,
+      "pressed_displacement": -0.012251630566032488,
+      "opposite_displacement": 0.034342083676795025
+    },
+    {
+      "time": 6.3999999999999995,
+      "energy": 0.002439296858253301,
+      "relative_free_energy": 0.0008382506791950739,
+      "constraint_error": 0.0,
+      "max_displacement": 0.03478446982558701,
+      "pressed_displacement": -0.012448324880248942,
+      "opposite_displacement": 0.03202997610097517
+    },
+    {
+      "time": 6.45,
+      "energy": 0.002438636344012258,
+      "relative_free_energy": 0.000567243107764126,
+      "constraint_error": 0.0,
+      "max_displacement": 0.032327873795541306,
+      "pressed_displacement": -0.012759302237282225,
+      "opposite_displacement": 0.029516850366846637
+    },
+    {
+      "time": 6.5,
+      "energy": 0.00243817517232849,
+      "relative_free_energy": 0.000378025358524825,
+      "constraint_error": 0.0,
+      "max_displacement": 0.029685438468720404,
+      "pressed_displacement": -0.013170910339478195,
+      "opposite_displacement": 0.027204448728037893
+    },
+    {
+      "time": 6.55,
+      "energy": 0.0024380131537637077,
+      "relative_free_energy": 0.0003115494901180238,
+      "constraint_error": 0.0,
+      "max_displacement": 0.027078460886406242,
+      "pressed_displacement": -0.013576759345088073,
+      "opposite_displacement": 0.025343328926252903
+    },
+    {
+      "time": 6.6,
+      "energy": 0.0024379678066668775,
+      "relative_free_energy": 0.0002929436738923208,
+      "constraint_error": 0.0,
+      "max_displacement": 0.024483369164169273,
+      "pressed_displacement": -0.013951429612117245,
+      "opposite_displacement": 0.023764801485984838
+    },
+    {
+      "time": 6.6499999999999995,
+      "energy": 0.0024379400900717794,
+      "relative_free_energy": 0.00028157161457986746,
+      "constraint_error": 0.0,
+      "max_displacement": 0.024594842281715417,
+      "pressed_displacement": -0.014386099527472856,
+      "opposite_displacement": 0.022134550874831987
+    },
+    {
+      "time": 6.7,
+      "energy": 0.0024380263781797707,
+      "relative_free_energy": 0.0003169754395648816,
+      "constraint_error": 0.0,
+      "max_displacement": 0.024566205121074203,
+      "pressed_displacement": -0.014935694017624257,
+      "opposite_displacement": 0.020326369689920555
+    },
+    {
+      "time": 6.75,
+      "energy": 0.002438281151446961,
+      "relative_free_energy": 0.00042150836272747405,
+      "constraint_error": 0.0,
+      "max_displacement": 0.024831919794893294,
+      "pressed_displacement": -0.015538296833069194,
+      "opposite_displacement": 0.018430188812777012
+    },
+    {
+      "time": 6.8,
+      "energy": 0.0024386550947547558,
+      "relative_free_energy": 0.0005749364970524251,
+      "constraint_error": 0.0,
+      "max_displacement": 0.02503314308676895,
+      "pressed_displacement": -0.016102221510240024,
+      "opposite_displacement": 0.016478960153731813
+    },
+    {
+      "time": 6.85,
+      "energy": 0.002439076038347599,
+      "relative_free_energy": 0.0007476487471709259,
+      "constraint_error": 0.0,
+      "max_displacement": 0.025086832163594648,
+      "pressed_displacement": -0.016586415212862998,
+      "opposite_displacement": 0.014364593653257183
+    },
+    {
+      "time": 6.8999999999999995,
+      "energy": 0.002439460424035024,
+      "relative_free_energy": 0.0009053613673823957,
+      "constraint_error": 0.0,
+      "max_displacement": 0.02533318924145054,
+      "pressed_displacement": -0.016998246632152974,
+      "opposite_displacement": 0.012102178876812584
+    },
+    {
+      "time": 6.95,
+      "energy": 0.0024397452108751365,
+      "relative_free_energy": 0.0010222087949147696,
+      "constraint_error": 0.0,
+      "max_displacement": 0.025555271340578688,
+      "pressed_displacement": -0.01738725029462097,
+      "opposite_displacement": 0.00999257230817167
+    },
+    {
+      "time": 7.0,
+      "energy": 0.002439920380578907,
+      "relative_free_energy": 0.0010940805473422799,
+      "constraint_error": 0.0,
+      "max_displacement": 0.02561940611005744,
+      "pressed_displacement": -0.01783352374318075,
+      "opposite_displacement": 0.008273378592494876
+    },
+    {
+      "time": 7.05,
+      "energy": 0.0024400925784332653,
+      "relative_free_energy": 0.0011647329563524433,
+      "constraint_error": 0.0,
+      "max_displacement": 0.025493748759579733,
+      "pressed_displacement": -0.01838579420308254,
+      "opposite_displacement": 0.0066983011040154345
+    },
+    {
+      "time": 7.1,
+      "energy": 0.002440399307717622,
+      "relative_free_energy": 0.0012905833215299811,
+      "constraint_error": 0.0,
+      "max_displacement": 0.0251878098991371,
+      "pressed_displacement": -0.01901416150081184,
+      "opposite_displacement": 0.004819852290993849
+    },
+    {
+      "time": 7.1499999999999995,
+      "energy": 0.002440926994875742,
+      "relative_free_energy": 0.0015070922267301778,
+      "constraint_error": 0.0,
+      "max_displacement": 0.025085496028702393,
+      "pressed_displacement": -0.01964885470728451,
+      "opposite_displacement": 0.002710625080464297
+    },
+    {
+      "time": 7.2,
+      "energy": 0.0024416928719584365,
+      "relative_free_energy": 0.0018213299453111453,
+      "constraint_error": 0.0,
+      "max_displacement": 0.0249614235543958,
+      "pressed_displacement": -0.020245828349488904,
+      "opposite_displacement": 0.0009911662107127896
+    },
+    {
+      "time": 7.25,
+      "energy": 0.002442695563212015,
+      "relative_free_energy": 0.002232732008494942,
+      "constraint_error": 0.0,
+      "max_displacement": 0.02471829713211096,
+      "pressed_displacement": -0.020791560983090082,
+      "opposite_displacement": 8.186535565010938e-06
+    },
+    {
+      "time": 7.3,
+      "energy": 0.0024439103345362074,
+      "relative_free_energy": 0.002731150068177257,
+      "constraint_error": 0.0,
+      "max_displacement": 0.024492054238734767,
+      "pressed_displacement": -0.021276322793402132,
+      "opposite_displacement": -0.0006027863945715783
+    },
+    {
+      "time": 7.35,
+      "energy": 0.0024451577085602147,
+      "relative_free_energy": 0.003242944945420767,
+      "constraint_error": 0.0,
+      "max_displacement": 0.024232420080989452,
+      "pressed_displacement": -0.021717938245223996,
+      "opposite_displacement": -0.0013077538385787607
+    },
+    {
+      "time": 7.3999999999999995,
+      "energy": 0.0024462018172723456,
+      "relative_free_energy": 0.0036713405027029022,
+      "constraint_error": 0.0,
+      "max_displacement": 0.02409516674238709,
+      "pressed_displacement": -0.02219576020458725,
+      "opposite_displacement": -0.0019813240209718606
+    },
+    {
+      "time": 7.45,
+      "energy": 0.0024468954998733885,
+      "relative_free_energy": 0.003955956980851161,
+      "constraint_error": 0.0,
+      "max_displacement": 0.024258740847847408,
+      "pressed_displacement": -0.02277397232218231,
+      "opposite_displacement": -0.002103449741131488
+    },
+    {
+      "time": 7.5,
+      "energy": 0.002447123081511276,
+      "relative_free_energy": 0.004049333237037267,
+      "constraint_error": 0.0,
+      "max_displacement": 0.02445239658534806,
+      "pressed_displacement": -0.023382688314040296,
+      "opposite_displacement": -0.0013982917571753798
+    },
+    {
+      "time": 7.55,
+      "energy": 0.002446925031972199,
+      "relative_free_energy": 0.003968073937429262,
+      "constraint_error": 0.0,
+      "max_displacement": 0.024912475341285583,
+      "pressed_displacement": -0.02388474627296467,
+      "opposite_displacement": -1.8414056375465792e-05
+    },
+    {
+      "time": 7.6,
+      "energy": 0.0024465615154522493,
+      "relative_free_energy": 0.003818923891714787,
+      "constraint_error": 0.0,
+      "max_displacement": 0.02543140184861412,
+      "pressed_displacement": -0.02426936867499246,
+      "opposite_displacement": 0.0017325397030075098
+    },
+    {
+      "time": 7.6499999999999995,
+      "energy": 0.0024462889074984093,
+      "relative_free_energy": 0.003707073435006647,
+      "constraint_error": 0.0,
+      "max_displacement": 0.026015171410981384,
+      "pressed_displacement": -0.02462250291384309,
+      "opposite_displacement": 0.003634979617823001
+    },
+    {
+      "time": 7.7,
+      "energy": 0.0024460989540790253,
+      "relative_free_energy": 0.0036291359558828784,
+      "constraint_error": 0.0,
+      "max_displacement": 0.02665565056564939,
+      "pressed_displacement": -0.024896930310507367,
+      "opposite_displacement": 0.005614829973420366
+    },
+    {
+      "time": 7.75,
+      "energy": 0.0024458190491362416,
+      "relative_free_energy": 0.0035142915603170177,
+      "constraint_error": 0.0,
+      "max_displacement": 0.027481793150137702,
+      "pressed_displacement": -0.02494000351696981,
+      "opposite_displacement": 0.00774554574422373
+    },
+    {
+      "time": 7.8,
+      "energy": 0.0024454341387584256,
+      "relative_free_energy": 0.003356363660767414,
+      "constraint_error": 0.0,
+      "max_displacement": 0.02829884798928136,
+      "pressed_displacement": -0.02478461215996561,
+      "opposite_displacement": 0.010141720347406055
+    },
+    {
+      "time": 7.85,
+      "energy": 0.0024451176524950486,
+      "relative_free_energy": 0.0032265100280983727,
+      "constraint_error": 0.0,
+      "max_displacement": 0.029000794204832463,
+      "pressed_displacement": -0.024638074885167133,
+      "opposite_displacement": 0.012729454887365809
+    },
+    {
+      "time": 7.8999999999999995,
+      "energy": 0.0024449406114871665,
+      "relative_free_energy": 0.0031538704836215903,
+      "constraint_error": 0.0,
+      "max_displacement": 0.02948528606199211,
+      "pressed_displacement": -0.024536010777470356,
+      "opposite_displacement": 0.015154890044794455
+    },
+    {
+      "time": 7.95,
+      "energy": 0.0024448868643044547,
+      "relative_free_energy": 0.0031318181302386616,
+      "constraint_error": 0.0,
+      "max_displacement": 0.029821468446802096,
+      "pressed_displacement": -0.02432988739155951,
+      "opposite_displacement": 0.017059593725670487
+    },
+    {
+      "time": 8.0,
+      "energy": 0.002445033034562696,
+      "relative_free_energy": 0.003191791472582972,
+      "constraint_error": 0.0,
+      "max_displacement": 0.03004134769196606,
+      "pressed_displacement": -0.024071199078077043,
+      "opposite_displacement": 0.01847213014491968
+    },
+    {
+      "time": 8.049999999999999,
+      "energy": 0.002445374288176849,
+      "relative_free_energy": 0.003331807095966921,
+      "constraint_error": 0.0,
+      "max_displacement": 0.03022991235315953,
+      "pressed_displacement": -0.024029717456815956,
+      "opposite_displacement": 0.01974600709514979
+    },
+    {
+      "time": 8.1,
+      "energy": 0.002445857616557195,
+      "relative_free_energy": 0.003530115690122848,
+      "constraint_error": 0.0,
+      "max_displacement": 0.030280995495174042,
+      "pressed_displacement": -0.02424292367042738,
+      "opposite_displacement": 0.020989329301367834
+    },
+    {
+      "time": 8.15,
+      "energy": 0.002446332254499987,
+      "relative_free_energy": 0.003724858616455329,
+      "constraint_error": 0.0,
+      "max_displacement": 0.030314871516197935,
+      "pressed_displacement": -0.024436989682420827,
+      "opposite_displacement": 0.021804847733195173
+    },
+    {
+      "time": 8.2,
+      "energy": 0.0024467465937163084,
+      "relative_free_energy": 0.0038948611051019544,
+      "constraint_error": 0.0,
+      "max_displacement": 0.030317677342153723,
+      "pressed_displacement": -0.02449833128966641,
+      "opposite_displacement": 0.021886565427989557
+    },
+    {
+      "time": 8.25,
+      "energy": 0.0024471946014583803,
+      "relative_free_energy": 0.004078677717396895,
+      "constraint_error": 0.0,
+      "max_displacement": 0.03021031016566144,
+      "pressed_displacement": -0.024643692442268023,
+      "opposite_displacement": 0.02160182768557199
+    },
+    {
+      "time": 8.299999999999999,
+      "energy": 0.0024475813227064843,
+      "relative_free_energy": 0.004237348613127967,
+      "constraint_error": 0.0,
+      "max_displacement": 0.029985074473926204,
+      "pressed_displacement": -0.025017769531808752,
+      "opposite_displacement": 0.021484841006600166
+    },
+    {
+      "time": 8.35,
+      "energy": 0.002447730261483801,
+      "relative_free_energy": 0.004298457872890182,
+      "constraint_error": 0.0,
+      "max_displacement": 0.029654900541903288,
+      "pressed_displacement": -0.02548015878170318,
+      "opposite_displacement": 0.02136889132838979
+    },
+    {
+      "time": 8.4,
+      "energy": 0.002447631620979731,
+      "relative_free_energy": 0.004257985886380711,
+      "constraint_error": 0.0,
+      "max_displacement": 0.02941522416905955,
+      "pressed_displacement": -0.02589954060074229,
+      "opposite_displacement": 0.020691924624181825
+    },
+    {
+      "time": 8.45,
+      "energy": 0.0024475884008123804,
+      "relative_free_energy": 0.00424025274474249,
+      "constraint_error": 0.0,
+      "max_displacement": 0.029549759923279434,
+      "pressed_displacement": -0.026349383223969357,
+      "opposite_displacement": 0.019563369384816762
+    },
+    {
+      "time": 8.5,
+      "energy": 0.0024478272996286774,
+      "relative_free_energy": 0.00433827241487128,
+      "constraint_error": 0.0,
+      "max_displacement": 0.030073988672542486,
+      "pressed_displacement": -0.026906312191379712,
+      "opposite_displacement": 0.018743798484901042
+    },
+    {
+      "time": 8.549999999999999,
+      "energy": 0.0024483210495439547,
+      "relative_free_energy": 0.0045408569423783796,
+      "constraint_error": 0.0,
+      "max_displacement": 0.030490118038384743,
+      "pressed_displacement": -0.027495954968514594,
+      "opposite_displacement": 0.018496778569503717
+    },
+    {
+      "time": 8.6,
+      "energy": 0.002448985608380194,
+      "relative_free_energy": 0.004813524002512892,
+      "constraint_error": 0.0,
+      "max_displacement": 0.030835498756369806,
+      "pressed_displacement": -0.028031636991619417,
+      "opposite_displacement": 0.018242122900010097
+    },
+    {
+      "time": 8.65,
+      "energy": 0.002449742306310963,
+      "relative_free_energy": 0.005123995534815684,
+      "constraint_error": 0.0,
+      "max_displacement": 0.031207625886182845,
+      "pressed_displacement": -0.02853499805471852,
+      "opposite_displacement": 0.017558316108177027
+    },
+    {
+      "time": 8.7,
+      "energy": 0.002450507490538013,
+      "relative_free_energy": 0.005437948976217077,
+      "constraint_error": 0.0,
+      "max_displacement": 0.031606177091561105,
+      "pressed_displacement": -0.029042420187937425,
+      "opposite_displacement": 0.016825802177364593
+    },
+    {
+      "time": 8.75,
+      "energy": 0.0024511987967835314,
+      "relative_free_energy": 0.005721590440808555,
+      "constraint_error": 0.0,
+      "max_displacement": 0.03196012709190607,
+      "pressed_displacement": -0.029504739422508558,
+      "opposite_displacement": 0.016575872191998384
+    },
+    {
+      "time": 8.799999999999999,
+      "energy": 0.00245163331105147,
+      "relative_free_energy": 0.005899870709709543,
+      "constraint_error": 0.0,
+      "max_displacement": 0.03212449875745556,
+      "pressed_displacement": -0.029849216891714846,
+      "opposite_displacement": 0.016787457677250043
+    },
+    {
+      "time": 8.85,
+      "energy": 0.0024516450887923733,
+      "relative_free_energy": 0.005904703091452079,
+      "constraint_error": 0.0,
+      "max_displacement": 0.032378632988069804,
+      "pressed_displacement": -0.030079681808665826,
+      "opposite_displacement": 0.017158932706474134
+    },
+    {
+      "time": 8.9,
+      "energy": 0.002451260583902301,
+      "relative_free_energy": 0.005746941562650987,
+      "constraint_error": 0.0,
+      "max_displacement": 0.03256642102807006,
+      "pressed_displacement": -0.030266203083269307,
+      "opposite_displacement": 0.01760141109774543
+    },
+    {
+      "time": 8.95,
+      "energy": 0.0024505808354344776,
+      "relative_free_energy": 0.0054680422293713615,
+      "constraint_error": 0.0,
+      "max_displacement": 0.032702956915465264,
+      "pressed_displacement": -0.03048444194612413,
+      "opposite_displacement": 0.01813977760965901
+    },
+    {
+      "time": 9.0,
+      "energy": 0.0024496595767710063,
+      "relative_free_energy": 0.005090051782635774,
+      "constraint_error": 0.0,
+      "max_displacement": 0.03304626647883616,
+      "pressed_displacement": -0.030796589777955644,
+      "opposite_displacement": 0.01870535730074777
+    }
+  ],
+  "source_sha256": {
+    "examples/tensor_demos/anisotropic_cylinder.fme": "d48db6bd5dc2a898d409015190890cb0cf635caf93f6687e5d3c1a7b0d4f8f6c",
+    "examples/tensor_demos/anisotropic_sphere.fme": "cefd28113decfbbcbe857290c732d3866ea0ac1d85386b517b0c8290b8561aaf",
+    "examples/tensor_demos/nematic_sphere.fme": "7da4e57d72f7abc48f9d87349e4fb06cec73b0b1e06cb39877439b33a357c8f2",
+    "examples/tensor_demos/oldroyd_couette.fme": "9b5c16eec936b972ba3e1e89c9c0050ee46598a7444cdf5ea6f3aee19090964b",
+    "examples/tensor_demos/press_ball.fme": "be83a5d99167169b8c8b6a3a2a4a2c9d46187fe5db7be963799f4eb18af58791",
+    "examples/tensor_demos/twist_tube.fme": "aa08570b26c11ce4c351a906c212b0216670fb7690581a876daf819e3917b89e",
+    "tools/tensor_demo_common.py": "8cc8d5f5e35a388e957e3b0ac7bf482155175675b54ba9ebbe0952d1e602214b",
+    "tools/tensor_demo_couette.py": "a54d6bd7b7954a211e124624aca14eab0deb111e023e261fdc4503357b29309b",
+    "tools/tensor_demo_elastic.py": "82a0aa141b6c3aaf68d220b01003b7af497150410e35fe3d8593b6f0a477bcf0",
+    "tools/tensor_demo_gallery.py": "c8a49cb56163be2d6b21a2d0c1f5e441ebdc644121c1afa17a8f6b884e008b9b",
+    "tools/tensor_demo_manipulation.py": "7746c2bce6ac74defd96d38a9a764a786d7939596e4bd5b431b7a0bcd0d2669c",
+    "tools/tensor_demo_manipulation_checks.py": "030c9f0ee1a5d1550733567d53317e2854ad1b13cb002aed49b6a8240e397c8a",
+    "tools/tensor_demo_manipulation_render.py": "7f83b0e30adf5a0a7e84053e1c55eda125eb6db32b7f12406a58001c309e0872",
+    "tools/tensor_demo_nematic.py": "969b082ee8d64702a9d59529a1408d7cb9a49d4f7dec15818401a1d1da594fde",
+    "tools/tensor_demo_recoil.py": "05e258bcd4c0e41c969a79970c2541e6f68feefd33ae0c17bb6ef77e54483d5b",
+    "tools/tensor_demo_render.py": "095315884a04a8683702d6e37de171b90be2de87eb12e0ac8b7781adf755936e",
+    "tools/tensor_demo_sphere.py": "2fe87efdf6ecacdc4d0c0b7d85cebe1c8899f80c9daebcb1e6be93a87b348445",
+    "tools/tensor_demos.py": "ea5336dafa979a2508313bd5ddb06a7d796feda5587ad96aeac8749307385ac2"
+  }
+}

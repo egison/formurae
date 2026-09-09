@@ -1,0 +1,64 @@
+{
+  "elastic-cylinder": {
+    "mp4": "c48ef3bc9718a805d43ee4e49105bfd4d23048e4c684bfa354a64224fd6acc04",
+    "gif": "9d8b7128aff390c96de21d9480dfc2fc7cd16cba05dbd66e9f050bf67ddb4e0c",
+    "png": "a655bc09d2eb3a39bde0baeadd34f816983c80ab9a6411bd45d9a5739d389d3c"
+  },
+  "elastic-sphere": {
+    "mp4": "a99c17eafada90866b4d3856fdb81384acb6190e035a22f1083ae221adb27817",
+    "gif": "e2a32fc4a3acd47260e4e702d8e2e099260216e4b4fb3ef1f28e8e2dc279cfa3",
+    "png": "5ebed0c3e69017c55c321f028a9489318150a4818ce22ee03585d94c8c0de6aa"
+  },
+  "nematic": {
+    "mp4": "e8a25f1b2df49a6a40bae188cc760305e800be25368af6279811b1f325bcaefe",
+    "gif": "252c4deeecfb9fe9ba4221b371dd37768e2ef031930a39c2ea6f0fb61b14b6f1",
+    "png": "973cdb6a3968877484bb6eba3ece1f19a391704bed0863540c3986d6a92f0721"
+  },
+  "couette": {
+    "mp4": "98762781b8f3f840823f118e86b63444c24ab1db41fa07a91c8ef16d1559a988",
+    "gif": "6783d0e8af965b4f34e606a5b688a54c152921b4be9fa4279501d1581ed99fda",
+    "png": "51e7de8d712635b0f3509b98cf21e7b92a43e9316d1f84a2fde1ddccfea4f605"
+  },
+  "couette-recoil-ja": {
+    "mp4": "1832599302e8eb22eaeb204cba15fa5befc3b65121e7eb1a9f1acf2c9b60582b",
+    "gif": "51a5af72114766e2ba6fe64efb7845d0260e1d61731e25107c73c3afd5a1bd1b",
+    "png": "1970044846a9f497d84748b14d9e6b6a4bd542296cf1ea939d0681d4ddd28fae"
+  },
+  "couette-recoil-en": {
+    "mp4": "4f2d1a5428f29507b8085c859ed6f5ad37d602a5794c95ad8fae27c84cccc4bd",
+    "gif": "e6bdccc50bb02628a4ea478eb437c403640afa28b3926653d6d35a19854cf830",
+    "png": "5c454642f5c5ad084a5f1103f26390fc15724975b4753258a12992ed5d57d8fc"
+  },
+  "press-ball-ja": {
+    "mp4": "902bcfc95a9f451094efcaa2df6aed843dcc437e7d1f0d2c32e5046364e77ed7",
+    "gif": "11402c8dc914aa6011d4ebd099bfa776e9088d8f3c95ee14f5c412011e6a6fc8",
+    "png": "0f77b44211b34f17187847cd08c1d2d624c51a63c5a279c862704ca851347c85",
+    "simulation_report_sha256": "31c2379011e34aa167f9c0e0a176edce8b9b99c4f27fb28a51dd5afb220eaa8e",
+    "renderer_sha256": "e9dde7714acfefeb11494506cd5bc0613101ceebf5a451a7a25285f954ab09db",
+    "frames": 181
+  },
+  "press-ball-en": {
+    "mp4": "33dbd989d2eb3153e347cb64e081c6c6e3e8d051f44d1dcb9c3912162926807d",
+    "gif": "901d719dae657fb2f58770c8c2ff1bd84d9829ec6f136eef1f179003e47968bc",
+    "png": "77a8cda8242fa7146adf2a075a95d5a93029a472adb88859c67b0d7d637b27e6",
+    "simulation_report_sha256": "31c2379011e34aa167f9c0e0a176edce8b9b99c4f27fb28a51dd5afb220eaa8e",
+    "renderer_sha256": "e9dde7714acfefeb11494506cd5bc0613101ceebf5a451a7a25285f954ab09db",
+    "frames": 181
+  },
+  "twist-tube-ja": {
+    "mp4": "a0aa29c6fb6507eff196e2007cf25ff7aa761e463973cfac18bd6510124cf861",
+    "gif": "d738a933fcd2fcee7c15d9ee3ae2c48cd9435bf74fc1d1191f32cc9f7191f89f",
+    "png": "375e5fbee1dade5dc9a285564643ac136d072498ca09fe8ebc6bb70d3c853379",
+    "simulation_report_sha256": "ca84b3312dbda661c086a420052378de2e550efcfbdc508d611da2b55f71101f",
+    "renderer_sha256": "e9dde7714acfefeb11494506cd5bc0613101ceebf5a451a7a25285f954ab09db",
+    "frames": 221
+  },
+  "twist-tube-en": {
+    "mp4": "eb1f74ec2bc165b65391fb60a70abf21831c588f56c540b2bc367fe84a3ec123",
+    "gif": "02f7e337526f20f2963cd4829d42d826c96ec9d44f3b8d7eb4af3ccc2f423613",
+    "png": "d4ffa37f85812bb0b2140c60803f6ffeb0a338b81aae82d3fc5f97ae25513c13",
+    "simulation_report_sha256": "ca84b3312dbda661c086a420052378de2e550efcfbdc508d611da2b55f71101f",
+    "renderer_sha256": "e9dde7714acfefeb11494506cd5bc0613101ceebf5a451a7a25285f954ab09db",
+    "frames": 221
+  }
+}

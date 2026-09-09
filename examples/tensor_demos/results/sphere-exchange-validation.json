@@ -1,0 +1,28 @@
+{
+  "vector_exchange_error": 3.3306690738754696e-16,
+  "tensor_exchange_error": 8.881784197001252e-16,
+  "vector_sampling_error": 2.220446049250313e-16,
+  "tensor_sampling_error": 7.771561172376096e-16,
+  "sphere_area": 12.56637061435917,
+  "source_sha256": {
+    "examples/tensor_demos/anisotropic_cylinder.fme": "d48db6bd5dc2a898d409015190890cb0cf635caf93f6687e5d3c1a7b0d4f8f6c",
+    "examples/tensor_demos/anisotropic_sphere.fme": "cefd28113decfbbcbe857290c732d3866ea0ac1d85386b517b0c8290b8561aaf",
+    "examples/tensor_demos/nematic_sphere.fme": "7da4e57d72f7abc48f9d87349e4fb06cec73b0b1e06cb39877439b33a357c8f2",
+    "examples/tensor_demos/oldroyd_couette.fme": "9b5c16eec936b972ba3e1e89c9c0050ee46598a7444cdf5ea6f3aee19090964b",
+    "examples/tensor_demos/press_ball.fme": "be83a5d99167169b8c8b6a3a2a4a2c9d46187fe5db7be963799f4eb18af58791",
+    "examples/tensor_demos/twist_tube.fme": "aa08570b26c11ce4c351a906c212b0216670fb7690581a876daf819e3917b89e",
+    "tools/tensor_demo_animation_checks.py": "6b50363c331e6998386925797e2a751ea30b501edf352a366bbd73a50f9886c2",
+    "tools/tensor_demo_common.py": "8cc8d5f5e35a388e957e3b0ac7bf482155175675b54ba9ebbe0952d1e602214b",
+    "tools/tensor_demo_couette.py": "a54d6bd7b7954a211e124624aca14eab0deb111e023e261fdc4503357b29309b",
+    "tools/tensor_demo_elastic.py": "82a0aa141b6c3aaf68d220b01003b7af497150410e35fe3d8593b6f0a477bcf0",
+    "tools/tensor_demo_gallery.py": "c8a49cb56163be2d6b21a2d0c1f5e441ebdc644121c1afa17a8f6b884e008b9b",
+    "tools/tensor_demo_manipulation.py": "7746c2bce6ac74defd96d38a9a764a786d7939596e4bd5b431b7a0bcd0d2669c",
+    "tools/tensor_demo_manipulation_checks.py": "030c9f0ee1a5d1550733567d53317e2854ad1b13cb002aed49b6a8240e397c8a",
+    "tools/tensor_demo_manipulation_render.py": "e9dde7714acfefeb11494506cd5bc0613101ceebf5a451a7a25285f954ab09db",
+    "tools/tensor_demo_nematic.py": "969b082ee8d64702a9d59529a1408d7cb9a49d4f7dec15818401a1d1da594fde",
+    "tools/tensor_demo_recoil.py": "05e258bcd4c0e41c969a79970c2541e6f68feefd33ae0c17bb6ef77e54483d5b",
+    "tools/tensor_demo_render.py": "095315884a04a8683702d6e37de171b90be2de87eb12e0ac8b7781adf755936e",
+    "tools/tensor_demo_sphere.py": "2fe87efdf6ecacdc4d0c0b7d85cebe1c8899f80c9daebcb1e6be93a87b348445",
+    "tools/tensor_demos.py": "384a8ee87bb50828f694fa02a7445eecd33c36c4f94c0ef4cb7ae10f6e44a2a8"
+  }
+}

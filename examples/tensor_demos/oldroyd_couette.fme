@@ -1,0 +1,69 @@
+-- Incompressible Oldroyd-B fluid in a rotating annulus, r_phys=1+r.
+-- The driver reconstructs divergence-free velocity from vorticity and evolves
+-- its azimuthal mean from acceleration. Pressure drops out of the curl.
+dimension 2
+axes r, θ
+metric g
+metric scale [1, 1 + r - roffset]
+param roffset = 3*dr
+param ηs = 0.04
+param ηp = 0.16
+param relaxation = 1.5
+param ρ0 = 1.0
+param hr = dr
+param ht = dθ
+
+def strain V~a = withSymbols [i,j,k] ((g_i_k . ∂_j V~k + g_j_k . ∂_i V~k + (∂/∂ g_i_j coordinates~k) . V~k) / 2)
+def raiseBoth E_i_j = withSymbols [i,j,k,l] (g~i~k . g~j~l . E_k_l)
+def stressDiv S~a~b = withSymbols [i,j,k,l] ((g~i~k . ∂_j (volume * (g_k_l . S~l~j))) / volume - (g~i~k . (∂/∂ g_j_l coordinates~k) . S~j~l) / 2)
+-- Transport and stretching of a contravariant tensor (negative Lie derivative).
+-- Connection terms cancel in this combination; no component cases are needed.
+def upperConvectedRHS V~a T~b~c = withSymbols [i,j,k] ((T~k~j . ∂_k V~i) + (T~i~k . ∂_k V~j) - (V~k . ∂_k T~i~j))
+def convection V~a = withSymbols [i,j,k,l] ((V~j . ∂_j (g_i_k . V~k)) - ((∂/∂ g_j_k coordinates~i) . V~j . V~k) / 2)
+def raiseVector F_a = withSymbols [i,j] (g~i~j . F_j)
+def curl F~a = withSymbols [i,j,k] ((epsilon~i~j . ∂_i (g_j_k . F~k)) / volume)
+-- The driver supplies absolute coordinate velocities as transportSpeed.
+def upwindScalar vr vt ar at q = 0 - vr * (∂_r q) - vt * (∂_θ q) + ar * hr * (∂^2_r q) / 2 + at * ht * (∂^2_θ q) / 2
+
+field omega @ collocated
+field v~i @ collocated
+field transportSpeed~i @ collocated
+field C{~i~j} @ collocated
+field acceleration~i @ collocated
+field rate{~i~j} @ collocated
+field rotationRate @ collocated
+field transport{~i~j} @ collocated
+field velocityGradient~i_j @ collocated
+
+init:
+  transportSpeed~i = [| 0.0, 0.0 |]~i
+  omega = 0.0
+  v~i = [| 0.0, 0.0 |]~i
+  C~i~j = [| [| 1.0, 0.0 |], [| 1.0 |] |]~i~j
+  acceleration~i = [| 0.0, 0.0 |]~i
+  rate~i~j = [| [| 0.0, 0.0 |], [| 0.0 |] |]~i~j
+  rotationRate = 0.0
+  transport~i~j = [| [| 0.0, 0.0 |], [| 0.0 |] |]~i~j
+  velocityGradient~i_j = [| [| 0.0, 0.0 |], [| 0.0, 0.0 |] |]~i_j
+
+step:
+  let e_i_j = strain v
+  let raised~i~j = raiseBoth e_i_j
+  let solvent~i~j = 2 * ηs * raised~i~j
+  local viscous~i @ collocated = stressDiv solvent~i~j
+  local totalStress{~i~j} @ collocated = (ηp / relaxation) * (C~i~j - g~i~j)
+  local divergence~i @ collocated = stressDiv totalStress
+  local advected_i @ collocated = convection v
+  local inertial~i @ collocated = raiseVector advected
+  local force~i @ collocated = divergence~i / ρ0 - inertial~i
+  local stretching{~i~j} @ collocated = upperConvectedRHS v C
+  acceleration'~i = force~i + viscous~i / ρ0
+  local torque @ collocated = curl force
+  rotationRate' = torque + (ηs / ρ0) * (∂^2_r omega + (∂_r omega) / (1 + r - roffset) + (∂^2_θ omega) / (1 + r - roffset)^2)
+  omega' = omega
+  transportSpeed'~i = transportSpeed~i
+  rate'~i~j = stretching~i~j - (C~i~j - g~i~j) / relaxation
+  transport'~i~j = tensorMap (upwindScalar v~1 v~2 transportSpeed~1 transportSpeed~2) C
+  velocityGradient'~i_j = ∂_j v~i
+  v'~i = v~i
+  C'~i~j = C~i~j

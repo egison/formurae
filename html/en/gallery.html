@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Formurae Gallery — 26 Verified Applications</title>
+<title>Formurae Gallery — 29 Verified Applications</title>
 <style>
   :root { --ink:#1c1e21; --sub:#5a6270; --line:#e3e6ea; --accent:#0b5fa5; }
   * { box-sizing: border-box; }
@@ -47,20 +47,290 @@
 </head>
 <body>
 <header>
-  <h1>Formurae Gallery <span class="tag">26 verified applications</span></h1>
+  <h1>Formurae Gallery <span class="tag">29 verified applications</span></h1>
   <p>These are the results of taking continuous systems written in Formurae/Egison’s tensor index notation and computer algebra,
      converting them with the <code>formurae-pre → Egison → FEIR → formurae-post</code> pipeline into discrete Formura programs,
      and running them. Each card includes the <b>governing equation, .fme/.egi/.feir/.fmr, visualization, and verification numbers</b>.
      Pure <code>grad</code>/<code>divg</code>/<code>curl</code>/<code>d</code> and friends are evaluated as short Egison functions, and
      formurae-post alone decides formal accuracy, exact stencils, Collocated/Primal/Dual placement, and storage.
      <code>`(∂_x e)</code> keeps the whole expression as a single discrete request, and the canonical <code>Δ</code> is lowered under a variable metric
-     to a conservative-flux backend plan. Everything is reproducible with <code>make all</code>; the visualizations are regenerated with <code>gallery/gen.sh</code> →
+     to a conservative-flux backend plan. The existing examples use <code>make all</code>; the tensor demos below use <code>make tensor-demos</code>; the visualizations are regenerated with <code>gallery/gen.sh</code> →
      <code>gallery/tools/render.py</code>/<code>render_video.py</code>, and the embedded full sources with <code>gallery/tools/embed_src.py</code>
      (only the video encoding requires <code>ffmpeg</code>).
      This page is the single gallery: each example can be checked in one place, from its Formurae source to the visualization and verification results.
      There is also a <b><a href="usage.html">usage guide</a></b>.</p>
 </header>
 <main>
+<!-- BEGIN TENSOR DEMOS -->
+<section id="tensor-demos">
+<h2>Tensor equations on cylinders and spheres</h2>
+<p>Start with three familiar actions: press, twist, and stir, then watch what happens after release. Equations and verification follow below. Every frame is rendered from a generated C simulation. Spherical models cover the entire sphere, including the poles, with vector and tensor transformations between overlapping coordinate panels.</p>
+<div id="tensor-intro"><nav><a href="#press-ball-intro">Press a hollow ball, then let go</a> · <a href="#twist-tube-intro">Twist a tube, then let go</a> · <a href="#recoil-intro">Stop stirring. The liquid briefly turns back.</a></nav><article class="card" style="margin:20px 0" id="press-ball-intro"><h3>Press a hollow ball, then let go</h3><p>Push the orange patch inward, then release it. The dent recovers and vibrations reach the opposite side. Surface lines move with the material.</p><video controls autoplay loop muted playsinline preload="metadata" aria-label="press-ball-en" poster="../../gallery/tensor/press-ball-en.png?v=77a8cda8242f" style="display:block;width:100%;max-width:1100px;max-height:75vh;object-fit:contain;margin:auto"><source src="../../gallery/tensor/press-ball-en.mp4?v=33dbd989d2eb" type="video/mp4"><a href="../../gallery/tensor/press-ball-en.gif?v=901d719dae65">GIF</a></video><p class="cap">Displacement is magnified eight times throughout. The whole ball is simulated; a cutaway reveals the hollow interior. Motion is prescribed on a small patch only while pressing; after release, every surface is free.</p><details class="codebox" data-fme="tensor_demos/press_ball.fme"><summary>Complete Formurae source: press_ball.fme</summary><pre>-- Full tensor elasticity for a locally pressed hollow sphere.
+-- The driver supplies moving grips and compliance-orthogonal free-surface
+-- constraints, and selects alpha = 0 for these isotropic demonstrations.
+dimension 3
+axes r, θ, φ
+metric g
+metric scale [1, 1 + r, `(1 + r) * sin (π / 6 + θ)]
+boundary r : sbp
+param λ = 2.0
+param μ = 1.0
+param α = 6.0
+param ρ0 = 1.0
+
+def strain V~a = withSymbols [i,j,k] ((g_i_k . ∂_j V~k + g_j_k . ∂_i V~k + (∂/∂ g_i_j coordinates~k) . V~k) / 2)
+def stressRate E_i_j N~a = withSymbols [i,j,k,l] (λ * g~i~j * (g~k~l . E_k_l) + 2 * μ * (g~i~k . g~j~l . E_k_l) + α * N~i * N~j * (N~k . N~l . E_k_l))
+def stressDiv S~a~b = withSymbols [i,j,k,l] ((g~i~k . ∂_j (volume * (g_k_l . S~l~j))) / volume - (g~i~k . (∂/∂ g_j_l coordinates~k) . S~j~l) / 2)
+
+field v~i @ collocated
+field σ{~i~j} @ collocated
+field acceleration~i @ collocated
+field rate{~i~j} @ collocated
+
+init:
+  v~i = [| 0.0, 0.0, 0.0 |]~i
+  σ~i~j = [| [| 0.0, 0.0, 0.0 |], [| 0.0, 0.0 |], [| 0.0 |] |]~i~j
+  acceleration~i = [| 0.0, 0.0, 0.0 |]~i
+  rate~i~j = [| [| 0.0, 0.0, 0.0 |], [| 0.0, 0.0 |], [| 0.0 |] |]~i~j
+
+step:
+  let normal~i = [| 1, 0, 0 |]~i
+  local e{_i_j} @ collocated = strain v
+  local force~i @ collocated = stressDiv σ
+  acceleration&#x27;~i = force~i / ρ0
+  rate&#x27;~i~j = stressRate e normal~i
+  v&#x27;~i = v~i
+  σ&#x27;~i~j = σ~i~j
+</pre></details><p style="font-size:12px">Generated code: <a href="../../examples/tensor_demos/press_ball.fme">.fme</a> · <a href="../../examples/tensor_demos/press_ball.egi">.egi</a> · <a href="../../examples/tensor_demos/press_ball.feir">.feir</a> · <a href="../../examples/tensor_demos/press_ball.fmr">.fmr</a></p><p><a href="../../examples/tensor_demos/README.en.md">Equations, settings, numerical methods, and reproduction</a> · <a href="../../examples/tensor_demos/results/press-ball.json">Numerical records</a> · <a href="../../examples/tensor_demos/results/manipulation-validation.json">Verification</a> · <a href="../../examples/tensor_demos/results/manipulation-time-validation.json">Time accuracy</a></p></article>
+<article class="card" style="margin:20px 0" id="twist-tube-intro"><h3>Twist a tube, then let go</h3><p>Fix the bottom, turn the orange upper end, then release it. The vertical lines twist and swing back as the tube vibrates.</p><video controls autoplay loop muted playsinline preload="metadata" aria-label="twist-tube-en" poster="../../gallery/tensor/twist-tube-en.png?v=d4ffa37f8581" style="display:block;width:100%;max-width:1100px;max-height:75vh;object-fit:contain;margin:auto"><source src="../../gallery/tensor/twist-tube-en.mp4?v=eb1f74ec2bc1" type="video/mp4"><a href="../../gallery/tensor/twist-tube-en.gif?v=02f7e337526f">GIF</a></video><p class="cap">Displacement is magnified six times throughout. The bottom stays fixed; the top moves freely after t = 4. Inner and outer sidewalls are also free of applied traction.</p><details class="codebox" data-fme="tensor_demos/twist_tube.fme"><summary>Complete Formurae source: twist_tube.fme</summary><pre>-- Full tensor elasticity for a finite tube twisted at its upper end.
+-- The driver supplies moving grips and compliance-orthogonal free-surface
+-- constraints, and selects alpha = 0 for these isotropic demonstrations.
+dimension 3
+axes r, θ, z
+metric g
+metric scale [1, 1 + r, 1]
+boundary r : sbp
+boundary z : sbp
+param λ = 2.0
+param μ = 1.0
+param α = 6.0
+param ρ0 = 1.0
+
+def strain V~a = withSymbols [i,j,k] ((g_i_k . ∂_j V~k + g_j_k . ∂_i V~k + (∂/∂ g_i_j coordinates~k) . V~k) / 2)
+def stressRate E_i_j N~a = withSymbols [i,j,k,l] (λ * g~i~j * (g~k~l . E_k_l) + 2 * μ * (g~i~k . g~j~l . E_k_l) + α * N~i * N~j * (N~k . N~l . E_k_l))
+def stressDiv S~a~b = withSymbols [i,j,k,l] ((g~i~k . ∂_j (volume * (g_k_l . S~l~j))) / volume - (g~i~k . (∂/∂ g_j_l coordinates~k) . S~j~l) / 2)
+
+field v~i @ collocated
+field σ{~i~j} @ collocated
+field acceleration~i @ collocated
+field rate{~i~j} @ collocated
+
+init:
+  v~i = [| 0.0, 0.0, 0.0 |]~i
+  σ~i~j = [| [| 0.0, 0.0, 0.0 |], [| 0.0, 0.0 |], [| 0.0 |] |]~i~j
+  acceleration~i = [| 0.0, 0.0, 0.0 |]~i
+  rate~i~j = [| [| 0.0, 0.0, 0.0 |], [| 0.0, 0.0 |], [| 0.0 |] |]~i~j
+
+step:
+  let normal~i = [| 1, 0, 0 |]~i
+  local e{_i_j} @ collocated = strain v
+  local force~i @ collocated = stressDiv σ
+  acceleration&#x27;~i = force~i / ρ0
+  rate&#x27;~i~j = stressRate e normal~i
+  v&#x27;~i = v~i
+  σ&#x27;~i~j = σ~i~j
+</pre></details><p style="font-size:12px">Generated code: <a href="../../examples/tensor_demos/twist_tube.fme">.fme</a> · <a href="../../examples/tensor_demos/twist_tube.egi">.egi</a> · <a href="../../examples/tensor_demos/twist_tube.feir">.feir</a> · <a href="../../examples/tensor_demos/twist_tube.fmr">.fmr</a></p><p><a href="../../examples/tensor_demos/README.en.md">Equations, settings, numerical methods, and reproduction</a> · <a href="../../examples/tensor_demos/results/twist-tube.json">Numerical records</a> · <a href="../../examples/tensor_demos/results/manipulation-validation.json">Verification</a> · <a href="../../examples/tensor_demos/results/manipulation-time-validation.json">Time accuracy</a></p></article>
+<article class="card" style="margin:20px 0" id="recoil-intro"><h3>Stop stirring. The liquid briefly turns back.</h3><p>The central cylinder turns to set the liquid in motion, then stops. Blue dots are markers carried by the liquid. Follow the orange dot: it continues forward, then briefly turns back.</p><video controls autoplay loop muted playsinline preload="metadata" aria-label="couette-recoil-en" poster="../../gallery/tensor/couette-recoil-en.png?v=5c454642f5c5" style="display:block;width:100%;max-width:1100px;max-height:75vh;object-fit:contain;margin:auto"><source src="../../gallery/tensor/couette-recoil-en.mp4?v=4f2d1a5428f2" type="video/mp4"><a href="../../gallery/tensor/couette-recoil-en.gif?v=e6bdccc50bb0">GIF</a></video><p class="cap">This liquid also has elasticity: it tends to recover from deformation. After the cylinder stops, stored elastic stress pulls the liquid back. Marker paths are integrated from the computed velocity without magnifying displacement. The entire clip runs at approximately half speed.</p><p><a href="#tensor-couette">See the equations, stress, and verification for this flow</a></p></article>
+</div>
+<p>Run verification, simulation, and rendering with <code>make tensor-demos</code>. <a href="../../examples/tensor_demos/README.en.md">Equations, settings, numerical methods, and reproduction</a></p>
+<nav><a href="#tensor-elastic">Anisotropic elasticity: cylinder and hollow sphere</a> · <a href="#tensor-couette">Viscoelastic flow between rotating cylinders</a> · <a href="#tensor-nematic">Liquid crystal on a sphere: orientation and moving defects</a></nav><p>In the equations, g is the metric describing lengths and angles; ∇ includes spatial changes of the coordinate basis.</p><article class="card" style="margin:20px 0" id="tensor-elastic"><h3>Anisotropic elasticity: cylinder and hollow sphere</h3><div class="math">ρ ∂ₜvⁱ = ∇ⱼσⁱʲ<br>∂ₜσⁱʲ = λ gⁱʲ tr(e) + 2μ eⁱʲ + α nⁱnʲnᵏnˡeₖₗ</div><p>Both materials start with the same velocity. The left material is isotropic; the right has extra radial stiffness. Colour shows speed and displacement is magnified eight times. The front half is cut away; outer, inner, and cut surfaces are opaque.</p><h4>Cylinder</h4><video controls autoplay loop muted playsinline preload="metadata" aria-label="elastic-cylinder" poster="../../gallery/tensor/elastic-cylinder.png?v=a655bc09d2eb" style="display:block;width:100%;max-width:1100px;max-height:75vh;object-fit:contain;margin:auto"><source src="../../gallery/tensor/elastic-cylinder.mp4?v=c48ef3bc9718" type="video/mp4"><a href="../../gallery/tensor/elastic-cylinder.gif?v=9d8b7128aff3">GIF</a></video><h4>Hollow sphere</h4><video controls autoplay loop muted playsinline preload="metadata" aria-label="elastic-sphere" poster="../../gallery/tensor/elastic-sphere.png?v=5ebed0c3e690" style="display:block;width:100%;max-width:1100px;max-height:75vh;object-fit:contain;margin:auto"><source src="../../gallery/tensor/elastic-sphere.mp4?v=a99c17eafada" type="video/mp4"><a href="../../gallery/tensor/elastic-sphere.gif?v=e2a32fc4a3ac">GIF</a></video><p class="cap">The cylinder is periodic along its axis. The spherical simulation covers the whole shell. Cutting changes the rendering only, not the computational domain or boundary conditions.</p><details class="codebox" data-fme="tensor_demos/anisotropic_cylinder.fme"><summary>Complete Formurae source: anisotropic_cylinder.fme</summary><pre>-- Radially reinforced elastic hollow cylinder; traction-free radial faces.
+-- Theta and z are periodic. The driver integrates the generated PDE RHS.
+dimension 3
+axes r, θ, z
+metric g
+metric scale [1, 1 + r, 1]
+boundary r : sbp
+param λ = 2.0
+param μ = 1.0
+param α = 6.0
+param ρ0 = 1.0
+
+def strain V~a = withSymbols [i,j,k] ((g_i_k . ∂_j V~k + g_j_k . ∂_i V~k + (∂/∂ g_i_j coordinates~k) . V~k) / 2)
+def stressRate E_i_j N~a = withSymbols [i,j,k,l] (λ * g~i~j * (g~k~l . E_k_l) + 2 * μ * (g~i~k . g~j~l . E_k_l) + α * N~i * N~j * (N~k . N~l . E_k_l))
+def stressDiv S~a~b = withSymbols [i,j,k,l] ((g~i~k . ∂_j (volume * (g_k_l . S~l~j))) / volume - (g~i~k . (∂/∂ g_j_l coordinates~k) . S~j~l) / 2)
+
+field v~i @ collocated
+field σ{~i~j} @ collocated
+field acceleration~i @ collocated
+field rate{~i~j} @ collocated
+
+init:
+  v~i = [| 0.0, 0.0, 0.0 |]~i
+  σ~i~j = [| [| 0.0, 0.0, 0.0 |], [| 0.0, 0.0 |], [| 0.0 |] |]~i~j
+  acceleration~i = [| 0.0, 0.0, 0.0 |]~i
+  rate~i~j = [| [| 0.0, 0.0, 0.0 |], [| 0.0, 0.0 |], [| 0.0 |] |]~i~j
+
+step:
+  let normal~i = [| 1, 0, 0 |]~i
+  let interior = if r &lt; sbpLoR || r &gt; sbpHiR then 0 else 1
+  local e{_i_j} @ collocated = strain v
+  let tangentTrace = g~2~2 * e_2_2 + g~3~3 * e_3_3
+  -- Compliance-orthogonal boundary projection: zero normal stress rate.
+  -- Unlike zeroing stress after an unconstrained update, this retains the
+  -- discrete elastic energy identity, including anisotropic radial stiffness.
+  local surfaceE{_i_j} @ collocated = [| [| interior * e_1_1 - (1 - interior) * λ * tangentTrace / (λ + 2 * μ + α), interior * e_1_2, interior * e_1_3 |], [| interior * e_1_2, e_2_2, e_2_3 |], [| interior * e_1_3, e_2_3, e_3_3 |] |]_i_j
+  local force~i @ collocated = stressDiv σ
+  acceleration&#x27;~i = force~i / ρ0
+  rate&#x27;~i~j = stressRate surfaceE normal~i
+  v&#x27;~i = v~i
+  σ&#x27;~i~j = σ~i~j
+</pre></details><p style="font-size:12px">Generated code: <a href="../../examples/tensor_demos/anisotropic_cylinder.fme">.fme</a> · <a href="../../examples/tensor_demos/anisotropic_cylinder.egi">.egi</a> · <a href="../../examples/tensor_demos/anisotropic_cylinder.feir">.feir</a> · <a href="../../examples/tensor_demos/anisotropic_cylinder.fmr">.fmr</a></p><details class="codebox" data-fme="tensor_demos/anisotropic_sphere.fme"><summary>Complete Formurae source: anisotropic_sphere.fme</summary><pre>-- Radially reinforced elastic hollow sphere; traction-free radial faces.
+-- The same kernel serves both full-sphere Yin-Yang panels.
+dimension 3
+axes r, θ, φ
+metric g
+metric scale [1, 1 + r, `(1 + r) * sin (π / 6 + θ)]
+boundary r : sbp
+param λ = 2.0
+param μ = 1.0
+param α = 6.0
+param ρ0 = 1.0
+
+def strain V~a = withSymbols [i,j,k] ((g_i_k . ∂_j V~k + g_j_k . ∂_i V~k + (∂/∂ g_i_j coordinates~k) . V~k) / 2)
+def stressRate E_i_j N~a = withSymbols [i,j,k,l] (λ * g~i~j * (g~k~l . E_k_l) + 2 * μ * (g~i~k . g~j~l . E_k_l) + α * N~i * N~j * (N~k . N~l . E_k_l))
+def stressDiv S~a~b = withSymbols [i,j,k,l] ((g~i~k . ∂_j (volume * (g_k_l . S~l~j))) / volume - (g~i~k . (∂/∂ g_j_l coordinates~k) . S~j~l) / 2)
+
+field v~i @ collocated
+field σ{~i~j} @ collocated
+field acceleration~i @ collocated
+field rate{~i~j} @ collocated
+
+init:
+  v~i = [| 0.0, 0.0, 0.0 |]~i
+  σ~i~j = [| [| 0.0, 0.0, 0.0 |], [| 0.0, 0.0 |], [| 0.0 |] |]~i~j
+  acceleration~i = [| 0.0, 0.0, 0.0 |]~i
+  rate~i~j = [| [| 0.0, 0.0, 0.0 |], [| 0.0, 0.0 |], [| 0.0 |] |]~i~j
+
+step:
+  let normal~i = [| 1, 0, 0 |]~i
+  let interior = if r &lt; sbpLoR || r &gt; sbpHiR then 0 else 1
+  local e{_i_j} @ collocated = strain v
+  let tangentTrace = g~2~2 * e_2_2 + g~3~3 * e_3_3
+  -- Compliance-orthogonal projection on both traction-free radial faces.
+  local surfaceE{_i_j} @ collocated = [| [| interior * e_1_1 - (1 - interior) * λ * tangentTrace / (λ + 2 * μ + α), interior * e_1_2, interior * e_1_3 |], [| interior * e_1_2, e_2_2, e_2_3 |], [| interior * e_1_3, e_2_3, e_3_3 |] |]_i_j
+  local force~i @ collocated = stressDiv σ
+  acceleration&#x27;~i = force~i / ρ0
+  rate&#x27;~i~j = stressRate surfaceE normal~i
+  v&#x27;~i = v~i
+  σ&#x27;~i~j = σ~i~j
+</pre></details><p style="font-size:12px">Generated code: <a href="../../examples/tensor_demos/anisotropic_sphere.fme">.fme</a> · <a href="../../examples/tensor_demos/anisotropic_sphere.egi">.egi</a> · <a href="../../examples/tensor_demos/anisotropic_sphere.feir">.feir</a> · <a href="../../examples/tensor_demos/anisotropic_sphere.fmr">.fmr</a></p><div class="facts" data-tensor-check="elastic"><b>Verification</b>: Independent component residual ≤ 3.6×10⁻¹⁵; approximately second-order spatial convergence. Energy variation is below 0.0005% for the cylinder and 0.17% for the sphere in these runs. Numerical records: <a href="../../examples/tensor_demos/results/elastic-validation.json">elastic-validation</a>, <a href="../../examples/tensor_demos/results/elastic-cylinder.json">elastic-cylinder</a>, <a href="../../examples/tensor_demos/results/elastic-sphere.json">elastic-sphere</a></div></article>
+<article class="card" style="margin:20px 0" id="tensor-couette"><h3>Viscoelastic flow between rotating cylinders</h3><div class="math">∇ᵢvⁱ = 0 &nbsp; · &nbsp; ρ Dₜvⁱ = −∇ⁱp + ∇ⱼ(2ηₛeⁱʲ + τⁱʲ)<br>DₜCⁱʲ − Cᵏʲ∇ₖvⁱ − Cⁱᵏ∇ₖvʲ = −(Cⁱʲ − gⁱʲ)/λᵣ</div><p>The Oldroyd-B model couples a symmetric polymer-conformation tensor to incompressible flow. Colour shows polymer stress magnitude; white arrows show velocity. The inner cylinder slows at t = 12 and stops at t = 14. The plots track velocity and energy relaxation.</p><video controls autoplay loop muted playsinline preload="metadata" aria-label="couette" poster="../../gallery/tensor/couette.png?v=51e7de8d7126" style="display:block;width:100%;max-width:1100px;max-height:75vh;object-fit:contain;margin:auto"><source src="../../gallery/tensor/couette.mp4?v=98762781b8f3" type="video/mp4"><a href="../../gallery/tensor/couette.gif?v=6783d0e8af96">GIF</a></video><p class="cap">This is a two-dimensional annulus. The driver uses upwind transport and a positivity-preserving split time step; Python/SciPy solves the Poisson equation for velocity.</p><details class="codebox" data-fme="tensor_demos/oldroyd_couette.fme"><summary>Complete Formurae source: oldroyd_couette.fme</summary><pre>-- Incompressible Oldroyd-B fluid in a rotating annulus, r_phys=1+r.
+-- The driver reconstructs divergence-free velocity from vorticity and evolves
+-- its azimuthal mean from acceleration. Pressure drops out of the curl.
+dimension 2
+axes r, θ
+metric g
+metric scale [1, 1 + r - roffset]
+param roffset = 3*dr
+param ηs = 0.04
+param ηp = 0.16
+param relaxation = 1.5
+param ρ0 = 1.0
+param hr = dr
+param ht = dθ
+
+def strain V~a = withSymbols [i,j,k] ((g_i_k . ∂_j V~k + g_j_k . ∂_i V~k + (∂/∂ g_i_j coordinates~k) . V~k) / 2)
+def raiseBoth E_i_j = withSymbols [i,j,k,l] (g~i~k . g~j~l . E_k_l)
+def stressDiv S~a~b = withSymbols [i,j,k,l] ((g~i~k . ∂_j (volume * (g_k_l . S~l~j))) / volume - (g~i~k . (∂/∂ g_j_l coordinates~k) . S~j~l) / 2)
+-- Transport and stretching of a contravariant tensor (negative Lie derivative).
+-- Connection terms cancel in this combination; no component cases are needed.
+def upperConvectedRHS V~a T~b~c = withSymbols [i,j,k] ((T~k~j . ∂_k V~i) + (T~i~k . ∂_k V~j) - (V~k . ∂_k T~i~j))
+def convection V~a = withSymbols [i,j,k,l] ((V~j . ∂_j (g_i_k . V~k)) - ((∂/∂ g_j_k coordinates~i) . V~j . V~k) / 2)
+def raiseVector F_a = withSymbols [i,j] (g~i~j . F_j)
+def curl F~a = withSymbols [i,j,k] ((epsilon~i~j . ∂_i (g_j_k . F~k)) / volume)
+-- The driver supplies absolute coordinate velocities as transportSpeed.
+def upwindScalar vr vt ar at q = 0 - vr * (∂_r q) - vt * (∂_θ q) + ar * hr * (∂^2_r q) / 2 + at * ht * (∂^2_θ q) / 2
+
+field omega @ collocated
+field v~i @ collocated
+field transportSpeed~i @ collocated
+field C{~i~j} @ collocated
+field acceleration~i @ collocated
+field rate{~i~j} @ collocated
+field rotationRate @ collocated
+field transport{~i~j} @ collocated
+field velocityGradient~i_j @ collocated
+
+init:
+  transportSpeed~i = [| 0.0, 0.0 |]~i
+  omega = 0.0
+  v~i = [| 0.0, 0.0 |]~i
+  C~i~j = [| [| 1.0, 0.0 |], [| 1.0 |] |]~i~j
+  acceleration~i = [| 0.0, 0.0 |]~i
+  rate~i~j = [| [| 0.0, 0.0 |], [| 0.0 |] |]~i~j
+  rotationRate = 0.0
+  transport~i~j = [| [| 0.0, 0.0 |], [| 0.0 |] |]~i~j
+  velocityGradient~i_j = [| [| 0.0, 0.0 |], [| 0.0, 0.0 |] |]~i_j
+
+step:
+  let e_i_j = strain v
+  let raised~i~j = raiseBoth e_i_j
+  let solvent~i~j = 2 * ηs * raised~i~j
+  local viscous~i @ collocated = stressDiv solvent~i~j
+  local totalStress{~i~j} @ collocated = (ηp / relaxation) * (C~i~j - g~i~j)
+  local divergence~i @ collocated = stressDiv totalStress
+  local advected_i @ collocated = convection v
+  local inertial~i @ collocated = raiseVector advected
+  local force~i @ collocated = divergence~i / ρ0 - inertial~i
+  local stretching{~i~j} @ collocated = upperConvectedRHS v C
+  acceleration&#x27;~i = force~i + viscous~i / ρ0
+  local torque @ collocated = curl force
+  rotationRate&#x27; = torque + (ηs / ρ0) * (∂^2_r omega + (∂_r omega) / (1 + r - roffset) + (∂^2_θ omega) / (1 + r - roffset)^2)
+  omega&#x27; = omega
+  transportSpeed&#x27;~i = transportSpeed~i
+  rate&#x27;~i~j = stretching~i~j - (C~i~j - g~i~j) / relaxation
+  transport&#x27;~i~j = tensorMap (upwindScalar v~1 v~2 transportSpeed~1 transportSpeed~2) C
+  velocityGradient&#x27;~i_j = ∂_j v~i
+  v&#x27;~i = v~i
+  C&#x27;~i~j = C~i~j
+</pre></details><p style="font-size:12px">Generated code: <a href="../../examples/tensor_demos/oldroyd_couette.fme">.fme</a> · <a href="../../examples/tensor_demos/oldroyd_couette.egi">.egi</a> · <a href="../../examples/tensor_demos/oldroyd_couette.feir">.feir</a> · <a href="../../examples/tensor_demos/oldroyd_couette.fmr">.fmr</a></p><div class="facts" data-tensor-check="couette"><b>Verification</b>: Approximately second-order spatial convergence for exact steady flow; first-order time convergence for the split integrator. Positive definiteness at every saved frame; smallest eigenvalue ≈ 0.484, maximum velocity divergence ≈ 1.10e-15. Numerical records: <a href="../../examples/tensor_demos/results/couette-validation.json">couette-validation</a>, <a href="../../examples/tensor_demos/results/couette.json">couette</a></div></article>
+<article class="card" style="margin:20px 0" id="tensor-nematic"><h3>Liquid crystal on a sphere: orientation and moving defects</h3><div class="math">∂ₜQⁱʲ = P₀[L ∇ᵏ∇ₖQⁱʲ + (A − B QₖₗQᵏˡ)Qⁱʲ]</div><p>The symmetric, trace-free tensor Q describes molecular orientation and alignment strength. Colour shows alignment, short lines show orientation, and cyan points mark defects where orientation is undefined. Front and back views are shown together.</p><video controls autoplay loop muted playsinline preload="metadata" aria-label="nematic" poster="../../gallery/tensor/nematic.png?v=973cdb6a3968" style="display:block;width:100%;max-width:1100px;max-height:75vh;object-fit:contain;margin:auto"><source src="../../gallery/tensor/nematic.mp4?v=e8a25f1b2df4" type="video/mp4"><a href="../../gallery/tensor/nematic.gif?v=252c4deeecfb">GIF</a></video><p class="cap">This is passive orientational relaxation on the sphere, without a coupled surrounding fluid. Defects are detected from the winding of the computed Q field; their motion is a simulation result.</p><details class="codebox" data-fme="tensor_demos/nematic_sphere.fme"><summary>Complete Formurae source: nematic_sphere.fme</summary><pre>-- Intrinsic surface Landau-de Gennes relaxation on one Yin-Yang panel.
+-- Q is a symmetric contravariant tangent tensor, with g_ij Q^ij = 0.
+-- The driver rotates both tensor indices when exchanging panel boundaries.
+dimension 2
+axes θ, φ
+metric g
+metric scale [1, sin (π / 6 + θ)]
+-- No physical boundary on this sphere: the driver supplies overlapping rims.
+
+param L = 0.02
+param A = 1.0
+param B = 2.0
+
+-- The connection describes how the coordinate basis changes.
+def connection G_a_b = withSymbols [i,j,k,l] ((g~i~l . ((∂/∂ G_l_k coordinates~j) + (∂/∂ G_l_j coordinates~k) - (∂/∂ G_j_k coordinates~l))) / 2)
+def tensorGradient Q~a~b C~c_d_e = withSymbols [i,j,k,l] (∂_k Q~i~j + C~i_k_l . Q~l~j + C~j_k_l . Q~i~l)
+def gradientDivergence H~a~b_c C~d_e_f = withSymbols [i,j,k,l,m] (g~k~l . (∂_k H~i~j_l + C~i_k_m . H~m~j_l + C~j_k_m . H~i~m_l - C~m_k_l . H~i~j_m))
+def traceFree T~a~b = withSymbols [i,j,k,l] (T~i~j - g~i~j * (g_k_l . T~k~l) / 2)
+def normSquared Q~a~b = withSymbols [i,j,k,l] (g_i_k . g_j_l . Q~i~j . Q~k~l)
+
+field Q{~i~j} @ collocated
+field rhs{~i~j} @ collocated
+
+init:
+  Q~i~j = [| [| 0.0, 0.0 |], [| 0.0 |] |]~i~j
+  rhs~i~j = [| [| 0.0, 0.0 |], [| 0.0 |] |]~i~j
+
+step:
+  let gamma~i_j_k = connection g_i_j
+  let covgrad~i~j_k = tensorGradient Q gamma~i_j_k
+  local diffusion{~i~j} @ collocated = gradientDivergence covgrad~i~j_k gamma~i_j_k
+  local molecular{~i~j} @ collocated = L * diffusion~i~j + (A - B * normSquared Q) * Q~i~j
+  rhs&#x27;~i~j = traceFree molecular
+  Q&#x27;~i~j = Q~i~j
+</pre></details><p style="font-size:12px">Generated code: <a href="../../examples/tensor_demos/nematic_sphere.fme">.fme</a> · <a href="../../examples/tensor_demos/nematic_sphere.egi">.egi</a> · <a href="../../examples/tensor_demos/nematic_sphere.feir">.feir</a> · <a href="../../examples/tensor_demos/nematic_sphere.fmr">.fmr</a></p><div class="facts" data-tensor-check="nematic"><b>Verification</b>: Approximately second-order convergence on an analytic tensor eigenmode. Trace residual < 10⁻⁹ and total defect charge +2 at every saved frame. Numerical records: <a href="../../examples/tensor_demos/results/nematic-validation.json">nematic-validation</a>, <a href="../../examples/tensor_demos/results/nematic.json">nematic</a></div></article>
+</section>
+<!-- END TENSOR DEMOS -->
 
 <h2>Fundamentals and cross-cutting features</h2>
 <div class="grid">
@@ -5212,12 +5482,12 @@ step:
 
 <footer>
   formurae — Egison (tensor index notation + CAS) × Formura (distributed stencils, temporal blocking).
-  Every number is guaranteed by the <code>make all</code> verification drivers via exit codes.
+  Numerical checks use the <code>make all</code> or <code>make tensor-demos</code> verification drivers.
 </footer>
 </main>
 <script>
   (() => {
-    const videos = document.querySelectorAll('.imgs video');
+    const videos = document.querySelectorAll('.imgs video, #tensor-demos video');
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (!('IntersectionObserver' in window) || reducedMotion) {
       if (reducedMotion) videos.forEach(video => video.pause());

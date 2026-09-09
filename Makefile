@@ -103,6 +103,19 @@ gallery-assets:
 	python3 gallery/tools/render.py
 	python3 gallery/tools/render_video.py
 
+# The coupled tensor demos include Python time integrators and global solves.
+# A single orchestrator keeps all compiler and simulation jobs serial.
+TENSOR_PYTHON ?= python3
+.PHONY: tensor-demos tensor-demo-checks tensor-demo-simulate tensor-demo-render
+tensor-demos:
+	PYTHONDONTWRITEBYTECODE=1 $(TENSOR_PYTHON) tools/tensor_demos.py all
+tensor-demo-checks:
+	PYTHONDONTWRITEBYTECODE=1 $(TENSOR_PYTHON) tools/tensor_demos.py checks
+tensor-demo-simulate:
+	PYTHONDONTWRITEBYTECODE=1 $(TENSOR_PYTHON) tools/tensor_demos.py simulate
+tensor-demo-render:
+	PYTHONDONTWRITEBYTECODE=1 $(TENSOR_PYTHON) tools/tensor_demos.py render
+
 # Kept out of all: yy_check runs the global x/y/z eigenmodes, so the long
 # regression is deliberately opt-in for local/CI endurance testing.
 yinyang_diffusion-long: yinyang_diffusion

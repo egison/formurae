@@ -1,0 +1,69 @@
+dimension :: 3
+axes :: r,theta,z
+
+double :: sbpLoR = 0.5*dr
+double :: sbpHiR = (total_grid_r - 1.5)*dr
+double :: sbpHinvR = 2.0/dr
+double :: lambda = 2.0
+double :: mu = 1.0
+double :: alpha = 6.0
+double :: rho0 = 1.0
+
+begin function (v_up1,v_up2,v_up3,sigma_up1_up1,sigma_up2_up2,sigma_up3_up3,sigma_up1_up2,sigma_up1_up3,sigma_up2_up3,acceleration_up1,acceleration_up2,acceleration_up3,rate_up1_up1,rate_up2_up2,rate_up3_up3,rate_up1_up2,rate_up1_up3,rate_up2_up3) = init()
+  double [] :: v_up1, v_up2, v_up3, sigma_up1_up1, sigma_up2_up2, sigma_up3_up3, sigma_up1_up2, sigma_up1_up3, sigma_up2_up3, acceleration_up1, acceleration_up2, acceleration_up3, rate_up1_up1, rate_up2_up2, rate_up3_up3, rate_up1_up2, rate_up1_up3, rate_up2_up3
+  v_up1[i,j,k] = 0.0
+  v_up2[i,j,k] = 0.0
+  v_up3[i,j,k] = 0.0
+  sigma_up1_up1[i,j,k] = 0.0
+  sigma_up2_up2[i,j,k] = 0.0
+  sigma_up3_up3[i,j,k] = 0.0
+  sigma_up1_up2[i,j,k] = 0.0
+  sigma_up1_up3[i,j,k] = 0.0
+  sigma_up2_up3[i,j,k] = 0.0
+  acceleration_up1[i,j,k] = 0.0
+  acceleration_up2[i,j,k] = 0.0
+  acceleration_up3[i,j,k] = 0.0
+  rate_up1_up1[i,j,k] = 0.0
+  rate_up2_up2[i,j,k] = 0.0
+  rate_up3_up3[i,j,k] = 0.0
+  rate_up1_up2[i,j,k] = 0.0
+  rate_up1_up3[i,j,k] = 0.0
+  rate_up2_up3[i,j,k] = 0.0
+end function
+
+begin function (v_up1',v_up2',v_up3',sigma_up1_up1',sigma_up2_up2',sigma_up3_up3',sigma_up1_up2',sigma_up1_up3',sigma_up2_up3',acceleration_up1',acceleration_up2',acceleration_up3',rate_up1_up1',rate_up2_up2',rate_up3_up3',rate_up1_up2',rate_up1_up3',rate_up2_up3') = step(v_up1,v_up2,v_up3,sigma_up1_up1,sigma_up2_up2,sigma_up3_up3,sigma_up1_up2,sigma_up1_up3,sigma_up2_up3,acceleration_up1,acceleration_up2,acceleration_up3,rate_up1_up1,rate_up2_up2,rate_up3_up3,rate_up1_up2,rate_up1_up3,rate_up2_up3)
+  double [] :: v_up1', v_up2', v_up3', sigma_up1_up1', sigma_up2_up2', sigma_up3_up3', sigma_up1_up2', sigma_up1_up3', sigma_up2_up3', acceleration_up1', acceleration_up2', acceleration_up3', rate_up1_up1', rate_up2_up2', rate_up3_up3', rate_up1_up2', rate_up1_up3', rate_up2_up3'
+  e_down1_down1[i,j,k] = if i == 0 then (v_up1[i+1,j,k] + (-1) * v_up1[i,j,k]) / dr else if i == (-1) + total_grid_r then (v_up1[i,j,k] + (-1) * v_up1[i-1,j,k]) / dr else ((-1 / 2) * v_up1[i-1,j,k] + (1 / 2) * v_up1[i+1,j,k]) / dr
+  e_down2_down2[i,j,k] = v_up1[i,j,k] + 2 * dr * i * ((-1 / 2) * v_up2[i,j-1,k] + (1 / 2) * v_up2[i,j+1,k]) / dtheta + dr * i * v_up1[i,j,k] + ((-1 / 2) * v_up2[i,j-1,k] + (1 / 2) * v_up2[i,j+1,k]) / dtheta * (dr * i)**2 + ((-1 / 2) * v_up2[i,j-1,k] + (1 / 2) * v_up2[i,j+1,k]) / dtheta
+  e_down3_down3[i,j,k] = ((-1 / 2) * v_up3[i,j,k-1] + (1 / 2) * v_up3[i,j,k+1]) / dz
+  e_down1_down2[i,j,k] = (1 / 2) * ((-1 / 2) * v_up1[i,j-1,k] + (1 / 2) * v_up1[i,j+1,k]) / dtheta + (1 / 2) * (dr * i)**2 * (if i == 0 then (v_up2[i+1,j,k] + (-1) * v_up2[i,j,k]) / dr else if i == (-1) + total_grid_r then (v_up2[i,j,k] + (-1) * v_up2[i-1,j,k]) / dr else ((-1 / 2) * v_up2[i-1,j,k] + (1 / 2) * v_up2[i+1,j,k]) / dr) + (1 / 2) * (if i == 0 then (v_up2[i+1,j,k] + (-1) * v_up2[i,j,k]) / dr else if i == (-1) + total_grid_r then (v_up2[i,j,k] + (-1) * v_up2[i-1,j,k]) / dr else ((-1 / 2) * v_up2[i-1,j,k] + (1 / 2) * v_up2[i+1,j,k]) / dr) + dr * i * (if i == 0 then (v_up2[i+1,j,k] + (-1) * v_up2[i,j,k]) / dr else if i == (-1) + total_grid_r then (v_up2[i,j,k] + (-1) * v_up2[i-1,j,k]) / dr else ((-1 / 2) * v_up2[i-1,j,k] + (1 / 2) * v_up2[i+1,j,k]) / dr)
+  e_down1_down3[i,j,k] = (1 / 2) * ((-1 / 2) * v_up1[i,j,k-1] + (1 / 2) * v_up1[i,j,k+1]) / dz + (1 / 2) * (if i == 0 then (v_up3[i+1,j,k] + (-1) * v_up3[i,j,k]) / dr else if i == (-1) + total_grid_r then (v_up3[i,j,k] + (-1) * v_up3[i-1,j,k]) / dr else ((-1 / 2) * v_up3[i-1,j,k] + (1 / 2) * v_up3[i+1,j,k]) / dr)
+  e_down2_down3[i,j,k] = (1 / 2) * ((-1 / 2) * v_up2[i,j,k-1] + (1 / 2) * v_up2[i,j,k+1]) / dz + (1 / 2) * ((-1 / 2) * v_up2[i,j,k-1] + (1 / 2) * v_up2[i,j,k+1]) / dz * (dr * i)**2 + (1 / 2) * ((-1 / 2) * v_up3[i,j-1,k] + (1 / 2) * v_up3[i,j+1,k]) / dtheta + dr * i * ((-1 / 2) * v_up2[i,j,k-1] + (1 / 2) * v_up2[i,j,k+1]) / dz
+  surfaceE_down1_down1[i,j,k] = ((-2) * dr * i * lambda * e_down3_down3[i,j,k] + (-1) * lambda * e_down2_down2[i,j,k] + (-1) * lambda * e_down3_down3[i,j,k] + (-1) * lambda * e_down3_down3[i,j,k] * (dr * i)**2 + 2 * alpha * dr * i * e_down1_down1[i,j,k] * (if (dr * i < sbpLoR) + (dr * i > sbpHiR) > 0 then 0 else 1) + 2 * dr * i * lambda * e_down1_down1[i,j,k] * (if (dr * i < sbpLoR) + (dr * i > sbpHiR) > 0 then 0 else 1) + 2 * dr * i * lambda * e_down3_down3[i,j,k] * (if (dr * i < sbpLoR) + (dr * i > sbpHiR) > 0 then 0 else 1) + 2 * mu * e_down1_down1[i,j,k] * (dr * i)**2 * (if (dr * i < sbpLoR) + (dr * i > sbpHiR) > 0 then 0 else 1) + 2 * mu * e_down1_down1[i,j,k] * (if (dr * i < sbpLoR) + (dr * i > sbpHiR) > 0 then 0 else 1) + 4 * dr * i * mu * e_down1_down1[i,j,k] * (if (dr * i < sbpLoR) + (dr * i > sbpHiR) > 0 then 0 else 1) + alpha * e_down1_down1[i,j,k] * (dr * i)**2 * (if (dr * i < sbpLoR) + (dr * i > sbpHiR) > 0 then 0 else 1) + alpha * e_down1_down1[i,j,k] * (if (dr * i < sbpLoR) + (dr * i > sbpHiR) > 0 then 0 else 1) + lambda * e_down1_down1[i,j,k] * (dr * i)**2 * (if (dr * i < sbpLoR) + (dr * i > sbpHiR) > 0 then 0 else 1) + lambda * e_down1_down1[i,j,k] * (if (dr * i < sbpLoR) + (dr * i > sbpHiR) > 0 then 0 else 1) + lambda * e_down2_down2[i,j,k] * (if (dr * i < sbpLoR) + (dr * i > sbpHiR) > 0 then 0 else 1) + lambda * e_down3_down3[i,j,k] * (dr * i)**2 * (if (dr * i < sbpLoR) + (dr * i > sbpHiR) > 0 then 0 else 1) + lambda * e_down3_down3[i,j,k] * (if (dr * i < sbpLoR) + (dr * i > sbpHiR) > 0 then 0 else 1)) / (alpha + lambda + 2 * alpha * dr * i + 2 * dr * i * lambda + 2 * mu + 2 * mu * (dr * i)**2 + 4 * dr * i * mu + alpha * (dr * i)**2 + lambda * (dr * i)**2)
+  surfaceE_down2_down2[i,j,k] = e_down2_down2[i,j,k]
+  surfaceE_down3_down3[i,j,k] = e_down3_down3[i,j,k]
+  surfaceE_down1_down2[i,j,k] = e_down1_down2[i,j,k] * (if (dr * i < sbpLoR) + (dr * i > sbpHiR) > 0 then 0 else 1)
+  surfaceE_down1_down3[i,j,k] = e_down1_down3[i,j,k] * (if (dr * i < sbpLoR) + (dr * i > sbpHiR) > 0 then 0 else 1)
+  surfaceE_down2_down3[i,j,k] = e_down2_down3[i,j,k]
+  force_up1[i,j,k] = ((-2) * dr * i * sigma_up2_up2[i,j,k] + (-1) * sigma_up2_up2[i,j,k] + (-1) * sigma_up2_up2[i,j,k] * (dr * i)**2 + ((-1 / 2) * (sigma_up1_up2[i,j-1,k] + dr * i * sigma_up1_up2[i,j-1,k]) + (1 / 2) * (sigma_up1_up2[i,j+1,k] + dr * i * sigma_up1_up2[i,j+1,k])) / dtheta + ((-1 / 2) * (sigma_up1_up3[i,j,k-1] + dr * i * sigma_up1_up3[i,j,k-1]) + (1 / 2) * (sigma_up1_up3[i,j,k+1] + dr * i * sigma_up1_up3[i,j,k+1])) / dz + (if i == 0 then (sigma_up1_up1[i+1,j,k] + (-1) * (sigma_up1_up1[i,j,k] + dr * i * sigma_up1_up1[i,j,k]) + dr * sigma_up1_up1[i+1,j,k] * (1 + i)) / dr else if i == (-1) + total_grid_r then (sigma_up1_up1[i,j,k] + (-1) * (sigma_up1_up1[i-1,j,k] + dr * sigma_up1_up1[i-1,j,k] * ((-1) + i)) + dr * i * sigma_up1_up1[i,j,k]) / dr else ((-1 / 2) * (sigma_up1_up1[i-1,j,k] + dr * sigma_up1_up1[i-1,j,k] * ((-1) + i)) + (1 / 2) * (sigma_up1_up1[i+1,j,k] + dr * sigma_up1_up1[i+1,j,k] * (1 + i))) / dr)) / (1 + dr * i)
+  force_up2[i,j,k] = (((-1 / 2) * (sigma_up2_up2[i,j-1,k] + 3 * dr * i * sigma_up2_up2[i,j-1,k] + 3 * sigma_up2_up2[i,j-1,k] * (dr * i)**2 + sigma_up2_up2[i,j-1,k] * (dr * i)**3) + (1 / 2) * (sigma_up2_up2[i,j+1,k] + 3 * dr * i * sigma_up2_up2[i,j+1,k] + 3 * sigma_up2_up2[i,j+1,k] * (dr * i)**2 + sigma_up2_up2[i,j+1,k] * (dr * i)**3)) / dtheta + ((-1 / 2) * (sigma_up2_up3[i,j,k-1] + 3 * dr * i * sigma_up2_up3[i,j,k-1] + 3 * sigma_up2_up3[i,j,k-1] * (dr * i)**2 + sigma_up2_up3[i,j,k-1] * (dr * i)**3) + (1 / 2) * (sigma_up2_up3[i,j,k+1] + 3 * dr * i * sigma_up2_up3[i,j,k+1] + 3 * sigma_up2_up3[i,j,k+1] * (dr * i)**2 + sigma_up2_up3[i,j,k+1] * (dr * i)**3)) / dz + (if i == 0 then (sigma_up1_up2[i+1,j,k] + (-1) * (sigma_up1_up2[i,j,k] + 3 * dr * i * sigma_up1_up2[i,j,k] + 3 * sigma_up1_up2[i,j,k] * (dr * i)**2 + sigma_up1_up2[i,j,k] * (dr * i)**3) + 3 * dr * sigma_up1_up2[i+1,j,k] * (1 + i) + 3 * sigma_up1_up2[i+1,j,k] * (dr * (1 + i))**2 + sigma_up1_up2[i+1,j,k] * (dr * (1 + i))**3) / dr else if i == (-1) + total_grid_r then (sigma_up1_up2[i,j,k] + (-1) * (sigma_up1_up2[i-1,j,k] + 3 * dr * sigma_up1_up2[i-1,j,k] * ((-1) + i) + 3 * sigma_up1_up2[i-1,j,k] * (dr * ((-1) + i))**2 + sigma_up1_up2[i-1,j,k] * (dr * ((-1) + i))**3) + 3 * dr * i * sigma_up1_up2[i,j,k] + 3 * sigma_up1_up2[i,j,k] * (dr * i)**2 + sigma_up1_up2[i,j,k] * (dr * i)**3) / dr else ((-1 / 2) * (sigma_up1_up2[i-1,j,k] + 3 * dr * sigma_up1_up2[i-1,j,k] * ((-1) + i) + 3 * sigma_up1_up2[i-1,j,k] * (dr * ((-1) + i))**2 + sigma_up1_up2[i-1,j,k] * (dr * ((-1) + i))**3) + (1 / 2) * (sigma_up1_up2[i+1,j,k] + 3 * dr * sigma_up1_up2[i+1,j,k] * (1 + i) + 3 * sigma_up1_up2[i+1,j,k] * (dr * (1 + i))**2 + sigma_up1_up2[i+1,j,k] * (dr * (1 + i))**3)) / dr)) / (1 + 3 * dr * i + 3 * (dr * i)**2 + (dr * i)**3)
+  force_up3[i,j,k] = (((-1 / 2) * (sigma_up2_up3[i,j-1,k] + dr * i * sigma_up2_up3[i,j-1,k]) + (1 / 2) * (sigma_up2_up3[i,j+1,k] + dr * i * sigma_up2_up3[i,j+1,k])) / dtheta + ((-1 / 2) * (sigma_up3_up3[i,j,k-1] + dr * i * sigma_up3_up3[i,j,k-1]) + (1 / 2) * (sigma_up3_up3[i,j,k+1] + dr * i * sigma_up3_up3[i,j,k+1])) / dz + (if i == 0 then (sigma_up1_up3[i+1,j,k] + (-1) * (sigma_up1_up3[i,j,k] + dr * i * sigma_up1_up3[i,j,k]) + dr * sigma_up1_up3[i+1,j,k] * (1 + i)) / dr else if i == (-1) + total_grid_r then (sigma_up1_up3[i,j,k] + (-1) * (sigma_up1_up3[i-1,j,k] + dr * sigma_up1_up3[i-1,j,k] * ((-1) + i)) + dr * i * sigma_up1_up3[i,j,k]) / dr else ((-1 / 2) * (sigma_up1_up3[i-1,j,k] + dr * sigma_up1_up3[i-1,j,k] * ((-1) + i)) + (1 / 2) * (sigma_up1_up3[i+1,j,k] + dr * sigma_up1_up3[i+1,j,k] * (1 + i))) / dr)) / (1 + dr * i)
+  acceleration_up1'[i,j,k] = force_up1[i,j,k] * rho0**(-1)
+  acceleration_up2'[i,j,k] = force_up2[i,j,k] * rho0**(-1)
+  acceleration_up3'[i,j,k] = force_up3[i,j,k] * rho0**(-1)
+  rate_up1_up1'[i,j,k] = (2 * alpha * dr * i * surfaceE_down1_down1[i,j,k] + 2 * dr * i * lambda * surfaceE_down1_down1[i,j,k] + 2 * dr * i * lambda * surfaceE_down3_down3[i,j,k] + 2 * mu * surfaceE_down1_down1[i,j,k] + 2 * mu * surfaceE_down1_down1[i,j,k] * (dr * i)**2 + 4 * dr * i * mu * surfaceE_down1_down1[i,j,k] + alpha * surfaceE_down1_down1[i,j,k] + alpha * surfaceE_down1_down1[i,j,k] * (dr * i)**2 + lambda * surfaceE_down1_down1[i,j,k] + lambda * surfaceE_down1_down1[i,j,k] * (dr * i)**2 + lambda * surfaceE_down2_down2[i,j,k] + lambda * surfaceE_down3_down3[i,j,k] + lambda * surfaceE_down3_down3[i,j,k] * (dr * i)**2) / (1 + 2 * dr * i + (dr * i)**2)
+  rate_up2_up2'[i,j,k] = (2 * dr * i * lambda * surfaceE_down1_down1[i,j,k] + 2 * dr * i * lambda * surfaceE_down3_down3[i,j,k] + 2 * mu * surfaceE_down2_down2[i,j,k] + lambda * surfaceE_down1_down1[i,j,k] + lambda * surfaceE_down1_down1[i,j,k] * (dr * i)**2 + lambda * surfaceE_down2_down2[i,j,k] + lambda * surfaceE_down3_down3[i,j,k] + lambda * surfaceE_down3_down3[i,j,k] * (dr * i)**2) / (1 + 4 * dr * i + 4 * (dr * i)**3 + 6 * (dr * i)**2 + (dr * i)**4)
+  rate_up3_up3'[i,j,k] = (2 * dr * i * lambda * surfaceE_down1_down1[i,j,k] + 2 * dr * i * lambda * surfaceE_down3_down3[i,j,k] + 2 * mu * surfaceE_down3_down3[i,j,k] + 2 * mu * surfaceE_down3_down3[i,j,k] * (dr * i)**2 + 4 * dr * i * mu * surfaceE_down3_down3[i,j,k] + lambda * surfaceE_down1_down1[i,j,k] + lambda * surfaceE_down1_down1[i,j,k] * (dr * i)**2 + lambda * surfaceE_down2_down2[i,j,k] + lambda * surfaceE_down3_down3[i,j,k] + lambda * surfaceE_down3_down3[i,j,k] * (dr * i)**2) / (1 + 2 * dr * i + (dr * i)**2)
+  rate_up1_up2'[i,j,k] = 2 * mu * surfaceE_down1_down2[i,j,k] / (1 + 2 * dr * i + (dr * i)**2)
+  rate_up1_up3'[i,j,k] = 2 * mu * surfaceE_down1_down3[i,j,k]
+  rate_up2_up3'[i,j,k] = 2 * mu * surfaceE_down2_down3[i,j,k] / (1 + 2 * dr * i + (dr * i)**2)
+  v_up1'[i,j,k] = v_up1[i,j,k]
+  v_up2'[i,j,k] = v_up2[i,j,k]
+  v_up3'[i,j,k] = v_up3[i,j,k]
+  sigma_up1_up1'[i,j,k] = sigma_up1_up1[i,j,k]
+  sigma_up2_up2'[i,j,k] = sigma_up2_up2[i,j,k]
+  sigma_up3_up3'[i,j,k] = sigma_up3_up3[i,j,k]
+  sigma_up1_up2'[i,j,k] = sigma_up1_up2[i,j,k]
+  sigma_up1_up3'[i,j,k] = sigma_up1_up3[i,j,k]
+  sigma_up2_up3'[i,j,k] = sigma_up2_up3[i,j,k]
+end function

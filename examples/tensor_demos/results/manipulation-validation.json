@@ -1,0 +1,171 @@
+{
+  "torsion_exact_mode": [
+    {
+      "radial": 4,
+      "angular": 24,
+      "error": 5.455892084437267e-06,
+      "kernel": {
+        "name": "twist_tube",
+        "shape": [
+          5,
+          24,
+          13
+        ],
+        "spacing": [
+          0.25,
+          0.2617993877991494,
+          0.5235987755982988
+        ],
+        "periodic": [
+          false,
+          true,
+          false
+        ],
+        "fmr": "8b0598d38a866c60da7758bebf801b06dc5f0ddae3a22348a425df2be1ae6fb4",
+        "formura": "e8d36abc20f6cf251ca805e9bc85ce8b5a8849d97fcf36bf327dc54025c16564",
+        "fields": [
+          "acceleration_up1",
+          "acceleration_up2",
+          "acceleration_up3",
+          "rate_up1_up1",
+          "rate_up1_up2",
+          "rate_up1_up3",
+          "rate_up2_up2",
+          "rate_up2_up3",
+          "rate_up3_up3",
+          "sigma_up1_up1",
+          "sigma_up1_up2",
+          "sigma_up1_up3",
+          "sigma_up2_up2",
+          "sigma_up2_up3",
+          "sigma_up3_up3",
+          "v_up1",
+          "v_up2",
+          "v_up3"
+        ],
+        "generated_c_sha256": "7b3705e505d5af24ffef4529b356ee9ff6357b952ed864de9eccce799ba40f00",
+        "generated_library_sha256": "e7ecda75ab4cad56d84ebff70abde523de04caa1475bf47a2ef488433fdf5846"
+      }
+    },
+    {
+      "radial": 8,
+      "angular": 48,
+      "error": 1.3648497491876906e-06,
+      "kernel": {
+        "name": "twist_tube",
+        "shape": [
+          9,
+          48,
+          25
+        ],
+        "spacing": [
+          0.125,
+          0.1308996938995747,
+          0.2617993877991494
+        ],
+        "periodic": [
+          false,
+          true,
+          false
+        ],
+        "fmr": "8b0598d38a866c60da7758bebf801b06dc5f0ddae3a22348a425df2be1ae6fb4",
+        "formura": "e8d36abc20f6cf251ca805e9bc85ce8b5a8849d97fcf36bf327dc54025c16564",
+        "fields": [
+          "acceleration_up1",
+          "acceleration_up2",
+          "acceleration_up3",
+          "rate_up1_up1",
+          "rate_up1_up2",
+          "rate_up1_up3",
+          "rate_up2_up2",
+          "rate_up2_up3",
+          "rate_up3_up3",
+          "sigma_up1_up1",
+          "sigma_up1_up2",
+          "sigma_up1_up3",
+          "sigma_up2_up2",
+          "sigma_up2_up3",
+          "sigma_up3_up3",
+          "v_up1",
+          "v_up2",
+          "v_up3"
+        ],
+        "generated_c_sha256": "84c054c2827a2653cbfe221e67181f46ffa616a2e9c0c5ba52d2b46a168b6b05",
+        "generated_library_sha256": "02ba91028359b731dc84b6c22a2b7994334239c6b4e85dc12edfabe8586663e3"
+      }
+    },
+    {
+      "radial": 16,
+      "angular": 96,
+      "error": 3.412672537508703e-07,
+      "kernel": {
+        "name": "twist_tube",
+        "shape": [
+          17,
+          96,
+          49
+        ],
+        "spacing": [
+          0.0625,
+          0.06544984694978735,
+          0.1308996938995747
+        ],
+        "periodic": [
+          false,
+          true,
+          false
+        ],
+        "fmr": "8b0598d38a866c60da7758bebf801b06dc5f0ddae3a22348a425df2be1ae6fb4",
+        "formura": "e8d36abc20f6cf251ca805e9bc85ce8b5a8849d97fcf36bf327dc54025c16564",
+        "fields": [
+          "acceleration_up1",
+          "acceleration_up2",
+          "acceleration_up3",
+          "rate_up1_up1",
+          "rate_up1_up2",
+          "rate_up1_up3",
+          "rate_up2_up2",
+          "rate_up2_up3",
+          "rate_up3_up3",
+          "sigma_up1_up1",
+          "sigma_up1_up2",
+          "sigma_up1_up3",
+          "sigma_up2_up2",
+          "sigma_up2_up3",
+          "sigma_up3_up3",
+          "v_up1",
+          "v_up2",
+          "v_up3"
+        ],
+        "generated_c_sha256": "e86fac79fdfa4569e9cb579177365ee69d5d136da6f62b34a3fadd2686b53efc",
+        "generated_library_sha256": "e7e13cecd57055c317c96c796cf153f6af5afd0c50e3cda890c5b7e5aef40314"
+      }
+    }
+  ],
+  "orders": [
+    1.9990729692612017,
+    1.9997682467992037
+  ],
+  "release_projection": "energy non-increasing and idempotent",
+  "source_sha256": {
+    "examples/tensor_demos/anisotropic_cylinder.fme": "d48db6bd5dc2a898d409015190890cb0cf635caf93f6687e5d3c1a7b0d4f8f6c",
+    "examples/tensor_demos/anisotropic_sphere.fme": "cefd28113decfbbcbe857290c732d3866ea0ac1d85386b517b0c8290b8561aaf",
+    "examples/tensor_demos/nematic_sphere.fme": "7da4e57d72f7abc48f9d87349e4fb06cec73b0b1e06cb39877439b33a357c8f2",
+    "examples/tensor_demos/oldroyd_couette.fme": "9b5c16eec936b972ba3e1e89c9c0050ee46598a7444cdf5ea6f3aee19090964b",
+    "examples/tensor_demos/press_ball.fme": "be83a5d99167169b8c8b6a3a2a4a2c9d46187fe5db7be963799f4eb18af58791",
+    "examples/tensor_demos/twist_tube.fme": "aa08570b26c11ce4c351a906c212b0216670fb7690581a876daf819e3917b89e",
+    "tools/tensor_demo_animation_checks.py": "6b50363c331e6998386925797e2a751ea30b501edf352a366bbd73a50f9886c2",
+    "tools/tensor_demo_common.py": "8cc8d5f5e35a388e957e3b0ac7bf482155175675b54ba9ebbe0952d1e602214b",
+    "tools/tensor_demo_couette.py": "a54d6bd7b7954a211e124624aca14eab0deb111e023e261fdc4503357b29309b",
+    "tools/tensor_demo_elastic.py": "82a0aa141b6c3aaf68d220b01003b7af497150410e35fe3d8593b6f0a477bcf0",
+    "tools/tensor_demo_gallery.py": "c8a49cb56163be2d6b21a2d0c1f5e441ebdc644121c1afa17a8f6b884e008b9b",
+    "tools/tensor_demo_manipulation.py": "7746c2bce6ac74defd96d38a9a764a786d7939596e4bd5b431b7a0bcd0d2669c",
+    "tools/tensor_demo_manipulation_checks.py": "030c9f0ee1a5d1550733567d53317e2854ad1b13cb002aed49b6a8240e397c8a",
+    "tools/tensor_demo_manipulation_render.py": "e9dde7714acfefeb11494506cd5bc0613101ceebf5a451a7a25285f954ab09db",
+    "tools/tensor_demo_nematic.py": "969b082ee8d64702a9d59529a1408d7cb9a49d4f7dec15818401a1d1da594fde",
+    "tools/tensor_demo_recoil.py": "05e258bcd4c0e41c969a79970c2541e6f68feefd33ae0c17bb6ef77e54483d5b",
+    "tools/tensor_demo_render.py": "095315884a04a8683702d6e37de171b90be2de87eb12e0ac8b7781adf755936e",
+    "tools/tensor_demo_sphere.py": "2fe87efdf6ecacdc4d0c0b7d85cebe1c8899f80c9daebcb1e6be93a87b348445",
+    "tools/tensor_demos.py": "384a8ee87bb50828f694fa02a7445eecd33c36c4f94c0ef4cb7ae10f6e44a2a8"
+  }
+}

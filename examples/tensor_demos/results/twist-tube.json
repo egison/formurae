@@ -1,0 +1,2062 @@
+{
+  "case": "twist-tube",
+  "radial": 16,
+  "angular": 48,
+  "dt": 0.003703703703703704,
+  "release": 4.0,
+  "imposed_displacement": 0.065,
+  "display_magnification": 6,
+  "kernel": {
+    "name": "twist_tube",
+    "shape": [
+      17,
+      48,
+      25
+    ],
+    "spacing": [
+      0.0625,
+      0.1308996938995747,
+      0.2617993877991494
+    ],
+    "periodic": [
+      false,
+      true,
+      false
+    ],
+    "fmr": "8b0598d38a866c60da7758bebf801b06dc5f0ddae3a22348a425df2be1ae6fb4",
+    "formura": "e8d36abc20f6cf251ca805e9bc85ce8b5a8849d97fcf36bf327dc54025c16564",
+    "fields": [
+      "acceleration_up1",
+      "acceleration_up2",
+      "acceleration_up3",
+      "rate_up1_up1",
+      "rate_up1_up2",
+      "rate_up1_up3",
+      "rate_up2_up2",
+      "rate_up2_up3",
+      "rate_up3_up3",
+      "sigma_up1_up1",
+      "sigma_up1_up2",
+      "sigma_up1_up3",
+      "sigma_up2_up2",
+      "sigma_up2_up3",
+      "sigma_up3_up3",
+      "v_up1",
+      "v_up2",
+      "v_up3"
+    ],
+    "generated_c_sha256": "627d1c603a78640a1e40f25140ce1f1d6b9e22f0b0f9ac23901ac755c0b4345f",
+    "generated_library_sha256": "6ea541afadf12209d653226bf9e6621bdfc67a21147c5fec0cc469f69d52d863"
+  },
+  "frames": [
+    {
+      "time": 0.0,
+      "energy": 0.0,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.0,
+      "top_twist": 0.0,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 0.1,
+      "energy": 1.3269793833840025e-07,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 1.9558398437500005e-05,
+      "top_twist": 9.779199218750004e-06,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 0.2,
+      "energy": 2.0568069919883036e-06,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.00015055625000000002,
+      "top_twist": 7.5278125e-05,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 0.3,
+      "energy": 1.0470188062819474e-05,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.0004885892578125,
+      "top_twist": 0.00024429462890624993,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 0.4,
+      "energy": 3.41385076999264e-05,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.0011128000000000002,
+      "top_twist": 0.0005564000000000002,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 0.5,
+      "energy": 8.71780204362841e-05,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.0020867919921875,
+      "top_twist": 0.00104339599609375,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 0.6,
+      "energy": 0.00018984541802845846,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.00345954375,
+      "top_twist": 0.0017297718749999997,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 0.7000000000000001,
+      "energy": 0.00036827178923296705,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.005266322851562499,
+      "top_twist": 0.0026331614257812494,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 0.8,
+      "energy": 0.000652950717741877,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.007529599999999999,
+      "top_twist": 0.0037647999999999996,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 0.9,
+      "energy": 0.0010761306127631631,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.010259963085937502,
+      "top_twist": 0.005129981542968751,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 1.0,
+      "energy": 0.0016685175219770258,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.013457031250000001,
+      "top_twist": 0.006728515625,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 1.1,
+      "energy": 0.002455833949878135,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.01711036894531251,
+      "top_twist": 0.008555184472656255,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 1.2,
+      "energy": 0.003455791742128929,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.02120040000000001,
+      "top_twist": 0.010600200000000008,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 1.3,
+      "energy": 0.004675936500064117,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.025699321679687494,
+      "top_twist": 0.012849660839843744,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 1.4000000000000001,
+      "energy": 0.006112640122738348,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.030572018750000002,
+      "top_twist": 0.015286009374999998,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 1.5,
+      "energy": 0.007751301424234653,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.03577697753906252,
+      "top_twist": 0.017888488769531252,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 1.6,
+      "energy": 0.009567609061678957,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.04126720000000001,
+      "top_twist": 0.020633600000000002,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 1.7,
+      "energy": 0.011529565987764952,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.0469911177734375,
+      "top_twist": 0.023495558886718747,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 1.8,
+      "energy": 0.013599895886162611,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.05289350625000002,
+      "top_twist": 0.026446753125000007,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 1.9000000000000001,
+      "energy": 0.01573845704661908,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.058916398632812526,
+      "top_twist": 0.029458199316406256,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 2.0,
+      "energy": 0.01790436726642025,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.065,
+      "top_twist": 0.032499999999999994,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 2.1,
+      "energy": 0.020057669541856678,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.07108360136718753,
+      "top_twist": 0.035541800683593756,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 2.2,
+      "energy": 0.02216050936637071,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.07710649374999998,
+      "top_twist": 0.038553246874999995,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 2.3000000000000003,
+      "energy": 0.024177916776267343,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.08300888222656254,
+      "top_twist": 0.041504441113281276,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 2.4,
+      "energy": 0.026078363130224425,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.08873279999999996,
+      "top_twist": 0.044366399999999986,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 2.5,
+      "energy": 0.02783427950950466,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.0942230224609375,
+      "top_twist": 0.04711151123046875,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 2.6,
+      "energy": 0.029422680920757494,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.09942798124999991,
+      "top_twist": 0.049713990624999954,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 2.7,
+      "energy": 0.030825952524051833,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.10430067832031245,
+      "top_twist": 0.052150339160156226,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 2.8000000000000003,
+      "energy": 0.032032745456771435,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.10879959999999995,
+      "top_twist": 0.054399799999999984,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 2.9,
+      "energy": 0.03303882936484076,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.1128896310546875,
+      "top_twist": 0.05644481552734374,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 3.0,
+      "energy": 0.033847683067218116,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.11654296875,
+      "top_twist": 0.058271484375,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 3.1,
+      "energy": 0.03447059223516365,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.11974003691406254,
+      "top_twist": 0.059870018457031285,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 3.2,
+      "energy": 0.03492606980631201,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.12247040000000006,
+      "top_twist": 0.06123520000000004,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 3.3000000000000003,
+      "energy": 0.03523851409593938,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.1247336771484377,
+      "top_twist": 0.062366838574218854,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 3.4,
+      "energy": 0.035436152932391815,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.12654045625000007,
+      "top_twist": 0.06327022812500005,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 3.5,
+      "energy": 0.03554846451502063,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.1279132080078125,
+      "top_twist": 0.06395660400390625,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 3.6,
+      "energy": 0.035603391119909206,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.12888720000000023,
+      "top_twist": 0.06444360000000013,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 3.7,
+      "energy": 0.03562474964390374,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.12951141074218753,
+      "top_twist": 0.06475570537109376,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 3.8000000000000003,
+      "energy": 0.03563028293851461,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13047716692245137,
+      "top_twist": 0.06492472187499988,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 3.9000000000000004,
+      "energy": 0.03563079044685845,
+      "relative_free_energy": null,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13116707397163127,
+      "top_twist": 0.0649902208007812,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 4.0,
+      "energy": 0.035619436102818,
+      "relative_free_energy": 0.0,
+      "constraint_error": 0.0,
+      "max_displacement": 0.131417090664712,
+      "top_twist": 0.06499999999999999,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 4.1000000000000005,
+      "energy": 0.0356194361028178,
+      "relative_free_energy": -5.662137425588298e-15,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13135784074965945,
+      "top_twist": 0.06496900201713693,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 4.2,
+      "energy": 0.035619436102817606,
+      "relative_free_energy": -1.1102230246251565e-14,
+      "constraint_error": 0.0,
+      "max_displacement": 0.1311299042597017,
+      "top_twist": 0.06490404792055103,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 4.3,
+      "energy": 0.0356194361028174,
+      "relative_free_energy": -1.6986412276764895e-14,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13081319146034898,
+      "top_twist": 0.06483884120801262,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 4.4,
+      "energy": 0.0356194361028172,
+      "relative_free_energy": -2.2648549702353193e-14,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13127719416481126,
+      "top_twist": 0.06479555613660973,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 4.5,
+      "energy": 0.035619436102816995,
+      "relative_free_energy": -2.8199664825478976e-14,
+      "constraint_error": 0.0,
+      "max_displacement": 0.131906904321748,
+      "top_twist": 0.06478525835748891,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 4.6000000000000005,
+      "energy": 0.035619436102816794,
+      "relative_free_energy": -3.3861802251067274e-14,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13216749735516017,
+      "top_twist": 0.06480929891649623,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 4.7,
+      "energy": 0.03561943610281659,
+      "relative_free_energy": -3.952393967665557e-14,
+      "constraint_error": 0.0,
+      "max_displacement": 0.1321224548180842,
+      "top_twist": 0.06486146433000045,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 4.8,
+      "energy": 0.03561943610281639,
+      "relative_free_energy": -4.518607710224387e-14,
+      "constraint_error": 0.0,
+      "max_displacement": 0.1318450468487573,
+      "top_twist": 0.06493059373232724,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 4.9,
+      "energy": 0.03561943610281619,
+      "relative_free_energy": -5.084821452783217e-14,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13141328189969725,
+      "top_twist": 0.06500333880578146,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 5.0,
+      "energy": 0.03561943610281598,
+      "relative_free_energy": -5.67323965583455e-14,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13193940262974235,
+      "top_twist": 0.06506674652385827,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 5.1000000000000005,
+      "energy": 0.03561943610281579,
+      "relative_free_energy": -6.217248937900877e-14,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13244629989016468,
+      "top_twist": 0.06511038681667378,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 5.2,
+      "energy": 0.03561943610281559,
+      "relative_free_energy": -6.783462680459706e-14,
+      "constraint_error": 0.0,
+      "max_displacement": 0.1326242297238034,
+      "top_twist": 0.06512782057962223,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 5.3,
+      "energy": 0.035619436102815386,
+      "relative_free_energy": -7.349676423018536e-14,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13252219521161174,
+      "top_twist": 0.06511729773134832,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 5.4,
+      "energy": 0.035619436102815184,
+      "relative_free_energy": -7.904787935331115e-14,
+      "constraint_error": 0.0,
+      "max_displacement": 0.132198562433657,
+      "top_twist": 0.06508167769815396,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 5.5,
+      "energy": 0.03561943610281498,
+      "relative_free_energy": -8.471001677889944e-14,
+      "constraint_error": 0.0,
+      "max_displacement": 0.1317906265967395,
+      "top_twist": 0.0650276625247699,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 5.6000000000000005,
+      "energy": 0.035619436102814775,
+      "relative_free_energy": -9.059419880941277e-14,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13246138309124406,
+      "top_twist": 0.06496451362981659,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 5.7,
+      "energy": 0.03561943610281458,
+      "relative_free_energy": -9.603429163007604e-14,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13281403139130793,
+      "top_twist": 0.06490247750238935,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 5.8,
+      "energy": 0.03561943610281437,
+      "relative_free_energy": -1.0191847366058937e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13288269618766926,
+      "top_twist": 0.06485116761881156,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 5.9,
+      "energy": 0.035619436102814164,
+      "relative_free_energy": -1.0769163338864018e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13270884954989876,
+      "top_twist": 0.06481813820458647,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 6.0,
+      "energy": 0.03561943610281397,
+      "relative_free_energy": -1.1313172620930345e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13234094989078624,
+      "top_twist": 0.06480784328379202,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 6.1000000000000005,
+      "energy": 0.03561943610281377,
+      "relative_free_energy": -1.1879386363489175e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13240195966486984,
+      "top_twist": 0.06482110874915929,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 6.2,
+      "energy": 0.03561943610281357,
+      "relative_free_energy": -1.2445600106048005e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.1328634817604413,
+      "top_twist": 0.06485516579286728,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 6.3,
+      "energy": 0.03561943610281336,
+      "relative_free_energy": -1.3034018309099338e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13305229270702823,
+      "top_twist": 0.06490421223905173,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 6.4,
+      "energy": 0.03561943610281316,
+      "relative_free_energy": -1.3600232051658168e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13300166174808553,
+      "top_twist": 0.06496039527453919,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 6.5,
+      "energy": 0.03561943610281296,
+      "relative_free_energy": -1.4166445794216997e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13274901179306509,
+      "top_twist": 0.06501505433355712,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 6.6000000000000005,
+      "energy": 0.03561943610281276,
+      "relative_free_energy": -1.4710455076283324e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13237577848055188,
+      "top_twist": 0.0650600331604567,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 6.7,
+      "energy": 0.035619436102812554,
+      "relative_free_energy": -1.5287771049088406e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13289727574499627,
+      "top_twist": 0.06508886840076802,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 6.8,
+      "energy": 0.03561943610281236,
+      "relative_free_energy": -1.5842882561400984e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13315509153801772,
+      "top_twist": 0.06509768755440871,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 6.9,
+      "energy": 0.03561943610281215,
+      "relative_free_energy": -1.6420198534206065e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13318210496211924,
+      "top_twist": 0.06508569716710694,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 7.0,
+      "energy": 0.03561943610281196,
+      "relative_free_energy": -1.6964207816272392e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13301203704992204,
+      "top_twist": 0.06505520518976947,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 7.1000000000000005,
+      "energy": 0.03561943610281175,
+      "relative_free_energy": -1.7552626019323725e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.1326800639351236,
+      "top_twist": 0.06501119013507116,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 7.2,
+      "energy": 0.03561943610281155,
+      "relative_free_energy": -1.8118839761882555e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.1329786780285791,
+      "top_twist": 0.06496049416987115,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 7.300000000000001,
+      "energy": 0.03561943610281135,
+      "relative_free_energy": -1.8685053504441385e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.1332704714149953,
+      "top_twist": 0.06491076866895484,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 7.4,
+      "energy": 0.035619436102811146,
+      "relative_free_energy": -1.9251267247000214e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13333393349305647,
+      "top_twist": 0.06486933220318927,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 7.5,
+      "energy": 0.035619436102810945,
+      "relative_free_energy": -1.9806378759312793e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13320456378670073,
+      "top_twist": 0.06484210862766128,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 7.6000000000000005,
+      "energy": 0.035619436102810736,
+      "relative_free_energy": -2.0394796962364126e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13291649683170328,
+      "top_twist": 0.06483279650386001,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 7.7,
+      "energy": 0.03561943610281054,
+      "relative_free_energy": -2.0938806244430452e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13301698957129537,
+      "top_twist": 0.06484238356762403,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 7.800000000000001,
+      "energy": 0.03561943610281034,
+      "relative_free_energy": -2.1505019986989282e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13328799921497297,
+      "top_twist": 0.06486906725927483,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 7.9,
+      "energy": 0.03561943610281014,
+      "relative_free_energy": -2.2071233729548112e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13330928380354268,
+      "top_twist": 0.06490858236016711,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 8.0,
+      "energy": 0.03561943610280993,
+      "relative_free_energy": -2.2659651932599445e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13311766040436857,
+      "top_twist": 0.06495487824475688,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 8.1,
+      "energy": 0.03561943610280974,
+      "relative_free_energy": -2.320366121466577e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13274594309798168,
+      "top_twist": 0.06500103944475204,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 8.200000000000001,
+      "energy": 0.03561943610280953,
+      "relative_free_energy": -2.3780977187470853e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13222282572966587,
+      "top_twist": 0.06504031083272582,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 8.3,
+      "energy": 0.03561943610280932,
+      "relative_free_energy": -2.4369395390522186e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.1315730677993488,
+      "top_twist": 0.06506707697612513,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 8.4,
+      "energy": 0.03561943610280912,
+      "relative_free_energy": -2.4935609133081016e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.1309514829054792,
+      "top_twist": 0.06507765527140988,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 8.5,
+      "energy": 0.03561943610280892,
+      "relative_free_energy": -2.5501822875639846e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13088785036827133,
+      "top_twist": 0.06507079240045816,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 8.6,
+      "energy": 0.03561943610280872,
+      "relative_free_energy": -2.6068036618198676e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.1307299143087467,
+      "top_twist": 0.06504779873659246,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 8.700000000000001,
+      "energy": 0.035619436102808516,
+      "relative_free_energy": -2.6634250360757505e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13049955773145666,
+      "top_twist": 0.06501230879542903,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 8.8,
+      "energy": 0.03561943610280831,
+      "relative_free_energy": -2.7211566333562587e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13053854502052287,
+      "top_twist": 0.0649697098601593,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 8.9,
+      "energy": 0.035619436102808114,
+      "relative_free_energy": -2.7755575615628914e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13067089557240444,
+      "top_twist": 0.06492632778045417,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 9.0,
+      "energy": 0.03561943610280791,
+      "relative_free_energy": -2.8321789358187743e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13068120043638248,
+      "top_twist": 0.06488849209774225,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 9.1,
+      "energy": 0.03561943610280772,
+      "relative_free_energy": -2.886579864025407e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.1305598080602049,
+      "top_twist": 0.06486161762268902,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 9.200000000000001,
+      "energy": 0.03561943610280751,
+      "relative_free_energy": -2.9454216843305403e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13030739608190436,
+      "top_twist": 0.06484943459871532,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 9.3,
+      "energy": 0.03561943610280731,
+      "relative_free_energy": -3.0020430585864233e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13038688345577568,
+      "top_twist": 0.06485347572544028,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 9.4,
+      "energy": 0.03561943610280711,
+      "relative_free_energy": -3.0586644328423063e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.1304525395452518,
+      "top_twist": 0.06487288935597217,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 9.5,
+      "energy": 0.035619436102806906,
+      "relative_free_energy": -3.115285807098189e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13045000177604757,
+      "top_twist": 0.06490459997475177,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 9.6,
+      "energy": 0.035619436102806705,
+      "relative_free_energy": -3.171907181354072e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13037811703548477,
+      "top_twist": 0.06494378667416707,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 9.700000000000001,
+      "energy": 0.0356194361028065,
+      "relative_free_energy": -3.2296387786345804e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.1302433538211841,
+      "top_twist": 0.06498460502920947,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 9.8,
+      "energy": 0.035619436102806296,
+      "relative_free_energy": -3.2862601528904634e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13021424501113188,
+      "top_twist": 0.06502104391893357,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 9.9,
+      "energy": 0.03561943610280609,
+      "relative_free_energy": -3.3451019731955967e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13017346358237666,
+      "top_twist": 0.0650477911107136,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 10.0,
+      "energy": 0.03561943610280589,
+      "relative_free_energy": -3.3995029014022293e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13012196414885116,
+      "top_twist": 0.0650609820744253,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 10.1,
+      "energy": 0.035619436102805685,
+      "relative_free_energy": -3.4583447217073626e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13011745025609794,
+      "top_twist": 0.06505872512804871,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 10.200000000000001,
+      "energy": 0.035619436102805484,
+      "relative_free_energy": -3.5138558729386205e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13008265933415009,
+      "top_twist": 0.06504132966707477,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 10.3,
+      "energy": 0.03561943610280528,
+      "relative_free_energy": -3.5704772471945034e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13008178473214832,
+      "top_twist": 0.06501120782961621,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 10.4,
+      "energy": 0.03561943610280509,
+      "relative_free_energy": -3.624878175401136e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.1300863651337302,
+      "top_twist": 0.06497246708526942,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 10.5,
+      "energy": 0.03561943610280488,
+      "relative_free_energy": -3.6837199957062694e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13008691398233185,
+      "top_twist": 0.06493025508949475,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 10.6,
+      "energy": 0.03561943610280468,
+      "relative_free_energy": -3.7403413699621524e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.1300780606994195,
+      "top_twist": 0.06488995247137172,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 10.700000000000001,
+      "energy": 0.03561943610280448,
+      "relative_free_energy": -3.7969627442180354e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13005929648813033,
+      "top_twist": 0.06485632923408403,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 10.8,
+      "energy": 0.035619436102804276,
+      "relative_free_energy": -3.8535841184739184e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13003083772085483,
+      "top_twist": 0.06483278347902334,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 10.9,
+      "energy": 0.035619436102804075,
+      "relative_free_energy": -3.9102054927298013e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.12999336322447722,
+      "top_twist": 0.06482076702311695,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 11.0,
+      "energy": 0.035619436102803874,
+      "relative_free_energy": -3.965716643961059e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.1299476440507626,
+      "top_twist": 0.06481947343754095,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 11.1,
+      "energy": 0.03561943610280367,
+      "relative_free_energy": -4.022338018216942e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.12989411061895798,
+      "top_twist": 0.0648258244736039,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 11.200000000000001,
+      "energy": 0.035619436102803465,
+      "relative_free_energy": -4.0811798385220754e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.12983240757729697,
+      "top_twist": 0.06483474658927627,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 11.3,
+      "energy": 0.03561943610280327,
+      "relative_free_energy": -4.135580766728708e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.1297609849019541,
+      "top_twist": 0.06483968677715415,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 11.4,
+      "energy": 0.03561943610280306,
+      "relative_free_energy": -4.1944225870338414e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.129676765194716,
+      "top_twist": 0.06483328222244755,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 11.5,
+      "energy": 0.03561943610280286,
+      "relative_free_energy": -4.2510439612897244e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.12961615278412666,
+      "top_twist": 0.06480807639206299,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 11.6,
+      "energy": 0.03561943610280266,
+      "relative_free_energy": -4.3076653355456074e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.12951433598971993,
+      "top_twist": 0.06475716799485956,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 11.700000000000001,
+      "energy": 0.03561943610280246,
+      "relative_free_energy": -4.363176486776865e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.12934937918066286,
+      "top_twist": 0.06467468959033106,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 11.8,
+      "energy": 0.03561943610280226,
+      "relative_free_energy": -4.419797861032748e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.12911207564853547,
+      "top_twist": 0.06455603782426736,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 11.9,
+      "energy": 0.03561943610280206,
+      "relative_free_energy": -4.474198789239381e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.12882901863610488,
+      "top_twist": 0.06439781359904785,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 12.0,
+      "energy": 0.035619436102801855,
+      "relative_free_energy": -4.533040609544514e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.12850171520633127,
+      "top_twist": 0.06419747266482405,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 12.1,
+      "energy": 0.03561943610280165,
+      "relative_free_energy": -4.589661983800397e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.12808988903391982,
+      "top_twist": 0.06395272909907526,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 12.200000000000001,
+      "energy": 0.03561943610280145,
+      "relative_free_energy": -4.64628335805628e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.12757678767212036,
+      "top_twist": 0.063660789983627,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 12.3,
+      "energy": 0.03561943610280125,
+      "relative_free_energy": -4.702904732312163e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.12694410289605146,
+      "top_twist": 0.0633175242995817,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 12.4,
+      "energy": 0.03561943610280105,
+      "relative_free_energy": -4.759526106568046e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.1261718248322725,
+      "top_twist": 0.06291667930261101,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 12.5,
+      "energy": 0.03561943610280084,
+      "relative_free_energy": -4.817257703848554e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.12523802690456426,
+      "top_twist": 0.06244925218055967,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 12.6,
+      "energy": 0.03561943610280064,
+      "relative_free_energy": -4.873879078104437e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.12411861284749816,
+      "top_twist": 0.061903104652112996,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 12.700000000000001,
+      "energy": 0.03561943610280044,
+      "relative_free_energy": -4.93050045236032e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.12278706988128445,
+      "top_twist": 0.06126287643420221,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 12.8,
+      "energy": 0.03561943610280024,
+      "relative_free_energy": -4.987121826616203e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.12121427997732503,
+      "top_twist": 0.06051021488329655,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 12.9,
+      "energy": 0.03561943610280004,
+      "relative_free_energy": -5.043743200872086e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.11936844297049055,
+      "top_twist": 0.059624298202202886,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 13.0,
+      "energy": 0.035619436102799835,
+      "relative_free_energy": -5.100364575127969e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.11721516087923088,
+      "top_twist": 0.05858259408488519,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 13.1,
+      "energy": 0.035619436102799634,
+      "relative_free_energy": -5.156985949383852e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.11472353899198008,
+      "top_twist": 0.05736176949598977,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 13.200000000000001,
+      "energy": 0.03561943610279943,
+      "relative_free_energy": -5.21249710061511e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.11187730791133332,
+      "top_twist": 0.05593865395566639,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 13.3,
+      "energy": 0.03561943610279923,
+      "relative_free_energy": -5.269118474870993e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.10858231959613772,
+      "top_twist": 0.0542911597980686,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 13.4,
+      "energy": 0.03561943610279903,
+      "relative_free_energy": -5.325739849126876e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.10479815565993743,
+      "top_twist": 0.05239907782996845,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 13.5,
+      "energy": 0.03561943610279883,
+      "relative_free_energy": -5.382361223382759e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.10050624471629872,
+      "top_twist": 0.05024469303860266,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 13.6,
+      "energy": 0.03561943610279862,
+      "relative_free_energy": -5.441203043687892e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.09570477569119333,
+      "top_twist": 0.047813198256662644,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 13.700000000000001,
+      "energy": 0.03561943610279843,
+      "relative_free_energy": -5.495603971894525e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.09033420952061408,
+      "top_twist": 0.04509291875835023,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 13.8,
+      "energy": 0.035619436102798226,
+      "relative_free_energy": -5.552225346150408e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.08436744735428982,
+      "top_twist": 0.042075392177409035,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 13.9,
+      "energy": 0.03561943610279802,
+      "relative_free_energy": -5.609956943430916e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.07778414933495076,
+      "top_twist": 0.038755371023734934,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 14.0,
+      "energy": 0.035619436102797816,
+      "relative_free_energy": -5.666578317686799e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.07057214131769407,
+      "top_twist": 0.035130825835381616,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 14.100000000000001,
+      "energy": 0.03561943610279762,
+      "relative_free_energy": -5.720979245893432e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.06272871003726295,
+      "top_twist": 0.031203023856274815,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 14.200000000000001,
+      "energy": 0.035619436102797414,
+      "relative_free_energy": -5.779821066198565e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.054261742776140896,
+      "top_twist": 0.02697674136982723,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 14.3,
+      "energy": 0.03561943610279721,
+      "relative_free_energy": -5.836442440454448e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.04519067346361006,
+      "top_twist": 0.022460639774175874,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 14.4,
+      "energy": 0.03561943610279701,
+      "relative_free_energy": -5.893063814710331e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.035547201946570614,
+      "top_twist": 0.017667800190717165,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 14.5,
+      "energy": 0.03561943610279681,
+      "relative_free_energy": -5.949685188966214e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.02537575636284421,
+      "top_twist": 0.012616374019757844,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 14.600000000000001,
+      "energy": 0.03561943610279661,
+      "relative_free_energy": -6.006306563222097e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.014733670093758849,
+      "top_twist": 0.007330272956928348,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 14.700000000000001,
+      "energy": 0.03561943610279641,
+      "relative_free_energy": -6.06292793747798e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.013910257685516214,
+      "top_twist": 0.0018397967280776213,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 14.8,
+      "energy": 0.035619436102796206,
+      "relative_free_energy": -6.118439088709238e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.018464376994511915,
+      "top_twist": -0.003817915773311249,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 14.9,
+      "energy": 0.035619436102796,
+      "relative_free_energy": -6.177280909014371e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.022713773085804384,
+      "top_twist": -0.009598723817250946,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 15.0,
+      "energy": 0.035619436102795804,
+      "relative_free_energy": -6.231681837221004e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.03132982944526414,
+      "top_twist": -0.0154517047426004,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 15.100000000000001,
+      "energy": 0.0356194361027956,
+      "relative_free_energy": -6.288303211476887e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.04267313013255998,
+      "top_twist": -0.02131981923610509,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 15.200000000000001,
+      "energy": 0.0356194361027954,
+      "relative_free_energy": -6.34492458573277e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.054282087112347346,
+      "top_twist": -0.02714104355617391,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 15.3,
+      "energy": 0.03561943610279519,
+      "relative_free_energy": -6.403766406037903e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.06569988816677531,
+      "top_twist": -0.032849944083387886,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 15.4,
+      "energy": 0.035619436102795,
+      "relative_free_energy": -6.458167334244536e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.07675924811496224,
+      "top_twist": -0.03837962405748137,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 15.5,
+      "energy": 0.03561943610279479,
+      "relative_free_energy": -6.515898931525044e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.0873278660734695,
+      "top_twist": -0.043663933036735,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 15.600000000000001,
+      "energy": 0.0356194361027946,
+      "relative_free_energy": -6.570299859731676e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.09727960237538866,
+      "top_twist": -0.0486398011876946,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 15.700000000000001,
+      "energy": 0.03561943610279439,
+      "relative_free_energy": -6.62914168003681e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.10649909246235574,
+      "top_twist": -0.05324954623117814,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 15.8,
+      "energy": 0.03561943610279419,
+      "relative_free_energy": -6.685763054292693e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.11488600426945295,
+      "top_twist": -0.05744300213472676,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 15.9,
+      "energy": 0.035619436102793986,
+      "relative_free_energy": -6.742384428548576e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.12235866972175126,
+      "top_twist": -0.06117933486087592,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 16.0,
+      "energy": 0.035619436102793785,
+      "relative_free_energy": -6.799005802804459e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.1288568784172491,
+      "top_twist": -0.06442843920862483,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 16.1,
+      "energy": 0.035619436102793584,
+      "relative_free_energy": -6.855627177060342e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13441058516746093,
+      "top_twist": -0.06717184810922944,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 16.2,
+      "energy": 0.035619436102793375,
+      "relative_free_energy": -6.91335877434085e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13897354509951296,
+      "top_twist": -0.06940312685753904,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 16.3,
+      "energy": 0.035619436102793174,
+      "relative_free_energy": -6.969980148596733e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.14252188393312815,
+      "top_twist": -0.07112776467676411,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 16.400000000000002,
+      "energy": 0.03561943610279297,
+      "relative_free_energy": -7.026601522852616e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.14508053865085443,
+      "top_twist": -0.07236261021920777,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 16.5,
+      "energy": 0.03561943610279277,
+      "relative_free_energy": -7.083222897108499e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.14669701540771266,
+      "top_twist": -0.07313492267883365,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 16.6,
+      "energy": 0.03561943610279257,
+      "relative_free_energy": -7.139844271364382e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.14743980616757785,
+      "top_twist": -0.07348112422469102,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 16.7,
+      "energy": 0.03561943610279237,
+      "relative_free_energy": -7.196465645620265e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.14739597954548153,
+      "top_twist": -0.07344534224626165,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 16.8,
+      "energy": 0.03561943610279217,
+      "relative_free_energy": -7.253087019876148e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.1466680401261552,
+      "top_twist": -0.07307782285237689,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 16.900000000000002,
+      "energy": 0.03561943610279196,
+      "relative_free_energy": -7.310818617156656e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.14537019153067213,
+      "top_twist": -0.07243328292845047,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 17.0,
+      "energy": 0.035619436102791766,
+      "relative_free_energy": -7.365219545363288e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.1436241719226642,
+      "top_twist": -0.07156925040652164,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 17.1,
+      "energy": 0.035619436102791564,
+      "relative_free_energy": -7.421840919619171e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.14155485421571581,
+      "top_twist": -0.07054442503911852,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 17.2,
+      "energy": 0.03561943610279136,
+      "relative_free_energy": -7.478462293875054e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.1392858154625304,
+      "top_twist": -0.06941707829601136,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 17.3,
+      "energy": 0.035619436102791155,
+      "relative_free_energy": -7.537304114180188e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13770160225588257,
+      "top_twist": -0.06824350348797062,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 17.400000000000002,
+      "energy": 0.03561943610279096,
+      "relative_free_energy": -7.59170504238682e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.1380099783579182,
+      "top_twist": -0.06707652700481918,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 17.5,
+      "energy": 0.03561943610279075,
+      "relative_free_energy": -7.650546862691954e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.1380151557189103,
+      "top_twist": -0.06596409828450392,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 17.6,
+      "energy": 0.03561943610279055,
+      "relative_free_energy": -7.706058013923212e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13845739086067171,
+      "top_twist": -0.06494798803267143,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 17.7,
+      "energy": 0.03561943610279035,
+      "relative_free_energy": -7.762679388179095e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.14023695176486692,
+      "top_twist": -0.06406263839490667,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 17.8,
+      "energy": 0.03561943610279015,
+      "relative_free_energy": -7.819300762434978e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.14141203379409167,
+      "top_twist": -0.06333422171543708,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 17.900000000000002,
+      "energy": 0.03561943610278995,
+      "relative_free_energy": -7.87592213669086e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.14200663726503387,
+      "top_twist": -0.06277997261966793,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 18.0,
+      "energy": 0.035619436102789746,
+      "relative_free_energy": -7.932543510946743e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.1420623244234899,
+      "top_twist": -0.062407858419829265,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 18.1,
+      "energy": 0.035619436102789545,
+      "relative_free_energy": -7.989164885202626e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.14163616519543548,
+      "top_twist": -0.06221664334744148,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 18.2,
+      "energy": 0.03561943610278935,
+      "relative_free_energy": -8.043565813409259e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.14079790865249212,
+      "top_twist": -0.06219638242119643,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 18.3,
+      "energy": 0.03561943610278914,
+      "relative_free_energy": -8.102407633714392e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.14094741567151667,
+      "top_twist": -0.06232935205397068,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 18.400000000000002,
+      "energy": 0.035619436102788934,
+      "relative_free_energy": -8.160139230994901e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.14146200076318236,
+      "top_twist": -0.06259138952155613,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 18.5,
+      "energy": 0.03561943610278874,
+      "relative_free_energy": -8.214540159201533e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.14149220424459263,
+      "top_twist": -0.06295357610965258,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 18.6,
+      "energy": 0.03561943610278853,
+      "relative_free_energy": -8.273381979506667e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.14108379287988457,
+      "top_twist": -0.06338416377344774,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 18.7,
+      "energy": 0.03561943610278833,
+      "relative_free_energy": -8.33000335376255e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.14029403628197618,
+      "top_twist": -0.06385061718950458,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 18.8,
+      "energy": 0.03561943610278813,
+      "relative_free_energy": -8.386624728018433e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.14010332220460853,
+      "top_twist": -0.06432162623861784,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 18.900000000000002,
+      "energy": 0.03561943610278793,
+      "relative_free_energy": -8.443246102274315e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.1410720531427191,
+      "top_twist": -0.0647689410925194,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 19.0,
+      "energy": 0.03561943610278773,
+      "relative_free_energy": -8.499867476530198e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.14157935268527788,
+      "top_twist": -0.06516889437328037,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 19.1,
+      "energy": 0.035619436102787526,
+      "relative_free_energy": -8.555378627761456e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.14164856851832547,
+      "top_twist": -0.06550350159520384,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 19.2,
+      "energy": 0.03561943610278732,
+      "relative_free_energy": -8.61422044806659e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.141311297663011,
+      "top_twist": -0.06576106969652525,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 19.3,
+      "energy": 0.035619436102787116,
+      "relative_free_energy": -8.670841822322473e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.14081355435934637,
+      "top_twist": -0.06593628975376856,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 19.400000000000002,
+      "energy": 0.03561943610278692,
+      "relative_free_energy": -8.725242750529105e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.1417007229733156,
+      "top_twist": -0.06602983871092594,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 19.5,
+      "energy": 0.035619436102786714,
+      "relative_free_energy": -8.784084570834239e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.14207180867095692,
+      "top_twist": -0.06604756051799895,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 19.6,
+      "energy": 0.03561943610278651,
+      "relative_free_energy": -8.840705945090122e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.14197164106023016,
+      "top_twist": -0.06599933416434196,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 19.7,
+      "energy": 0.03561943610278631,
+      "relative_free_energy": -8.897327319346005e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.14145479407632824,
+      "top_twist": -0.06589776044925053,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 19.8,
+      "energy": 0.03561943610278611,
+      "relative_free_energy": -8.952838470577262e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.14058371359496857,
+      "top_twist": -0.06575680828777826,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 19.900000000000002,
+      "energy": 0.03561943610278591,
+      "relative_free_energy": -9.009459844833145e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.14107711705345,
+      "top_twist": -0.06559055418278655,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 20.0,
+      "energy": 0.0356194361027857,
+      "relative_free_energy": -9.068301665138279e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.14190130830227807,
+      "top_twist": -0.0654121265214322,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 20.1,
+      "energy": 0.03561943610278551,
+      "relative_free_energy": -9.122702593344911e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.1422557160140334,
+      "top_twist": -0.0652329327477977,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 20.2,
+      "energy": 0.035619436102785305,
+      "relative_free_energy": -9.179323967600794e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.14216140946525177,
+      "top_twist": -0.06506220681941015,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 20.3,
+      "energy": 0.035619436102785104,
+      "relative_free_energy": -9.235945341856677e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.1416472699739621,
+      "top_twist": -0.06490687207306355,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 20.400000000000002,
+      "energy": 0.035619436102784896,
+      "relative_free_energy": -9.293676939137185e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.1407506898319293,
+      "top_twist": -0.0647716761806791,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 20.5,
+      "energy": 0.0356194361027847,
+      "relative_free_energy": -9.349188090368443e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.14089243890778186,
+      "top_twist": -0.06465952509083153,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 20.6,
+      "energy": 0.035619436102784494,
+      "relative_free_energy": -9.406919687648951e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.14087120907027098,
+      "top_twist": -0.06457192525782354,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 20.7,
+      "energy": 0.03561943610278429,
+      "relative_free_energy": -9.463541061904834e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.14041228503631314,
+      "top_twist": -0.06450943984495582,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 20.8,
+      "energy": 0.03561943610278409,
+      "relative_free_energy": -9.520162436160717e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.1395688666541514,
+      "top_twist": -0.06447207478272758,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 20.900000000000002,
+      "energy": 0.03561943610278388,
+      "relative_free_energy": -9.57900425646585e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.1383920479628054,
+      "top_twist": -0.06445953249894262,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 21.0,
+      "energy": 0.03561943610278368,
+      "relative_free_energy": -9.635625630721734e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.136928678139064,
+      "top_twist": -0.06447130116933099,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 21.1,
+      "energy": 0.03561943610278348,
+      "relative_free_energy": -9.691136781952991e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13610601703862382,
+      "top_twist": -0.06450658077032351,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 21.2,
+      "energy": 0.03561943610278327,
+      "relative_free_energy": -9.749978602258125e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.1348631685844774,
+      "top_twist": -0.0645640789798469,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 21.3,
+      "energy": 0.035619436102783064,
+      "relative_free_energy": -9.808820422563258e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.1329748927775763,
+      "top_twist": -0.06464173533679116,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 21.400000000000002,
+      "energy": 0.03561943610278287,
+      "relative_free_energy": -9.86322135076989e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13091938457105562,
+      "top_twist": -0.06473644730499574,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 21.5,
+      "energy": 0.03561943610278266,
+      "relative_free_energy": -9.920952948050399e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.130941984709819,
+      "top_twist": -0.06484387477854159,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 21.6,
+      "energy": 0.03561943610278247,
+      "relative_free_energy": -9.976464099281657e-13,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13107659956756096,
+      "top_twist": -0.06495838971142681,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 21.7,
+      "energy": 0.035619436102782266,
+      "relative_free_energy": -1.0031975250512914e-12,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13128363534174153,
+      "top_twist": -0.06507321641305071,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 21.8,
+      "energy": 0.035619436102782065,
+      "relative_free_energy": -1.0088596624768797e-12,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13135975027350108,
+      "top_twist": -0.06518077871811616,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 21.900000000000002,
+      "energy": 0.035619436102781864,
+      "relative_free_energy": -1.014521799902468e-12,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13125943780371566,
+      "top_twist": -0.06527323700760411,
+      "bottom_displacement": 0.0
+    },
+    {
+      "time": 22.0,
+      "energy": 0.03561943610278166,
+      "relative_free_energy": -1.0201839373280563e-12,
+      "constraint_error": 0.0,
+      "max_displacement": 0.13099285864166993,
+      "top_twist": -0.0653431658044509,
+      "bottom_displacement": 0.0
+    }
+  ],
+  "source_sha256": {
+    "examples/tensor_demos/anisotropic_cylinder.fme": "d48db6bd5dc2a898d409015190890cb0cf635caf93f6687e5d3c1a7b0d4f8f6c",
+    "examples/tensor_demos/anisotropic_sphere.fme": "cefd28113decfbbcbe857290c732d3866ea0ac1d85386b517b0c8290b8561aaf",
+    "examples/tensor_demos/nematic_sphere.fme": "7da4e57d72f7abc48f9d87349e4fb06cec73b0b1e06cb39877439b33a357c8f2",
+    "examples/tensor_demos/oldroyd_couette.fme": "9b5c16eec936b972ba3e1e89c9c0050ee46598a7444cdf5ea6f3aee19090964b",
+    "examples/tensor_demos/press_ball.fme": "be83a5d99167169b8c8b6a3a2a4a2c9d46187fe5db7be963799f4eb18af58791",
+    "examples/tensor_demos/twist_tube.fme": "aa08570b26c11ce4c351a906c212b0216670fb7690581a876daf819e3917b89e",
+    "tools/tensor_demo_common.py": "8cc8d5f5e35a388e957e3b0ac7bf482155175675b54ba9ebbe0952d1e602214b",
+    "tools/tensor_demo_couette.py": "a54d6bd7b7954a211e124624aca14eab0deb111e023e261fdc4503357b29309b",
+    "tools/tensor_demo_elastic.py": "82a0aa141b6c3aaf68d220b01003b7af497150410e35fe3d8593b6f0a477bcf0",
+    "tools/tensor_demo_gallery.py": "c8a49cb56163be2d6b21a2d0c1f5e441ebdc644121c1afa17a8f6b884e008b9b",
+    "tools/tensor_demo_manipulation.py": "7746c2bce6ac74defd96d38a9a764a786d7939596e4bd5b431b7a0bcd0d2669c",
+    "tools/tensor_demo_manipulation_checks.py": "030c9f0ee1a5d1550733567d53317e2854ad1b13cb002aed49b6a8240e397c8a",
+    "tools/tensor_demo_manipulation_render.py": "7f83b0e30adf5a0a7e84053e1c55eda125eb6db32b7f12406a58001c309e0872",
+    "tools/tensor_demo_nematic.py": "969b082ee8d64702a9d59529a1408d7cb9a49d4f7dec15818401a1d1da594fde",
+    "tools/tensor_demo_recoil.py": "05e258bcd4c0e41c969a79970c2541e6f68feefd33ae0c17bb6ef77e54483d5b",
+    "tools/tensor_demo_render.py": "095315884a04a8683702d6e37de171b90be2de87eb12e0ac8b7781adf755936e",
+    "tools/tensor_demo_sphere.py": "2fe87efdf6ecacdc4d0c0b7d85cebe1c8899f80c9daebcb1e6be93a87b348445",
+    "tools/tensor_demos.py": "ea5336dafa979a2508313bd5ddb06a7d796feda5587ad96aeac8749307385ac2"
+  }
+}
