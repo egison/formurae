@@ -3,6 +3,10 @@
 調査日：2026-09-07，演算子定義の比較を2026-09-08に追加．論文・公式資料・公開例で確認した機能と，
 このリポジトリで実行した実験を区別して記す．
 
+2026-09-10に円筒座標の波動モデルを例題から削除した．本書の円筒座標の
+実験結果は削除前の記録であり，現在の実行対象を表すものではない．
+残る弾性波例の境界・初期化・並列実行の条件は [例題調査](../ELASTICITY-REVIEW.md) にまとめる．
+
 ## 研究の問い：Egisonの記述力を数値コード生成にどう接続するか
 
 本研究の中心は，**Egisonで利用者が定義した添字付きの数学演算子を，
@@ -374,7 +378,7 @@ $$
 単に式を短く記述するだけでなく，数値的な意味を持つ評価位置を生成後まで保持する．
 
 この処理に弾性波専用の演算子は追加していない．
-[`strain`・`stressRate`・`stressDiv` の定義](../elastic_cylindrical/elastic_cylindrical.fme)，
+[`strain`・`stressRate`・`stressDiv` の当時の定義](https://github.com/egison/formurae/blob/3d43669/examples/elastic_cylindrical/elastic_cylindrical.fme)，
 [式全体の差分の変換](../../src/Formurae/Post/Compile.hs)，
 [配置・式全体の差分のテスト](../../tests/post_compile_grid_whole.hs)を対応づけて読める．
 なお，この実験のために，同じ格子点に全成分を置く場合のSBP境界差分を

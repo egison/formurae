@@ -84,14 +84,14 @@ def main():
     OUT.mkdir(parents=True, exist_ok=True)
     validation = ROOT / 'examples/elastic_curvilinear/results/validation.json'
     previous = json.loads(validation.read_text())
-    report = {'description': 'Two 10000-step generated-C energy traces and four torsional-mode profiles; analytic profiles use the actual sample times.',
+    report = {'description': 'One spherical 10000-step generated-C energy trace and two torsional-mode profiles; analytic profiles use the actual sample times.',
               'platform': platform.platform(),
               'compiler': subprocess.check_output(['cc', '--version'], text=True).splitlines()[0],
               'source_sha256': {str(validation.relative_to(ROOT)): sha(validation),
                                 'examples/elastic_curvilinear/elastic_check.h': sha(ROOT/'examples/elastic_curvilinear/elastic_check.h'),
                                 str(Path(__file__).relative_to(ROOT)): sha(Path(__file__))},
               'build_sha256': {}, 'results': []}
-    for coordinate in ['cylindrical', 'spherical']:
+    for coordinate in ['spherical']:
         name = 'elastic_' + coordinate
         work = build(coordinate)
         for suffix in ['fme', 'fmr']:

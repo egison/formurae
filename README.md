@@ -83,16 +83,18 @@ ambient名と`metric g`の宣言名はfield、parameter、user definition、defi
 step-level `let` / `local`では予約されます。Egison expression block内の局所`let`やlambdaだけは
 通常のlexical scopeに従います。
 
-## 円筒・球座標の弾性波
+## 弾性波の例と適用条件
 
-[円筒座標](examples/elastic_cylindrical/elastic_cylindrical.fme)と
-[球座標](examples/elastic_spherical/elastic_spherical.fme)の例では，
-ひずみ・構成則・応力の発散を表す三つの関数をそのまま共有します．
-計量の微分をEgisonで計算し，流束全体を格子上で差分化します．
-速度と応力を同じ点に置き，境界では部分積分に対応する離散恒等式を満たす差分を使います．
-解析解への2次収束と，1万ステップでの修正エネルギー保存を確認しています．
+[直交座標の例](examples/elastic3d/elastic3d.fme)は周期境界で，4ステップをまとめる
+時間方向のブロッキングを設定しています．初期条件と更新式は `.fme` にありますが，
+検証用のエネルギー・波速の計算は C 側に残っています．
 
-依存先Egisonの固定版を含む[再現手順と数値結果](examples/elastic_curvilinear/README.md)，
+[球座標の例](examples/elastic_spherical/elastic_spherical.fme)は，現在の非周期境界では
+複数プロセスでの実行と時間方向のブロッキングを利用できず，実験の初期値も C 側で設定しています．
+同じ制約のあった円筒座標の弾性波は，2026-09-10に例題から削除しました．
+各例の初期化・境界・高速化機能の確認結果は [弾性波の例題調査](examples/ELASTICITY-REVIEW.md) にまとめています．
+
+球座標の[再現手順と過去の数値結果](examples/elastic_curvilinear/README.md)，
 [関連研究との比較](examples/elastic_curvilinear/RELATED-WORK.md)を参照してください．
 
 ## 最小例

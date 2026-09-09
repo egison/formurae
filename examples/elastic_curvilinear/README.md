@@ -1,9 +1,15 @@
-# 円筒座標・球座標の弾性波
+# 球座標の弾性波と過去の検証記録
 
-`elastic_cylindrical` と `elastic_spherical` は，同じ三つの関数 `strain`，
-`stressRate`，`stressDiv` から生成する三次元の速度・応力ソルバーである．
+現在残しているモデルは `elastic_spherical` である．三つの関数 `strain`，
+`stressRate`，`stressDiv` から三次元の速度・応力ソルバーを生成する．
 速度の3成分と対称応力の6成分を同じ格子点に置く．
 座標に依存する係数は計量からEgisonで計算し，流束全体の差分をFormuraeで生成する．
+
+**2026-09-10の整理:** 円筒座標の弾性波モデルと円筒座標の診断用ソースは削除した．
+以下の円筒座標の数値・比較表と結果ファイルは，削除前に実測した履歴である．
+現在の検証・収集スクリプトは球座標のみを対象とし，以前の結果は再実行時に更新される．
+球座標にも，非周期境界による複数プロセス・時間ブロッキングの制約と，
+C 側での初期値・検証量の計算が残っている．[例題調査](../ELASTICITY-REVIEW.md) を参照する．
 
 ## 再現
 
@@ -26,9 +32,7 @@ Pythonは標準ライブラリだけを使う．`cc`，Cabal/GHC，`bin/formura`
 
 ```sh
 EGISON_DIR=$(tools/prepare_elastic_validation.sh)
-make elastic_cylindrical EGISON_DIR="$EGISON_DIR"
 make elastic_spherical EGISON_DIR="$EGISON_DIR"
-examples/elastic_cylindrical/check stability
 examples/elastic_spherical/check stability
 ```
 
@@ -252,7 +256,7 @@ $Y=0$，$X>0$ の断面を記録する．円筒では方位角0，球では経�
 
 ## P波・S波の指標と三次元の切断表示
 
-`diagnostics_cylindrical.fme` と `diagnostics_spherical.fme` は，同じ二つの
+削除前の円筒座標と現在の `diagnostics_spherical.fme` は，同じ二つの
 利用者定義関数から，速度の発散と回転を計算する．$J=\sqrt{\det g}$ とすると，
 
 $$p(v)=\frac1J D_i(Jv^i),\qquad

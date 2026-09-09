@@ -138,11 +138,11 @@ def main():
             'egison_revision':(Path(egison)/'.formurae-revision').read_text().strip(),
             'compiler':subprocess.check_output(['cc','--version'],text=True).splitlines()[0],
             'source_sha256':{},'build_sha256':{},'results':[]}
-    functions=[[line for line in (EX/f'diagnostics_{c}.fme').read_text().splitlines() if line.startswith('def ')] for c in ['cylindrical','spherical']]
-    assert len(functions[0])==2 and functions[0]==functions[1]
-    elastic=[[line for line in (ROOT/f'examples/elastic_{c}/elastic_{c}.fme').read_text().splitlines() if line.startswith('def ')] for c in ['cylindrical','spherical']]
-    assert len(elastic[0])==3 and elastic[0]==elastic[1]
-    for coordinate in ['cylindrical','spherical']:
+    functions=[[line for line in (EX/f'diagnostics_{c}.fme').read_text().splitlines() if line.startswith('def ')] for c in ['spherical']]
+    assert all(len(definition)==2 for definition in functions)
+    elastic=[[line for line in (ROOT/f'examples/elastic_{c}/elastic_{c}.fme').read_text().splitlines() if line.startswith('def ')] for c in ['spherical']]
+    assert all(len(definition)==3 for definition in elastic)
+    for coordinate in ['spherical']:
         name='diagnostics_'+coordinate;source=EX/f'{name}.fme'
         # The complete new operator path is generated, without compiler edits.
         run(['cabal','run','-v0','formurae-pre','--',str(source)],ROOT,WORK/f'{name}.egi',WORK/f'{name}-pre.log')
@@ -198,7 +198,7 @@ def main():
         (OUT/'records.json').write_text(json.dumps(report,indent=2)+'\n')
     sources=[Path(__file__),EX/'propagation_ps_check.h',EX/'diagnostics_check.h',EX/'elastic_check.h']
     sources+=list((ROOT/'src').rglob('*.hs'))+list((ROOT/'lib').glob('*.egi'))
-    for coordinate in ['cylindrical','spherical']:
+    for coordinate in ['spherical']:
         sources += [EX/f'diagnostics_{coordinate}.{s}' for s in ['fme','fmr']]
         sources += [ROOT/f'examples/elastic_{coordinate}/elastic_{coordinate}.{s}' for s in ['fme','fmr']]
     report['source_sha256']={str(p.relative_to(ROOT)):sha(p) for p in sources}

@@ -33,13 +33,13 @@ def main():
             'compiler':subprocess.check_output(['cc','--version'],text=True).splitlines()[0],
             'platform':platform.platform(),'source_sha256':{},'build_sha256':{},'results':[]}
     definitions=[]
-    for coordinate in ['cylindrical','spherical']:
+    for coordinate in ['spherical']:
         source=ROOT/f'examples/elastic_{coordinate}/elastic_{coordinate}.fme'
         definitions.append([line for line in source.read_text().splitlines() if line.startswith('def ')])
-    assert len(definitions[0])==3 and definitions[0]==definitions[1]
+    assert all(len(definition)==3 for definition in definitions)
     for source in [Path(__file__),ROOT/'examples/elastic_curvilinear/propagation_check.h',ROOT/'examples/elastic_curvilinear/elastic_check.h']:
         report['source_sha256'][str(source.relative_to(ROOT))]=sha(source)
-    for coordinate in ['cylindrical','spherical']:
+    for coordinate in ['spherical']:
         name='elastic_'+coordinate;spherical=coordinate=='spherical'
         work=WORK/name;work.mkdir(parents=True,exist_ok=True)
         output=OUT/coordinate;output.mkdir(exist_ok=True)

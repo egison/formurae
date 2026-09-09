@@ -32,7 +32,7 @@ def main():
     reports = {name: json.loads((args.input/(name+'.json')).read_text())
                for name in ['formurae', 'nrpylatex', 'devito', 'opensbli', 'nrpyplus']}
     f = reports['formurae']['results']
-    assert len(f) == 15 and reports['formurae']['all_expected']
+    assert len(f) == 13 and reports['formurae']['all_expected']
     errors = []
     for record in f.values():
         assert record['matches_expectation']
@@ -69,7 +69,6 @@ def main():
                         ROOT/'src/Formurae/Post/Compile.hs',
                         ROOT/'src/Formurae/Post/FMR.hs',
                         ROOT/'src/Formurae/Post/Stencil.hs',
-                        ROOT/'examples/elastic_cylindrical/elastic_cylindrical.fme',
                         ROOT/'examples/elastic_spherical/elastic_spherical.fme']
     report = {
         'protocol_date': '2026-09-07',

@@ -1,4 +1,0 @@
-length_per_node: [1.03125, 6.283185307179586, 1.0625]
-grid_per_node: [33, 16, 17]
-mpi_shape: [1,1,1]
-boundary: [fixed 0.0, periodic, fixed 0.0]

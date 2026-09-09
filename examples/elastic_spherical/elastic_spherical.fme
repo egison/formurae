@@ -1,6 +1,6 @@
 -- Isotropic elasticity in spherical coordinates (radius 1+r, colatitude 1+θ).
--- Covariant strain and contravariant stress use the same metric formulas
--- as elastic_cylindrical. All components are evaluated at the same grid point.
+-- Covariant strain and contravariant stress use metric-dependent formulas.
+-- All components are evaluated at the same grid point.
 dimension 3
 axes r, θ, φ
 metric g

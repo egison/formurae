@@ -31,8 +31,8 @@ Egison が数式とテンソル演算を導関数つき `FieldJet` へ正規化�
 | # | テーマ | 方程式系 | 必要機構 | 検証(不変量・解析解) | 判定 |
 |---|---|---|---|---|---|
 | 1 | 理想 MHD(Orszag–Tang 渦) | 保存形 8 変数 | 中間流束場+Rusanov | 保存 ~1e-12・divB 1.2e-14・正値性 | **済** (examples/mhd_ot) |
-| 2 | 弾性波・地震波(Virieux) | v–σ 定式化、σ は対称テンソル | Primal policy+テンソル成分から配置推論 | vp=1.990/2・vs=0.995/1・E ドリフト 3.4e-4 | **済** (examples/elastic3d) |
-| 2a | 円筒・球座標の弾性波 | 同じ計量依存のひずみ・構成則・発散 | 同一点配置，流束全体の差分，SBP境界（部分積分の離散恒等式を満たす境界差分） | 解析解への2次収束・時間2次・1万ステップの修正エネルギードリフト <1e-14 | **済** ([例と再現手順](examples/elastic_curvilinear/README.md)) |
+| 2 | 弾性波・地震波(Virieux) | v–σ 定式化、σ は対称テンソル | Primal policy+テンソル成分から配置推論 | 周期境界・4ステップのブロッキングを設定。検証量の C 計算と複数プロセスでの検証が残る | [調査結果](examples/ELASTICITY-REVIEW.md) (examples/elastic3d) |
+| 2a | 球座標の弾性波 | 計量依存のひずみ・構成則・発散 | 同一点配置，流束全体の差分，SBP境界（部分積分に対応する離散恒等式を満たす境界差分） | 現行境界では複数プロセス・時間ブロッキング不可。初期値・検証量を C 側で計算 | [調査結果](examples/ELASTICITY-REVIEW.md)。円筒座標の例は削除 |
 | 3 | 線形音響(p–v) | ∂t p = −K∇·v、∂t v = −∇p/ρ | Yee の scalar 版 | 音速 0.9957/1・E ドリフト 1.6e-4・横速度 =0 | **済** (examples/acoustic3d) |
 | 4 | 浅水方程式(津波・回転流体) | h, hu の保存形(+コリオリ f) | 中心差分+人工粘性 | 波速 0.9989/1・質量 3.7e-14・対称性 max\|my\|=0 | **済** (examples/shallowwater) |
 | 5 | Burgers 方程式(1D/3D) | ∂t u + u∂x u = ν∇²u | 済 | Cole–Hopf 厳密解と 3.5e-5 一致 | **済** (examples/burgers3d) |

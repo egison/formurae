@@ -89,10 +89,10 @@ def temporal_orders(temporal):
 
 
 def main():
-    names = ['elastic_cylindrical', 'elastic_spherical']
+    names = ['elastic_spherical']
     definitions = [[line for line in (ROOT/f'examples/{name}/{name}.fme').read_text().splitlines()
                     if line.startswith('def ')] for name in names]
-    assert len(definitions[0]) == 3 and definitions[0] == definitions[1]
+    assert all(len(definition) == 3 for definition in definitions)
     egison = command([str(ROOT/'tools/prepare_elastic_validation.sh')])
     revision = (Path(egison)/'.formurae-revision').read_text().strip()
     records = []

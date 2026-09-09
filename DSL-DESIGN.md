@@ -685,6 +685,15 @@ Egison が各定義を個別に型検査できるようにした．計算結果�
 検証用コピーには移行時点の35例題を保持し，今回の変更だけを反映した．
 全例題の数値検査に成功し，35個の正規化済みFEIRは従来のものとバイト単位で一致した．
 
+**2026-09-10: 円筒座標の弾性波例の削除と既存例の調査** —
+円筒座標の弾性波モデルと診断用ソースを削除し，`make all` と共有の
+検証・収集スクリプトから外した．非周期境界を使う現在の Formura の実装では
+複数プロセスでの実行と時間方向のブロッキングが利用できず，実験の初期値も
+C 側で設定されるためである．過去の数値結果と比較記録は履歴として保持する．
+球座標の例にも同じ制約がある．直交座標の `elastic3d` は周期境界と4ステップの
+ブロッキングを設定するが，検証量の C 計算と複数プロセスでの検証が残る．
+詳細は `examples/ELASTICITY-REVIEW.md` に記録する．
+
 **v1.35(2026-07-11): descriptor-driven whole fields + native tensor operators** —
 Phase 2 の field descriptor を完成させ、生成 `.egi` は field ごとに
 `(name, GridPolicy, shape, variances, layout, projection, storageMapping)` を一度だけ持つ。

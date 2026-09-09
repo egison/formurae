@@ -96,7 +96,7 @@ def main():
     spherical=spherical.replace('metric scale [1, 1+r, 1]',
         'metric scale [1, 1+r, `(1+r) * sin (1+θ)]')
     cases['anisotropic_spherical_good']=spherical
-    for coordinate in ['cylindrical','spherical']:
+    for coordinate in ['spherical']:
         text=(ROOT/f'examples/elastic_{coordinate}/elastic_{coordinate}.fme').read_text()
         text=text.replace('param λ = 2.0','param α = 0.5\nparam λ = 2.0')
         old=next(line for line in text.splitlines() if line.startswith('def stressRate'))
