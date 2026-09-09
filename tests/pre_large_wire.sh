@@ -18,8 +18,8 @@ while IFS= read -r library; do
   set -- "$@" -l "$ROOT/$library"
 done < "$ROOT/spec/egison-normalization.list"
 
-"$ROOT/tools/run_egison_machine.sh" "$@" -l "$WORK/model.egi" \
-  -c 'main []' +RTS -M1G -RTS > "$WORK/model.feir"
+EGISON_HEAP_LIMIT=1G "$ROOT/tools/run_egison_machine.sh" "$@" -l "$WORK/model.egi" \
+  -c 'main []' > "$WORK/model.feir"
 
 # Splitting definitions must preserve every normalized value and every
 # provenance entry, including the large origin table in this model.

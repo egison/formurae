@@ -16,7 +16,7 @@ shift
 
 # Stop excessive allocation before it exhausts system memory. Larger models
 # can choose a different limit through EGISON_HEAP_LIMIT.
-heap_limit=${EGISON_HEAP_LIMIT:-1G}
+heap_limit=${EGISON_HEAP_LIMIT:-4G}
 set -- "$@" +RTS "-M$heap_limit" -RTS
 
 temporary=${TMPDIR:-/tmp}/formurae-egison-machine.$$
