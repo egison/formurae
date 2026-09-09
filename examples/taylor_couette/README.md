@@ -101,7 +101,7 @@ Haskell 系のビルド・コンパイルをほかの実行と重ねず，以下
 
 ```sh
 python3 -m venv .build/taylor-couette-venv
-.build/taylor-couette-venv/bin/pip install -r examples/tensor_demos/taylor-couette-requirements.txt
+.build/taylor-couette-venv/bin/pip install -r examples/taylor_couette/requirements.txt
 .build/taylor-couette-venv/bin/python tools/taylor_couette.py validate
 .build/taylor-couette-venv/bin/python tools/taylor_couette.py simulate --reynolds 60 --name re60
 .build/taylor-couette-venv/bin/python tools/taylor_couette.py simulate --reynolds 150 --name re150

@@ -15,7 +15,7 @@ from scipy.fft import rfft2, irfft2
 from taylor_couette_kernel import Kernel, ROOT, sha
 
 WORK = ROOT / '.build/taylor-couette'
-RESULTS = ROOT / 'examples/tensor_demos/results'
+RESULTS = ROOT / 'examples/taylor_couette/results'
 HALO = 2
 
 
@@ -156,7 +156,7 @@ class TaylorCouette:
 
 
 def provenance(model):
-    return dict(kernel=model.kernel.record, source_sha256=sha(ROOT/'examples/tensor_demos/taylor_couette3d.fme'),
+    return dict(kernel=model.kernel.record, source_sha256=sha(ROOT/'examples/taylor_couette/taylor_couette3d.fme'),
                 driver_sha256=sha(__file__), numpy_version=np.__version__)
 
 

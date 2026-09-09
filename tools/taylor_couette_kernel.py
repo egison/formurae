@@ -1,7 +1,7 @@
 """Build and call the Formurae -> Egison -> Formura -> C Taylor--Couette kernel.
 
 The experiment driver owns time integration, pressure projection, and rendering.
-The spatial tensor equations in examples/tensor_demos/*.fme own the PDE RHS.
+The spatial tensor equations in examples/taylor_couette/*.fme own the PDE RHS.
 All compiler subprocesses are run serially. Generated products are cached by
 source/library/compiler hashes, not by filename or modification time.
 """
@@ -16,7 +16,7 @@ import subprocess
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCES = ROOT / 'examples/tensor_demos'
+SOURCES = ROOT / 'examples/taylor_couette'
 WORK = ROOT / '.build/tensor-demos'
 RESULTS = SOURCES / 'results'
 
