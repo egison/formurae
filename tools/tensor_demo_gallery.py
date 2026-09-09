@@ -29,8 +29,8 @@ labels={'ja': {'title': '円筒・球面のテンソル方程式',
         'couette': '粘弾性流体：回転する円筒間の流れ',
         'couette_body': 'Oldroyd-B モデルで，高分子の変形を表す対称テンソルと非圧縮流れを結合します．色は高分子応力の大きさ，白い矢印は流速です．内筒は t = '
                         '12 から減速し，t = 14 で停止します．右側で速度分布とエネルギーの緩和を追います．',
-        'couette_note': '二次元の環状領域を計算します．風上輸送と正定値性を保つ分割時間積分を使い，速度を求める Poisson 方程式は Python/SciPy '
-                        'で解きます．',
+        'couette_note': '二次元の環状領域を計算します．方程式・時間更新・境界値を .fme から C に生成し，Poisson 方程式も C で解きます．'
+                        'Python は保存結果の描画に使います．',
         'nematic': '球面の液晶：配向と欠陥の移動',
         'nematic_body': '分子の向きと配向の強さを，対称かつトレースゼロのテンソル Q '
                         'で表します．色は配向の強さ，短い線は向き，水色の点は向きが定まらない欠陥です．球の表裏を同時に示します．',
@@ -72,9 +72,9 @@ labels={'ja': {'title': '円筒・球面のテンソル方程式',
                         'incompressible flow. Colour shows polymer stress magnitude; white arrows '
                         'show velocity. The inner cylinder slows at t = 12 and stops at t = 14. '
                         'The plots track velocity and energy relaxation.',
-        'couette_note': 'This is a two-dimensional annulus. The driver uses upwind transport and a '
-                        'positivity-preserving split time step; Python/SciPy solves the Poisson '
-                        'equation for velocity.',
+        'couette_note': 'This is a two-dimensional annulus. Equations, time updates and wall values '
+                        'are generated from .fme to C; C also solves the Poisson equation. '
+                        'Python visualizes saved results.',
         'nematic': 'Liquid crystal on a sphere: orientation and moving defects',
         'nematic_body': 'The symmetric, trace-free tensor Q describes molecular orientation and '
                         'alignment strength. Colour shows alignment, short lines show orientation, '
@@ -94,7 +94,12 @@ def movie(name):
  return f'<video controls autoplay loop muted playsinline preload="metadata" aria-label="{name}" poster="{paths["png"]}" style="display:block;width:100%;max-width:1100px;max-height:75vh;object-fit:contain;margin:auto"><source src="{paths["mp4"]}" type="video/mp4"><a href="{paths["gif"]}">GIF</a></video>'
 def code(name,L):
  f=name+'.fme';body=html.escape((root/'examples/tensor_demos'/f).read_text())
- links=' · '.join(f'<a href="{source}{name}.{ext}">.{ext}</a>' for ext in ['fme','egi','feir','fmr'])
+ if name=='oldroyd_couette':
+  base=f'{source}generated/{name}/'
+  links=f'<a href="{source}{f}">.fme</a> · <a href="{base}model.c">C</a> · <a href="{base}formurae_native.h">runtime</a>'
+  links+=' · '+' · '.join(f'<a href="{base}{stage}.fmr">{stage}.fmr</a>' for stage in ['start','velocity','operators','advance','finish','diagnostics'])
+ else:
+  links=' · '.join(f'<a href="{source}{name}.{ext}">.{ext}</a>' for ext in ['fme','egi','feir','fmr'])
  return f'<details class="codebox" data-fme="tensor_demos/{f}"><summary>{L["sources"]}: {f}</summary><pre>{body}</pre></details><p style="font-size:12px">{L["generated"]}: {links}</p>'
 def main():
     for lang,L in labels.items():

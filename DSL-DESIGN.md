@@ -644,6 +644,17 @@ UFL・SymPy・NumPy・Devitoの対応する記述と，NRPyLaTeX・OpenSBLIの
 明示する．初期化で指定していた配列型を更新にも保つ変更である．
 2次元・3次元の外微分の合成が0へ整理される例を含め，生成Cを実行する．
 
+**v2.26(2026-09-09): 一つの Formurae プログラムから粘弾性の時間発展まで実行** —
+`stage` で計算段階を定義し，`runtime` と `prepare`・`advance`・`observe` で
+実行条件と順序を記述する．初期値，壁の値，輸送・変形・緩和による時間更新を
+`oldroyd_couette.fme` に集約した．`formurae run MODEL.fme` は各段階を従来と同じ
+前処理・Egison 正規化・FEIR 検証・差分生成へ通し，その結果から C のループと実行部を生成する．
+利用者がモデル固有の C や Python を書く必要はない．
+汎用 C ライブラリは配列の平均，境界の補助セルへの転送，FFT と三重対角系の求解を担当する．
+物理方程式・座標系・物性値はこのライブラリへ複製しない．既存の Formura 出力経路も維持する．
+宣言されたテンソルの全軸を整数で選択した値をスカラーとして検査する修正も含む．
+仕様と検証は [ネイティブ実行](docs/native-execution.md) に記録する．
+
 **v1.35(2026-07-11): descriptor-driven whole fields + native tensor operators** —
 Phase 2 の field descriptor を完成させ、生成 `.egi` は field ごとに
 `(name, GridPolicy, shape, variances, layout, projection, storageMapping)` を一度だけ持つ。

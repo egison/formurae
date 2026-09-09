@@ -103,9 +103,26 @@ gallery-assets:
 	python3 gallery/tools/render.py
 	python3 gallery/tools/render_video.py
 
-# The coupled tensor demos include Python time integrators and global solves.
+# Couette simulation and validation run entirely in native generated C.
+# The other tensor demos currently include Python time integrators.
 # A single orchestrator keeps all compiler and simulation jobs serial.
 TENSOR_PYTHON ?= python3
+.PHONY: couette-build couette-check couette-simulate couette-render native-tests
+couette-build:
+	tools/tensor_demo_couette.sh build
+couette-check:
+	tools/tensor_demo_couette.sh check
+couette-simulate:
+	tools/tensor_demo_couette.sh simulate
+couette-render:
+	$(TENSOR_PYTHON) tools/tensor_demo_render.py couette
+	$(TENSOR_PYTHON) tools/tensor_demo_recoil.py
+	$(TENSOR_PYTHON) tools/tensor_demo_gallery.py
+native-tests:
+	cabal build exe:formurae-native exe:formurae-pre
+	cabal exec -v0 runghc -- -isrc tests/pre_type_check.hs
+	cabal exec -v0 runghc -- -isrc tests/native.hs
+	sh tests/native_cli.sh
 .PHONY: tensor-demos tensor-demo-checks tensor-demo-simulate tensor-demo-render
 tensor-demos:
 	PYTHONDONTWRITEBYTECODE=1 $(TENSOR_PYTHON) tools/tensor_demos.py all

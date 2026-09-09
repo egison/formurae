@@ -67,10 +67,27 @@ symmetry under index exchange.
 The `.fme` files define strain, stress divergence, tensor transport, derivatives,
 and contractions as ordinary user functions. No operator-specific compiler
 rules are added. Formurae, Egison, and Formura generate the C spatial kernels.
-Python supplies time integration, boundary conditions, and exchange between
-coordinate panels. For incompressible flow, Python/SciPy also solves a global
-Poisson equation. These are coupled solver demonstrations, rather than an
-MPI performance evaluation or solvers entirely specified by the `.fme` files.
+For viscoelastic flow, the user writes one `.fme` file containing equations,
+initial conditions, physical parameters, time updates, wall values, and the
+execution order. `formurae run` validates it, generates C, and runs the result.
+A generic C runtime supplies array means, ghost-cell transfers and the Poisson
+solve. Python visualizes saved results. See the [execution specification](../../docs/native-execution.md).
+
+```sh
+formurae run examples/tensor_demos/oldroyd_couette.fme
+```
+
+Generated C and the executable are written to `oldroyd_couette.native/` next
+to the input; snapshots and the report go in its `output/` subdirectory.
+The user does not write C or Python. For gallery reproduction, use
+`make couette-check`, `make couette-simulate`, and `make couette-render`.
+The first two commands do not invoke Python. Archived stages are in
+`generated/oldroyd_couette/`.
+The [comparison with previously saved results](results/couette-native-regression.json)
+records the numerical agreement with the former driver.
+
+The elastic and nematic demos continue to use Python for time integration,
+boundaries, and exchange between coordinate panels.
 
 ### Pressing, twisting, and release
 
@@ -183,8 +200,9 @@ separately to retain circulation in the annulus. Wall vorticity is determined
 from the streamfunction and prescribed velocity. Generated upwind transport,
 congruence transformations `F C Fᵀ` for stretching, and convex relaxation towards
 identity preserve positive definiteness. The split time integration is first
-order; it does not clip negative eigenvalues. The driver supplies absolute
-coordinate velocities as the numerical transport coefficients.
+order; it does not clip negative eigenvalues. The `.fme` velocity stage supplies
+absolute coordinate velocities as the numerical transport coefficients. All
+physical parameters, including relaxation time, come from `.fme` declarations.
 
 The analytic steady benchmark is `vθ=(4/r−r)/3`, with physical orthonormal
 components `Crr=1, Crθ=λr γ, Cθθ=1+2(λr γ)², γ=−8/(3r²)`.

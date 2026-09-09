@@ -17,6 +17,7 @@ import numpy as np
 
 from tensor_demo_common import ROOT,WORK,RESULTS,sha
 from tensor_demo_render import encode,ASSETS
+from tensor_demo_native_frames import load_couette_frame
 
 
 class SavedVelocity:
@@ -25,9 +26,7 @@ class SavedVelocity:
         self.times=np.array([f['time'] for f in self.report['frames']])
         self.values=[]
         for i in range(len(self.times)):
-            with np.load(WORK/f'couette/frame-{i:04d}.npz') as f:
-                assert abs(float(f['time'])-self.times[i])<1e-10
-                self.values.append(f['v'].astype(float))
+            self.values.append(load_couette_frame(WORK/'couette',self.report,i)['v'])
         self.values=np.array(self.values)
         self.dr=1/self.report['radial'];self.dtheta=2*np.pi/self.report['angular']
         self.drive=np.array([f['wall_speed'] for f in self.report['frames']])

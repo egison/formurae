@@ -30,6 +30,7 @@ for test in \
   pre_ambient_metric \
   pre_emit_remaining_primitives \
   pre_geometry_emit \
+  native \
   post_stencil \
   post_location \
   post_fmr \

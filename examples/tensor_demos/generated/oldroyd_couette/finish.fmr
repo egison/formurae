@@ -1,0 +1,138 @@
+dimension :: 2
+axes :: r,theta
+
+double :: roffset = 3*dr
+double :: etas = 0.04
+double :: etap = 0.16
+double :: relaxation = 1.5
+double :: rho0 = 1.0
+double :: hr = dr
+double :: ht = dtheta
+double :: perturbation = 1.0
+
+extern function :: sin
+extern function :: cos
+
+begin function (wallOmega,omega,meanVelocity,C_up1_up1,C_up2_up2,C_up1_up2,v_up1,v_up2,psi,clock,timestep,acceleration_up1,acceleration_up2,rate_up1_up1,rate_up2_up2,rate_up1_up2,rotationRate,transport_up1_up1,transport_up2_up2,transport_up1_up2,velocityGradient_up1_down1,velocityGradient_up1_down2,velocityGradient_up2_down1,velocityGradient_up2_down2,transportSpeed_up1,transportSpeed_up2,candidate_up1_up1,candidate_up2_up2,candidate_up1_up2,meanForce,meanRotation,savedOmega,savedMean,savedC_up1_up1,savedC_up2_up2,savedC_up1_up2,savedClock,vectorScale_up1,vectorScale_up2,tensorScale_up1_up1,tensorScale_up2_up2,tensorScale_up1_up2,unitScale,poissonLower,poissonDiagonal,poissonUpper,poissonAngular,velocity_up1,velocity_up2,conformation_up1_up1,conformation_up2_up2,conformation_up1_up2,minEigenvalue,divergenceValue,energy,speed,wallSpeed,courant) = init()
+  double [] :: wallOmega, omega, meanVelocity, C_up1_up1, C_up2_up2, C_up1_up2, v_up1, v_up2, psi, clock, timestep, acceleration_up1, acceleration_up2, rate_up1_up1, rate_up2_up2, rate_up1_up2, rotationRate, transport_up1_up1, transport_up2_up2, transport_up1_up2, velocityGradient_up1_down1, velocityGradient_up1_down2, velocityGradient_up2_down1, velocityGradient_up2_down2, transportSpeed_up1, transportSpeed_up2, candidate_up1_up1, candidate_up2_up2, candidate_up1_up2, meanForce, meanRotation, savedOmega, savedMean, savedC_up1_up1, savedC_up2_up2, savedC_up1_up2, savedClock, vectorScale_up1, vectorScale_up2, tensorScale_up1_up1, tensorScale_up2_up2, tensorScale_up1_up2, unitScale, poissonLower, poissonDiagonal, poissonUpper, poissonAngular, velocity_up1, velocity_up2, conformation_up1_up1, conformation_up2_up2, conformation_up1_up2, minEigenvalue, divergenceValue, energy, speed, wallSpeed, courant
+  wallOmega[i,j] = 0.0
+  omega[i,j] = 0.0
+  meanVelocity[i,j] = (4/(1+r-roffset) - (1+r-roffset))/3
+  C_up1_up1[i,j] = (9 + (-108) * dr * i * roffset + (-108) * roffset * (dr * i)**2 + (-96) * dr * i * relaxation * roffset * cos((2 / 25) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * cos(3 * dtheta * j) + (4 / 125) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * sin(5 * dtheta * j)) * sin((2 / 25) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * cos(3 * dtheta * j) + (4 / 125) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * sin(5 * dtheta * j)) + (-96) * relaxation * roffset * cos((2 / 25) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * cos(3 * dtheta * j) + (4 / 125) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * sin(5 * dtheta * j)) * sin((2 / 25) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * cos(3 * dtheta * j) + (4 / 125) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * sin(5 * dtheta * j)) + (-36) * dr * i * roffset**3 + (-36) * roffset + (-36) * roffset * (dr * i)**3 + (-36) * roffset**3 + 9 * roffset**4 + 9 * (dr * i)**4 + 36 * dr * i + 36 * (dr * i)**3 + 48 * relaxation * roffset**2 * cos((2 / 25) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * cos(3 * dtheta * j) + (4 / 125) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * sin(5 * dtheta * j)) * sin((2 / 25) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * cos(3 * dtheta * j) + (4 / 125) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * sin(5 * dtheta * j)) + 48 * relaxation * (dr * i)**2 * cos((2 / 25) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * cos(3 * dtheta * j) + (4 / 125) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * sin(5 * dtheta * j)) * sin((2 / 25) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * cos(3 * dtheta * j) + (4 / 125) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * sin(5 * dtheta * j)) + 48 * relaxation * cos((2 / 25) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * cos(3 * dtheta * j) + (4 / 125) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * sin(5 * dtheta * j)) * sin((2 / 25) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * cos(3 * dtheta * j) + (4 / 125) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * sin(5 * dtheta * j)) + 54 * roffset**2 + 54 * roffset**2 * (dr * i)**2 + 54 * (dr * i)**2 + 96 * dr * i * relaxation * cos((2 / 25) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * cos(3 * dtheta * j) + (4 / 125) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * sin(5 * dtheta * j)) * sin((2 / 25) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * cos(3 * dtheta * j) + (4 / 125) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * sin(5 * dtheta * j)) + 108 * dr * i * roffset**2 + 128 * relaxation**2 * sin((2 / 25) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * cos(3 * dtheta * j) + (4 / 125) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * sin(5 * dtheta * j))**2) / (9 + (-108) * dr * i * roffset + (-108) * roffset * (dr * i)**2 + (-36) * dr * i * roffset**3 + (-36) * roffset + (-36) * roffset * (dr * i)**3 + (-36) * roffset**3 + 9 * roffset**4 + 9 * (dr * i)**4 + 36 * dr * i + 36 * (dr * i)**3 + 54 * roffset**2 + 54 * roffset**2 * (dr * i)**2 + 54 * (dr * i)**2 + 108 * dr * i * roffset**2)
+  C_up2_up2[i,j] = (9 + (-108) * dr * i * roffset + (-108) * roffset * (dr * i)**2 + (-96) * dr * i * relaxation * cos((2 / 25) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * cos(3 * dtheta * j) + (4 / 125) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * sin(5 * dtheta * j)) * sin((2 / 25) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * cos(3 * dtheta * j) + (4 / 125) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * sin(5 * dtheta * j)) + (-48) * relaxation * roffset**2 * cos((2 / 25) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * cos(3 * dtheta * j) + (4 / 125) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * sin(5 * dtheta * j)) * sin((2 / 25) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * cos(3 * dtheta * j) + (4 / 125) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * sin(5 * dtheta * j)) + (-48) * relaxation * (dr * i)**2 * cos((2 / 25) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * cos(3 * dtheta * j) + (4 / 125) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * sin(5 * dtheta * j)) * sin((2 / 25) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * cos(3 * dtheta * j) + (4 / 125) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * sin(5 * dtheta * j)) + (-48) * relaxation * cos((2 / 25) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * cos(3 * dtheta * j) + (4 / 125) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * sin(5 * dtheta * j)) * sin((2 / 25) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * cos(3 * dtheta * j) + (4 / 125) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * sin(5 * dtheta * j)) + (-36) * dr * i * roffset**3 + (-36) * roffset + (-36) * roffset * (dr * i)**3 + (-36) * roffset**3 + 9 * roffset**4 + 9 * (dr * i)**4 + 36 * dr * i + 36 * (dr * i)**3 + 54 * roffset**2 + 54 * roffset**2 * (dr * i)**2 + 54 * (dr * i)**2 + 96 * dr * i * relaxation * roffset * cos((2 / 25) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * cos(3 * dtheta * j) + (4 / 125) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * sin(5 * dtheta * j)) * sin((2 / 25) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * cos(3 * dtheta * j) + (4 / 125) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * sin(5 * dtheta * j)) + 96 * relaxation * roffset * cos((2 / 25) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * cos(3 * dtheta * j) + (4 / 125) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * sin(5 * dtheta * j)) * sin((2 / 25) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * cos(3 * dtheta * j) + (4 / 125) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * sin(5 * dtheta * j)) + 108 * dr * i * roffset**2 + 128 * relaxation**2 * cos((2 / 25) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * cos(3 * dtheta * j) + (4 / 125) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * sin(5 * dtheta * j))**2) / (9 + (-540) * dr * i * roffset**3 + (-540) * roffset * (dr * i)**2 + (-540) * roffset * (dr * i)**3 + (-540) * roffset**3 * (dr * i)**2 + (-270) * dr * i * roffset + (-270) * roffset * (dr * i)**4 + (-180) * roffset**3 + (-180) * roffset**3 * (dr * i)**3 + (-54) * dr * i * roffset**5 + (-54) * roffset + (-54) * roffset * (dr * i)**5 + (-54) * roffset**5 + 9 * roffset**6 + 9 * (dr * i)**6 + 54 * dr * i + 54 * (dr * i)**5 + 135 * roffset**2 + 135 * roffset**2 * (dr * i)**4 + 135 * roffset**4 + 135 * roffset**4 * (dr * i)**2 + 135 * (dr * i)**2 + 135 * (dr * i)**4 + 180 * (dr * i)**3 + 270 * dr * i * roffset**4 + 540 * dr * i * roffset**2 + 540 * roffset**2 * (dr * i)**3 + 810 * roffset**2 * (dr * i)**2)
+  C_up1_up2[i,j] = ((-128) * relaxation**2 * cos((2 / 25) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * cos(3 * dtheta * j) + (4 / 125) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * sin(5 * dtheta * j)) * sin((2 / 25) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * cos(3 * dtheta * j) + (4 / 125) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * sin(5 * dtheta * j)) + (-96) * dr * i * relaxation * roffset * sin((2 / 25) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * cos(3 * dtheta * j) + (4 / 125) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * sin(5 * dtheta * j))**2 + (-96) * relaxation * roffset * sin((2 / 25) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * cos(3 * dtheta * j) + (4 / 125) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * sin(5 * dtheta * j))**2 + (-48) * dr * i * relaxation + (-24) * relaxation + (-24) * relaxation * roffset**2 + (-24) * relaxation * (dr * i)**2 + 48 * dr * i * relaxation * roffset + 48 * relaxation * roffset + 48 * relaxation * roffset**2 * sin((2 / 25) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * cos(3 * dtheta * j) + (4 / 125) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * sin(5 * dtheta * j))**2 + 48 * relaxation * (dr * i)**2 * sin((2 / 25) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * cos(3 * dtheta * j) + (4 / 125) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * sin(5 * dtheta * j))**2 + 48 * relaxation * sin((2 / 25) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * cos(3 * dtheta * j) + (4 / 125) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * sin(5 * dtheta * j))**2 + 96 * dr * i * relaxation * sin((2 / 25) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * cos(3 * dtheta * j) + (4 / 125) * perturbation * sin((-1) * (884279719003555 / 281474976710656) * roffset + (884279719003555 / 281474976710656) * dr * i)**2 * sin(5 * dtheta * j))**2) / (9 + (-270) * roffset * (dr * i)**2 + (-180) * dr * i * roffset + (-180) * dr * i * roffset**3 + (-180) * roffset * (dr * i)**3 + (-90) * roffset**3 + (-90) * roffset**3 * (dr * i)**2 + (-45) * roffset + (-45) * roffset * (dr * i)**4 + (-9) * roffset**5 + 9 * (dr * i)**5 + 45 * dr * i + 45 * dr * i * roffset**4 + 45 * roffset**4 + 45 * (dr * i)**4 + 90 * roffset**2 + 90 * roffset**2 * (dr * i)**3 + 90 * (dr * i)**2 + 90 * (dr * i)**3 + 270 * dr * i * roffset**2 + 270 * roffset**2 * (dr * i)**2)
+  psi[i,j] = (-3 / 125) * dr * i * perturbation * roffset**2 * cos(3 * dtheta * j) + (-3 / 250) * dr * i * perturbation * roffset**2 * sin(5 * dtheta * j) + (-2 / 125) * dr * i * perturbation * roffset**3 * cos(3 * dtheta * j) + (-2 / 125) * perturbation * roffset * (dr * i)**3 * cos(3 * dtheta * j) + (-1 / 125) * dr * i * perturbation * roffset * cos(3 * dtheta * j) + (-1 / 125) * dr * i * perturbation * roffset**3 * sin(5 * dtheta * j) + (-1 / 125) * perturbation * roffset * (dr * i)**3 * sin(5 * dtheta * j) + (-1 / 125) * perturbation * (dr * i)**3 * cos(3 * dtheta * j) + (-1 / 250) * dr * i * perturbation * roffset * sin(5 * dtheta * j) + (-1 / 250) * perturbation * (dr * i)**3 * sin(5 * dtheta * j) + (1 / 125) * perturbation * roffset**3 * cos(3 * dtheta * j) + (1 / 250) * perturbation * roffset**2 * cos(3 * dtheta * j) + (1 / 250) * perturbation * roffset**3 * sin(5 * dtheta * j) + (1 / 250) * perturbation * roffset**4 * cos(3 * dtheta * j) + (1 / 250) * perturbation * (dr * i)**2 * cos(3 * dtheta * j) + (1 / 250) * perturbation * (dr * i)**4 * cos(3 * dtheta * j) + (1 / 500) * perturbation * roffset**2 * sin(5 * dtheta * j) + (1 / 500) * perturbation * roffset**4 * sin(5 * dtheta * j) + (1 / 500) * perturbation * (dr * i)**2 * sin(5 * dtheta * j) + (1 / 500) * perturbation * (dr * i)**4 * sin(5 * dtheta * j) + (3 / 125) * perturbation * roffset * (dr * i)**2 * cos(3 * dtheta * j) + (3 / 125) * perturbation * roffset**2 * (dr * i)**2 * cos(3 * dtheta * j) + (3 / 250) * perturbation * roffset * (dr * i)**2 * sin(5 * dtheta * j) + (3 / 250) * perturbation * roffset**2 * (dr * i)**2 * sin(5 * dtheta * j)
+  clock[i,j] = 0.0
+  timestep[i,j] = 0.6*dr^2
+  vectorScale_up1[i,j] = 1
+  vectorScale_up2[i,j] = 1+r-roffset
+  tensorScale_up1_up1[i,j] = 1
+  tensorScale_up2_up2[i,j] = (1+r-roffset)^2
+  tensorScale_up1_up2[i,j] = 1+r-roffset
+  unitScale[i,j] = 1.0
+  poissonLower[i,j] = -1/dr^2 + 1/(2*dr*(1+r-roffset))
+  poissonDiagonal[i,j] = 2/dr^2
+  poissonUpper[i,j] = -1/dr^2 - 1/(2*dr*(1+r-roffset))
+  poissonAngular[i,j] = 1/(dtheta*(1+r-roffset))^2
+  v_up1[i,j] = 0
+  v_up2[i,j] = 0
+  acceleration_up1[i,j] = 0
+  acceleration_up2[i,j] = 0
+  rate_up1_up1[i,j] = 0
+  rate_up2_up2[i,j] = 0
+  rate_up1_up2[i,j] = 0
+  rotationRate[i,j] = 0.0
+  transport_up1_up1[i,j] = 0
+  transport_up2_up2[i,j] = 0
+  transport_up1_up2[i,j] = 0
+  velocityGradient_up1_down1[i,j] = 0
+  velocityGradient_up1_down2[i,j] = 0
+  velocityGradient_up2_down1[i,j] = 0
+  velocityGradient_up2_down2[i,j] = 0
+  transportSpeed_up1[i,j] = 0
+  transportSpeed_up2[i,j] = 0
+  candidate_up1_up1[i,j] = 0
+  candidate_up2_up2[i,j] = 0
+  candidate_up1_up2[i,j] = 0
+  meanForce[i,j] = 0.0
+  meanRotation[i,j] = 0.0
+  savedOmega[i,j] = 0.0
+  savedMean[i,j] = 0.0
+  savedC_up1_up1[i,j] = 0
+  savedC_up2_up2[i,j] = 0
+  savedC_up1_up2[i,j] = 0
+  savedClock[i,j] = 0.0
+  velocity_up1[i,j] = 0
+  velocity_up2[i,j] = 0
+  conformation_up1_up1[i,j] = 0
+  conformation_up2_up2[i,j] = 0
+  conformation_up1_up2[i,j] = 0
+  minEigenvalue[i,j] = 0.0
+  divergenceValue[i,j] = 0.0
+  energy[i,j] = 0.0
+  speed[i,j] = 0.0
+  wallSpeed[i,j] = 0.0
+  courant[i,j] = 0.0
+end function
+
+begin function (wallOmega',omega',meanVelocity',C_up1_up1',C_up2_up2',C_up1_up2',v_up1',v_up2',psi',clock',timestep',acceleration_up1',acceleration_up2',rate_up1_up1',rate_up2_up2',rate_up1_up2',rotationRate',transport_up1_up1',transport_up2_up2',transport_up1_up2',velocityGradient_up1_down1',velocityGradient_up1_down2',velocityGradient_up2_down1',velocityGradient_up2_down2',transportSpeed_up1',transportSpeed_up2',candidate_up1_up1',candidate_up2_up2',candidate_up1_up2',meanForce',meanRotation',savedOmega',savedMean',savedC_up1_up1',savedC_up2_up2',savedC_up1_up2',savedClock',vectorScale_up1',vectorScale_up2',tensorScale_up1_up1',tensorScale_up2_up2',tensorScale_up1_up2',unitScale',poissonLower',poissonDiagonal',poissonUpper',poissonAngular',velocity_up1',velocity_up2',conformation_up1_up1',conformation_up2_up2',conformation_up1_up2',minEigenvalue',divergenceValue',energy',speed',wallSpeed',courant') = step(wallOmega,omega,meanVelocity,C_up1_up1,C_up2_up2,C_up1_up2,v_up1,v_up2,psi,clock,timestep,acceleration_up1,acceleration_up2,rate_up1_up1,rate_up2_up2,rate_up1_up2,rotationRate,transport_up1_up1,transport_up2_up2,transport_up1_up2,velocityGradient_up1_down1,velocityGradient_up1_down2,velocityGradient_up2_down1,velocityGradient_up2_down2,transportSpeed_up1,transportSpeed_up2,candidate_up1_up1,candidate_up2_up2,candidate_up1_up2,meanForce,meanRotation,savedOmega,savedMean,savedC_up1_up1,savedC_up2_up2,savedC_up1_up2,savedClock,vectorScale_up1,vectorScale_up2,tensorScale_up1_up1,tensorScale_up2_up2,tensorScale_up1_up2,unitScale,poissonLower,poissonDiagonal,poissonUpper,poissonAngular,velocity_up1,velocity_up2,conformation_up1_up1,conformation_up2_up2,conformation_up1_up2,minEigenvalue,divergenceValue,energy,speed,wallSpeed,courant)
+  double [] :: wallOmega', omega', meanVelocity', C_up1_up1', C_up2_up2', C_up1_up2', v_up1', v_up2', psi', clock', timestep', acceleration_up1', acceleration_up2', rate_up1_up1', rate_up2_up2', rate_up1_up2', rotationRate', transport_up1_up1', transport_up2_up2', transport_up1_up2', velocityGradient_up1_down1', velocityGradient_up1_down2', velocityGradient_up2_down1', velocityGradient_up2_down2', transportSpeed_up1', transportSpeed_up2', candidate_up1_up1', candidate_up2_up2', candidate_up1_up2', meanForce', meanRotation', savedOmega', savedMean', savedC_up1_up1', savedC_up2_up2', savedC_up1_up2', savedClock', vectorScale_up1', vectorScale_up2', tensorScale_up1_up1', tensorScale_up2_up2', tensorScale_up1_up2', unitScale', poissonLower', poissonDiagonal', poissonUpper', poissonAngular', velocity_up1', velocity_up2', conformation_up1_up1', conformation_up2_up2', conformation_up1_up2', minEigenvalue', divergenceValue', energy', speed', wallSpeed', courant'
+  clock'[i,j] = (1 / 2) * clock[i,j] + (1 / 2) * savedClock[i,j]
+  C_up1_up1'[i,j] = (1 / 2) * C_up1_up1[i,j] + (1 / 2) * savedC_up1_up1[i,j]
+  C_up2_up2'[i,j] = (1 / 2) * C_up2_up2[i,j] + (1 / 2) * savedC_up2_up2[i,j]
+  C_up1_up2'[i,j] = (1 / 2) * C_up1_up2[i,j] + (1 / 2) * savedC_up1_up2[i,j]
+  omega'[i,j] = (1 / 2) * omega[i,j] + (1 / 2) * savedOmega[i,j]
+  meanVelocity'[i,j] = if 1 + (-1) * roffset + dr * i < 1 + (1 / 2) * hr then if clock'[i,j] <= 12 then 1 else if clock'[i,j] >= 14 then 0 else (1 / 2) + (1 / 2) * cos((-6) * (884279719003555 / 281474976710656) + (1 / 2) * (884279719003555 / 281474976710656) * clock'[i,j]) else if 1 + (-1) * roffset + dr * i > 2 + (-1 / 2) * hr then 0 else (1 / 2) * meanVelocity[i,j] + (1 / 2) * savedMean[i,j]
+  wallOmega'[i,j] = wallOmega[i,j]
+  v_up1'[i,j] = v_up1[i,j]
+  v_up2'[i,j] = v_up2[i,j]
+  psi'[i,j] = psi[i,j]
+  timestep'[i,j] = timestep[i,j]
+  acceleration_up1'[i,j] = acceleration_up1[i,j]
+  acceleration_up2'[i,j] = acceleration_up2[i,j]
+  rate_up1_up1'[i,j] = rate_up1_up1[i,j]
+  rate_up2_up2'[i,j] = rate_up2_up2[i,j]
+  rate_up1_up2'[i,j] = rate_up1_up2[i,j]
+  rotationRate'[i,j] = rotationRate[i,j]
+  transport_up1_up1'[i,j] = transport_up1_up1[i,j]
+  transport_up2_up2'[i,j] = transport_up2_up2[i,j]
+  transport_up1_up2'[i,j] = transport_up1_up2[i,j]
+  velocityGradient_up1_down1'[i,j] = velocityGradient_up1_down1[i,j]
+  velocityGradient_up1_down2'[i,j] = velocityGradient_up1_down2[i,j]
+  velocityGradient_up2_down1'[i,j] = velocityGradient_up2_down1[i,j]
+  velocityGradient_up2_down2'[i,j] = velocityGradient_up2_down2[i,j]
+  transportSpeed_up1'[i,j] = transportSpeed_up1[i,j]
+  transportSpeed_up2'[i,j] = transportSpeed_up2[i,j]
+  candidate_up1_up1'[i,j] = candidate_up1_up1[i,j]
+  candidate_up2_up2'[i,j] = candidate_up2_up2[i,j]
+  candidate_up1_up2'[i,j] = candidate_up1_up2[i,j]
+  meanForce'[i,j] = meanForce[i,j]
+  meanRotation'[i,j] = meanRotation[i,j]
+  savedOmega'[i,j] = savedOmega[i,j]
+  savedMean'[i,j] = savedMean[i,j]
+  savedC_up1_up1'[i,j] = savedC_up1_up1[i,j]
+  savedC_up2_up2'[i,j] = savedC_up2_up2[i,j]
+  savedC_up1_up2'[i,j] = savedC_up1_up2[i,j]
+  savedClock'[i,j] = savedClock[i,j]
+  vectorScale_up1'[i,j] = vectorScale_up1[i,j]
+  vectorScale_up2'[i,j] = vectorScale_up2[i,j]
+  tensorScale_up1_up1'[i,j] = tensorScale_up1_up1[i,j]
+  tensorScale_up2_up2'[i,j] = tensorScale_up2_up2[i,j]
+  tensorScale_up1_up2'[i,j] = tensorScale_up1_up2[i,j]
+  unitScale'[i,j] = unitScale[i,j]
+  poissonLower'[i,j] = poissonLower[i,j]
+  poissonDiagonal'[i,j] = poissonDiagonal[i,j]
+  poissonUpper'[i,j] = poissonUpper[i,j]
+  poissonAngular'[i,j] = poissonAngular[i,j]
+  velocity_up1'[i,j] = velocity_up1[i,j]
+  velocity_up2'[i,j] = velocity_up2[i,j]
+  conformation_up1_up1'[i,j] = conformation_up1_up1[i,j]
+  conformation_up2_up2'[i,j] = conformation_up2_up2[i,j]
+  conformation_up1_up2'[i,j] = conformation_up1_up2[i,j]
+  minEigenvalue'[i,j] = minEigenvalue[i,j]
+  divergenceValue'[i,j] = divergenceValue[i,j]
+  energy'[i,j] = energy[i,j]
+  speed'[i,j] = speed[i,j]
+  wallSpeed'[i,j] = wallSpeed[i,j]
+  courant'[i,j] = courant[i,j]
+end function

@@ -58,10 +58,24 @@ make tensor-demos TENSOR_PYTHON=.build/tensor-demo-venv/bin/python
 `{~i~j}` のような宣言は添字交換に対する対称性を指定する．
 これらの演算子に固有の変換規則をコンパイラに追加していない．
 
-Formurae → Egison → Formura → C が空間的な微分演算を生成する．
-Python ドライバーは時間積分，境界値，球面の座標間のデータ交換を担当する．
-粘弾性流体では速度を求める大域的な Poisson 方程式も Python/SciPy で解く．
-したがって，このデモ全体を `.fme` だけで完結したソルバーや MPI 実行の評価とは扱わない．
+粘弾性流体では，利用者は一つの `.fme` に方程式，初期値，物理パラメータ，
+時間更新，境界値，各段階の実行順を記述する．`formurae run` が検査と C の生成・実行を行う．
+汎用の C 実行部が配列の平均，境界の補助セルへの転送，Poisson 方程式の求解を行い，
+Python は保存結果の描画に使う．[実行仕様](../../docs/native-execution.md)に詳細を記載した．
+
+```sh
+formurae run examples/tensor_demos/oldroyd_couette.fme
+```
+
+生成 C と実行ファイルは入力ファイルの隣の `oldroyd_couette.native/`，
+保存配列と報告はその中の `output/` に置く．利用者が C や Python を書く必要はない．
+ギャラリーの再現には `make couette-check`，`make couette-simulate`，
+`make couette-render` を使う．最初の二つは Python を起動しない．
+ギャラリー用の各段階の生成物は `generated/oldroyd_couette/` に保存する．
+[従来の保存結果との比較](results/couette-native-regression.json)も記録した．
+
+弾性体と液晶のデモは Formurae → Egison → Formura → C で空間演算を生成し，
+Python が時間積分，境界値，球面の座標間のデータ交換を担当する．
 
 ### 押す・ねじる操作と解放
 
@@ -163,7 +177,8 @@ Oldroyd-B モデルは，溶媒の粘性と，高分子の変形を記憶する�
 壁の渦度は流れ関数と速度境界値から求める．
 高分子の輸送には生成コードの風上差分を使い，変形は `F C Fᵀ`，
 緩和は平衡テンソルとの凸結合で進める．この分割時間積分は 1 次精度で，
-負の固有値を切り上げる補正は用いない．輸送の数値係数に使う座標速度の絶対値はドライバーが供給する．
+負の固有値を切り上げる補正は用いない．座標速度の絶対値も `.fme` で計算する．
+緩和時間を含む物理パラメータはすべて `.fme` の宣言を参照する．
 
 検証では解析的な定常解 `vθ=(4/r−r)/3` と
 `Crr=1, Crθ=λr γ, Cθθ=1+2(λr γ)², γ=−8/(3r²)` を使う

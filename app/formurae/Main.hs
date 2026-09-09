@@ -5,6 +5,8 @@ import Data.List (isPrefixOf, isSuffixOf)
 import Data.Version (showVersion)
 import System.Directory
   ( doesFileExist
+  , copyFile
+  , createDirectoryIfMissing
   , findExecutable
   , makeAbsolute
   )
@@ -18,11 +20,11 @@ import System.FilePath
   , (</>)
   )
 import System.IO (hPutStr, hPutStrLn, stderr)
-import System.Process (CreateProcess(cwd), proc, readCreateProcessWithExitCode)
+import System.Process (CreateProcess(cwd), callProcess, proc, readCreateProcessWithExitCode)
 
 import Paths_formurae (getDataFileName, version)
 
-data Command = Lower | Compile
+data Command = Lower | Compile | Run [String]
 
 main :: IO ()
 main = do
@@ -32,16 +34,19 @@ main = do
     [model] -> runPipeline Compile model
     ["compile", model] -> runPipeline Compile model
     ["lower", model] -> runPipeline Lower model
+    "run" : model : options -> runPipeline (Run options) model
     _ -> failWith usage
 
 usage :: String
 usage = unlines
   [ "usage: formurae [compile] MODEL.fme"
   , "       formurae lower MODEL.fme"
+  , "       formurae run MODEL.fme [--grid NX NY] [--steps N] [--every N] [--dt DT] [--output DIRECTORY]"
   , "       formurae --version"
   , ""
-  , "compile lowers through FEIR and invokes Formura to generate C code."
-  , "lower stops after writing MODEL.fmr."
+  , "compile generates C; staged models also produce a standalone executable."
+  , "run compiles and executes a model with stage and runtime declarations."
+  , "lower writes the discretized Formura representation (one file per stage)."
   ]
 
 runPipeline :: Command -> FilePath -> IO ()
@@ -51,6 +56,14 @@ runPipeline command inputPath = do
   unless exists (failWith ("input file does not exist: " ++ inputPath))
   unless (takeExtension sourcePath == ".fme")
     (failWith ("expected a .fme input file: " ++ inputPath))
+  source <- readFile sourcePath
+  if any ("stage " `isPrefixOf`) (lines source)
+    then runNativePipeline command sourcePath
+    else runOrdinaryPipeline command sourcePath
+
+runOrdinaryPipeline :: Command -> FilePath -> IO ()
+runOrdinaryPipeline (Run _) _ = failWith "run requires a model with stage and runtime declarations"
+runOrdinaryPipeline command sourcePath = do
 
   pre <- requireTool "FORMURAE_PRE" "formurae-pre"
     "install all Formurae executables with: cabal install all:exes"
@@ -82,6 +95,39 @@ runPipeline command inputPath = do
       _ <- runChecked "formura" formura [takeFileName fmrPath]
         (Just modelDirectory) ""
       putStrLn ("wrote " ++ fmrPath ++ " and generated Formura C code")
+
+-- A staged model uses exactly the same installed preprocessor, normalization
+-- libraries and checked finite-difference lowering as an ordinary model.
+-- The user supplies one .fme file; all C and runtime plumbing is generated.
+runNativePipeline :: Command -> FilePath -> IO ()
+runNativePipeline command sourcePath = do
+  let hint = "install all Formurae executables with: cabal install all:exes"
+      folder = replaceExtension sourcePath "native"
+  pre <- requireTool "FORMURAE_PRE" "formurae-pre" hint
+  native <- requireTool "FORMURAE_NATIVE" "formurae-native" hint
+  egison <- requireTool "EGISON" "egison" "install Egison with: cabal install egison-5.1.0"
+  libraries <- normalizationLibraries
+  createDirectoryIfMissing True folder
+  stages <- lines <$> runChecked "formurae-native" native ["prepare",sourcePath,folder] Nothing ""
+  mapM_ (\name -> do
+    let stage = folder </> name
+    hPutStrLn stderr ("normalizing stage " ++ name)
+    unit <- runChecked "formurae-pre" pre [stage ++ ".fme"] Nothing ""
+    writeFile (stage ++ ".egi") unit
+    normalized <- runEgison egison libraries (stage ++ ".egi")
+    writeFile (stage ++ ".feir") normalized) stages
+  _ <- runChecked "formurae-native" native ["emit",sourcePath,folder] Nothing ""
+  runtime <- getDataFileName "runtime/formurae_native.h"
+  copyFile runtime (folder </> "formurae_native.h")
+  case command of
+    Lower -> putStrLn ("wrote checked stages in " ++ folder)
+    _ -> do
+      compiler <- maybe "cc" id <$> lookupEnv "CC"
+      let executable = folder </> "simulate"
+      _ <- runChecked "C compiler" compiler ["-O2","-std=c11",folder </> "model.c","-lm","-o",executable] Nothing ""
+      case command of
+        Run options -> callProcess executable (["--output",folder </> "output"] ++ options)
+        _ -> putStrLn ("wrote " ++ executable)
 
 normalizationLibraries :: IO [FilePath]
 normalizationLibraries = do

@@ -21,6 +21,7 @@ build-type:         Custom
 tested-with:        GHC ==9.6.7
                   , GHC ==9.10.1
 data-files:         spec/feir-primitives.sexp
+                  , runtime/formurae_native.h
                   , spec/egison-normalization.list
                   , lib/formurae-tensor.egi
                   , lib/formurae-geometry.egi
@@ -39,6 +40,7 @@ custom-setup
 
 library
     exposed-modules:  Formurae.Common
+                    , Formurae.Native
                     , Formurae.FEIR.Codec
                     , Formurae.FEIR.Fingerprint
                     , Formurae.FEIR.PrimitiveBindings
@@ -100,6 +102,16 @@ executable formurae
                     , filepath >=1.4 && <1.6
                     , process >=1.6 && <1.7
     autogen-modules:  Paths_formurae
+    default-language: Haskell2010
+    ghc-options:      -Wall
+
+executable formurae-native
+    main-is:          Main.hs
+    hs-source-dirs:   app/formurae-native
+    build-depends:    base >=4.17 && <5
+                    , directory >=1.3 && <1.4
+                    , filepath >=1.4 && <1.6
+                    , formurae
     default-language: Haskell2010
     ghc-options:      -Wall
 

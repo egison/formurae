@@ -140,7 +140,7 @@ step:
   v&#x27;~i = v~i
   σ&#x27;~i~j = σ~i~j
 </pre></details><p style="font-size:12px">Generated code: <a href="../../examples/tensor_demos/twist_tube.fme">.fme</a> · <a href="../../examples/tensor_demos/twist_tube.egi">.egi</a> · <a href="../../examples/tensor_demos/twist_tube.feir">.feir</a> · <a href="../../examples/tensor_demos/twist_tube.fmr">.fmr</a></p><p><a href="../../examples/tensor_demos/README.en.md">Equations, settings, numerical methods, and reproduction</a> · <a href="../../examples/tensor_demos/results/twist-tube.json">Numerical records</a> · <a href="../../examples/tensor_demos/results/manipulation-validation.json">Verification</a> · <a href="../../examples/tensor_demos/results/manipulation-time-validation.json">Time accuracy</a></p></article>
-<article class="card" style="margin:20px 0" id="recoil-intro"><h3>Stop stirring. The liquid briefly turns back.</h3><p>The central cylinder turns to set the liquid in motion, then stops. Blue dots are markers carried by the liquid. Follow the orange dot: it continues forward, then briefly turns back.</p><video controls autoplay loop muted playsinline preload="metadata" aria-label="couette-recoil-en" poster="../../gallery/tensor/couette-recoil-en.png?v=5c454642f5c5" style="display:block;width:100%;max-width:1100px;max-height:75vh;object-fit:contain;margin:auto"><source src="../../gallery/tensor/couette-recoil-en.mp4?v=4f2d1a5428f2" type="video/mp4"><a href="../../gallery/tensor/couette-recoil-en.gif?v=e6bdccc50bb0">GIF</a></video><p class="cap">This liquid also has elasticity: it tends to recover from deformation. After the cylinder stops, stored elastic stress pulls the liquid back. Marker paths are integrated from the computed velocity without magnifying displacement. The entire clip runs at approximately half speed.</p><p><a href="#tensor-couette">See the equations, stress, and verification for this flow</a></p></article>
+<article class="card" style="margin:20px 0" id="recoil-intro"><h3>Stop stirring. The liquid briefly turns back.</h3><p>The central cylinder turns to set the liquid in motion, then stops. Blue dots are markers carried by the liquid. Follow the orange dot: it continues forward, then briefly turns back.</p><video controls autoplay loop muted playsinline preload="metadata" aria-label="couette-recoil-en" poster="../../gallery/tensor/couette-recoil-en.png?v=6c45f3a68605" style="display:block;width:100%;max-width:1100px;max-height:75vh;object-fit:contain;margin:auto"><source src="../../gallery/tensor/couette-recoil-en.mp4?v=515288652c2d" type="video/mp4"><a href="../../gallery/tensor/couette-recoil-en.gif?v=900177e139ef">GIF</a></video><p class="cap">This liquid also has elasticity: it tends to recover from deformation. After the cylinder stops, stored elastic stress pulls the liquid back. Marker paths are integrated from the computed velocity without magnifying displacement. The entire clip runs at approximately half speed.</p><p><a href="#tensor-couette">See the equations, stress, and verification for this flow</a></p></article>
 </div>
 <p>Run verification, simulation, and rendering with <code>make tensor-demos</code>. <a href="../../examples/tensor_demos/README.en.md">Equations, settings, numerical methods, and reproduction</a></p>
 <nav><a href="#tensor-elastic">Anisotropic elasticity: cylinder and hollow sphere</a> · <a href="#tensor-couette">Viscoelastic flow between rotating cylinders</a> · <a href="#tensor-nematic">Liquid crystal on a sphere: orientation and moving defects</a></nav><p>In the equations, g is the metric describing lengths and angles; ∇ includes spatial changes of the coordinate basis.</p><article class="card" style="margin:20px 0" id="tensor-elastic"><h3>Anisotropic elasticity: cylinder and hollow sphere</h3><div class="math">ρ ∂ₜvⁱ = ∇ⱼσⁱʲ<br>∂ₜσⁱʲ = λ gⁱʲ tr(e) + 2μ eⁱʲ + α nⁱnʲnᵏnˡeₖₗ</div><p>Both materials start with the same velocity. The left material is isotropic; the right has extra radial stiffness. Colour shows speed and displacement is magnified eight times. The front half is cut away; outer, inner, and cut surfaces are opaque.</p><h4>Cylinder</h4><video controls autoplay loop muted playsinline preload="metadata" aria-label="elastic-cylinder" poster="../../gallery/tensor/elastic-cylinder.png?v=a655bc09d2eb" style="display:block;width:100%;max-width:1100px;max-height:75vh;object-fit:contain;margin:auto"><source src="../../gallery/tensor/elastic-cylinder.mp4?v=c48ef3bc9718" type="video/mp4"><a href="../../gallery/tensor/elastic-cylinder.gif?v=9d8b7128aff3">GIF</a></video><h4>Hollow sphere</h4><video controls autoplay loop muted playsinline preload="metadata" aria-label="elastic-sphere" poster="../../gallery/tensor/elastic-sphere.png?v=5ebed0c3e690" style="display:block;width:100%;max-width:1100px;max-height:75vh;object-fit:contain;margin:auto"><source src="../../gallery/tensor/elastic-sphere.mp4?v=a99c17eafada" type="video/mp4"><a href="../../gallery/tensor/elastic-sphere.gif?v=e2a32fc4a3ac">GIF</a></video><p class="cap">The cylinder is periodic along its axis. The spherical simulation covers the whole shell. Cutting changes the rendering only, not the computational domain or boundary conditions.</p><details class="codebox" data-fme="tensor_demos/anisotropic_cylinder.fme"><summary>Complete Formurae source: anisotropic_cylinder.fme</summary><pre>-- Radially reinforced elastic hollow cylinder; traction-free radial faces.
@@ -224,9 +224,9 @@ step:
   v&#x27;~i = v~i
   σ&#x27;~i~j = σ~i~j
 </pre></details><p style="font-size:12px">Generated code: <a href="../../examples/tensor_demos/anisotropic_sphere.fme">.fme</a> · <a href="../../examples/tensor_demos/anisotropic_sphere.egi">.egi</a> · <a href="../../examples/tensor_demos/anisotropic_sphere.feir">.feir</a> · <a href="../../examples/tensor_demos/anisotropic_sphere.fmr">.fmr</a></p><div class="facts" data-tensor-check="elastic"><b>Verification</b>: Independent component residual ≤ 3.6×10⁻¹⁵; approximately second-order spatial convergence. Energy variation is below 0.0005% for the cylinder and 0.17% for the sphere in these runs. Numerical records: <a href="../../examples/tensor_demos/results/elastic-validation.json">elastic-validation</a>, <a href="../../examples/tensor_demos/results/elastic-cylinder.json">elastic-cylinder</a>, <a href="../../examples/tensor_demos/results/elastic-sphere.json">elastic-sphere</a></div></article>
-<article class="card" style="margin:20px 0" id="tensor-couette"><h3>Viscoelastic flow between rotating cylinders</h3><div class="math">∇ᵢvⁱ = 0 &nbsp; · &nbsp; ρ Dₜvⁱ = −∇ⁱp + ∇ⱼ(2ηₛeⁱʲ + τⁱʲ)<br>DₜCⁱʲ − Cᵏʲ∇ₖvⁱ − Cⁱᵏ∇ₖvʲ = −(Cⁱʲ − gⁱʲ)/λᵣ</div><p>The Oldroyd-B model couples a symmetric polymer-conformation tensor to incompressible flow. Colour shows polymer stress magnitude; white arrows show velocity. The inner cylinder slows at t = 12 and stops at t = 14. The plots track velocity and energy relaxation.</p><video controls autoplay loop muted playsinline preload="metadata" aria-label="couette" poster="../../gallery/tensor/couette.png?v=51e7de8d7126" style="display:block;width:100%;max-width:1100px;max-height:75vh;object-fit:contain;margin:auto"><source src="../../gallery/tensor/couette.mp4?v=98762781b8f3" type="video/mp4"><a href="../../gallery/tensor/couette.gif?v=6783d0e8af96">GIF</a></video><p class="cap">This is a two-dimensional annulus. The driver uses upwind transport and a positivity-preserving split time step; Python/SciPy solves the Poisson equation for velocity.</p><details class="codebox" data-fme="tensor_demos/oldroyd_couette.fme"><summary>Complete Formurae source: oldroyd_couette.fme</summary><pre>-- Incompressible Oldroyd-B fluid in a rotating annulus, r_phys=1+r.
--- The driver reconstructs divergence-free velocity from vorticity and evolves
--- its azimuthal mean from acceleration. Pressure drops out of the curl.
+<article class="card" style="margin:20px 0" id="tensor-couette"><h3>Viscoelastic flow between rotating cylinders</h3><div class="math">∇ᵢvⁱ = 0 &nbsp; · &nbsp; ρ Dₜvⁱ = −∇ⁱp + ∇ⱼ(2ηₛeⁱʲ + τⁱʲ)<br>DₜCⁱʲ − Cᵏʲ∇ₖvⁱ − Cⁱᵏ∇ₖvʲ = −(Cⁱʲ − gⁱʲ)/λᵣ</div><p>The Oldroyd-B model couples a symmetric polymer-conformation tensor to incompressible flow. Colour shows polymer stress magnitude; white arrows show velocity. The inner cylinder slows at t = 12 and stops at t = 14. The plots track velocity and energy relaxation.</p><video controls autoplay loop muted playsinline preload="metadata" aria-label="couette" poster="../../gallery/tensor/couette.png?v=26b7c7dbbb88" style="display:block;width:100%;max-width:1100px;max-height:75vh;object-fit:contain;margin:auto"><source src="../../gallery/tensor/couette.mp4?v=d3be67bbd928" type="video/mp4"><a href="../../gallery/tensor/couette.gif?v=6370501d9b88">GIF</a></video><p class="cap">This is a two-dimensional annulus. Equations, time updates and wall values are generated from .fme to C; C also solves the Poisson equation. Python visualizes saved results.</p><details class="codebox" data-fme="tensor_demos/oldroyd_couette.fme"><summary>Complete Formurae source: oldroyd_couette.fme</summary><pre>-- Incompressible Oldroyd-B flow. Equations, initialization, split time
+-- integration, wall values and the native execution schedule are all here.
+-- Python is used only to visualize the saved native-C results.
 dimension 2
 axes r, θ
 metric g
@@ -238,6 +238,13 @@ param relaxation = 1.5
 param ρ0 = 1.0
 param hr = dr
 param ht = dθ
+param perturbation = 1.0
+
+def magnitude x = if x &lt; 0 then 0 - x else x
+def drive t = if t &lt;= 12 then 1 else if t &gt;= 14 then 0 else (1 + cos (π * (t - 12) / 2)) / 2
+def perturbAngle R T = perturbation * 0.08 * (sin (π * (R - 1)))^2 * (cos (3 * T) + 0.4 * sin (5 * T))
+def initialPsi R T = perturbation * 0.004 * (R - 1)^2 * (2 - R)^2 * (cos (3 * T) + 0.5 * sin (5 * T))
+def initialC R T = let angle := perturbAngle R T in let co := cos angle in let si := sin angle in let xy := relaxation * (0 - 8) / (3 * R^2) in let yy := 1 + 2 * xy^2 in [| [| co^2 - 2*co*si*xy + si^2*yy, (co*si*(1-yy) + (co^2-si^2)*xy)/R |], [| (co*si*(1-yy) + (co^2-si^2)*xy)/R, (si^2 + 2*co*si*xy + co^2*yy)/R^2 |] |]~i~j
 
 def strain V~a = withSymbols [i,j,k] ((g_i_k . ∂_j V~k + g_j_k . ∂_i V~k + (∂/∂ g_i_j coordinates~k) . V~k) / 2)
 def raiseBoth E_i_j = withSymbols [i,j,k,l] (g~i~k . g~j~l . E_k_l)
@@ -248,31 +255,100 @@ def upperConvectedRHS V~a T~b~c = withSymbols [i,j,k] ((T~k~j . ∂_k V~i) + (T~
 def convection V~a = withSymbols [i,j,k,l] ((V~j . ∂_j (g_i_k . V~k)) - ((∂/∂ g_j_k coordinates~i) . V~j . V~k) / 2)
 def raiseVector F_a = withSymbols [i,j] (g~i~j . F_j)
 def curl F~a = withSymbols [i,j,k] ((epsilon~i~j . ∂_i (g_j_k . F~k)) / volume)
--- The driver supplies absolute coordinate velocities as transportSpeed.
+-- The velocity stage supplies absolute coordinate velocities as transportSpeed.
 def upwindScalar vr vt ar at q = 0 - vr * (∂_r q) - vt * (∂_θ q) + ar * hr * (∂^2_r q) / 2 + at * ht * (∂^2_θ q) / 2
 
+def stretch F~a_b T~c~d = withSymbols [i,j,k,l] (F~i_k . T~k~l . F~j_l)
+
+field wallOmega @ collocated
 field omega @ collocated
-field v~i @ collocated
-field transportSpeed~i @ collocated
+field meanVelocity @ collocated
 field C{~i~j} @ collocated
+field v~i @ collocated
+field psi @ collocated
+field clock @ collocated
+field timestep @ collocated
 field acceleration~i @ collocated
 field rate{~i~j} @ collocated
 field rotationRate @ collocated
 field transport{~i~j} @ collocated
 field velocityGradient~i_j @ collocated
+field transportSpeed~i @ collocated
+field candidate{~i~j} @ collocated
+field meanForce @ collocated
+field meanRotation @ collocated
+field savedOmega @ collocated
+field savedMean @ collocated
+field savedC{~i~j} @ collocated
+field savedClock @ collocated
+field vectorScale~i @ collocated
+field tensorScale{~i~j} @ collocated
+field unitScale @ collocated
+field poissonLower @ collocated
+field poissonDiagonal @ collocated
+field poissonUpper @ collocated
+field poissonAngular @ collocated
+field velocity~i @ collocated
+field conformation{~i~j} @ collocated
+field minEigenvalue @ collocated
+field divergenceValue @ collocated
+field energy @ collocated
+field speed @ collocated
+field wallSpeed @ collocated
+field courant @ collocated
 
 init:
-  transportSpeed~i = [| 0.0, 0.0 |]~i
+  wallOmega = 0.0
   omega = 0.0
-  v~i = [| 0.0, 0.0 |]~i
-  C~i~j = [| [| 1.0, 0.0 |], [| 1.0 |] |]~i~j
-  acceleration~i = [| 0.0, 0.0 |]~i
-  rate~i~j = [| [| 0.0, 0.0 |], [| 0.0 |] |]~i~j
+  meanVelocity = (4/(1+r-roffset) - (1+r-roffset))/3
+  C~i~j := initialC (1+r-roffset) θ
+  psi := initialPsi (1+r-roffset) θ
+  clock = 0.0
+  timestep = 0.6*dr^2
+  vectorScale~i = [| 1, 1+r-roffset |]~i
+  tensorScale~i~j = [| [| 1, 1+r-roffset |], [| (1+r-roffset)^2 |] |]~i~j
+  unitScale = 1.0
+  poissonLower = -1/dr^2 + 1/(2*dr*(1+r-roffset))
+  poissonDiagonal = 2/dr^2
+  poissonUpper = -1/dr^2 - 1/(2*dr*(1+r-roffset))
+  poissonAngular = 1/(dθ*(1+r-roffset))^2
+  v~i = [| 0, 0 |]~i
+  acceleration~i = [| 0, 0 |]~i
+  rate~i~j = [| [| 0, 0 |], [| 0 |] |]~i~j
   rotationRate = 0.0
-  transport~i~j = [| [| 0.0, 0.0 |], [| 0.0 |] |]~i~j
-  velocityGradient~i_j = [| [| 0.0, 0.0 |], [| 0.0, 0.0 |] |]~i_j
+  transport~i~j = [| [| 0, 0 |], [| 0 |] |]~i~j
+  velocityGradient~i_j = [| [| 0, 0 |], [| 0, 0 |] |]~i_j
+  transportSpeed~i = [| 0, 0 |]~i
+  candidate~i~j = [| [| 0, 0 |], [| 0 |] |]~i~j
+  meanForce = 0.0
+  meanRotation = 0.0
+  savedOmega = 0.0
+  savedMean = 0.0
+  savedC~i~j = [| [| 0, 0 |], [| 0 |] |]~i~j
+  savedClock = 0.0
+  velocity~i = [| 0, 0 |]~i
+  conformation~i~j = [| [| 0, 0 |], [| 0 |] |]~i~j
+  minEigenvalue = 0.0
+  divergenceValue = 0.0
+  energy = 0.0
+  speed = 0.0
+  wallSpeed = 0.0
+  courant = 0.0
+stage start:
+  let R = 1+r-roffset
+  omega&#x27; = if R &lt; 1+hr/2 || R &gt; 2-hr/2 then 0 else 0 - (∂^2_r psi + (∂_r psi)/R + (∂^2_θ psi)/R^2)
 
-step:
+stage velocity:
+  let R = 1+r-roffset
+  let lo = if R &lt; 1+hr/2 then 1 else 0
+  let hi = if R &gt; 2-hr/2 then 1 else 0
+  let inside = (1-lo)*(1-hi)
+  v&#x27;~i = [| inside * (∂_θ psi)/R, (inside * (0 - (∂_r psi) + meanVelocity) + lo * drive clock)/R |]~i
+  wallOmega&#x27; = inside * omega - lo * 2 * (∂_r psi)/hr + hi * 2 * (∂_r psi)/hr
+  transportSpeed&#x27;~i = tensorMap magnitude v&#x27;~i
+  courant&#x27; = timestep * (transportSpeed&#x27;~1/hr + transportSpeed&#x27;~2/ht)
+
+stage operators:
   let e_i_j = strain v
   let raised~i~j = raiseBoth e_i_j
   let solvent~i~j = 2 * ηs * raised~i~j
@@ -285,15 +361,100 @@ step:
   local stretching{~i~j} @ collocated = upperConvectedRHS v C
   acceleration&#x27;~i = force~i + viscous~i / ρ0
   local torque @ collocated = curl force
-  rotationRate&#x27; = torque + (ηs / ρ0) * (∂^2_r omega + (∂_r omega) / (1 + r - roffset) + (∂^2_θ omega) / (1 + r - roffset)^2)
-  omega&#x27; = omega
-  transportSpeed&#x27;~i = transportSpeed~i
+  rotationRate&#x27; = torque + (ηs / ρ0) * (∂^2_r wallOmega + (∂_r wallOmega) / (1 + r - roffset) + (∂^2_θ wallOmega) / (1 + r - roffset)^2)
   rate&#x27;~i~j = stretching~i~j - (C~i~j - g~i~j) / relaxation
   transport&#x27;~i~j = tensorMap (upwindScalar v~1 v~2 transportSpeed~1 transportSpeed~2) C
   velocityGradient&#x27;~i_j = ∂_j v~i
-  v&#x27;~i = v~i
-  C&#x27;~i~j = C~i~j
-</pre></details><p style="font-size:12px">Generated code: <a href="../../examples/tensor_demos/oldroyd_couette.fme">.fme</a> · <a href="../../examples/tensor_demos/oldroyd_couette.egi">.egi</a> · <a href="../../examples/tensor_demos/oldroyd_couette.feir">.feir</a> · <a href="../../examples/tensor_demos/oldroyd_couette.fmr">.fmr</a></p><div class="facts" data-tensor-check="couette"><b>Verification</b>: Approximately second-order spatial convergence for exact steady flow; first-order time convergence for the split integrator. Positive definiteness at every saved frame; smallest eigenvalue ≈ 0.484, maximum velocity divergence ≈ 1.10e-15. Numerical records: <a href="../../examples/tensor_demos/results/couette-validation.json">couette-validation</a>, <a href="../../examples/tensor_demos/results/couette.json">couette</a></div></article>
+  local carried{~i~j} @ collocated = C~i~j + timestep * transport&#x27;~i~j
+  local deformation~i_j @ collocated = δ~i_j + timestep * velocityGradient&#x27;~i_j
+  local stretched{~i~j} @ collocated = stretch deformation~i_j carried~i~j
+  candidate&#x27;~i~j = exp (0 - timestep / relaxation) * stretched~i~j + (1 - exp (0 - timestep / relaxation)) * g~i~j
+  meanForce&#x27; = (1+r-roffset) * acceleration&#x27;~2
+
+stage advance:
+  let R = 1+r-roffset
+  let inside = if R &lt; 1+hr/2 || R &gt; 2-hr/2 then 0 else 1
+  C&#x27;~i~j = candidate~i~j
+  omega&#x27; = inside * (omega + timestep * (rotationRate - meanRotation))
+  meanVelocity&#x27; = meanVelocity + inside * timestep * meanForce
+  clock&#x27; = clock + timestep
+
+stage finish:
+  clock&#x27; = (savedClock + clock)/2
+  C&#x27;~i~j = (savedC~i~j + C~i~j)/2
+  omega&#x27; = (savedOmega + omega)/2
+  let R = 1+r-roffset
+  meanVelocity&#x27; = if R &lt; 1+hr/2 then drive clock&#x27; else if R &gt; 2-hr/2 then 0 else (savedMean + meanVelocity)/2
+
+stage diagnostics:
+  let R = 1+r-roffset
+  velocity&#x27;~i = [| v~1, R*v~2 |]~i
+  conformation&#x27;~i~j = [| [| C~1~1, R*C~1~2 |], [| R*C~1~2, R^2*C~2~2 |] |]~i~j
+  let xx = C~1~1
+  let xy = R*C~1~2
+  let yy = R^2*C~2~2
+  minEigenvalue&#x27; = (xx+yy - sqrt ((xx-yy)^2+4*xy^2))/2
+  divergenceValue&#x27; = (∂_r (R*v~1) + ∂_θ (R*v~2))/R
+  let weight = if R &lt; 1+hr/2 || R &gt; 2-hr/2 then 0.5 else 1
+  energy&#x27; = (ρ0*(v~1*v~1+R^2*v~2*v~2)/2 + ηp*(xx+yy-log (xx*yy-xy^2)-2)/(2*relaxation))*R*hr*ht*weight
+  speed&#x27; = sqrt (v~1*v~1+R^2*v~2*v~2)
+  wallSpeed&#x27; = drive clock
+
+runtime:
+  grid 49 128
+  extent 1 6.283185307179586
+  halo 3
+  time clock
+  timestep timestep
+  steps 92160
+  every 768
+  output velocity conformation psi
+  monitor min_conformation_eigenvalue min minEigenvalue 0
+  monitor divergence_max maxabs divergenceValue 1
+  monitor energy sum energy 0
+  monitor max_speed max speed 0
+  monitor wall_speed first wallSpeed 0
+
+prepare:
+  call start
+
+advance:
+  copy C savedC
+  copy omega savedOmega
+  copy meanVelocity savedMean
+  copy clock savedClock
+  poisson psi omega poissonLower poissonDiagonal poissonUpper poissonAngular
+  ghost odd psi unitScale
+  call velocity
+  require max courant &lt; 1 0
+  ghost reflect v vectorScale
+  ghost extend C tensorScale
+  ghost extend wallOmega unitScale
+  call operators
+  mean meanForce meanForce
+  mean rotationRate meanRotation
+  call advance
+  poisson psi omega poissonLower poissonDiagonal poissonUpper poissonAngular
+  ghost odd psi unitScale
+  call velocity
+  require max courant &lt; 1 0
+  ghost reflect v vectorScale
+  ghost extend C tensorScale
+  ghost extend wallOmega unitScale
+  call operators
+  mean meanForce meanForce
+  mean rotationRate meanRotation
+  call advance
+  call finish
+
+observe:
+  poisson psi omega poissonLower poissonDiagonal poissonUpper poissonAngular
+  ghost odd psi unitScale
+  call velocity
+  call diagnostics
+  require min minEigenvalue &gt; 0 0
+  require maxabs divergenceValue &lt; 1e-9 1
+</pre></details><p style="font-size:12px">Generated code: <a href="../../examples/tensor_demos/oldroyd_couette.fme">.fme</a> · <a href="../../examples/tensor_demos/generated/oldroyd_couette/model.c">C</a> · <a href="../../examples/tensor_demos/generated/oldroyd_couette/formurae_native.h">runtime</a> · <a href="../../examples/tensor_demos/generated/oldroyd_couette/start.fmr">start.fmr</a> · <a href="../../examples/tensor_demos/generated/oldroyd_couette/velocity.fmr">velocity.fmr</a> · <a href="../../examples/tensor_demos/generated/oldroyd_couette/operators.fmr">operators.fmr</a> · <a href="../../examples/tensor_demos/generated/oldroyd_couette/advance.fmr">advance.fmr</a> · <a href="../../examples/tensor_demos/generated/oldroyd_couette/finish.fmr">finish.fmr</a> · <a href="../../examples/tensor_demos/generated/oldroyd_couette/diagnostics.fmr">diagnostics.fmr</a></p><div class="facts" data-tensor-check="couette"><b>Verification</b>: Approximately second-order spatial convergence for exact steady flow; first-order time convergence for the split integrator. Positive definiteness at every saved frame; smallest eigenvalue ≈ 0.484, maximum velocity divergence ≈ 3.17e-15. Numerical records: <a href="../../examples/tensor_demos/results/couette-validation.json">couette-validation</a>, <a href="../../examples/tensor_demos/results/couette.json">couette</a></div></article>
 <article class="card" style="margin:20px 0" id="tensor-nematic"><h3>Liquid crystal on a sphere: orientation and moving defects</h3><div class="math">∂ₜQⁱʲ = P₀[L ∇ᵏ∇ₖQⁱʲ + (A − B QₖₗQᵏˡ)Qⁱʲ]</div><p>The symmetric, trace-free tensor Q describes molecular orientation and alignment strength. Colour shows alignment, short lines show orientation, and cyan points mark defects where orientation is undefined. Front and back views are shown together.</p><video controls autoplay loop muted playsinline preload="metadata" aria-label="nematic" poster="../../gallery/tensor/nematic.png?v=973cdb6a3968" style="display:block;width:100%;max-width:1100px;max-height:75vh;object-fit:contain;margin:auto"><source src="../../gallery/tensor/nematic.mp4?v=e8a25f1b2df4" type="video/mp4"><a href="../../gallery/tensor/nematic.gif?v=252c4deeecfb">GIF</a></video><p class="cap">This is passive orientational relaxation on the sphere, without a coupled surrounding fluid. Defects are detected from the winding of the computed Q field; their motion is a simulation result.</p><details class="codebox" data-fme="tensor_demos/nematic_sphere.fme"><summary>Complete Formurae source: nematic_sphere.fme</summary><pre>-- Intrinsic surface Landau-de Gennes relaxation on one Yin-Yang panel.
 -- Q is a symmetric contravariant tangent tensor, with g_ij Q^ij = 0.
 -- The driver rotates both tensor indices when exchanging panel boundaries.

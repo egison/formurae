@@ -17,9 +17,9 @@ module Formurae.Pre.TypeCheck
   , validateModelOperatorTypes
   ) where
 
-import Data.Char (isAlphaNum)
+import Data.Char (isAlphaNum, isDigit)
 import Formurae.Common (analyticDerivativeName, egisonIdentifiers, maskEgisonNonCode)
-import Formurae.Index (derivativeOpParts, sbpxOpParts)
+import Formurae.Index (componentRank, derivativeOpParts, sbpxOpParts)
 import Formurae.Pre.FormOperator
 import Formurae.Syntax
 import Formurae.TensorExpr
@@ -216,6 +216,9 @@ infer model shadowed environment source expression
   | otherwise = case expression of
     TENumber _ -> pure StaticScalar
     TEIdent name parts
+      | not (null parts), all numericIndex parts
+      , Just field <- fieldDeclOf model (dropNextPrime name)
+      , length parts == componentRank (fdKind field) -> pure StaticScalar
       | not (null parts) -> pure StaticTensor
       | Just operator <- canonicalOperator name
       , canonicalOperatorIsVisible operatorScope operator ->
@@ -280,6 +283,10 @@ infer model shadowed environment source expression
     lookupValue name =
       lookup name environment
       `orElseMaybe` lookup (dropNextPrime name) environment
+
+    -- Selecting every axis of a declared tensor by an integer gives a scalar.
+    -- Symbolic or partial indexing must retain the tensor kind.
+    numericIndex (IxPart _ name) = not (null name) && all isDigit name
 
     inferApplication function arguments =
       case canonicalHead function of

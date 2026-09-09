@@ -157,6 +157,19 @@ main = do
   assertEqual "typed fields and prior scalar local aliases are accepted"
     (Right ()) (validateModelOperatorTypes valid)
 
+  component <- model "numeric-component" (unlines
+    [ "dimension 2", "axes x, y", "field V~i", "field T~i~j", "field u"
+    , "step:", "  V'~i = V~i", "  T'~i~j = T~i~j"
+    , "  u' = Δ (V'~2 + T~1~2)" ])
+  assertEqual "complete numeric indexing of current and next tensors is scalar"
+    (Right ()) (validateModelOperatorTypes component)
+  partial <- model "partial-component" (unlines
+    [ "dimension 2", "axes x, y", "field T~i~j", "field u"
+    , "step:", "  T'~i~j = T~i~j", "  u' = Δ T~1" ])
+  assertLeft "partial numeric indexing remains a tensor"
+    "scalar Δ requires a scalar operand, but received ordinary tensor"
+    (validateModelOperatorTypes partial)
+
   putStrLn "formurae-pre canonical operator kind tests: ok"
 
 model :: String -> String -> IO Model

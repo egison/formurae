@@ -1,11 +1,11 @@
 {
-  "source_report_sha256": "97ea54bccde6834f01854f8087f6cbe0f8a53e281e35a37cf324731cef3c35c3",
-  "renderer_sha256": "05e258bcd4c0e41c969a79970c2541e6f68feefd33ae0c17bb6ef77e54483d5b",
+  "source_report_sha256": "15c941dd84389f2dbd7c3be6fa49b3dd3e850026160decb517e5e1bb0841f6ef",
+  "renderer_sha256": "a6acd49457b9c05e67c9d9029e54ff53e29a600bb417b7dfb08188f0e9a13e76",
   "start": 11.0,
   "end": 17.4,
   "frames": 193,
   "playback_speed": 0.5,
-  "max_trajectory_time_refinement_error": 5.339462205711243e-11,
-  "angular_velocity_at_t16": -0.05985380564488975,
+  "max_trajectory_time_refinement_error": 5.4281024119973154e-11,
+  "angular_velocity_at_t16": -0.059853805487576885,
   "stopped_cylinder_angle_variation": 0.0
 }

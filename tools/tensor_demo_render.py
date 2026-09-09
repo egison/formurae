@@ -10,10 +10,10 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
-import pyvista as pv
 
 from tensor_demo_common import ROOT,WORK,RESULTS,sha
 from tensor_demo_sphere import YinYang
+from tensor_demo_native_frames import load_couette_frame
 
 ASSETS=ROOT/'gallery/tensor'
 
@@ -43,6 +43,7 @@ def encode(name,folder,count):
 
 
 def surface_grid(geometry,report,azimuth=np.pi,azimuth_points=49):
+    import pyvista as pv
     nr=report['radial']+1
     rr=np.linspace(1,2,nr)
     if geometry=='sphere':
@@ -74,6 +75,7 @@ def surface_grid(geometry,report,azimuth=np.pi,azimuth_points=49):
 
 
 def render_elastic(geometry):
+    import pyvista as pv
     name='elastic-'+geometry
     report=json.loads((RESULTS/f'{name}.json').read_text())
     count=len(report['frames']);source=WORK/name
@@ -128,6 +130,7 @@ def tangent_tensor(yy,q,points):
 
 
 def render_nematic():
+    import pyvista as pv
     report=json.loads((RESULTS/'nematic.json').read_text())
     yy=YinYang(report['resolution'])
     count=len(report['frames']);source=WORK/'nematic'
@@ -192,7 +195,7 @@ def render_couette():
     grid=fig.add_gridspec(2,2,width_ratios=[1.2,1],left=.045,right=.96,bottom=.12,top=.88,wspace=.2,hspace=.55)
     ax=fig.add_subplot(grid[:,0]);flow=fig.add_subplot(grid[0,1]);trace=fig.add_subplot(grid[1,1])
     for frame,record in enumerate(report['frames']):
-        data=np.load(source/f'frame-{frame:04d}.npz');C=data['conformation'];v=data['v']
+        data=load_couette_frame(source,report,frame);C=data['conformation'];v=data['v']
         stress=(.16/1.5)*np.sqrt((C[0]-1)**2+2*C[1]**2+(C[2]-1)**2)
         stress=np.concatenate([stress,stress[:,:1]],axis=1)
         ax.clear()

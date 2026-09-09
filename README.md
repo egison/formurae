@@ -371,7 +371,10 @@ make gallery-assets
 [異方性弾性体・粘弾性流体・球面の液晶](examples/tensor_demos/README.md)にまとめています．
 英語・日本語のギャラリーには，ボールを押す・管をねじる・液体をかき混ぜる三本の導入動画と，
 円筒と球殻の弾性体を含む四本の詳細動画を掲載しています．
-生成 C コードを Python の時間積分や大域的な方程式のソルバーと組み合わせ，
+粘弾性流体は，一つの `.fme` に時間更新・境界値も記述し，
+`formurae run examples/tensor_demos/oldroyd_couette.fme` で C の生成から実行まで行います．
+Poisson 方程式も C で解き，Python は描画に使います．
+弾性体・液晶では生成 C と Python の時間積分を組み合わせ，
 `make tensor-demos` で検証・シミュレーション・描画を順番に再実行できます．
 Python の依存関係と境界条件はリンク先に記載しています．
 

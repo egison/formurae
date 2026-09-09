@@ -15,15 +15,16 @@ def main():
     a=p.parse_args()
     if a.stage in ['checks','all']:
         invoke('tensor_demo_sphere.py')
-        for model in ['elastic','nematic','couette']:
+        for model in ['elastic','nematic']:
             invoke(f'tensor_demo_{model}.py','--validate')
+        subprocess.run(['make','couette-check'],cwd=ROOT,check=True)
         invoke('tensor_demo_manipulation.py','validate')
         invoke('tensor_demo_manipulation_checks.py')
     if a.stage in ['simulate','all']:
         for geometry in ['cylinder','sphere']:
             invoke('tensor_demo_elastic.py','--geometry',geometry)
         invoke('tensor_demo_nematic.py')
-        invoke('tensor_demo_couette.py')
+        subprocess.run(['make','couette-simulate'],cwd=ROOT,check=True)
         for case in ['press-ball','twist-tube']:
             invoke('tensor_demo_manipulation.py',case)
     if a.stage in ['render','all']:

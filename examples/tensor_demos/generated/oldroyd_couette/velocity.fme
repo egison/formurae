@@ -1,0 +1,156 @@
+
+
+
+dimension 2
+axes r, θ
+metric g
+metric scale [1, 1 + r - roffset]
+param roffset = 3*dr
+param ηs = 0.04
+param ηp = 0.16
+param relaxation = 1.5
+param ρ0 = 1.0
+param hr = dr
+param ht = dθ
+param perturbation = 1.0
+
+def magnitude x = if x < 0 then 0 - x else x
+def drive t = if t <= 12 then 1 else if t >= 14 then 0 else (1 + cos (π * (t - 12) / 2)) / 2
+def perturbAngle R T = perturbation * 0.08 * (sin (π * (R - 1)))^2 * (cos (3 * T) + 0.4 * sin (5 * T))
+def initialPsi R T = perturbation * 0.004 * (R - 1)^2 * (2 - R)^2 * (cos (3 * T) + 0.5 * sin (5 * T))
+def initialC R T = let angle := perturbAngle R T in let co := cos angle in let si := sin angle in let xy := relaxation * (0 - 8) / (3 * R^2) in let yy := 1 + 2 * xy^2 in [| [| co^2 - 2*co*si*xy + si^2*yy, (co*si*(1-yy) + (co^2-si^2)*xy)/R |], [| (co*si*(1-yy) + (co^2-si^2)*xy)/R, (si^2 + 2*co*si*xy + co^2*yy)/R^2 |] |]~i~j
+
+def strain V~a = withSymbols [i,j,k] ((g_i_k . ∂_j V~k + g_j_k . ∂_i V~k + (∂/∂ g_i_j coordinates~k) . V~k) / 2)
+def raiseBoth E_i_j = withSymbols [i,j,k,l] (g~i~k . g~j~l . E_k_l)
+def stressDiv S~a~b = withSymbols [i,j,k,l] ((g~i~k . ∂_j (volume * (g_k_l . S~l~j))) / volume - (g~i~k . (∂/∂ g_j_l coordinates~k) . S~j~l) / 2)
+
+
+def upperConvectedRHS V~a T~b~c = withSymbols [i,j,k] ((T~k~j . ∂_k V~i) + (T~i~k . ∂_k V~j) - (V~k . ∂_k T~i~j))
+def convection V~a = withSymbols [i,j,k,l] ((V~j . ∂_j (g_i_k . V~k)) - ((∂/∂ g_j_k coordinates~i) . V~j . V~k) / 2)
+def raiseVector F_a = withSymbols [i,j] (g~i~j . F_j)
+def curl F~a = withSymbols [i,j,k] ((epsilon~i~j . ∂_i (g_j_k . F~k)) / volume)
+
+def upwindScalar vr vt ar at q = 0 - vr * (∂_r q) - vt * (∂_θ q) + ar * hr * (∂^2_r q) / 2 + at * ht * (∂^2_θ q) / 2
+
+def stretch F~a_b T~c~d = withSymbols [i,j,k,l] (F~i_k . T~k~l . F~j_l)
+
+field wallOmega @ collocated
+field omega @ collocated
+field meanVelocity @ collocated
+field C{~i~j} @ collocated
+field v~i @ collocated
+field psi @ collocated
+field clock @ collocated
+field timestep @ collocated
+field acceleration~i @ collocated
+field rate{~i~j} @ collocated
+field rotationRate @ collocated
+field transport{~i~j} @ collocated
+field velocityGradient~i_j @ collocated
+field transportSpeed~i @ collocated
+field candidate{~i~j} @ collocated
+field meanForce @ collocated
+field meanRotation @ collocated
+field savedOmega @ collocated
+field savedMean @ collocated
+field savedC{~i~j} @ collocated
+field savedClock @ collocated
+field vectorScale~i @ collocated
+field tensorScale{~i~j} @ collocated
+field unitScale @ collocated
+field poissonLower @ collocated
+field poissonDiagonal @ collocated
+field poissonUpper @ collocated
+field poissonAngular @ collocated
+field velocity~i @ collocated
+field conformation{~i~j} @ collocated
+field minEigenvalue @ collocated
+field divergenceValue @ collocated
+field energy @ collocated
+field speed @ collocated
+field wallSpeed @ collocated
+field courant @ collocated
+
+init:
+  wallOmega = 0.0
+  omega = 0.0
+  meanVelocity = (4/(1+r-roffset) - (1+r-roffset))/3
+  C~i~j := initialC (1+r-roffset) θ
+  psi := initialPsi (1+r-roffset) θ
+  clock = 0.0
+  timestep = 0.6*dr^2
+  vectorScale~i = [| 1, 1+r-roffset |]~i
+  tensorScale~i~j = [| [| 1, 1+r-roffset |], [| (1+r-roffset)^2 |] |]~i~j
+  unitScale = 1.0
+  poissonLower = -1/dr^2 + 1/(2*dr*(1+r-roffset))
+  poissonDiagonal = 2/dr^2
+  poissonUpper = -1/dr^2 - 1/(2*dr*(1+r-roffset))
+  poissonAngular = 1/(dθ*(1+r-roffset))^2
+  v~i = [| 0, 0 |]~i
+  acceleration~i = [| 0, 0 |]~i
+  rate~i~j = [| [| 0, 0 |], [| 0 |] |]~i~j
+  rotationRate = 0.0
+  transport~i~j = [| [| 0, 0 |], [| 0 |] |]~i~j
+  velocityGradient~i_j = [| [| 0, 0 |], [| 0, 0 |] |]~i_j
+  transportSpeed~i = [| 0, 0 |]~i
+  candidate~i~j = [| [| 0, 0 |], [| 0 |] |]~i~j
+  meanForce = 0.0
+  meanRotation = 0.0
+  savedOmega = 0.0
+  savedMean = 0.0
+  savedC~i~j = [| [| 0, 0 |], [| 0 |] |]~i~j
+  savedClock = 0.0
+  velocity~i = [| 0, 0 |]~i
+  conformation~i~j = [| [| 0, 0 |], [| 0 |] |]~i~j
+  minEigenvalue = 0.0
+  divergenceValue = 0.0
+  energy = 0.0
+  speed = 0.0
+  wallSpeed = 0.0
+  courant = 0.0
+
+
+
+
+step:
+  let R = 1+r-roffset
+  let lo = if R < 1+hr/2 then 1 else 0
+  let hi = if R > 2-hr/2 then 1 else 0
+  let inside = (1-lo)*(1-hi)
+  v'~i = [| inside * (∂_θ psi)/R, (inside * (0 - (∂_r psi) + meanVelocity) + lo * drive clock)/R |]~i
+  wallOmega' = inside * omega - lo * 2 * (∂_r psi)/hr + hi * 2 * (∂_r psi)/hr
+  transportSpeed'~i = tensorMap magnitude v'~i
+  courant' = timestep * (transportSpeed'~1/hr + transportSpeed'~2/ht)
+
+  omega' = omega
+  meanVelocity' = meanVelocity
+  C' = C
+  psi' = psi
+  clock' = clock
+  timestep' = timestep
+  acceleration' = acceleration
+  rate' = rate
+  rotationRate' = rotationRate
+  transport' = transport
+  velocityGradient' = velocityGradient
+  candidate' = candidate
+  meanForce' = meanForce
+  meanRotation' = meanRotation
+  savedOmega' = savedOmega
+  savedMean' = savedMean
+  savedC' = savedC
+  savedClock' = savedClock
+  vectorScale' = vectorScale
+  tensorScale' = tensorScale
+  unitScale' = unitScale
+  poissonLower' = poissonLower
+  poissonDiagonal' = poissonDiagonal
+  poissonUpper' = poissonUpper
+  poissonAngular' = poissonAngular
+  velocity' = velocity
+  conformation' = conformation
+  minEigenvalue' = minEigenvalue
+  divergenceValue' = divergenceValue
+  energy' = energy
+  speed' = speed
+  wallSpeed' = wallSpeed
