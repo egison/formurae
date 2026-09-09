@@ -1,0 +1,1023 @@
+{
+  "reynolds": 600.0,
+  "inner_radius": 3,
+  "outer_radius": 4,
+  "radius_ratio": 0.75,
+  "axial_period": 4.0,
+  "grid": [
+    32,
+    64,
+    64
+  ],
+  "dt": 0.02,
+  "steps": 15000,
+  "initial_amplitude": 0.002,
+  "restart": null,
+  "wall_seconds": 326.3780421249976,
+  "observations": [
+    {
+      "time": 0.0,
+      "secondary_rms": 0.00122026059143793,
+      "nonaxisymmetric_rms": 0.0002571448494985432,
+      "max_divergence": 2.211772431870429e-17,
+      "courant": 0.06639819169307648,
+      "max_speed": 0.9814605379451743
+    },
+    {
+      "time": 2.5,
+      "secondary_rms": 0.0013978799471732707,
+      "nonaxisymmetric_rms": 0.00042594395974872637,
+      "max_divergence": 6.034528345771895e-14,
+      "courant": 0.06650184661841699,
+      "max_speed": 0.9815175409362938
+    },
+    {
+      "time": 5.0,
+      "secondary_rms": 0.0023908963373987934,
+      "nonaxisymmetric_rms": 0.000844315741449287,
+      "max_divergence": 1.2038655662627296e-13,
+      "courant": 0.06675553289803153,
+      "max_speed": 0.9817231883102883
+    },
+    {
+      "time": 7.5,
+      "secondary_rms": 0.004674771865376696,
+      "nonaxisymmetric_rms": 0.001570244152151656,
+      "max_divergence": 1.8089566303225446e-13,
+      "courant": 0.06726297854968513,
+      "max_speed": 0.9821326955560955
+    },
+    {
+      "time": 10.0,
+      "secondary_rms": 0.009431565255808023,
+      "nonaxisymmetric_rms": 0.002863416349067623,
+      "max_divergence": 2.4146483423859166e-13,
+      "courant": 0.06827406553339418,
+      "max_speed": 0.9829268321871328
+    },
+    {
+      "time": 12.5,
+      "secondary_rms": 0.019133786150126442,
+      "nonaxisymmetric_rms": 0.005220507548434811,
+      "max_divergence": 3.0153483876471654e-13,
+      "courant": 0.0724323171566477,
+      "max_speed": 0.9843872804298812
+    },
+    {
+      "time": 15.0,
+      "secondary_rms": 0.03853881314748348,
+      "nonaxisymmetric_rms": 0.009492351216537867,
+      "max_divergence": 3.614573917953834e-13,
+      "courant": 0.09411576439456695,
+      "max_speed": 0.9867791248764289
+    },
+    {
+      "time": 17.5,
+      "secondary_rms": 0.07476630234853376,
+      "nonaxisymmetric_rms": 0.016527020783852656,
+      "max_divergence": 4.178740686811011e-13,
+      "courant": 0.15348905203630128,
+      "max_speed": 0.9898110858814823
+    },
+    {
+      "time": 20.0,
+      "secondary_rms": 0.1264650741602042,
+      "nonaxisymmetric_rms": 0.0243751790118174,
+      "max_divergence": 4.650446694398624e-13,
+      "courant": 0.244579155196673,
+      "max_speed": 0.991190204036843
+    },
+    {
+      "time": 22.5,
+      "secondary_rms": 0.15763618014704658,
+      "nonaxisymmetric_rms": 0.02797595511803857,
+      "max_divergence": 4.988509605396985e-13,
+      "courant": 0.2757349324182423,
+      "max_speed": 0.9877254194368198
+    },
+    {
+      "time": 25.0,
+      "secondary_rms": 0.1483892184260138,
+      "nonaxisymmetric_rms": 0.028417674762073745,
+      "max_divergence": 5.261902025210929e-13,
+      "courant": 0.2389920198062613,
+      "max_speed": 0.9817682312442663
+    },
+    {
+      "time": 27.5,
+      "secondary_rms": 0.12347375402093834,
+      "nonaxisymmetric_rms": 0.02430070916537269,
+      "max_divergence": 5.536127112293343e-13,
+      "courant": 0.19802074046599102,
+      "max_speed": 0.9774700136832837
+    },
+    {
+      "time": 30.0,
+      "secondary_rms": 0.10015825421116446,
+      "nonaxisymmetric_rms": 0.019569877775147498,
+      "max_divergence": 5.860589791240045e-13,
+      "courant": 0.166973877801303,
+      "max_speed": 0.9757889800675834
+    },
+    {
+      "time": 32.5,
+      "secondary_rms": 0.08979958147695523,
+      "nonaxisymmetric_rms": 0.017227371774129002,
+      "max_divergence": 6.228906279659441e-13,
+      "courant": 0.14552108801631997,
+      "max_speed": 0.9757793369337229
+    },
+    {
+      "time": 35.0,
+      "secondary_rms": 0.09252705249942325,
+      "nonaxisymmetric_rms": 0.016973672899726802,
+      "max_divergence": 6.632472349110685e-13,
+      "courant": 0.1395699427013417,
+      "max_speed": 0.9780326726063542
+    },
+    {
+      "time": 37.5,
+      "secondary_rms": 0.10728743256061132,
+      "nonaxisymmetric_rms": 0.01913683935400888,
+      "max_divergence": 6.991074386064611e-13,
+      "courant": 0.19294632496705685,
+      "max_speed": 0.9833727736747154
+    },
+    {
+      "time": 40.0,
+      "secondary_rms": 0.12557321379836522,
+      "nonaxisymmetric_rms": 0.020845013256096744,
+      "max_divergence": 7.429612480791548e-13,
+      "courant": 0.23694180168835272,
+      "max_speed": 0.9833499926145154
+    },
+    {
+      "time": 42.5,
+      "secondary_rms": 0.12992348082083394,
+      "nonaxisymmetric_rms": 0.018513893451595962,
+      "max_divergence": 7.892575482060238e-13,
+      "courant": 0.21864022579758258,
+      "max_speed": 0.9803911211767175
+    },
+    {
+      "time": 45.0,
+      "secondary_rms": 0.12683344881364694,
+      "nonaxisymmetric_rms": 0.017563854863104873,
+      "max_divergence": 8.347766922156552e-13,
+      "courant": 0.21003641319921723,
+      "max_speed": 0.979684603650421
+    },
+    {
+      "time": 47.5,
+      "secondary_rms": 0.1197426815968285,
+      "nonaxisymmetric_rms": 0.01667609511047633,
+      "max_divergence": 8.821832153671494e-13,
+      "courant": 0.20535550864983174,
+      "max_speed": 0.9788972796385216
+    },
+    {
+      "time": 50.0,
+      "secondary_rms": 0.11074430406307265,
+      "nonaxisymmetric_rms": 0.01496441503550477,
+      "max_divergence": 9.259260025373806e-13,
+      "courant": 0.19144970428289332,
+      "max_speed": 0.9778145035629408
+    },
+    {
+      "time": 52.5,
+      "secondary_rms": 0.10574902864564942,
+      "nonaxisymmetric_rms": 0.013523440979567007,
+      "max_divergence": 9.745537710159624e-13,
+      "courant": 0.18019199973842565,
+      "max_speed": 0.978136010368905
+    },
+    {
+      "time": 55.0,
+      "secondary_rms": 0.10793038276396712,
+      "nonaxisymmetric_rms": 0.01361819259971304,
+      "max_divergence": 1.021849271864994e-12,
+      "courant": 0.18803212544161682,
+      "max_speed": 0.9798767184761212
+    },
+    {
+      "time": 57.5,
+      "secondary_rms": 0.1156653781735864,
+      "nonaxisymmetric_rms": 0.015191323482479023,
+      "max_divergence": 1.067479438177088e-12,
+      "courant": 0.21416350461938563,
+      "max_speed": 0.9816628723310824
+    },
+    {
+      "time": 60.0,
+      "secondary_rms": 0.121050870730274,
+      "nonaxisymmetric_rms": 0.015610464245162345,
+      "max_divergence": 1.109889957717769e-12,
+      "courant": 0.21923227974635853,
+      "max_speed": 0.9806823200649653
+    },
+    {
+      "time": 62.5,
+      "secondary_rms": 0.12062220938712193,
+      "nonaxisymmetric_rms": 0.015563398995334567,
+      "max_divergence": 1.1443068714811488e-12,
+      "courant": 0.208853266068664,
+      "max_speed": 0.979322919036997
+    },
+    {
+      "time": 65.0,
+      "secondary_rms": 0.11799149451872554,
+      "nonaxisymmetric_rms": 0.01583815137206866,
+      "max_divergence": 1.173394714726328e-12,
+      "courant": 0.20321496670189101,
+      "max_speed": 0.9789453085341648
+    },
+    {
+      "time": 67.5,
+      "secondary_rms": 0.11446460223430885,
+      "nonaxisymmetric_rms": 0.015591972413263738,
+      "max_divergence": 1.2071454946749327e-12,
+      "courant": 0.19995903783043747,
+      "max_speed": 0.9786696694798364
+    },
+    {
+      "time": 70.0,
+      "secondary_rms": 0.11136867325713912,
+      "nonaxisymmetric_rms": 0.014934118393549543,
+      "max_divergence": 1.2422285422530877e-12,
+      "courant": 0.19641198427377504,
+      "max_speed": 0.9786395786298636
+    },
+    {
+      "time": 72.5,
+      "secondary_rms": 0.11053877702154401,
+      "nonaxisymmetric_rms": 0.014413056429166049,
+      "max_divergence": 1.2715384301031918e-12,
+      "courant": 0.1962235052341998,
+      "max_speed": 0.9790732670496523
+    },
+    {
+      "time": 75.0,
+      "secondary_rms": 0.11243053908671131,
+      "nonaxisymmetric_rms": 0.014502380780965241,
+      "max_divergence": 1.2999601395335958e-12,
+      "courant": 0.20344631524925813,
+      "max_speed": 0.9798216049236214
+    },
+    {
+      "time": 77.5,
+      "secondary_rms": 0.11519895457657406,
+      "nonaxisymmetric_rms": 0.014735292166143823,
+      "max_divergence": 1.3214984662113238e-12,
+      "courant": 0.2103861434852409,
+      "max_speed": 0.9799505656358509
+    },
+    {
+      "time": 80.0,
+      "secondary_rms": 0.1162497133765763,
+      "nonaxisymmetric_rms": 0.014395981011871369,
+      "max_divergence": 1.3454792835432272e-12,
+      "courant": 0.2086521826948537,
+      "max_speed": 0.9793852086777955
+    },
+    {
+      "time": 82.5,
+      "secondary_rms": 0.11545034833750406,
+      "nonaxisymmetric_rms": 0.013960306551717656,
+      "max_divergence": 1.3752332606031814e-12,
+      "courant": 0.20441017123085886,
+      "max_speed": 0.9790088786582783
+    },
+    {
+      "time": 85.0,
+      "secondary_rms": 0.11395909336384753,
+      "nonaxisymmetric_rms": 0.013733992922939562,
+      "max_divergence": 1.4032108808237354e-12,
+      "courant": 0.20191273341050417,
+      "max_speed": 0.9788148564712351
+    },
+    {
+      "time": 87.5,
+      "secondary_rms": 0.11246060594298787,
+      "nonaxisymmetric_rms": 0.013614738634163043,
+      "max_divergence": 1.4366285938649526e-12,
+      "courant": 0.2005611046728261,
+      "max_speed": 0.9786815383017452
+    },
+    {
+      "time": 90.0,
+      "secondary_rms": 0.11155875559995657,
+      "nonaxisymmetric_rms": 0.013614493804405086,
+      "max_divergence": 1.4712675522332574e-12,
+      "courant": 0.20024418062262425,
+      "max_speed": 0.9788063616443531
+    },
+    {
+      "time": 92.5,
+      "secondary_rms": 0.11168035086400169,
+      "nonaxisymmetric_rms": 0.013850172966382414,
+      "max_divergence": 1.4984680163365738e-12,
+      "courant": 0.20196343115473656,
+      "max_speed": 0.9790517178870132
+    },
+    {
+      "time": 95.0,
+      "secondary_rms": 0.11256267660239483,
+      "nonaxisymmetric_rms": 0.01432270678047193,
+      "max_divergence": 1.5257795027423526e-12,
+      "courant": 0.20512317877531897,
+      "max_speed": 0.9792381000126932
+    },
+    {
+      "time": 97.5,
+      "secondary_rms": 0.11333817984808034,
+      "nonaxisymmetric_rms": 0.0148048744632863,
+      "max_divergence": 1.5608625503205076e-12,
+      "courant": 0.20671865949835894,
+      "max_speed": 0.9791695686911122
+    },
+    {
+      "time": 100.0,
+      "secondary_rms": 0.11339133912317714,
+      "nonaxisymmetric_rms": 0.01516100027737,
+      "max_divergence": 1.588507103633674e-12,
+      "courant": 0.20564653068092686,
+      "max_speed": 0.9789206800989975
+    },
+    {
+      "time": 102.5,
+      "secondary_rms": 0.11285675175476696,
+      "nonaxisymmetric_rms": 0.015469623271816006,
+      "max_divergence": 1.6143753001074401e-12,
+      "courant": 0.20383913396203443,
+      "max_speed": 0.9787099725258109
+    },
+    {
+      "time": 105.0,
+      "secondary_rms": 0.1121452822821469,
+      "nonaxisymmetric_rms": 0.015769762622370072,
+      "max_divergence": 1.6425749649329191e-12,
+      "courant": 0.20270737898487817,
+      "max_speed": 0.978621617167236
+    },
+    {
+      "time": 107.5,
+      "secondary_rms": 0.1115708872376555,
+      "nonaxisymmetric_rms": 0.016048784401779256,
+      "max_divergence": 1.673106098110111e-12,
+      "courant": 0.20236566356940647,
+      "max_speed": 0.9786469344989974
+    },
+    {
+      "time": 110.0,
+      "secondary_rms": 0.11134035702708485,
+      "nonaxisymmetric_rms": 0.0163216405369618,
+      "max_divergence": 1.7033041643799152e-12,
+      "courant": 0.20276457834163236,
+      "max_speed": 0.9787261378461724
+    },
+    {
+      "time": 112.5,
+      "secondary_rms": 0.11148084429534612,
+      "nonaxisymmetric_rms": 0.016598642825494194,
+      "max_divergence": 1.7355006320940447e-12,
+      "courant": 0.20380754363146986,
+      "max_speed": 0.9787956404276327
+    },
+    {
+      "time": 115.0,
+      "secondary_rms": 0.11177771788132784,
+      "nonaxisymmetric_rms": 0.01683091596490427,
+      "max_divergence": 1.7615908731727359e-12,
+      "courant": 0.20500355419771635,
+      "max_speed": 0.9788228036224226
+    },
+    {
+      "time": 117.5,
+      "secondary_rms": 0.1119332866533104,
+      "nonaxisymmetric_rms": 0.016944647754430584,
+      "max_divergence": 1.79134485023269e-12,
+      "courant": 0.2053771367562646,
+      "max_speed": 0.9787751532895593
+    },
+    {
+      "time": 120.0,
+      "secondary_rms": 0.11182007942324484,
+      "nonaxisymmetric_rms": 0.016935713052211164,
+      "max_divergence": 1.8206547380827942e-12,
+      "courant": 0.20484372546937205,
+      "max_speed": 0.9786702592991451
+    },
+    {
+      "time": 122.5,
+      "secondary_rms": 0.11152642183193974,
+      "nonaxisymmetric_rms": 0.01686587770593238,
+      "max_divergence": 1.849853603630436e-12,
+      "courant": 0.20405530058034022,
+      "max_speed": 0.9785738647983225
+    },
+    {
+      "time": 125.0,
+      "secondary_rms": 0.11121082845115,
+      "nonaxisymmetric_rms": 0.01679264348719351,
+      "max_divergence": 1.876609978523902e-12,
+      "courant": 0.20351755462044108,
+      "max_speed": 0.9785408016114772
+    },
+    {
+      "time": 127.5,
+      "secondary_rms": 0.11099493132445808,
+      "nonaxisymmetric_rms": 0.016750515152272844,
+      "max_divergence": 1.904143509534606e-12,
+      "courant": 0.2033898437722042,
+      "max_speed": 0.9785563005764207
+    },
+    {
+      "time": 130.0,
+      "secondary_rms": 0.11093028236855229,
+      "nonaxisymmetric_rms": 0.016759356195489433,
+      "max_divergence": 1.9331203304773226e-12,
+      "courant": 0.20366184172730772,
+      "max_speed": 0.9785870736798865
+    },
+    {
+      "time": 132.5,
+      "secondary_rms": 0.11098200797612692,
+      "nonaxisymmetric_rms": 0.016819327278143874,
+      "max_divergence": 1.962097151420039e-12,
+      "courant": 0.20418228373744365,
+      "max_speed": 0.9786049271536627
+    },
+    {
+      "time": 135.0,
+      "secondary_rms": 0.11105047084460738,
+      "nonaxisymmetric_rms": 0.016909062520376855,
+      "max_divergence": 1.9884094371036554e-12,
+      "courant": 0.2046399005421428,
+      "max_speed": 0.9785921461657769
+    },
+    {
+      "time": 137.5,
+      "secondary_rms": 0.11104504585117321,
+      "nonaxisymmetric_rms": 0.017005485710384825,
+      "max_divergence": 2.0168311465340594e-12,
+      "courant": 0.20477271192881646,
+      "max_speed": 0.978562272747713
+    },
+    {
+      "time": 140.0,
+      "secondary_rms": 0.11094596992069036,
+      "nonaxisymmetric_rms": 0.017105195197665138,
+      "max_divergence": 2.049027614248189e-12,
+      "courant": 0.20459325134842318,
+      "max_speed": 0.9785189688960559
+    },
+    {
+      "time": 142.5,
+      "secondary_rms": 0.11079738487240462,
+      "nonaxisymmetric_rms": 0.017220653000078308,
+      "max_divergence": 2.0752288776293426e-12,
+      "courant": 0.20430525512690387,
+      "max_speed": 0.97847909788984
+    },
+    {
+      "time": 145.0,
+      "secondary_rms": 0.11065969457909361,
+      "nonaxisymmetric_rms": 0.017363706598621548,
+      "max_divergence": 2.1018742302203464e-12,
+      "courant": 0.20410058876115486,
+      "max_speed": 0.9784741466128228
+    },
+    {
+      "time": 147.5,
+      "secondary_rms": 0.11057327921441115,
+      "nonaxisymmetric_rms": 0.017537965308292387,
+      "max_divergence": 2.1294077612310502e-12,
+      "courant": 0.2040694987348956,
+      "max_speed": 0.9784872063256365
+    },
+    {
+      "time": 150.0,
+      "secondary_rms": 0.11054452313567807,
+      "nonaxisymmetric_rms": 0.017738680406624095,
+      "max_divergence": 2.1574964037540667e-12,
+      "courant": 0.20419586498932557,
+      "max_speed": 0.9785029898199288
+    },
+    {
+      "time": 152.5,
+      "secondary_rms": 0.11054808875162077,
+      "nonaxisymmetric_rms": 0.01795422083069827,
+      "max_divergence": 2.1795898419441073e-12,
+      "courant": 0.20440124312481428,
+      "max_speed": 0.978508760654393
+    },
+    {
+      "time": 155.0,
+      "secondary_rms": 0.11054555788786952,
+      "nonaxisymmetric_rms": 0.018170601598689565,
+      "max_divergence": 2.209454841306524e-12,
+      "courant": 0.20458192134634942,
+      "max_speed": 0.9784990625480118
+    },
+    {
+      "time": 157.5,
+      "secondary_rms": 0.11051149706868184,
+      "nonaxisymmetric_rms": 0.018378506701652454,
+      "max_divergence": 2.2343238370581275e-12,
+      "courant": 0.20465278591531985,
+      "max_speed": 0.9784787557656947
+    },
+    {
+      "time": 160.0,
+      "secondary_rms": 0.11044683291269511,
+      "nonaxisymmetric_rms": 0.01857656469203037,
+      "max_divergence": 2.2581936320875684e-12,
+      "courant": 0.20461902510492466,
+      "max_speed": 0.9784580009286385
+    },
+    {
+      "time": 162.5,
+      "secondary_rms": 0.1103713609583033,
+      "nonaxisymmetric_rms": 0.01876816355155165,
+      "max_divergence": 2.283728761653947e-12,
+      "courant": 0.20454114606529833,
+      "max_speed": 0.9784469231415315
+    },
+    {
+      "time": 165.0,
+      "secondary_rms": 0.11030696280534903,
+      "nonaxisymmetric_rms": 0.01895645848130798,
+      "max_divergence": 2.3069324228686128e-12,
+      "courant": 0.2044822166069835,
+      "max_speed": 0.9784447604692826
+    },
+    {
+      "time": 167.5,
+      "secondary_rms": 0.11026526391843608,
+      "nonaxisymmetric_rms": 0.01914200622715755,
+      "max_divergence": 2.326139281194628e-12,
+      "courant": 0.2044927267890757,
+      "max_speed": 0.9784468140391613
+    },
+    {
+      "time": 170.0,
+      "secondary_rms": 0.11024397188675371,
+      "nonaxisymmetric_rms": 0.019323211176314428,
+      "max_divergence": 2.3581137043038325e-12,
+      "courant": 0.20460424180670891,
+      "max_speed": 0.9784475033028014
+    },
+    {
+      "time": 172.5,
+      "secondary_rms": 0.11023083518971605,
+      "nonaxisymmetric_rms": 0.019498393052780148,
+      "max_divergence": 2.387090525246549e-12,
+      "courant": 0.20473245692523404,
+      "max_speed": 0.9784425332230162
+    },
+    {
+      "time": 175.0,
+      "secondary_rms": 0.11021243164637444,
+      "nonaxisymmetric_rms": 0.019668333357028167,
+      "max_divergence": 2.4126256548129277e-12,
+      "courant": 0.20484058819999273,
+      "max_speed": 0.9784310106515905
+    },
+    {
+      "time": 177.5,
+      "secondary_rms": 0.11018236464539931,
+      "nonaxisymmetric_rms": 0.019837549738858935,
+      "max_divergence": 2.440270208126094e-12,
+      "courant": 0.2049113037700807,
+      "max_speed": 0.9784164326283111
+    },
+    {
+      "time": 180.0,
+      "secondary_rms": 0.11014352295283551,
+      "nonaxisymmetric_rms": 0.02001299410524905,
+      "max_divergence": 2.4644730700629225e-12,
+      "courant": 0.20495505708312498,
+      "max_speed": 0.9784062578329693
+    },
+    {
+      "time": 182.5,
+      "secondary_rms": 0.11010406501536539,
+      "nonaxisymmetric_rms": 0.020201002809196983,
+      "max_divergence": 2.493671935610564e-12,
+      "courant": 0.2049895512230077,
+      "max_speed": 0.9783989619982056
+    },
+    {
+      "time": 185.0,
+      "secondary_rms": 0.11007138887258096,
+      "nonaxisymmetric_rms": 0.02040469091839236,
+      "max_divergence": 2.5199842212941803e-12,
+      "courant": 0.2050335782321571,
+      "max_speed": 0.9783948561605336
+    },
+    {
+      "time": 187.5,
+      "secondary_rms": 0.11004820571675088,
+      "nonaxisymmetric_rms": 0.020623223875138045,
+      "max_divergence": 2.5517365997984598e-12,
+      "courant": 0.20509734646713176,
+      "max_speed": 0.9783922774207877
+    },
+    {
+      "time": 190.0,
+      "secondary_rms": 0.1100321105323335,
+      "nonaxisymmetric_rms": 0.020852962969305885,
+      "max_divergence": 2.5770496847599134e-12,
+      "courant": 0.20517823340482977,
+      "max_speed": 0.9783888754816638
+    },
+    {
+      "time": 192.5,
+      "secondary_rms": 0.11001797128206375,
+      "nonaxisymmetric_rms": 0.021089634779193196,
+      "max_divergence": 2.6050273049804673e-12,
+      "courant": 0.20526236227713845,
+      "max_speed": 0.9783829390245761
+    },
+    {
+      "time": 195.0,
+      "secondary_rms": 0.11000136949424,
+      "nonaxisymmetric_rms": 0.021330338474820985,
+      "max_divergence": 2.6278978992877455e-12,
+      "courant": 0.2053399471617418,
+      "max_speed": 0.9783741638262219
+    },
+    {
+      "time": 197.5,
+      "secondary_rms": 0.10998096430953133,
+      "nonaxisymmetric_rms": 0.021574332787252407,
+      "max_divergence": 2.6563196087181495e-12,
+      "courant": 0.20540820267389712,
+      "max_speed": 0.9783635352213553
+    },
+    {
+      "time": 200.0,
+      "secondary_rms": 0.1099585312419738,
+      "nonaxisymmetric_rms": 0.02182232205582766,
+      "max_divergence": 2.6834090505190034e-12,
+      "courant": 0.2054675382592195,
+      "max_speed": 0.9783525179322474
+    },
+    {
+      "time": 202.5,
+      "secondary_rms": 0.10993715418704895,
+      "nonaxisymmetric_rms": 0.02207493612343471,
+      "max_divergence": 2.7146063175109703e-12,
+      "courant": 0.2055232891604563,
+      "max_speed": 0.9783421734414502
+    },
+    {
+      "time": 205.0,
+      "secondary_rms": 0.10991912430975283,
+      "nonaxisymmetric_rms": 0.022331473286191877,
+      "max_divergence": 2.7426949600339867e-12,
+      "courant": 0.20557988626043552,
+      "max_speed": 0.9783360829956547
+    },
+    {
+      "time": 207.5,
+      "secondary_rms": 0.10990482429857754,
+      "nonaxisymmetric_rms": 0.022589604677455622,
+      "max_divergence": 2.7650104428289524e-12,
+      "courant": 0.20563828988367688,
+      "max_speed": 0.9783338516668034
+    },
+    {
+      "time": 210.0,
+      "secondary_rms": 0.10989293778362488,
+      "nonaxisymmetric_rms": 0.022846099289002532,
+      "max_divergence": 2.7887692155559307e-12,
+      "courant": 0.20569602841537254,
+      "max_speed": 0.978331178780528
+    },
+    {
+      "time": 212.5,
+      "secondary_rms": 0.10988154816032934,
+      "nonaxisymmetric_rms": 0.023098112471715643,
+      "max_divergence": 2.81785705880111e-12,
+      "courant": 0.20574931634503224,
+      "max_speed": 0.9783273015346152
+    },
+    {
+      "time": 215.0,
+      "secondary_rms": 0.1098693370439738,
+      "nonaxisymmetric_rms": 0.023344336981131912,
+      "max_divergence": 2.8459457013241263e-12,
+      "courant": 0.20579572089493772,
+      "max_speed": 0.9783220706132139
+    },
+    {
+      "time": 217.5,
+      "secondary_rms": 0.10985618235535181,
+      "nonaxisymmetric_rms": 0.02358543799668988,
+      "max_divergence": 2.8711477639831173e-12,
+      "courant": 0.20583559189965733,
+      "max_speed": 0.9783158870598803
+    },
+    {
+      "time": 220.0,
+      "secondary_rms": 0.10984293050899684,
+      "nonaxisymmetric_rms": 0.023823632058885397,
+      "max_divergence": 2.898459250388896e-12,
+      "courant": 0.20587156192573336,
+      "max_speed": 0.9783136374584392
+    },
+    {
+      "time": 222.5,
+      "secondary_rms": 0.10983066431624756,
+      "nonaxisymmetric_rms": 0.024061734835487403,
+      "max_divergence": 2.92466051377005e-12,
+      "courant": 0.20590689386767255,
+      "max_speed": 0.9783158196865994
+    },
+    {
+      "time": 225.0,
+      "secondary_rms": 0.10982001734884028,
+      "nonaxisymmetric_rms": 0.02430220054092351,
+      "max_divergence": 2.957190048391567e-12,
+      "courant": 0.20594389666708388,
+      "max_speed": 0.9783173332518225
+    },
+    {
+      "time": 227.5,
+      "secondary_rms": 0.1098109131242396,
+      "nonaxisymmetric_rms": 0.024546562901438505,
+      "max_divergence": 2.9870550477539837e-12,
+      "courant": 0.20598309947662233,
+      "max_speed": 0.9783180579176738
+    },
+    {
+      "time": 230.0,
+      "secondary_rms": 0.10980276623228565,
+      "nonaxisymmetric_rms": 0.024795412885804842,
+      "max_divergence": 3.017697203233638e-12,
+      "courant": 0.20605707427376088,
+      "max_speed": 0.9783181281673733
+    },
+    {
+      "time": 232.5,
+      "secondary_rms": 0.10979492164107768,
+      "nonaxisymmetric_rms": 0.025048774472791184,
+      "max_divergence": 3.0490054925280674e-12,
+      "courant": 0.2061413204153344,
+      "max_speed": 0.9783178655094426
+    },
+    {
+      "time": 235.0,
+      "secondary_rms": 0.10978703143832712,
+      "nonaxisymmetric_rms": 0.025306581909889825,
+      "max_divergence": 3.0750957336067586e-12,
+      "courant": 0.2062253105799907,
+      "max_speed": 0.9783176175707126
+    },
+    {
+      "time": 237.5,
+      "secondary_rms": 0.10977916762310022,
+      "nonaxisymmetric_rms": 0.025568981010797336,
+      "max_divergence": 3.1049607329691753e-12,
+      "courant": 0.20630656724691743,
+      "max_speed": 0.978317592516411
+    },
+    {
+      "time": 240.0,
+      "secondary_rms": 0.10977166447557776,
+      "nonaxisymmetric_rms": 0.02583633934926777,
+      "max_divergence": 3.130051773325704e-12,
+      "courant": 0.20638364736969483,
+      "max_speed": 0.9783177758769416
+    },
+    {
+      "time": 242.5,
+      "secondary_rms": 0.10976484552538082,
+      "nonaxisymmetric_rms": 0.026109036644858166,
+      "max_divergence": 3.15591996979947e-12,
+      "courant": 0.20646036986133873,
+      "max_speed": 0.9783179664373027
+    },
+    {
+      "time": 245.0,
+      "secondary_rms": 0.1097588224437465,
+      "nonaxisymmetric_rms": 0.026387206560290116,
+      "max_divergence": 3.174682738915635e-12,
+      "courant": 0.20653992328031381,
+      "max_speed": 0.9783178989977411
+    },
+    {
+      "time": 247.5,
+      "secondary_rms": 0.10975346504279254,
+      "nonaxisymmetric_rms": 0.026670586402672187,
+      "max_divergence": 3.203326492950964e-12,
+      "courant": 0.20661772046528093,
+      "max_speed": 0.9783173790976589
+    },
+    {
+      "time": 250.0,
+      "secondary_rms": 0.1097485184664527,
+      "nonaxisymmetric_rms": 0.026958542666823477,
+      "max_divergence": 3.2286395779124177e-12,
+      "courant": 0.20669597714148158,
+      "max_speed": 0.9783163604870267
+    },
+    {
+      "time": 252.5,
+      "secondary_rms": 0.10974376596650949,
+      "nonaxisymmetric_rms": 0.027250238661409947,
+      "max_divergence": 3.255395952805884e-12,
+      "courant": 0.2067762711638195,
+      "max_speed": 0.9783149371190216
+    },
+    {
+      "time": 255.0,
+      "secondary_rms": 0.10973913336279809,
+      "nonaxisymmetric_rms": 0.027544846717703013,
+      "max_divergence": 3.2789326809279373e-12,
+      "courant": 0.20685905957701575,
+      "max_speed": 0.978313268627831
+    },
+    {
+      "time": 257.5,
+      "secondary_rms": 0.10973468773066135,
+      "nonaxisymmetric_rms": 0.02784170694470988,
+      "max_divergence": 3.3095748364075916e-12,
+      "courant": 0.20694361243183085,
+      "max_speed": 0.9783114877769895
+    },
+    {
+      "time": 260.0,
+      "secondary_rms": 0.1097305547302568,
+      "nonaxisymmetric_rms": 0.028140385024545415,
+      "max_divergence": 3.340883125702021e-12,
+      "courant": 0.20702836606695887,
+      "max_speed": 0.978309639149799
+    },
+    {
+      "time": 262.5,
+      "secondary_rms": 0.10972682147582889,
+      "nonaxisymmetric_rms": 0.028440643432218863,
+      "max_divergence": 3.3706371027619753e-12,
+      "courant": 0.2071115569749417,
+      "max_speed": 0.9783080301773827
+    },
+    {
+      "time": 265.0,
+      "secondary_rms": 0.10972348524880043,
+      "nonaxisymmetric_rms": 0.02874237663322822,
+      "max_divergence": 3.394728942396341e-12,
+      "courant": 0.20719188118449583,
+      "max_speed": 0.9783066617581031
+    },
+    {
+      "time": 267.5,
+      "secondary_rms": 0.10972046750459068,
+      "nonaxisymmetric_rms": 0.029045559256130157,
+      "max_divergence": 3.4225955403144326e-12,
+      "courant": 0.2072689087018269,
+      "max_speed": 0.9783049693547001
+    },
+    {
+      "time": 270.0,
+      "secondary_rms": 0.10971767005774406,
+      "nonaxisymmetric_rms": 0.029350228859030634,
+      "max_divergence": 3.453459740399012e-12,
+      "courant": 0.2073430982842954,
+      "max_speed": 0.97830289236951
+    },
+    {
+      "time": 272.5,
+      "secondary_rms": 0.1097150311850068,
+      "nonaxisymmetric_rms": 0.029656493456197034,
+      "max_divergence": 3.4879876764648543e-12,
+      "courant": 0.20741544509899304,
+      "max_speed": 0.9783004254473883
+    },
+    {
+      "time": 275.0,
+      "secondary_rms": 0.10971254883081867,
+      "nonaxisymmetric_rms": 0.02996453696307103,
+      "max_divergence": 3.5197400549691338e-12,
+      "courant": 0.20748725569487073,
+      "max_speed": 0.9782975959521577
+    },
+    {
+      "time": 277.5,
+      "secondary_rms": 0.1097102642710033,
+      "nonaxisymmetric_rms": 0.030274600146247905,
+      "max_divergence": 3.5424996269739495e-12,
+      "courant": 0.20755905082903123,
+      "max_speed": 0.9782944268272284
+    },
+    {
+      "time": 280.0,
+      "secondary_rms": 0.10970822402802202,
+      "nonaxisymmetric_rms": 0.0305869338937758,
+      "max_divergence": 3.5694780464723408e-12,
+      "courant": 0.20763012823562477,
+      "max_speed": 0.9782909069618485
+    },
+    {
+      "time": 282.5,
+      "secondary_rms": 0.10970644674723978,
+      "nonaxisymmetric_rms": 0.030901741247773354,
+      "max_divergence": 3.5920155738722315e-12,
+      "courant": 0.20769975795432633,
+      "max_speed": 0.978286983128625
+    },
+    {
+      "time": 285.0,
+      "secondary_rms": 0.10970491312849114,
+      "nonaxisymmetric_rms": 0.031219132579640665,
+      "max_divergence": 3.6195491048829354e-12,
+      "courant": 0.20776715349503463,
+      "max_speed": 0.9782825739813374
+    },
+    {
+      "time": 287.5,
+      "secondary_rms": 0.10970357970509725,
+      "nonaxisymmetric_rms": 0.03153911145827065,
+      "max_divergence": 3.649025526186733e-12,
+      "courant": 0.20783178168323257,
+      "max_speed": 0.9782789583255146
+    },
+    {
+      "time": 290.0,
+      "secondary_rms": 0.10970240333336528,
+      "nonaxisymmetric_rms": 0.031861592871024885,
+      "max_divergence": 3.669287096386142e-12,
+      "courant": 0.2078935003516978,
+      "max_speed": 0.9782750498763917
+    },
+    {
+      "time": 292.5,
+      "secondary_rms": 0.10970135999264265,
+      "nonaxisymmetric_rms": 0.032186440209457934,
+      "max_divergence": 3.69654307164069e-12,
+      "courant": 0.20795249639369598,
+      "max_speed": 0.9782704210332646
+    },
+    {
+      "time": 295.0,
+      "secondary_rms": 0.10970044836710947,
+      "nonaxisymmetric_rms": 0.03251350087620209,
+      "max_divergence": 3.7256864260371e-12,
+      "courant": 0.20800909463462236,
+      "max_speed": 0.9782650339421188
+    },
+    {
+      "time": 297.5,
+      "secondary_rms": 0.10969967953686309,
+      "nonaxisymmetric_rms": 0.03284262494465368,
+      "max_divergence": 3.753886090862579e-12,
+      "courant": 0.20806355348524921,
+      "max_speed": 0.9782604025084282
+    },
+    {
+      "time": 300.0,
+      "secondary_rms": 0.10969906187235476,
+      "nonaxisymmetric_rms": 0.033173663214774975,
+      "max_divergence": 3.781197577268358e-12,
+      "courant": 0.20811594393219437,
+      "max_speed": 0.9782544708865006
+    }
+  ],
+  "kernel": {
+    "name": "taylor_couette3d",
+    "shape": [
+      37,
+      64,
+      64
+    ],
+    "spacing": [
+      0.03125,
+      0.09817477042468103,
+      0.0625
+    ],
+    "periodic": [
+      false,
+      true,
+      true
+    ],
+    "fmr": "9ab76df5bb469da564339974ca2a73c77b8bbfc6d8bb6302ff15d104c9c79c14",
+    "formura": "e8d36abc20f6cf251ca805e9bc85ce8b5a8849d97fcf36bf327dc54025c16564",
+    "wrapper_source": "525a932e1a8c9c565853cdb047fa816fb79de8e6253b6112d7072316289760f7",
+    "fields": [
+      "R",
+      "au",
+      "av",
+      "aw",
+      "u",
+      "v",
+      "viscosity",
+      "w"
+    ],
+    "generated_c_sha256": "7513467d94d5a556c1e22abb4bf4794597dad6a535fa5ae98ac9698fa2e673f4",
+    "generated_library_sha256": "174db97e6f047a8645beedbcbcd36c912c3238053e97bbf58ca55f675131e917"
+  },
+  "source_sha256": "8f24020f7a86a9e3c0f72e713490d363e53b01747cbbf0d8cfdd74e37db42d11",
+  "driver_sha256": "0d063080b96e2334f65f14b89562b5217d0e4cf7e2a40deef0f9c56f8c832c55",
+  "numpy_version": "2.5.3"
+}

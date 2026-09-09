@@ -161,3 +161,20 @@ clean:
 	rm -f examples/*/check examples/*/*.o examples/*/run examples/*/viz
 	rm -f $(foreach e,$(FME_EXAMPLES),examples/$(e)/$(e).c examples/$(e)/$(e).h)
 	rm -f examples/pearson3d/pearson_V.pgm examples/mhd_ot/mhd_rho.pgm
+
+# Taylor-Couette: Formura-generated momentum kernels with a Python pressure
+# projection and time integrator. Each command runs serially.
+.PHONY: taylor-couette taylor-couette-check taylor-couette-simulate taylor-couette-render
+taylor-couette:
+	$(MAKE) taylor-couette-check
+	$(MAKE) taylor-couette-simulate
+	$(MAKE) taylor-couette-render
+taylor-couette-check:
+	PYTHONDONTWRITEBYTECODE=1 $(TENSOR_PYTHON) tools/taylor_couette.py validate
+taylor-couette-simulate:
+	PYTHONDONTWRITEBYTECODE=1 $(TENSOR_PYTHON) tools/taylor_couette.py simulate --reynolds 60 --name re60
+	PYTHONDONTWRITEBYTECODE=1 $(TENSOR_PYTHON) tools/taylor_couette.py simulate --reynolds 150 --name re150
+	PYTHONDONTWRITEBYTECODE=1 $(TENSOR_PYTHON) tools/taylor_couette.py simulate --reynolds 600 --name re600
+	PYTHONDONTWRITEBYTECODE=1 $(TENSOR_PYTHON) tools/taylor_couette_analyze.py
+taylor-couette-render:
+	PYTHONDONTWRITEBYTECODE=1 $(TENSOR_PYTHON) tools/taylor_couette_render.py re60 re150 re600

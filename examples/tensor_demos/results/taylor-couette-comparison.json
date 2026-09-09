@@ -1,0 +1,150 @@
+{
+  "passed": true,
+  "checks": {
+    "low_speed_disturbance_decays": true,
+    "low_speed_matches_couette": true,
+    "middle_speed_forms_nearly_axisymmetric_rolls": true,
+    "high_speed_breaks_azimuthal_symmetry": true,
+    "high_speed_wave_moves": true,
+    "volume_preserved": true,
+    "finer_grid_confirms_growing_traveling_wave": true
+  },
+  "cases": {
+    "re60": {
+      "reynolds": 60.0,
+      "grid": [
+        24,
+        64,
+        48
+      ],
+      "secondary_final": 9.11119999250955e-14,
+      "nonaxisymmetric_final": 7.694860080424097e-16,
+      "secondary_late_mean": 7.927343326357955e-14,
+      "nonaxisymmetric_late_mean": 7.27077438762576e-16,
+      "secondary_growth_factor": 7.495781552638723e-11,
+      "nonaxisymmetric_late_decay_rate": null,
+      "mean_azimuthal_profile_departure_from_couette": 0.00010830158083308117,
+      "max_divergence": 2.29024157972616e-12,
+      "max_courant": 0.048621043907462275,
+      "highest_third_azimuthal_band_fraction_of_nonaxisymmetric_energy": null,
+      "frames_sha256": "1597af9cfe03a568b7476bc65a4f4e9e060befbc9077f6a3887756be4fc796a4"
+    },
+    "re150": {
+      "reynolds": 150.0,
+      "grid": [
+        24,
+        64,
+        48
+      ],
+      "secondary_final": 0.07496857470120612,
+      "nonaxisymmetric_final": 0.004103250637039031,
+      "secondary_late_mean": 0.07496880459015838,
+      "nonaxisymmetric_late_mean": 0.004554686802309099,
+      "secondary_growth_factor": 61.67662434530079,
+      "nonaxisymmetric_late_decay_rate": -0.0027495192027478564,
+      "mean_azimuthal_profile_departure_from_couette": 0.1992141115284526,
+      "max_divergence": 2.8481036973282414e-12,
+      "max_courant": 0.12255037170372518,
+      "highest_third_azimuthal_band_fraction_of_nonaxisymmetric_energy": 2.913122256612365e-12,
+      "frames_sha256": "eac33b208f3a41fe08b04bf3dcf0c318c1f02d0fa0e97427568239f793751ad6",
+      "traveling_wave": {
+        "azimuthal_mode": 1,
+        "axial_mode": 2,
+        "angular_speed": 0.12198411404011518,
+        "fraction_of_inner_cylinder_angular_speed": 0.36595234212034555,
+        "phase_fit_rms_radians": 6.826038660573876e-05,
+        "axial_displacement_peak_to_peak": 0.023710591792884712
+      }
+    },
+    "re600": {
+      "reynolds": 600.0,
+      "grid": [
+        24,
+        64,
+        48
+      ],
+      "secondary_final": 0.10978108875731585,
+      "nonaxisymmetric_final": 0.047810094183653055,
+      "secondary_late_mean": 0.10974304705145717,
+      "nonaxisymmetric_late_mean": 0.04054799734378922,
+      "secondary_growth_factor": 90.31686941480775,
+      "nonaxisymmetric_late_decay_rate": 0.004741283868015062,
+      "mean_azimuthal_profile_departure_from_couette": 0.3855648892138834,
+      "max_divergence": 3.707881224279674e-12,
+      "max_courant": 0.22273460347706056,
+      "highest_third_azimuthal_band_fraction_of_nonaxisymmetric_energy": 1.40008996554364e-07,
+      "frames_sha256": "817a566c68cea952ca66f76fb61ef74a5ac438ad17060f02f9c5f37a97277aed",
+      "traveling_wave": {
+        "azimuthal_mode": 2,
+        "axial_mode": 2,
+        "angular_speed": 0.07786002892162334,
+        "fraction_of_inner_cylinder_angular_speed": 0.23358008676487002,
+        "phase_fit_rms_radians": 0.0012016894651015796,
+        "axial_displacement_peak_to_peak": 0.19910251813785382
+      }
+    }
+  },
+  "analyzer_sha256": "491ac4d3d4e22741840364b27ebfa74b05f3417425679aec4d37abad5adf7ed7",
+  "coarser_grid": {
+    "reynolds": 600.0,
+    "grid": [
+      16,
+      64,
+      32
+    ],
+    "secondary_final": 0.11981989623839524,
+    "nonaxisymmetric_final": 0.07653483542434751,
+    "secondary_late_mean": 0.11971575476378818,
+    "nonaxisymmetric_late_mean": 0.07421378227819957,
+    "secondary_growth_factor": 99.68121935502717,
+    "nonaxisymmetric_late_decay_rate": 0.0016749368265383154,
+    "mean_azimuthal_profile_departure_from_couette": 0.3681298264911784,
+    "max_divergence": 8.456568778569817e-13,
+    "max_courant": 0.16818949292589466,
+    "highest_third_azimuthal_band_fraction_of_nonaxisymmetric_energy": 0.00020857694606647026,
+    "frames_sha256": "c8ff6b7393ee5cfbd7621d1ac23d0057b62de2290de57c984edd07b75c9bd87b",
+    "traveling_wave": {
+      "azimuthal_mode": 2,
+      "axial_mode": -2,
+      "angular_speed": 0.08520364322379917,
+      "fraction_of_inner_cylinder_angular_speed": 0.25561092967139754,
+      "phase_fit_rms_radians": 0.0150134236468651,
+      "axial_displacement_peak_to_peak": 0.31776431944564265
+    }
+  },
+  "relative_change_under_refinement": {
+    "secondary_late_mean": 0.09087325329735861,
+    "nonaxisymmetric_late_mean": 0.8302699797716883
+  },
+  "finer_grid": {
+    "reynolds": 600.0,
+    "grid": [
+      32,
+      64,
+      64
+    ],
+    "secondary_final": 0.10969906187235476,
+    "nonaxisymmetric_final": 0.033173663214774975,
+    "secondary_late_mean": 0.10973847356248469,
+    "nonaxisymmetric_late_mean": 0.028535696217278163,
+    "secondary_growth_factor": 89.89806164524877,
+    "nonaxisymmetric_late_decay_rate": 0.004180156293677986,
+    "mean_azimuthal_profile_departure_from_couette": 0.3809607482263273,
+    "max_divergence": 3.781197577268358e-12,
+    "max_courant": 0.2757349324182423,
+    "highest_third_azimuthal_band_fraction_of_nonaxisymmetric_energy": 1.8782231366194205e-10,
+    "frames_sha256": "abf099991b11e58018b38b2604d3e518e21755a738bbea329bdc0889b5373ebf",
+    "traveling_wave": {
+      "azimuthal_mode": 2,
+      "axial_mode": 2,
+      "angular_speed": 0.07828665779778293,
+      "fraction_of_inner_cylinder_angular_speed": 0.2348599733933488,
+      "phase_fit_rms_radians": 0.0014402985680040156,
+      "axial_displacement_peak_to_peak": 0.14448126961903696
+    }
+  },
+  "relative_change_to_finer_grid": {
+    "secondary_late_mean": 4.16762583259116e-05,
+    "nonaxisymmetric_late_mean": 0.42095700189146584
+  }
+}
