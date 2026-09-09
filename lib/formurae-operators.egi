@@ -356,6 +356,15 @@ def Formurae.dExterior
 -- function: the generated unit applies it to its ambient (unquoted)
 -- volume and inverse metric.  Component convention matches Formurae.hodge:
 --   (*A)_J = sign(I ++ J) (V * product(i in I, g^ii)) A_I.
+-- Keep basis indices explicitly scalar: the higher-order map in this
+-- coefficient must consume [Integer], even when tensor lifting is available.
+def Formurae.formMetricWeight
+      (volumeValue: MathValue) (inverseMetricValue: Tensor MathValue)
+      (basis: [Integer]) : MathValue :=
+  volumeValue
+  * foldl (*) 1
+      (map (\axis -> FE.tensorComponentAt inverseMetricValue [axis, axis]) basis)
+
 def Formurae.dHodgeWith
       (volumeValue: MathValue) (inverseMetricValue: Tensor MathValue)
       (A: Tensor MathValue) : Tensor MathValue :=
@@ -371,12 +380,8 @@ def Formurae.dHodgeWith
                 let sourceBasis :=
                       FE.complementFormBasis dimension targetBasis
                  in FE.formBasisSign (sourceBasis ++ targetBasis)
-                    * volumeValue
-                    * foldl (*) 1
-                        (map (\axis ->
-                               FE.tensorComponentAt inverseMetricValue
-                                 [axis, axis])
-                             sourceBasis)
+                    * Formurae.formMetricWeight
+                        volumeValue inverseMetricValue sourceBasis
                     * FE.tensorComponentAt A sourceBasis)
               dimension (dimension - degree)
 
@@ -393,11 +398,7 @@ def Formurae.dFluxWith
     | #True ->
         FE.canonicalFormTensor
           (\basis ->
-            volumeValue
-            * foldl (*) 1
-                (map (\axis ->
-                       FE.tensorComponentAt inverseMetricValue [axis, axis])
-                     basis)
+            Formurae.formMetricWeight volumeValue inverseMetricValue basis
             * FE.tensorComponentAt A basis)
           dimension (dfOrder A)
 
@@ -412,12 +413,7 @@ def Formurae.dFluxWeightsWith
         as bool with
     | #True ->
         FE.canonicalFormTensor
-          (\basis ->
-            volumeValue
-            * foldl (*) 1
-                (map (\axis ->
-                       FE.tensorComponentAt inverseMetricValue [axis, axis])
-                     basis))
+          (Formurae.formMetricWeight volumeValue inverseMetricValue)
           dimension (dfOrder A)
 
 -- Componentwise product of a weight form and an operand form of the same
@@ -455,10 +451,7 @@ def Formurae.dFluxDivWith
         | #True ->
             FE.canonicalFormTensor
               (\targetBasis ->
-                (0 - foldl (*) 1
-                       (map (\axis ->
-                              FE.tensorComponentAt metricValue [axis, axis])
-                            targetBasis))
+                (0 - Formurae.formMetricWeight 1 metricValue targetBasis)
                 / volumeValue
                 * foldl (+) 0
                     (map (\axis ->

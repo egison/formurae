@@ -8,7 +8,6 @@
 
 | ファイル | 課題 | 規模感 |
 |---|---|---|
-| [egison-type-checker-migration.md](egison-type-checker-migration.md) | 既存のテンソル・微分機能を維持して最新 Egison の型検査へ対応する | 中(不一致の整理から) |
 | [sbp-characteristic-generalization.md](sbp-characteristic-generalization.md) | 特性 SAT の一般化(Z・2D 法線・幅整合の外挿) | 中(綴りの決めから) |
 | [boundary-yaml-consistency.md](boundary-yaml-consistency.md) | yaml boundary と宣言の整合検査 | 小(独立チェッカ) |
 | [component-projection-extensions.md](component-projection-extensions.md) | 混合射影・一般式射影・宣言レベル component | 小〜大(3 段階) |
@@ -19,3 +18,4 @@
 成分射影の基本形(v2.18)、境界の言語化=boundary 宣言と sbpd 退役
 (v2.20)、k ≥ 2 の SBP 閉包構成器(v2.21)、SAT の定型化=宣言供給定数・
 境界外挿 sbpx・satDirichlet/satNeumann マクロ(v2.22)。
+最新 Egison の型検査への移行と，大きな生成入力のメモリ使用量の抑制(v2.28)。

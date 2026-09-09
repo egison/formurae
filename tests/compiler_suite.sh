@@ -92,6 +92,7 @@ sh tests/pre_deferred_local.sh
 sh tests/pre_generic_codiff.sh
 sh tests/post_diagnostic_cli.sh
 sh tests/pre_provenance_e2e.sh
+sh tests/pre_large_wire.sh
 # Includes the typed conservative-local FEIR check in
 # tests/pre_conservative_local_feir.hs.
 sh tests/pre_pipeline.sh

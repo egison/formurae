@@ -142,6 +142,22 @@ assertEqual "flat weighted flux is the identity on components"
   (FE.formComponents (Formurae.dFluxWith 1 flatIdentityMetric formB))
   (FE.formComponents formB)
 
+def anisotropicInverseMetric : Tensor MathValue :=
+  [|[|2, 0, 0|], [|0, 3, 0|], [|0, 0, 5|]|]
+
+assertEqual "two-form flux uses the metric for each scalar basis index"
+  (FE.formComponents (Formurae.dFluxWith 7 anisotropicInverseMetric formB))
+  [42 * formB12, 70 * formB13, 105 * formB23]
+
+assertEqual "materialized flux weights retain the two-form basis"
+  (FE.formComponents
+    (Formurae.dFluxWeightsWith 7 anisotropicInverseMetric formB))
+  [42, 70, 105]
+
+assertEqual "zero-form flux has an empty metric product"
+  (Formurae.dFluxWith 7 anisotropicInverseMetric formU)
+  (7 * formU)
+
 assertEqual "discrete exterior derivative antisymmetrizes the grid derivative"
   (FE.formComponents (Formurae.dExterior formX))
   [ Formurae.gridWholeDerivative 1 formX2 - Formurae.gridWholeDerivative 2 formX1

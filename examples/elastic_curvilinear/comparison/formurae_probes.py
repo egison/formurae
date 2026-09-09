@@ -12,6 +12,14 @@ ROOT = HERE.parents[2]
 WORK = ROOT / '.build/related-work/formurae'
 
 
+def egison_revision(directory):
+    marker = directory / '.formurae-revision'
+    if marker.is_file():
+        return marker.read_text().strip()
+    return subprocess.check_output(
+        ['git', '-C', str(directory), 'rev-parse', 'HEAD'], text=True).strip()
+
+
 def invoke(command, stdout, stderr, cwd=ROOT):
     # No Haskell compiler/interpreter processes overlap in this runner.
     with stdout.open('w') as out, stderr.open('w') as err:
@@ -127,7 +135,7 @@ def main():
             record['matches_expectation'] &= record['whole_flux_centered_value']==80
         results[name]=record
         print(name, 'accepted' if record['accepted'] else 'rejected', flush=True)
-    report={'system':'Formurae','egison_revision':'1a0298c67cc487dd4a73d96f526f3042b74d6570',
+    report={'system':'Formurae','egison_revision':egison_revision(egison),
             'results':results,'all_expected':all(r['matches_expectation'] for r in results.values())}
     args.output.parent.mkdir(parents=True,exist_ok=True)
     args.output.write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n')

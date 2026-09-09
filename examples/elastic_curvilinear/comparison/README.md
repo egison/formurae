@@ -96,8 +96,8 @@ git -C .build/related-work/sources/kranc checkout b4b2b40103a706a29f8f6b3910110a
 tools/prepare_elastic_validation.sh
 ```
 
-最後のコマンドは，隣の `egison` リポジトリからリビジョン
-`1a0298c67cc487dd4a73d96f526f3042b74d6570` を専用ディレクトリへ取り出す．
+最後のコマンドは，隣の `egison` リポジトリから `spec/egison-revision` の
+検証済みリビジョンを `.build/egison-<リビジョン>` へ取り出す．
 取得元は `EGISON_SOURCE` で変更できる．Formurae自体は作業ツリーの版を使い，
 生成に関係するソース・入力のSHA-256を結果に保存する．
 
@@ -110,7 +110,7 @@ tools/prepare_elastic_validation.sh
 .build/related-work/venv/bin/python examples/elastic_curvilinear/comparison/python_probes.py devito --output .build/related-work/results/devito.json
 .build/related-work/opensbli-venv/bin/python examples/elastic_curvilinear/comparison/python_probes.py opensbli --output .build/related-work/results/opensbli.json
 .build/related-work/venv/bin/python examples/elastic_curvilinear/comparison/python_probes.py nrpyplus --output .build/related-work/results/nrpyplus.json
-python3 examples/elastic_curvilinear/comparison/formurae_probes.py --egison-dir .build/egison-elastic-validation --output .build/related-work/results/formurae.json
+python3 examples/elastic_curvilinear/comparison/formurae_probes.py --egison-dir "$(tools/prepare_elastic_validation.sh)" --output .build/related-work/results/formurae.json
 python3 examples/elastic_curvilinear/comparison/collect_results.py
 ```
 

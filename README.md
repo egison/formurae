@@ -373,13 +373,16 @@ make gallery-assets
 
 ```sh
 EGISON_DIR=$(tools/prepare_elastic_validation.sh)
-make compiler-tests EGISON_DIR="$EGISON_DIR"
-make all EGISON_DIR="$EGISON_DIR"
+EGISON_HEAP_LIMIT=1G make compiler-tests EGISON_DIR="$EGISON_DIR"
+EGISON_HEAP_LIMIT=1G make all EGISON_DIR="$EGISON_DIR"
 ```
 
-現行の検証では Egison の対応版 `1a0298c67cc487dd4a73d96f526f3042b74d6570`
-を使います。準備スクリプトは `.build/` に展開し、隣接する Egison の作業ツリーは変更しません。
-最新の型検査への対応は [移行課題](TODO/egison-type-checker-migration.md) にまとめています。
+検証済みの Egison は `87cbb478c845e9760ecfc1d0518b464df10a72cf` です。
+依存版は [`spec/egison-revision`](spec/egison-revision) で管理し、準備スクリプトは
+`.build/egison-<リビジョン>` に展開します。隣接する Egison の作業ツリーは変更しません。
+`EGISON_DIR` を省略すると `../egison` を使うため、開発中の最新版でも同じ検査を実行できます。
+`EGISON_HEAP_LIMIT` は Egison が管理するメモリの上限を指定します。標準の上限は `1G` です。
+大きなモデルの出力情報は型付きの小さな定義へ分割し、1G の上限でも正規化できることを検査します。
 
 - FEIR round-trip、malformed input、fingerprint、source diagnostic
 - formurae-pre scope/effect/ambient-binding tests

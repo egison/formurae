@@ -17,7 +17,6 @@ import time
 ROOT = Path(__file__).resolve().parents[1]
 RESULTS = ROOT / 'examples/elastic_curvilinear/results'
 RESULTS.mkdir(exist_ok=True)
-REVISION = '1a0298c67cc487dd4a73d96f526f3042b74d6570'
 
 
 def command(args, cwd=ROOT, output=None):
@@ -95,6 +94,7 @@ def main():
                     if line.startswith('def ')] for name in names]
     assert len(definitions[0]) == 3 and definitions[0] == definitions[1]
     egison = command([str(ROOT/'tools/prepare_elastic_validation.sh')])
+    revision = (Path(egison)/'.formurae-revision').read_text().strip()
     records = []
     sources = {}
     for name in names:
@@ -144,7 +144,7 @@ def main():
                 assert result['observed_spatial_order'] > 1.8, result
             covariance.append(result); records.append(result)
         # Persist partial progress as well as final results after each model.
-        report = {'egison_revision': REVISION, 'platform': platform.platform(), 'source_sha256': sources, 'results': records}
+        report = {'egison_revision': revision, 'platform': platform.platform(), 'source_sha256': sources, 'results': records}
         (RESULTS/'validation.json').write_text(json.dumps(report,indent=2)+'\n')
         (RESULTS/f'{name}-convergence.dat').write_text('intervals error\n'+''.join(f'{x["nr"]-1} {x["relative_error"]:.12g}\n' for x in accuracy))
     print('All curvilinear elastic validation checks passed.', flush=True)

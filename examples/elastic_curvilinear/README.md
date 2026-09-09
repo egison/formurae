@@ -15,12 +15,11 @@ python3 tools/validate_curvilinear_elastic.py
 
 Pythonは標準ライブラリだけを使う．`cc`，Cabal/GHC，`bin/formura` が必要である．
 `tools/prepare_elastic_validation.sh` は隣のEgisonリポジトリから
-`1a0298c67cc487dd4a73d96f526f3042b74d6570`（2026-07-28）を
-`.build/egison-elastic-validation` に展開する．Egisonの作業ツリーは変更しない．
-この版はFormuraeの現行スナップショットと同時期のものである．
-2026-09-07時点のEgison HEADでは型記法と型検査が変更されており，
-新しい例だけでなく既存の `diffusion1d` もそのままでは正規化できない．
-依存先の移行と数値実験の再現を混同しないため，この実験では版を固定している．
+`spec/egison-revision` に記録した検証済みの版
+`87cbb478c845e9760ecfc1d0518b464df10a72cf` を
+`.build/egison-<リビジョン>` に展開する．Egisonの作業ツリーは変更しない．
+2026-09-10に最新の型記法と型検査へ対応した．保存済みの数値結果は
+各JSONに記録された当時のEgisonでの実測値であり，再実行時は実際に使った版を記録する．
 初回のCabalビルドは通常のキャッシュとログへの書き込みを伴う．
 
 個別の例は次で実行する．

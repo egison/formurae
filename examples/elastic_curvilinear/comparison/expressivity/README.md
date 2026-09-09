@@ -183,7 +183,7 @@ UFLだけ追加する．各コマンドの完了を待って次を実行する�
 
 ```sh
 .build/related-work/venv/bin/python -m pip install -r examples/elastic_curvilinear/comparison/expressivity/requirements.txt
-python3 examples/elastic_curvilinear/comparison/expressivity/run_formurae.py --egison-dir .build/egison-elastic-validation
+python3 examples/elastic_curvilinear/comparison/expressivity/run_formurae.py --egison-dir "$(tools/prepare_elastic_validation.sh)"
 .build/related-work/venv/bin/python examples/elastic_curvilinear/comparison/expressivity/run_python.py modern
 .build/related-work/opensbli-venv/bin/python examples/elastic_curvilinear/comparison/expressivity/run_python.py opensbli
 ```

@@ -1,11 +1,10 @@
 #!/bin/sh
-# Reproduce the July Formurae snapshot without modifying the adjacent Egison
-# checkout, whose subsequent type-system changes are a separate migration.
+# Prepare the validated Egison revision without changing the adjacent checkout.
 set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-revision=1a0298c67cc487dd4a73d96f526f3042b74d6570
+revision=$(cat "$root/spec/egison-revision")
 source=${EGISON_SOURCE:-"$root/../egison"}
-target="$root/.build/egison-elastic-validation"
+target="$root/.build/egison-$revision"
 if [ ! -f "$target/.formurae-revision" ]; then
   git -C "$source" cat-file -e "$revision^{commit}"
   mkdir -p "$target"

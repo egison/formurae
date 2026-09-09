@@ -31,7 +31,8 @@ fi
 
 rm -f "$diagnostic_file.stdout"
 
-if ! grep -E '^(Type error|Warning):' "$diagnostic_file" >/dev/null; then
+if ! grep -F 'Error: Type error:' "$diagnostic_file" >/dev/null ||
+   ! grep -F 'Unbound variable: missingMachineValue' "$diagnostic_file" >/dev/null; then
   printf 'machine runner did not preserve the strict diagnostic\n' >&2
   exit 1
 fi

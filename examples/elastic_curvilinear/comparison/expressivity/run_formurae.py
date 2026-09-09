@@ -10,7 +10,7 @@ import sys
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[3]
 sys.path.insert(0, str(HERE.parent))
-from formurae_probes import pipeline
+from formurae_probes import egison_revision, pipeline
 
 WORK = ROOT/'.build/related-work/expressivity-final'
 
@@ -110,7 +110,7 @@ def main():
              ROOT/'src/Formurae/Pre/EmitEgison.hs',ROOT/'lib/formurae-operators.egi',
              ROOT/'src/Formurae/Post/FMR.hs',
              ROOT/'lib/formurae-tensor.egi']
-    report = {'egison_revision':'1a0298c67cc487dd4a73d96f526f3042b74d6570',
+    report = {'egison_revision':egison_revision(egison),
               'all_passed':True, 'renaming_preserves_generated_formura':identical,
               'exterior_definition_shared_between_dimensions':True,
               'source_sha256':{str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest()

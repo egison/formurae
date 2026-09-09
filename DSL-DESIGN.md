@@ -656,6 +656,35 @@ Formura の通常の実行経路と並行して維持しない．
 今後のデモでは，モデルの記述とともに Formura の通常経路での実行と，
 適用する並列化・ブロッキングの条件を確認する．
 
+**v2.28(2026-09-10): 最新 Egison の型検査への対応** —
+Egison の `87cbb478c845e9760ecfc1d0518b464df10a72cf` に対応した．
+Egison 側では，`def vi_i := ...` に続く `def vi := vi_i` を，
+添字付きの別定義への参照として判定する．実際に自分自身を参照する定義の検査は維持する．
+
+Formurae 側では `feirSExpr` を `Matcher FEIRSExpr FEIRSExpr` に変更した．
+二つの引数は，利用できるパターンの形と，対象の値の型を表す．
+リスト内の要素も `list feirSExpr` で照合し，再帰的な構造と宣言を一致させる．
+幾何演算の重み計算は，添字リストの型 `[Integer]` を明示する関数にまとめた．
+これにより，高階関数の型推論で添字がテンソルへ拡張されることを防ぎ，
+従来と同じ重み付きの微分形式の演算を保つ．方向ごとに係数が異なる計量と
+スカラーに対する回帰検査を追加し，型エラーの診断検査も最新 Egison の形式へ合わせた．
+
+再現用の依存版は `spec/egison-revision` に集約し，準備スクリプトは
+リビジョンごとに独立したディレクトリへ展開する．比較・数値検証のスクリプトは
+実際に使用した Egison の版を結果へ記録する．過去の結果JSONの依存版は変更しない．
+
+D3Q19 格子ボルツマンモデルでは，約300KBの生成入力を一つの `feProgram` 定義に
+まとめると，Egison のメモリ使用量が約89GBまで増大したため検査を停止した．
+出力情報の構築を `FEIRSExpr` 注釈付きの小さな定義へ分割し，
+Egison が各定義を個別に型検査できるようにした．計算結果と診断位置を含む FEIR は
+従来の出力とバイト単位で一致し，1Gのメモリ上限で約18秒で正規化を完了した．
+この上限で大きな入力を正規化して出力を照合する検査を `tests/pre_large_wire.sh` に追加した．
+通常の実行用スクリプトも1Gを標準の上限とし，`EGISON_HEAP_LIMIT` で変更できる．
+
+最新版と `EGISON_HEAP_LIMIT=1G` を指定した `make compiler-tests` と `make all` が通過した．
+検証用コピーには移行時点の35例題を保持し，今回の変更だけを反映した．
+全例題の数値検査に成功し，35個の正規化済みFEIRは従来のものとバイト単位で一致した．
+
 **v1.35(2026-07-11): descriptor-driven whole fields + native tensor operators** —
 Phase 2 の field descriptor を完成させ、生成 `.egi` は field ごとに
 `(name, GridPolicy, shape, variances, layout, projection, storageMapping)` を一度だけ持つ。

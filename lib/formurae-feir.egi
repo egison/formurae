@@ -16,7 +16,7 @@ inductive pattern FEIRSExpr :=
   | feirString String
   | feirList [FEIRSExpr]
 
-def feirSExpr : Matcher FEIRSExpr :=
+def feirSExpr : Matcher FEIRSExpr FEIRSExpr :=
   matcher
     | feirAtom $ as (string) with
       | FEIRAtom $value -> [value]
@@ -24,7 +24,7 @@ def feirSExpr : Matcher FEIRSExpr :=
     | feirString $ as (string) with
       | FEIRString $value -> [value]
       | _ -> []
-    | feirList $ as (list something) with
+    | feirList $ as (list feirSExpr) with
       | FEIRList $values -> [values]
       | _ -> []
     | $ as something with

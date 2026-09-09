@@ -10,7 +10,7 @@ module Formurae.Pre.EmitEgison
 
 import Control.Monad (foldM)
 import Data.Char (isAlpha, isAlphaNum, isDigit, isSpace)
-import Data.List (dropWhileEnd, find, intercalate, nub, sort)
+import Data.List (dropWhileEnd, find, intercalate, mapAccumL, nub, sort)
 import Text.Read (readMaybe)
 
 import Formurae.Common (analyticDerivativeName, mapEgisonCodeIdentifiers)
@@ -1020,9 +1020,8 @@ renderUnit model registry geometryDeclarations definitions dynamics program = un
   ++ concatMap (fieldDeclarations model) (Surface.mFieldDecls model)
   ++ localDeclarations
   ++ orderedTailDeclarations
-  ++ [ "def feProgram := "
-         ++ renderWire dynamics deferredSplices (encodeFEProgram program)
-     , ""
+  ++ wireDeclarations (renderWire dynamics deferredSplices (encodeFEProgram program))
+  ++ [ ""
      , mainDeclaration
      ]
   where
@@ -1702,13 +1701,44 @@ withIndexSymbols source =
 -- value.  Keyed by field id; the payload carries the already-static parts.
 type DeferredSplice = (Int, (String, String, Int, String))
 
-renderWire :: [DynamicValue] -> [DeferredSplice] -> SExpr -> String
+-- Keep each generated definition small enough for independent type inference.
+-- Dynamic encoders remain indivisible expressions, preserving their source
+-- diagnostics and lazy evaluation through ordinary top-level bindings.
+data WireExpression
+  = WireLeaf String
+  | WireList String [WireExpression]
+
+wireDeclarations :: WireExpression -> [String]
+wireDeclarations expression =
+  let ((_, definitions), body) = renderChunk (0, []) expression
+  in reverse definitions ++ ["def feProgram : FEIRSExpr := " ++ body]
+  where
+    size (WireLeaf _) = 1 :: Int
+    size (WireList _ children) = 1 + sum (map size children)
+    inline (WireLeaf value) = value
+    inline (WireList prefix children) = prefix ++ renderList (map inline children)
+
+    renderChunk state node
+      | size node <= 128 = (state, inline node)
+    renderChunk state (WireList prefix children) =
+      let (state', references) = mapAccumL bindChild state children
+      in (state', prefix ++ renderList references)
+    renderChunk state node = (state, inline node)
+
+    bindChild state (WireLeaf value) = (state, value)
+    bindChild state node =
+      let ((next, definitions), body) = renderChunk state node
+          name = "FormuraeInternalWire" ++ show (next :: Int)
+          definition = "def " ++ name ++ " : FEIRSExpr := " ++ body
+      in ((next + 1, definition : definitions), name)
+
+renderWire :: [DynamicValue] -> [DeferredSplice] -> SExpr -> WireExpression
 renderWire dynamics deferredSplices expression
   | isTensorRecord expression
   , [identifier] <- nub (sort (negativeMarkers expression))
   , Just dynamic <- dynamicById identifier
   , EncodeTensor tensorType layout <- dynamicEncoding dynamic =
-      atOrigin dynamic ("FormuraeInternalEncodeTensor "
+      WireLeaf $ atOrigin dynamic ("FormuraeInternalEncodeTensor "
       ++ show (FEIR.tensorTypeShape tensorType) ++ " "
       ++ show (map varianceName (FEIR.tensorTypeVariances tensorType)) ++ " "
       ++ show (FEIR.tensorTypeDfOrder tensorType) ++ " "
@@ -1718,7 +1748,7 @@ renderWire dynamics deferredSplices expression
   , negativeIdentifier < (0 :: Int)
   , Just dynamic <- dynamicById (negate negativeIdentifier)
   , EncodeScalar <- dynamicEncoding dynamic =
-      atOrigin dynamic
+      WireLeaf $ atOrigin dynamic
         ("FormuraeInternalEncodeScalar " ++ scalarBoundaryValue dynamic)
   -- A deferred marker is always the scalar-wrapped reference; the encoder
   -- rebuilds the complete (scalar ...)/(tensor-value ...) wrapper from the
@@ -1728,27 +1758,24 @@ renderWire dynamics deferredSplices expression
   , negativeIdentifier < (0 :: Int)
   , Just dynamic <- dynamicById (negate negativeIdentifier)
   , EncodeDeferred <- dynamicEncoding dynamic =
-      atOrigin dynamic
+      WireLeaf $ atOrigin dynamic
         ("FormuraeInternalEncodeTensorFromValue "
          ++ dynamicBoundaryReference dynamic)
   | List (Atom "field" : List [Atom "id", Atom idText] : _) <- expression
   , Just fieldIdInt <- readMaybe idText
   , Just (name, policyTag, originId, valueRef) <-
       lookup fieldIdInt deferredSplices =
-      "FEIR.deferredLocalFieldDecl " ++ show (fieldIdInt :: Int) ++ " "
+      WireLeaf $ "FEIR.deferredLocalFieldDecl " ++ show (fieldIdInt :: Int) ++ " "
       ++ show name ++ " " ++ show policyTag ++ " "
       ++ show originId ++ " " ++ valueRef
-  | Atom value <- expression = "FEIR.atom " ++ show value
-  | StringAtom value <- expression = "FEIR.string " ++ show value
-  -- The program root spells as FEIR.record: the equivalent FEIR.list
-  -- literal, whose second element became a deep list when the wire
-  -- version atom was retired, trips an Egison evaluation quirk on
-  -- units of this size (observed as a spurious math type error).
+  | Atom value <- expression = WireLeaf ("FEIR.atom " ++ show value)
+  | StringAtom value <- expression = WireLeaf ("FEIR.string " ++ show value)
+  -- The program root is a named record; nested protocol values are lists.
   | List (Atom "feir" : fields) <- expression =
-      "FEIR.record \"feir\" "
-      ++ renderList (map (renderWire dynamics deferredSplices) fields)
+      WireList "FEIR.record \"feir\" "
+        (map (renderWire dynamics deferredSplices) fields)
   | List values <- expression =
-      "FEIR.list " ++ renderList (map (renderWire dynamics deferredSplices) values)
+      WireList "FEIR.list " (map (renderWire dynamics deferredSplices) values)
   where
     dynamicById identifier = find ((== identifier) . dynamicId) dynamics
     atOrigin dynamic value =
