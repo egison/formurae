@@ -1,0 +1,92 @@
+{
+  "isotropic": {
+    "case": "isotropic",
+    "grid": [
+      120,
+      248
+    ],
+    "mpi": [
+      1,
+      1
+    ],
+    "blocking": 4,
+    "parameters": {
+      "dt": "0.005",
+      "beta": "1.1",
+      "eps": "0.3",
+      "perpendicular": "0.625",
+      "parallel": "0.625",
+      "angle": "0.7853981633974483",
+      "twist": "0.0",
+      "reaction": "1.0",
+      "stimulus": "1.0",
+      "cell": "dtheta * dphi"
+    },
+    "source_sha256": "268c2424e719bbaa0c24fbac1e2d7f2b42150f11575fab7df4e5933247a3581f",
+    "egison_revision": "87cbb478c845e9760ecfc1d0518b464df10a72cf",
+    "steps": 24000,
+    "output_interval": 200,
+    "mpi_environment": {},
+    "run_log": "steps=24000 elapsed_seconds=30.680082 bounds=ok"
+  },
+  "oblique": {
+    "case": "oblique",
+    "grid": [
+      120,
+      248
+    ],
+    "mpi": [
+      1,
+      1
+    ],
+    "blocking": 4,
+    "parameters": {
+      "dt": "0.005",
+      "beta": "1.1",
+      "eps": "0.3",
+      "perpendicular": "0.25",
+      "parallel": "1.0",
+      "angle": "0.7853981633974483",
+      "twist": "0.0",
+      "reaction": "1.0",
+      "stimulus": "1.0",
+      "cell": "dtheta * dphi"
+    },
+    "source_sha256": "65ce0e5d5c9d2d7d979ca8216ac3c393c3dd3cc35d8ffdba9d27f4cc41bb75e4",
+    "egison_revision": "87cbb478c845e9760ecfc1d0518b464df10a72cf",
+    "steps": 24000,
+    "output_interval": 200,
+    "mpi_environment": {},
+    "run_log": "steps=24000 elapsed_seconds=30.777700 bounds=ok"
+  },
+  "twisted": {
+    "case": "twisted",
+    "grid": [
+      120,
+      248
+    ],
+    "mpi": [
+      1,
+      1
+    ],
+    "blocking": 4,
+    "parameters": {
+      "dt": "0.005",
+      "beta": "1.1",
+      "eps": "0.3",
+      "perpendicular": "0.25",
+      "parallel": "1.0",
+      "angle": "0.7853981633974483",
+      "twist": "0.75",
+      "reaction": "1.0",
+      "stimulus": "1.0",
+      "cell": "dtheta * dphi"
+    },
+    "source_sha256": "b0e9baed2d283036696b28f2be244fd2f4227c36d672dc553f809bbc363155b8",
+    "egison_revision": "87cbb478c845e9760ecfc1d0518b464df10a72cf",
+    "steps": 24000,
+    "output_interval": 200,
+    "mpi_environment": {},
+    "run_log": "steps=24000 elapsed_seconds=30.748956 bounds=ok"
+  }
+}

@@ -80,3 +80,6 @@ dist-newstyle/
 .build/
 examples/elastic_spherical/elastic_spherical.c
 examples/elastic_spherical/elastic_spherical.h
+examples/excitable_torus/excitable_torus.c
+examples/excitable_torus/excitable_torus.h
+examples/excitable_torus/__pycache__/

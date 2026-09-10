@@ -1,0 +1,46 @@
+dimension :: 2
+axes :: theta,phi
+
+double :: dt = 0.005
+double :: beta = 1.1
+double :: eps = 0.3
+double :: perpendicular = 0.25
+double :: parallel = 1.0
+double :: angle = 0.7853981633974483
+double :: twist = 0.0
+double :: reaction = 1.0
+double :: stimulus = 1.0
+double :: cell = dtheta * dphi
+
+extern function :: sin
+extern function :: cos
+
+begin function (u,v,A_up1_up1,A_up2_up2,A_up1_up2,J,mass,square,active) = init()
+  double [] :: u, v, A_up1_up1, A_up2_up2, A_up1_up2, J, mass, square, active
+  u[i,j] = if stimulus > 0 then if (cos(dphi * j) > (19 / 20)) * (cos(dtheta * i) > 0) * (sin(dphi * j) > 0) then 2 else (-1) * beta else if stimulus < 0 then (-1) * beta else 1 + cos(dphi * j) * sin(dtheta * i)
+  v[i,j] = if stimulus > 0 then if (sin(dphi * j) < 0) * (cos(dphi * j) > (4 / 5)) * (cos(dtheta * i) > 0) then 2 else (-3) * beta + beta**3 else if stimulus < 0 then (-3) * beta + beta**3 else 0
+  A_up1_up1[i,j] = 2 * parallel * cos(angle + twist * sin(dtheta * i))**2 + 2 * perpendicular * sin(angle + twist * sin(dtheta * i))**2 + parallel * cos(angle + twist * sin(dtheta * i))**2 * cos(dtheta * i) + perpendicular * sin(angle + twist * sin(dtheta * i))**2 * cos(dtheta * i)
+  A_up2_up2[i,j] = (perpendicular + (-1) * perpendicular * sin(angle + twist * sin(dtheta * i))**2 + parallel * sin(angle + twist * sin(dtheta * i))**2) / (2 + cos(dtheta * i))
+  A_up1_up2[i,j] = (-1) * perpendicular * cos(angle + twist * sin(dtheta * i)) * sin(angle + twist * sin(dtheta * i)) + parallel * cos(angle + twist * sin(dtheta * i)) * sin(angle + twist * sin(dtheta * i))
+  J[i,j] = 72 + 36 * cos(dtheta * i)
+  mass[i,j] = 36 * cell * cos(dtheta * i) * (if stimulus > 0 then if (cos(dphi * j) > (19 / 20)) * (cos(dtheta * i) > 0) * (sin(dphi * j) > 0) then 2 else (-1) * beta else if stimulus < 0 then (-1) * beta else 1 + cos(dphi * j) * sin(dtheta * i)) + 72 * cell * (if stimulus > 0 then if (cos(dphi * j) > (19 / 20)) * (cos(dtheta * i) > 0) * (sin(dphi * j) > 0) then 2 else (-1) * beta else if stimulus < 0 then (-1) * beta else 1 + cos(dphi * j) * sin(dtheta * i))
+  square[i,j] = 36 * cell * (if stimulus > 0 then if (cos(dphi * j) > (19 / 20)) * (cos(dtheta * i) > 0) * (sin(dphi * j) > 0) then 2 else (-1) * beta else if stimulus < 0 then (-1) * beta else 1 + cos(dphi * j) * sin(dtheta * i))**2 * cos(dtheta * i) + 72 * cell * (if stimulus > 0 then if (cos(dphi * j) > (19 / 20)) * (cos(dtheta * i) > 0) * (sin(dphi * j) > 0) then 2 else (-1) * beta else if stimulus < 0 then (-1) * beta else 1 + cos(dphi * j) * sin(dtheta * i))**2
+  active[i,j] = if stimulus == 0 then if 1 + cos(dphi * j) * sin(dtheta * i) > 0 then 36 * cell * cos(dtheta * i) + 72 * cell else 0 else if (stimulus > 0) * (cos(dphi * j) > (19 / 20)) * (cos(dtheta * i) > 0) * (sin(dphi * j) > 0) then 36 * cell * cos(dtheta * i) + 72 * cell else 0
+end function
+
+begin function (u',v',A_up1_up1',A_up2_up2',A_up1_up2',J',mass',square',active') = step(u,v,A_up1_up1,A_up2_up2,A_up1_up2,J,mass,square,active)
+  double [] :: u', v', A_up1_up1', A_up2_up2', A_up1_up2', J', mass', square', active'
+  p_down1[i,j] = (u[i+1,j] + (-1) * u[i,j]) / dtheta
+  p_down2[i,j] = (u[i,j+1] + (-1) * u[i,j]) / dphi
+  q_up1[i,j] = p_down1[i,j] * ((1 / 2) * A_up1_up1[i,j] + (1 / 2) * A_up1_up1[i+1,j]) + ((1 / 2) * A_up1_up2[i,j] + (1 / 2) * A_up1_up2[i+1,j]) * ((1 / 4) * p_down2[i,j-1] + (1 / 4) * p_down2[i,j] + (1 / 4) * p_down2[i+1,j-1] + (1 / 4) * p_down2[i+1,j])
+  q_up2[i,j] = p_down2[i,j] * ((1 / 2) * A_up2_up2[i,j] + (1 / 2) * A_up2_up2[i,j+1]) + ((1 / 2) * A_up1_up2[i,j] + (1 / 2) * A_up1_up2[i,j+1]) * ((1 / 4) * p_down1[i-1,j] + (1 / 4) * p_down1[i-1,j+1] + (1 / 4) * p_down1[i,j] + (1 / 4) * p_down1[i,j+1])
+  u'[i,j] = u[i,j] + (-1) * dt * reaction * v[i,j] + (-1) * dt * reaction * u[i,j]**3 + 3 * dt * reaction * u[i,j] + dt * (q_up1[i,j] + (-1) * q_up1[i-1,j]) / dtheta * J[i,j]**(-1) + dt * (q_up2[i,j] + (-1) * q_up2[i,j-1]) / dphi * J[i,j]**(-1)
+  v'[i,j] = v[i,j] + beta * dt * eps * reaction + dt * eps * reaction * u[i,j]
+  A_up1_up1'[i,j] = A_up1_up1[i,j]
+  A_up2_up2'[i,j] = A_up2_up2[i,j]
+  A_up1_up2'[i,j] = A_up1_up2[i,j]
+  J'[i,j] = J[i,j]
+  mass'[i,j] = cell * J[i,j] * u'[i,j]
+  square'[i,j] = cell * J[i,j] * u'[i,j]**2
+  active'[i,j] = if u'[i,j] > 0 then cell * J[i,j] else 0
+end function

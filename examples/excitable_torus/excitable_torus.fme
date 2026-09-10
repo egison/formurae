@@ -1,0 +1,51 @@
+-- FitzHugh--Nagumo excitation on a torus. All numerical work is here.
+-- theta circles the tube; phi circles the hole. Both are periodic.
+dimension 2
+axes θ, φ
+metric g
+metric scale [6, (12 + 6 * cos θ)]
+
+param dt = 0.005
+param beta = 1.1
+param eps = 0.3
+param perpendicular = 0.25
+param parallel = 1.0
+param angle = 0.7853981633974483
+param twist = 0.0
+param reaction = 1.0
+param stimulus = 1.0
+param cell = dtheta * dphi
+
+-- n has unit length in the physical metric, not in coordinate components.
+def direction alpha = [| cos alpha / 6, sin alpha / (12 + 6 * cos θ) |]
+def diffusivity alpha = withSymbols [i,j] (perpendicular * g~i~j + (parallel - perpendicular) * (direction alpha)~i * (direction alpha)~j)
+def fluxTheta K~a~b P_c = withSymbols [j] (K~1~j . P_j)
+def fluxPhi K~a~b P_c = withSymbols [j] (K~2~j . P_j)
+
+field u : scalar @ primal
+field v : scalar @ primal
+field A{~i~j} @ collocated
+field J : scalar @ primal
+field mass : scalar @ primal
+field square : scalar @ primal
+field active : scalar @ primal
+
+init:
+  u := if stimulus > 0 then (if sin φ > 0 && cos φ > 0.95 && cos θ > 0 then 2 else -beta) else (if stimulus < 0 then -beta else (1 + sin θ * cos φ))
+  v := if stimulus > 0 then (if sin φ < 0 && cos φ > 0.8 && cos θ > 0 then 2 else -3 * beta + beta^3) else (if stimulus < 0 then -3 * beta + beta^3 else 0)
+  A~i~j := volume * diffusivity (angle + twist * sin θ)
+  J := volume
+  mass := cell * volume * (if stimulus > 0 then (if sin φ > 0 && cos φ > 0.95 && cos θ > 0 then 2 else -beta) else (if stimulus < 0 then -beta else (1 + sin θ * cos φ)))
+  square := cell * volume * (if stimulus > 0 then (if sin φ > 0 && cos φ > 0.95 && cos θ > 0 then 2 else -beta) else (if stimulus < 0 then -beta else (1 + sin θ * cos φ)))^2
+  active := if stimulus == 0 then (if 1 + sin θ * cos φ > 0 then cell * volume else 0) else (if stimulus > 0 && sin φ > 0 && cos φ > 0.95 && cos θ > 0 then cell * volume else 0)
+
+step:
+  local p_i @ primal = [| ∂_θ u, ∂_φ u |]_i
+  local q~i @ primal = [| fluxTheta (resample(A, 1, 0)) (resample(p, 1, 0)), fluxPhi (resample(A, 0, 1)) (resample(p, 0, 1)) |]~i
+  u' = u + dt * ((∂_i q~i) / J + reaction * (3 * u - u^3 - v))
+  v' = v + dt * reaction * eps * (u + beta)
+  A' = A
+  J' = J
+  mass' = cell * J * u'
+  square' = cell * J * u'^2
+  active' = if u' > 0 then cell * J else 0

@@ -34,7 +34,7 @@ FME_EXAMPLES := acoustic3d diffusion1d diffusion2d divergence2d diffusion3d maxw
                 euler_sod highorder4 dirichlet_diffusion elastic3d elastic_spherical \
                 sbp_diffusion1d sbp_wave1d sbp_diffusion2d sbp_highorder4 \
                 sbp_neumann sbp_wave_open \
-                metric_torus metric_sphere hyperbolic polar2d spherical3d yinyang_diffusion mhd_ot lbm_d3q19
+                metric_torus metric_sphere hyperbolic polar2d spherical3d yinyang_diffusion mhd_ot lbm_d3q19 excitable_torus
 
 CHECK_diffusion1d         := diffusion1d_check.c
 CHECK_diffusion2d         := diffusion2d_check.c
@@ -70,6 +70,7 @@ CHECK_yinyang_diffusion   := yy_check.c
 CHECK_mhd_ot              := mhd_check.c
 CHECK_lbm_d3q19           := lbm_check.c
 CHECK_acoustic3d          := ac_check.c
+CHECK_excitable_torus     := driver.c
 
 RUNARGS_pearson3d := 20000
 
@@ -101,6 +102,13 @@ gallery-assets:
 	./gallery/gen.sh
 	python3 gallery/tools/render.py
 	python3 gallery/tools/render_video.py
+
+.PHONY: excitable_torus-demo excitable_torus-verify
+excitable_torus-demo:
+	python3 examples/excitable_torus/run.py --case all --steps 24000 --every 200
+
+excitable_torus-verify:
+	python3 examples/excitable_torus/verify.py
 
 # Kept out of all: yy_check runs the global x/y/z eigenmodes, so the long
 # regression is deliberately opt-in for local/CI endurance testing.
