@@ -1,0 +1,112 @@
+-- Linear elastic waves (velocity-stress form) in a periodic box, written once
+-- for a family of coordinate systems.  The coordinates (x, y, z) are mapped to
+-- physical positions (x + shear * sin (wavenumber * y), y, z): shear = 0 is
+-- Cartesian coordinates, shear > 0 a non-orthogonal chart of the same box
+-- whose grid lines wave sideways.  Both directions stay periodic.
+--
+-- The metric of the map is declared by its components.  Its inverse and its
+-- analytic derivatives are evaluated by Egison at initialization into
+-- coefficient fields, so the time step reads only fields and constants
+-- (temporal blocking requires this).  With lambda = 2, mu = rho0 = 1 the
+-- P-wave speed is 2 and the S-wave speed is 1.
+dimension 3
+axes x, y, z
+metric g
+metric tensor [[1, shear * wavenumber * cos (wavenumber * y), 0], [shear * wavenumber * cos (wavenumber * y), 1 + (shear * wavenumber * cos (wavenumber * y))^2, 0], [0, 0, 1]]
+metric volume 1
+
+param λ = 2.0
+param μ = 1.0
+param ρ0 = 1.0
+param dt = 0.1 * dx
+param shear = 0.0
+param wavenumber = 1.5707963267948966
+param radius = 0.25
+param x0 = 2.0
+param y0 = 2.0
+param z0 = 2.0
+param cell = dx * dy * dz
+extern exp
+extern sqrt
+
+-- physical position along x, and the physical distance from the source
+def physical unused = x + shear * sin (wavenumber * y)
+def distance unused = sqrt ((physical 0 - x0)^2 + (y - y0)^2 + (z - z0)^2)
+def pulse unused = if distance 0 < radius then exp (0 - 2 * (distance 0)^2 / (radius^2 - (distance 0)^2)) else 0
+-- d_k g_ij assembled from the frozen coefficient fields (first index k)
+def dmetric unused = [| DG1_i_j, DG2_i_j, DG3_i_j |]_k_i_j
+def strain V~a = withSymbols [i, j, k] ((GD_i_k . ∂_j V~k + GD_j_k . ∂_i V~k + (dmetric 0)_k_i_j . V~k) / 2)
+def stressRate E_i_j = withSymbols [i, j, k, l] (λ * GU~i~j * (GU~k~l . E_k_l) + 2 * μ * (GU~i~k . GU~j~l . E_k_l))
+def stressDiv S~a~b = withSymbols [i, j, k, l] ((GU~i~k . ∂_j (J * (GD_k_l . S~l~j))) / J - (GU~i~k . (dmetric 0)_k_j_l . S~j~l) / 2)
+-- coordinate-independent diagnostics of a velocity field
+def waveDiv V~a = withSymbols [i] ((∂_i (J * V~i)) / J)
+def waveCurl V~a = withSymbols [i, j, k, l] ((epsilon~i~j~k . ∂_j (GD_k_l . V~l)) / J)
+def norm2 W~a = withSymbols [i, j] (GD_i_j . W~i . W~j)
+def stressNorm S~a~b = withSymbols [i, j, k, l] (GD_i_k . GD_j_l . S~i~j . S~k~l)
+def stressTrace S~a~b = withSymbols [i, j] (GD_i_j . S~i~j)
+
+field v~i @ collocated
+field σ{~i~j} @ collocated
+field GD{_i_j} @ collocated
+field GU{~i~j} @ collocated
+field DG1{_i_j} @ collocated
+field DG2{_i_j} @ collocated
+field DG3{_i_j} @ collocated
+field J : scalar @ collocated
+field far : scalar @ collocated
+field compression : scalar @ collocated
+field shearing : scalar @ collocated
+field energy : scalar @ collocated
+field modified : scalar @ collocated
+field pw : scalar @ collocated
+field pr : scalar @ collocated
+field sw : scalar @ collocated
+field sr : scalar @ collocated
+
+init:
+  v~i := [| pulse 0, 0, 0 |]~i
+  σ~i~j := [| [| 0, 0, 0 |], [| 0, 0, 0 |], [| 0, 0, 0 |] |]~i~j
+  GD_i_j := g_i_j
+  GU~i~j := g~i~j
+  DG1_i_j := ∂/∂ g_i_j x
+  DG2_i_j := ∂/∂ g_i_j y
+  DG3_i_j := ∂/∂ g_i_j z
+  J := volume
+  far := distance 0
+  compression := 0
+  shearing := 0
+  energy := 0
+  modified := 0
+  pw := 0
+  pr := 0
+  sw := 0
+  sr := 0
+
+step:
+  -- velocity Verlet: half velocity, full stress, half velocity
+  local force~i @ collocated = stressDiv σ
+  local half~i @ collocated = v~i + (dt / (2 * ρ0)) * force~i
+  local e{_i_j} @ collocated = strain half
+  local rate{~i~j} @ collocated = stressRate e
+  σ'~i~j = σ~i~j + dt * rate~i~j
+  local nextForce~i @ collocated = stressDiv σ'
+  v'~i = half~i + (dt / (2 * ρ0)) * nextForce~i
+  GD' = GD
+  GU' = GU
+  DG1' = DG1
+  DG2' = DG2
+  DG3' = DG3
+  J' = J
+  far' = far
+  -- diagnostics of the state entering the step: P-wave indicator (divergence),
+  -- S-wave indicator (norm of the curl), elastic energy, the energy that the
+  -- Verlet step preserves, and the moments that locate the P and S shells
+  compression' = waveDiv v
+  local curlv~i @ collocated = waveCurl v
+  shearing' = sqrt (norm2 curlv)
+  energy' = cell * J * (ρ0 * norm2 v / 2 + stressNorm σ / (4 * μ) - λ * (stressTrace σ)^2 / (4 * μ * (3 * λ + 2 * μ)))
+  modified' = energy' - cell * J * dt^2 * norm2 force / (8 * ρ0)
+  pw' = cell * J * compression'^2
+  pr' = pw' * far
+  sw' = cell * J * shearing'^2
+  sr' = sw' * far
