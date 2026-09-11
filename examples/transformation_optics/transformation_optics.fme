@@ -1,9 +1,10 @@
 -- Transformation optics: TE Maxwell (Ez, Bx, By) on a Cartesian Yee grid.
 -- A coordinate map of the plane is realized as an anisotropic material with
 -- mu^{ij} = sqrt(g) g^{ij} and eps_z = sqrt(g), where g is the metric of the
--- map pulled back to the physical plane (Ward and Pendry).  The material is
--- given by its principal values in the polar frame (rhat, phat) and assembled
--- with index notation.  The vacuum reference (Ev, Bv) runs in the same program
+-- map pulled back to the physical plane (Ward and Pendry).  The map is the
+-- only input: Egison differentiates it into the Jacobian, contracts the
+-- Jacobian into the pulled-back metric and divides by the volume element,
+-- all in index notation.  The vacuum reference (Ev, Bv) runs in the same program
 -- so the scattered field is measured inside the generated solver.
 -- z is a dummy periodic axis that carries the Yee (edge/face) placements.
 -- E lives on the dual grid and B, H on the primal grid: H = mu^{-1} B
@@ -35,31 +36,50 @@ param cell = dx * dy
 extern sqrt
 extern exp
 
-def rr unused = sqrt ((x - cx)^2 + (y - cy)^2)
+-- The shifted coordinates are quoted (backquote) so that the CAS keeps them as
+-- atoms: expanding (x - cx)^2 + (y - cy)^2 inside every root and product would
+-- make the differentiation of the maps below take minutes instead of seconds.
+def u unused = `(x - cx)
+def v unused = `(y - cy)
+def rr unused = sqrt ((u 0)^2 + (v 0)^2)
 def shell unused = if rr 0 > R1 && rr 0 < R2 then 1 else 0
 def core unused = if rr 0 < R1 then 1 else 0
--- The solver uses H = mu^{-1} B with mu^{-1}_{ij} = g_{ij} / sqrt(g), so the
--- coefficients below are those of the pulled-back metric g itself.
--- rotator (r, phi) -> (r, phi + twist (R2 - r)/(R2 - R1)): in the polar frame
--- g = [[1 + s^2, s], [s, 1]] with s = r f' = -twist r/(R2 - R1) and det g = 1.
-def shear unused = 0 - twist * rr 0 / (R2 - R1)
--- cloak r' = R2 (r - R1s)/(R2 - R1s) on R1 < r < R2 (R1s < R1 keeps every value finite):
--- g = diag(h'^2, (r'/r)^2), sqrt(g) = h' r'/r, hence mu^{-1} = diag(h' r/r', r'/(h' r))
--- and eps_z = sqrt(g), with h' = R2/(R2 - R1s).
+-- The solver uses H = mu^{-1} B with mu^{-1}_{ij} = g_{ij} / sqrt(g).  Each map
+-- sends a physical point to its image in the virtual (vacuum) plane; it is the
+-- identity outside the shell R1 < r < R2 and is only used inside it.
+-- rotator: (r, phi) -> (r, phi + twist (R2 - r)/(R2 - R1)), a rotation by an angle
+-- that decreases from twist at R1 to zero at R2 (det g = 1, eps_z = 1).
+def angle unused = twist * (R2 - rr 0) / (R2 - R1)
+def rotated unused = [| cx + u 0 * cos (angle 0) - v 0 * sin (angle 0), cy + u 0 * sin (angle 0) + v 0 * cos (angle 0), z |]
+-- cloak: r -> r' = R2 (r - R1s)/(R2 - R1s) with phi unchanged (R1s < R1 keeps every
+-- value finite); sqrt(g) = h' r'/r with h' = R2/(R2 - R1s).
 def stretch unused = R2 / (R2 - R1s)
 def image unused = stretch 0 * (rr 0 - R1s)
-def coefRR unused = 1 + shell 0 * (cloak * (stretch 0 * rr 0 / image 0 - 1) + rotator * (shear 0)^2)
-def coefRP unused = shell 0 * rotator * shear 0
-def coefPP unused = 1 + shell 0 * cloak * (image 0 / (stretch 0 * rr 0) - 1)
-def permittivity unused = 1 + shell 0 * cloak * (stretch 0 * image 0 / rr 0 - 1)
+def stretched unused = [| cx + image 0 * u 0 / rr 0, cy + image 0 * v 0 / rr 0, z |]
+-- the Jacobian J^k_i of each map and its pulled-back metric g_ij = J^k_i J^k_j;
+-- the two maps are differentiated separately so that no product of their terms
+-- appears (the flags rotator and cloak are symbols during normalization)
+def rotatedJacobian unused = withSymbols [k, i] (∂/∂ (rotated 0)~k coordinates~i)
+def rotatedMetric unused = withSymbols [i, j, k] ((rotatedJacobian 0)~k_i . (rotatedJacobian 0)_k_j)
+def stretchedJacobian unused = withSymbols [k, i] (∂/∂ (stretched 0)~k coordinates~i)
+def stretchedMetric unused = withSymbols [i, j, k] ((stretchedJacobian 0)~k_i . (stretchedJacobian 0)_k_j)
+-- sqrt(det g): 1 for the rotator and h' r'/r for the cloak.  This is the one line
+-- written by hand: det g is the square of h' r'/r, but the CAS does not take the
+-- root of a perfect square that contains a square root itself.
+def volumeElement unused = 1 + cloak * (stretch 0 * image 0 / rr 0 - 1)
+def permittivity unused = 1 + shell 0 * (volumeElement 0 - 1)
 def inversePermittivity unused = (1 - core 0 * obstacle) / permittivity 0
+-- mu^{-1}_ij = g_ij / sqrt(g) inside the shell and the identity g^{ij} elsewhere,
+-- one tensor per device; the device is selected in the step by the flags so
+-- that the two maps never meet in one expression during normalization
+def rotatorMaterial unused = withSymbols [i, j] (shell 0 * (rotatedMetric 0)~i~j + (1 - shell 0) * g~i~j)
+def cloakMaterial unused = withSymbols [i, j] (shell 0 * (stretchedMetric 0)~i~j / volumeElement 0 + (1 - shell 0) * g~i~j)
 def pulse unused = exp (0 - ((x - x0) / width)^2) * cos (wavenumber * (x - x0))
 -- the tail of the pulse must not be frozen inside the conductor, where E_z is held at zero
 def masked unused = (1 - core 0 * obstacle) * pulse 0
--- mu^{-1} = A rhat rhat + B (rhat phat + phat rhat) + C phat phat is assembled from
--- the frame vectors and the coefficient fields (which never change in time),
--- then resampled to the placement of each H component and contracted with B.
-def assemble A B C U~a V~b = withSymbols [i, j] (A * U~i * U~j + B * (U~i * V~j + V~i * U~j) + C * V~i * V~j)
+-- The material tensors are frozen into fields at init (they never change in
+-- time); the step selects the device, resamples mu^{-1} to the placement of
+-- each H component and contracts it with B.
 def hx M~a~b V_c = withSymbols [j] (M~1~j . V_j)
 def hy M~a~b V_c = withSymbols [j] (M~2~j . V_j)
 def curlz H_c = ∂_x H_2 - ∂_y H_1
@@ -71,11 +91,8 @@ field B_i @ primal
 field H_i @ primal
 field Ev_i @ dual
 field Bv_i @ primal
-field rh~i @ collocated
-field ph~i @ collocated
-field a : scalar @ collocated
-field b : scalar @ collocated
-field c : scalar @ collocated
+field Mrot{~i~j} @ collocated
+field Mcloak{~i~j} @ collocated
 field epsz : scalar @ collocated
 -- 1/eps_z sampled where E_z lives (the third component of a dual vector), so the
 -- conductor mask stays sharp instead of being interpolated from the nodes
@@ -91,11 +108,8 @@ init:
   H_i := [| 0, 0 - masked 0, 0 |]_i
   Ev_i := [| 0, 0, pulse 0 |]_i
   Bv_i := [| 0, 0 - pulse 0, 0 |]_i
-  rh~i := [| (x - cx) / rr 0, (y - cy) / rr 0, 0 |]~i
-  ph~i := [| 0 - (y - cy) / rr 0, (x - cx) / rr 0, 0 |]~i
-  a := coefRR 0
-  b := coefRP 0
-  c := coefPP 0
+  Mrot~i~j := rotatorMaterial 0
+  Mcloak~i~j := cloakMaterial 0
   epsz := permittivity 0
   ie_i := [| 0, 0, inversePermittivity 0 |]_i
   outside := if rr 0 > R2 + 0.5 then cell else 0
@@ -104,17 +118,14 @@ init:
   energy := 0
 
 step:
-  local Minv{~i~j} @ collocated = assemble a b c rh ph
+  local Minv{~i~j} @ collocated = rotator * Mrot~i~j + cloak * Mcloak~i~j + (1 - rotator - cloak) * g~i~j
   E'_i = [| 0, 0, E_3 + dt * ie_3 * curlz H |]_i
   B' = B - dt * curl E'
   H'_i = [| hx (resample(Minv, 1, 0, 0)) (resample(B', 1, 0, 0)), hy (resample(Minv, 0, 1, 0)) (resample(B', 0, 1, 0)), 0 |]_i
   Ev' = Ev + dt * curl Bv
   Bv' = Bv - dt * curl Ev'
-  rh' = rh
-  ph' = ph
-  a' = a
-  b' = b
-  c' = c
+  Mrot' = Mrot
+  Mcloak' = Mcloak
   epsz' = epsz
   ie' = ie
   outside' = outside

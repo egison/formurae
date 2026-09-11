@@ -60,8 +60,38 @@ def block_size(n, interval):
     return (preferred or choices)[-1]
 
 
+def normalized_source(source):
+    return re.sub(r"^param (\w+) = .*$", r"param \1", source, flags=re.MULTILINE)
+
+
+def normalize(source, cache):
+    """Run formurae-pre, Egison and formurae-post once per parameter-free source.
+
+    Differentiating the two coordinate maps takes Egison a while, and every
+    device and grid of a verification uses the same program up to the
+    parameter values, which are substituted into the generated program.
+    """
+    key = hashlib.sha256(normalized_source(source).encode()).hexdigest()[:16]
+    directory = cache / key
+    fmr = directory / (NAME + ".fmr")
+    if fmr.exists():
+        return fmr
+    directory.mkdir(parents=True, exist_ok=True)
+    model = directory / (NAME + ".fme")
+    model.write_text(source)
+    env = dict(os.environ, EGISON_HEAP_LIMIT=os.environ.get("EGISON_HEAP_LIMIT", "4G"))
+    egison = Path(os.environ.get("EGISON_DIR", ROOT.parent / "egison")).resolve()
+    call(["cabal", "run", "-v0", "formurae-pre", "--", model], directory, "pre",
+         env, directory / (NAME + ".egi"))
+    call([ROOT / "tools/run_formurae_normalization.sh", egison, directory / (NAME + ".egi")],
+         directory, "egison", env, directory / (NAME + ".feir"))
+    call(["cabal", "run", "-v0", "formurae-post", "--", directory / (NAME + ".feir")],
+         directory, "post", env, fmr)
+    return fmr
+
+
 def build(directory, case="rotator", grid=(320, 240), mpi=(1, 1), blocking=4,
-          overrides=None, layers=None):
+          overrides=None, layers=None, cache=None):
     directory = Path(directory).resolve()
     directory.mkdir(parents=True, exist_ok=True)
     source = (HERE / (NAME + ".fme")).read_text()
@@ -74,6 +104,16 @@ def build(directory, case="rotator", grid=(320, 240), mpi=(1, 1), blocking=4,
             raise ValueError("unknown or repeated parameter: " + key)
     model = directory / (NAME + ".fme")
     model.write_text(source)
+    fmr = normalize(source, cache or ROOT / ".build" / NAME / "normalized")
+    program = fmr.read_text()
+    parameters = dict(re.findall(r"^param (\w+) = (.*)$", source, flags=re.MULTILINE))
+    for key, value in parameters.items():
+        program, count = re.subn(r"^double :: " + re.escape(key) + r" = .*$",
+                                 "double :: " + key + " = " + value, program,
+                                 flags=re.MULTILINE)
+        if count != 1:
+            raise ValueError("parameter missing from the generated program: " + key)
+    (directory / (NAME + ".fmr")).write_text(program)
     if any(n % p for n, p in zip(grid, mpi)):
         raise ValueError("grid must divide evenly among MPI ranks")
     # The dummy z axis needs 2*sleeve*interval cells when time blocking is on.
@@ -90,14 +130,8 @@ def build(directory, case="rotator", grid=(320, 240), mpi=(1, 1), blocking=4,
                    "temporal_blocking_interval: " + str(blocking)]
     config += ["reduces: [emax = absmax E_down3, scatter = sum scatter, incident = sum incident, energy = sum energy]"]
     (directory / (NAME + ".yaml")).write_text("\n".join(config) + "\n")
-    env = dict(os.environ, EGISON_HEAP_LIMIT=os.environ.get("EGISON_HEAP_LIMIT", "1G"))
+    env = dict(os.environ, EGISON_HEAP_LIMIT=os.environ.get("EGISON_HEAP_LIMIT", "4G"))
     egison = Path(os.environ.get("EGISON_DIR", ROOT.parent / "egison")).resolve()
-    call(["cabal", "run", "-v0", "formurae-pre", "--", model], directory, "pre",
-         env, directory / (NAME + ".egi"))
-    call([ROOT / "tools/run_formurae_normalization.sh", egison, directory / (NAME + ".egi")],
-         directory, "egison", env, directory / (NAME + ".feir"))
-    call(["cabal", "run", "-v0", "formurae-post", "--", directory / (NAME + ".feir")],
-         directory, "post", env, directory / (NAME + ".fmr"))
     formura = os.environ.get("FORMURA", str(ROOT / "bin/formura"))
     with (directory / "formura.log").open("w") as log:
         subprocess.run([formura, NAME + ".fmr"], cwd=directory,
@@ -113,6 +147,7 @@ def build(directory, case="rotator", grid=(320, 240), mpi=(1, 1), blocking=4,
     parameters = dict(re.findall(r"^param (\w+) = (.*)$", source, flags=re.MULTILINE))
     metadata = {"case": case, "grid": grid, "layers": layers, "mpi": mpi, "blocking": blocking,
                 "parameters": parameters, "source_sha256": hashlib.sha256(source.encode()).hexdigest(),
+                "normalized_source_sha256": hashlib.sha256(normalized_source(source).encode()).hexdigest(),
                 "egison_revision": subprocess.check_output(["git", "-C", str(egison), "rev-parse", "HEAD"], text=True).strip()}
     (directory / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
     return directory

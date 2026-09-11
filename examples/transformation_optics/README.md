@@ -33,23 +33,29 @@ H_i = (\mu^{-1})_{ij} B_j
 (\mu^{-1})_{ij} = g_{ij}/\sqrt{g}
 \]
 
-である．環の中では極座標の正規直交枠 (r̂, φ̂) で g の成分が閉じた形で書ける．
-回転子は g = [[1 + s², s], [s, 1]]（s = r f'(r)，det g = 1，ε_z = 1），
-クロークは g = diag(h'², (r'/r)²)（h' = R2/(R2 − R1')）である．
-本例ではこれらを枠の単位ベクトル r̂, φ̂ と添字記法で組み立てる．
+である．本例では写像そのものだけを書き，物質テンソルは Egison が導く．
 
 ```
-def assemble A B C U~a V~b = withSymbols [i, j] (A * U~i * U~j + B * (U~i * V~j + V~i * U~j) + C * V~i * V~j)
-local Minv{~i~j} @ collocated = assemble a b c rh ph
+def rotated unused = [| cx + u 0 * cos (angle 0) - v 0 * sin (angle 0), cy + u 0 * sin (angle 0) + v 0 * cos (angle 0), z |]
+def rotatedJacobian unused = withSymbols [k, i] (∂/∂ (rotated 0)~k coordinates~i)
+def rotatedMetric unused = withSymbols [i, j, k] ((rotatedJacobian 0)~k_i . (rotatedJacobian 0)_k_j)
+def rotatorMaterial unused = withSymbols [i, j] (shell 0 * (rotatedMetric 0)~i~j + (1 - shell 0) * g~i~j)
 ```
 
-`a`, `b`, `c` は写像から決まる係数場，`rh`, `ph` は init で一度だけ計算する枠ベクトル場である．
+回転子は物理平面の点を，中心のまわりに角 twist (R2 − r)/(R2 − R1) だけ回した点へ送る写像，
+クロークは半径を r' = R2 (r − R1')/(R2 − R1') へ伸ばす写像である．`∂/∂` が写像を微分して
+Jacobian J^k_i を作り，添字記法の縮約 J^k_i J^k_j が引き戻し計量になる．
+手で書くのは体積要素 √g だけである（回転子は 1，クロークは h' r'/r）．det g はこの 2 乗に
+正規化されるが，CAS は平方根を含む完全平方の根を取らないので，ここは閉じた式を与える．
+中心をずらした座標 x − cx, y − cy は backquote で原子として扱う（展開すると微分に数分かかる）．
+二つの装置の計量は別々の場 `Mrot`, `Mcloak` に凍結し，step で旗 `rotator`, `cloak` により選ぶ
+（正規化の途中で二つの写像の式が混ざらないようにするため）．
 Yee 配置では H_x と B_y が別の位置にあるため，`resample`（明示的な線形補間）で
 同じ位置へそろえてから (μ⁻¹)_ij と縮約する．
 
 | 設定 | 装置 | 散乱率（t = 10） | 電磁エネルギーの変動 |
 |---|---|---:|---:|
-| vacuum | なし | 1e-27（機械精度） | 1.6e-4 |
+| vacuum | なし | 1e-32（機械精度） | 1.6e-4 |
 | obstacle | 裸の導体円柱 | 0.44 | 1.3e-3 |
 | cloak | 打ち切りクローク（R1' = 0.9 R1） | 0.15 | 7e-4 |
 | rotator | 四分の一回転の回転子 | 0.009 | 6e-4 |

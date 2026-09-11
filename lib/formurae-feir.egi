@@ -856,7 +856,10 @@ def FEIR.encodeFactor
                        FEIR.encodeApply parameters coordinates fields intrinsics analytics
                          (mathFunctionName functionValue)
                          [argument1, argument2, argument3, argument4]
-                   | quote _ -> FEIR.unsupportedScalar "quote is not part of FEIR v1"
+                   -- A quote only suppresses CAS rewriting; the FEIR carries
+                   -- the quoted expression itself.
+                   | quote $body ->
+                       FEIR.encodeScalar parameters coordinates fields intrinsics analytics body
                    | symbol $name _ ->
                        FEIR.unsupportedScalar (S.append "unregistered symbol: " name)
                    | _ -> FEIR.unsupportedScalar "unknown CAS factor"
@@ -957,7 +960,8 @@ def FEIR.encodeScalar
                         in if denominator = 1
                              then numeratorNF
                              else FEIR.divNode numeratorNF denominatorNF
-                   | quote _ -> FEIR.unsupportedScalar "quote is not part of FEIR v1"
+                   | quote $body ->
+                       FEIR.encodeScalar parameters coordinates fields intrinsics analytics body
                    | _ -> FEIR.unsupportedScalar "unsupported MathValue shape"
 
 -- ---------------------------------------------------------- tensor encoder

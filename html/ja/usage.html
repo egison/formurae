@@ -424,6 +424,11 @@ staggered/yee側のm階則は<b>精度2kの1階半整数stageのm重自己合成
 bypassします。単発のクォート<code>`(∂_x e)</code>は素の<code>∂_x e</code>と
 同義になるためエラーです。</p>
 
+<p>解析的な式の中のバッククォート（<code>`(x - cx)</code> など、格子微分を含まないもの）は
+Egison への指示で、くくった部分式を展開せずに一つの原子として扱います。生成されるプログラムには
+中身の式がそのまま入ります。座標変換の写像を <code>∂/∂</code> で微分するとき、中心をずらした座標を
+原子にしておくと正規化が数分から 1 分程度になります（<code>examples/transformation_optics</code>）。</p>
+
 <h3>boundary宣言 — SBP境界閉包(幅は演算子、境界は宣言)</h3>
 
 <pre>boundary x : sbp                   <span class="c">-- 物理境界: x軸の全微分がSBP閉包つきに</span>

@@ -8,6 +8,10 @@
   declared by their components (non-orthogonal coordinates).
 - Add the nematic liquid crystal on a torus and transformation optics examples,
   and the sheared-chart version of the excitable torus example.
+- Let quoted (backquoted) atoms pass through the FEIR encoder: a quote only
+  guides the CAS, so init and step expressions may use them.  The
+  transformation optics example derives its material tensors from the
+  coordinate maps with `∂/∂` and index contraction.
 
 ## 0.1.0.0
 

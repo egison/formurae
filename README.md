@@ -157,6 +157,11 @@ compact 5点stencilをexact rational coefficientで導出します。一階wide 
 `(∂_y (`(∂_x (`(∂_x q))))  -- x, x, yの順に適用
 ```
 
+解析的な式の中のbackquoteはEgisonへの指示で、くくった部分式を展開せずに一つの原子として扱います。
+生成されるプログラムには中身の式がそのまま入ります。座標変換の写像を`∂/∂`で微分するときに
+`` `(x - cx) ``のように中心をずらした座標を原子にしておくと、正規化が数分から1分程度になります
+（`examples/transformation_optics`）。
+
 配置変換を意図的に行う場合の明示surfaceは`resample`です。
 
 ```formurae

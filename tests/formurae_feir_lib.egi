@@ -68,6 +68,17 @@ assertEqual "FEIR registered parameter and coordinate IDs"
 
 def feirQuotedPolynomial := `(x + 1)
 
+-- A quote only guides the CAS; the encoder carries the quoted expression,
+-- keeping the structure the CAS left unexpanded (a power of the atom stays
+-- a power in the FEIR instead of the expanded polynomial).
+assertEqual "FEIR encodes a quoted atom as its body"
+  ( FEIR.render (encodeScalarFixture feirQuotedPolynomial)
+  , FEIR.render (encodeScalarFixture (feirQuotedPolynomial ^ 2 * y))
+  , FEIR.render (encodeScalarFixture (sin feirQuotedPolynomial)) )
+  ( "(add (coordinate 1) (exact 1 1))"
+  , "(mul (coordinate 2) (pow (add (coordinate 1) (exact 1 1)) (exact 2 1)))"
+  , "(intrinsic 1 ((add (coordinate 1) (exact 1 1))))" )
+
 assertEqual "FEIR final-boundary unquote is structural"
   ( FEIR.unquoteAll feirQuotedPolynomial
   , FEIR.unquoteAll (feirQuotedPolynomial ^ 2 * y)

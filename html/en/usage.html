@@ -440,6 +440,12 @@ order and repetitions as-is in a single opaque request (no Schwarz canonicalizat
 the model profile. A single quote <code>`(∂_x e)</code> would be synonymous with the bare <code>∂_x e</code>
 and is therefore an error.</p>
 
+<p>A backquote inside an analytic expression (one without grid derivatives, such as <code>`(x - cx)</code>)
+is an instruction to Egison: the quoted subexpression is kept as one atom instead of being expanded, and the
+generated program contains the expression itself. When a coordinate map is differentiated with <code>∂/∂</code>,
+quoting the shifted coordinates brings the normalization from minutes down to about one minute
+(<code>examples/transformation_optics</code>).</p>
+
 <h3>boundary declarations — SBP boundary closures (the width belongs to the operator, the boundary to the declaration)</h3>
 
 <pre>boundary x : sbp                   <span class="c">-- physical boundary: every x derivative gets its SBP closure</span>
