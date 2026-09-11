@@ -8256,8 +8256,8 @@ def main (args: [String]) : IO () := print (FEIR.render feProgram)</pre></detail
     破線円の半径は c<sub>P</sub>t と c<sub>S</sub>t、細線は 16 本ごとの格子線を物理位置に描いたもので、下段は同じ波が波打つ格子の上に現れます。
     第 3 列は構成関数に 1 項 αn<sup>i</sup>n<sup>j</sup>n<sup>k</sup>n<sup>l</sup>e<sub>kl</sub>（α = 3、n = (1,1,0)/√2）を加えたもので、両方の波面が n に沿って伸びます。</div>
   <div class="math">e<sub>ij</sub> = ½(g<sub>ik</sub>∂<sub>j</sub>v<sup>k</sup> + g<sub>jk</sub>∂<sub>i</sub>v<sup>k</sup> + (∂<sub>k</sub>g<sub>ij</sub>)v<sup>k</sup>)，
-    (𝒟σ)<sup>i</sup> = (g<sup>ik</sup>/J)∂<sub>j</sub>(Jg<sub>kl</sub>σ<sup>lj</sup>) − ½g<sup>ik</sup>(∂<sub>k</sub>g<sub>jl</sub>)σ<sup>jl</sup>，
-    𝒞(e)<sup>ij</sup> = λg<sup>ij</sup>g<sup>kl</sup>e<sub>kl</sub> + 2μg<sup>ik</sup>g<sup>jl</sup>e<sub>kl</sub><br>
+    ∇<sub>j</sub>σ<sup>ij</sup> = (g<sup>ik</sup>/J)∂<sub>j</sub>(Jg<sub>kl</sub>σ<sup>lj</sup>) − ½g<sup>ik</sup>(∂<sub>k</sub>g<sub>jl</sub>)σ<sup>jl</sup>，
+    ∂<sub>t</sub>σ<sup>ij</sup> = C<sup>ijkl</sup>e<sub>kl</sub>，C<sup>ijkl</sup> = λg<sup>ij</sup>g<sup>kl</sup> + μ(g<sup>ik</sup>g<sup>jl</sup> + g<sup>il</sup>g<sup>jk</sup>)<br>
     <span class="note">座標 (x, y, z) は物理位置 (x + s sin(2πy/L), y, z) に写します。計量は [[1, c, 0], [c, 1+c², 0], [0, 0, 1]]、
     c = s(2π/L)cos(2πy/L)、det g = 1 で、二つの座標系の間で変わるのはパラメータ <code>shear</code> = s だけです。</span></div>
   <p class="description">計量・逆計量・計量の解析微分は、Egison が宣言から初期化時に係数場へ評価します。時間ステップは格納された場と定数だけを読むので、
