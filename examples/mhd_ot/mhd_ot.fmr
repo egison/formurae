@@ -23,6 +23,7 @@ begin function (rho,mx,my,mz,bx,by,bz,en) = init()
 end function
 
 begin function (rho',mx',my',mz',bx',by',bz',en') = step(rho,mx,my,mz,bx,by,bz,en)
+  double [] :: rho', mx', my', mz', bx', by', bz', en'
   pt[i,j,k] = (-1) * en[i,j,k] + (-1 / 2) * gam * bx[i,j,k]**2 + (-1 / 2) * gam * by[i,j,k]**2 + (-1 / 2) * gam * bz[i,j,k]**2 + (-1 / 2) * gam * mx[i,j,k]**2 * rho[i,j,k]**(-1) + (-1 / 2) * gam * my[i,j,k]**2 * rho[i,j,k]**(-1) + (-1 / 2) * gam * mz[i,j,k]**2 * rho[i,j,k]**(-1) + (1 / 2) * mx[i,j,k]**2 * rho[i,j,k]**(-1) + (1 / 2) * my[i,j,k]**2 * rho[i,j,k]**(-1) + (1 / 2) * mz[i,j,k]**2 * rho[i,j,k]**(-1) + gam * en[i,j,k] + bx[i,j,k]**2 + by[i,j,k]**2 + bz[i,j,k]**2
   fmx1[i,j,k] = pt[i,j,k] + (-1) * bx[i,j,k]**2 + mx[i,j,k]**2 * rho[i,j,k]**(-1)
   fmx2[i,j,k] = (-1) * bx[i,j,k] * by[i,j,k] + mx[i,j,k] * my[i,j,k] * rho[i,j,k]**(-1)

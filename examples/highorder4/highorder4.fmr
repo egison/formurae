@@ -12,5 +12,6 @@ begin function u = init()
 end function
 
 begin function u' = step(u)
+  double [] :: u'
   u'[i,j,k] = u[i,j,k] + dt * kappa * ((-5 / 2) * u[i,j,k] + (-1 / 12) * u[i-2,j,k] + (-1 / 12) * u[i+2,j,k] + (4 / 3) * u[i-1,j,k] + (4 / 3) * u[i+1,j,k]) / dx**2 + dt * kappa * ((-5 / 2) * u[i,j,k] + (-1 / 12) * u[i,j-2,k] + (-1 / 12) * u[i,j+2,k] + (4 / 3) * u[i,j-1,k] + (4 / 3) * u[i,j+1,k]) / dy**2 + dt * kappa * ((-5 / 2) * u[i,j,k] + (-1 / 12) * u[i,j,k-2] + (-1 / 12) * u[i,j,k+2] + (4 / 3) * u[i,j,k-1] + (4 / 3) * u[i,j,k+1]) / dz**2
 end function

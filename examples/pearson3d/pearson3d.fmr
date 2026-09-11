@@ -18,6 +18,7 @@ begin function (U,V) = init()
 end function
 
 begin function (U',V') = step(U,V)
+  double [] :: U', V'
   U'[i,j,k] = U[i,j,k] + (-1) * Fe * dt * U[i,j,k] * V[i,j,k]**2 + (-1) * Fu * dt * U[i,j,k] + Du * dt * (U[i-1,j,k] + U[i+1,j,k] + (-2) * U[i,j,k]) / dx**2 + Du * dt * (U[i,j-1,k] + U[i,j+1,k] + (-2) * U[i,j,k]) / dy**2 + Du * dt * (U[i,j,k-1] + U[i,j,k+1] + (-2) * U[i,j,k]) / dz**2 + Fu * dt
   V'[i,j,k] = V[i,j,k] + (-1) * Fv * dt * V[i,j,k] + Dv * dt * (V[i-1,j,k] + V[i+1,j,k] + (-2) * V[i,j,k]) / dx**2 + Dv * dt * (V[i,j-1,k] + V[i,j+1,k] + (-2) * V[i,j,k]) / dy**2 + Dv * dt * (V[i,j,k-1] + V[i,j,k+1] + (-2) * V[i,j,k]) / dz**2 + Fe * dt * U[i,j,k] * V[i,j,k]**2
 end function

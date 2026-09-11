@@ -17,6 +17,7 @@ begin function (p,v_down1,v_down2,v_down3) = init()
 end function
 
 begin function (p',v_down1',v_down2',v_down3') = step(p,v_down1,v_down2,v_down3)
+  double [] :: p', v_down1', v_down2', v_down3'
   v_down1'[i,j,k] = v_down1[i,j,k] + (-1) * dt * (p[i+1,j,k] + (-1) * p[i,j,k]) / dx * rho0**(-1)
   v_down2'[i,j,k] = v_down2[i,j,k] + (-1) * dt * (p[i,j+1,k] + (-1) * p[i,j,k]) / dy * rho0**(-1)
   v_down3'[i,j,k] = v_down3[i,j,k] + (-1) * dt * (p[i,j,k+1] + (-1) * p[i,j,k]) / dz * rho0**(-1)

@@ -17,6 +17,7 @@ begin function (E_1,E_2,E_3,B_1_2,B_1_3,B_2_3) = init()
 end function
 
 begin function (E_1',E_2',E_3',B_1_2',B_1_3',B_2_3') = step(E_1,E_2,E_3,B_1_2,B_1_3,B_2_3)
+  double [] :: E_1', E_2', E_3', B_1_2', B_1_3', B_2_3'
   E_1'[i,j,k] = E_1[i,j,k] + dt * (B_1_2[i,j,k] + (-1) * B_1_2[i,j-1,k]) / dy + dt * (B_1_3[i,j,k] + (-1) * B_1_3[i,j,k-1]) / dz
   E_2'[i,j,k] = E_2[i,j,k] + (-1) * dt * (B_1_2[i,j,k] + (-1) * B_1_2[i-1,j,k]) / dx + dt * (B_2_3[i,j,k] + (-1) * B_2_3[i,j,k-1]) / dz
   E_3'[i,j,k] = E_3[i,j,k] + (-1) * dt * (B_1_3[i,j,k] + (-1) * B_1_3[i-1,j,k]) / dx + (-1) * dt * (B_2_3[i,j,k] + (-1) * B_2_3[i,j-1,k]) / dy

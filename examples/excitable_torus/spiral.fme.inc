@@ -16,10 +16,10 @@ def crossing ax ay bx by = if ay >= 0 && by < 0 && ax * by - bx * ay > 0 then 1 
 -- the Ricci scalar of the torus metric (twice the Gaussian curvature) and its theta-derivative, from the same metric
 def christoffel unused = withSymbols [i, j, k, l] ((g~i~l . (∂/∂ g_l_k coordinates~j + ∂/∂ g_l_j coordinates~k - ∂/∂ g_j_k coordinates~l)) / 2)
 def riemann unused = withSymbols [i, j, k, l, m] (∂/∂ (christoffel 0)~i_j_l coordinates~k - ∂/∂ (christoffel 0)~i_j_k coordinates~l + (christoffel 0)~m_j_l . (christoffel 0)~i_m_k - (christoffel 0)~m_j_k . (christoffel 0)~i_m_l)
--- Egison appends the index of the differentiation variable after the indices of the
--- differentiated tensor, so riemann carries its indices in the order i, j, l, k;
--- the Ricci tensor R_ij = R^m_imj therefore contracts the first index with the fourth.
-def ricciTensor unused = withSymbols [i, j, m] (contractWith (+) (riemann 0)~m_i_j_m)
+-- withSymbols orders the indices of its result as the symbols are listed, so riemann
+-- carries its indices in the order i, j, k, l and the Ricci tensor R_ij = R^m_imj
+-- contracts the first index with the third.
+def ricciTensor unused = withSymbols [i, j, m] (contractWith (+) (riemann 0)~m_i_m_j)
 def ricci unused = withSymbols [i, j] (g~i~j . (ricciTensor 0)_i_j)
 field winding : scalar @ primal
 field tipPlus : scalar @ primal

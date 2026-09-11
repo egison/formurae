@@ -16,6 +16,7 @@ begin function (rho,mx,en) = init()
 end function
 
 begin function (rho',mx',en') = step(rho,mx,en)
+  double [] :: rho', mx', en'
   pr[i,j,k] = (-1 / 5) * mx[i,j,k]**2 * rho[i,j,k]**(-1) + (2 / 5) * en[i,j,k]
   fm[i,j,k] = pr[i,j,k] + mx[i,j,k]**2 * rho[i,j,k]**(-1)
   fe[i,j,k] = en[i,j,k] * mx[i,j,k] * rho[i,j,k]**(-1) + mx[i,j,k] * pr[i,j,k] * rho[i,j,k]**(-1)

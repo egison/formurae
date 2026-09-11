@@ -13,6 +13,7 @@ begin function u = init()
 end function
 
 begin function u' = step(u)
+  double [] :: u'
   q_down1[i,j] = (-1) * kappa * (u[i+1,j] + (-1) * u[i,j]) / dx
   q_down2[i,j] = (-1) * kappa * (u[i,j+1] + (-1) * u[i,j]) / dy
   u'[i,j] = u[i,j] + (-1) * dt * (q_down1[i,j] + (-1) * q_down1[i-1,j]) / dx + (-1) * dt * (q_down2[i,j] + (-1) * q_down2[i,j-1]) / dy

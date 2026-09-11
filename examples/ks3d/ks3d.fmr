@@ -12,6 +12,7 @@ begin function u = init()
 end function
 
 begin function u' = step(u)
+  double [] :: u'
   w[i,j,k] = (u[i-1,j,k] + u[i+1,j,k] + (-2) * u[i,j,k]) / dx**2
   u'[i,j,k] = u[i,j,k] + (-1) * dt * w[i,j,k] + (-1) * dt * (w[i-1,j,k] + w[i+1,j,k] + (-2) * w[i,j,k]) / dx**2 + (-1) * dt * ((-1 / 4) * u[i-1,j,k]**2 + (1 / 4) * u[i+1,j,k]**2) / dx
 end function

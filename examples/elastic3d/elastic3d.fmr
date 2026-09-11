@@ -24,6 +24,7 @@ begin function (v_up1,v_up2,v_up3,sigma_up1_up1,sigma_up2_up2,sigma_up3_up3,sigm
 end function
 
 begin function (v_up1',v_up2',v_up3',sigma_up1_up1',sigma_up2_up2',sigma_up3_up3',sigma_up1_up2',sigma_up1_up3',sigma_up2_up3') = step(v_up1,v_up2,v_up3,sigma_up1_up1,sigma_up2_up2,sigma_up3_up3,sigma_up1_up2,sigma_up1_up3,sigma_up2_up3)
+  double [] :: v_up1', v_up2', v_up3', sigma_up1_up1', sigma_up2_up2', sigma_up3_up3', sigma_up1_up2', sigma_up1_up3', sigma_up2_up3'
   v_up1'[i,j,k] = v_up1[i,j,k] + dt * (sigma_up1_up1[i+1,j,k] + (-1) * sigma_up1_up1[i,j,k]) / dx * rho0**(-1) + dt * (sigma_up1_up2[i,j,k] + (-1) * sigma_up1_up2[i,j-1,k]) / dy * rho0**(-1) + dt * (sigma_up1_up3[i,j,k] + (-1) * sigma_up1_up3[i,j,k-1]) / dz * rho0**(-1)
   v_up2'[i,j,k] = v_up2[i,j,k] + dt * (sigma_up1_up2[i,j,k] + (-1) * sigma_up1_up2[i-1,j,k]) / dx * rho0**(-1) + dt * (sigma_up2_up2[i,j+1,k] + (-1) * sigma_up2_up2[i,j,k]) / dy * rho0**(-1) + dt * (sigma_up2_up3[i,j,k] + (-1) * sigma_up2_up3[i,j,k-1]) / dz * rho0**(-1)
   v_up3'[i,j,k] = v_up3[i,j,k] + dt * (sigma_up1_up3[i,j,k] + (-1) * sigma_up1_up3[i-1,j,k]) / dx * rho0**(-1) + dt * (sigma_up2_up3[i,j,k] + (-1) * sigma_up2_up3[i,j-1,k]) / dy * rho0**(-1) + dt * (sigma_up3_up3[i,j,k+1] + (-1) * sigma_up3_up3[i,j,k]) / dz * rho0**(-1)

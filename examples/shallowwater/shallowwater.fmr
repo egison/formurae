@@ -15,6 +15,7 @@ begin function (h,mx,my) = init()
 end function
 
 begin function (h',mx',my') = step(h,mx,my)
+  double [] :: h', mx', my'
   fmxx[i,j,k] = (1 / 2) * g * h[i,j,k]**2 + h[i,j,k]**(-1) * mx[i,j,k]**2
   fmxy[i,j,k] = mx[i,j,k] * my[i,j,k] * h[i,j,k]**(-1)
   fmyy[i,j,k] = (1 / 2) * g * h[i,j,k]**2 + h[i,j,k]**(-1) * my[i,j,k]**2

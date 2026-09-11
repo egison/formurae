@@ -16,6 +16,7 @@ begin function (u,deltaCoeff_1,deltaCoeff_2,deltaCoeff_3) = init()
 end function
 
 begin function (u',deltaCoeff_1',deltaCoeff_2',deltaCoeff_3') = step(u,deltaCoeff_1,deltaCoeff_2,deltaCoeff_3)
+  double [] :: u', deltaCoeff_1', deltaCoeff_2', deltaCoeff_3'
   deltaCoeff_1'[i,j,k] = deltaCoeff_1[i,j,k]
   deltaCoeff_2'[i,j,k] = deltaCoeff_2[i,j,k]
   deltaCoeff_3'[i,j,k] = deltaCoeff_3[i,j,k]

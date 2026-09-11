@@ -15,6 +15,7 @@ begin function (phi,w) = init()
 end function
 
 begin function (phi',w') = step(phi,w)
+  double [] :: phi', w'
   w'[i,j,k] = w[i,j,k] + (-1) * dt * phi[i,j,k]**3 + dt * phi[i,j,k] + dt * (phi[i-1,j,k] + phi[i+1,j,k] + (-2) * phi[i,j,k]) / dx**2
   phi'[i,j,k] = phi[i,j,k] + dt * w'[i,j,k]
 end function
