@@ -8261,8 +8261,8 @@ def main (args: [String]) : IO () := print (FEIR.render feProgram)</pre></detail
     drawn at their physical positions, so the bottom row shows the same waves over a wavy grid. The third column adds one term
     αn<sup>i</sup>n<sup>j</sup>n<sup>k</sup>n<sup>l</sup>e<sub>kl</sub> (α = 3, n = (1,1,0)/√2) to the constitutive function and stretches both fronts along n.</div>
   <div class="math">e<sub>ij</sub> = ½(g<sub>ik</sub>∂<sub>j</sub>v<sup>k</sup> + g<sub>jk</sub>∂<sub>i</sub>v<sup>k</sup> + (∂<sub>k</sub>g<sub>ij</sub>)v<sup>k</sup>),&nbsp;
-    (𝒟σ)<sup>i</sup> = (g<sup>ik</sup>/J)∂<sub>j</sub>(Jg<sub>kl</sub>σ<sup>lj</sup>) − ½g<sup>ik</sup>(∂<sub>k</sub>g<sub>jl</sub>)σ<sup>jl</sup>,&nbsp;
-    𝒞(e)<sup>ij</sup> = λg<sup>ij</sup>g<sup>kl</sup>e<sub>kl</sub> + 2μg<sup>ik</sup>g<sup>jl</sup>e<sub>kl</sub><br>
+    ∇<sub>j</sub>σ<sup>ij</sup> = (g<sup>ik</sup>/J)∂<sub>j</sub>(Jg<sub>kl</sub>σ<sup>lj</sup>) − ½g<sup>ik</sup>(∂<sub>k</sub>g<sub>jl</sub>)σ<sup>jl</sup>,&nbsp;
+    ∂<sub>t</sub>σ<sup>ij</sup> = C<sup>ijkl</sup>e<sub>kl</sub>,&nbsp; C<sup>ijkl</sup> = λg<sup>ij</sup>g<sup>kl</sup> + μ(g<sup>ik</sup>g<sup>jl</sup> + g<sup>il</sup>g<sup>jk</sup>)<br>
     <span class="note">Coordinates (x, y, z) are mapped to (x + s sin(2πy/L), y, z); the metric is [[1, c, 0], [c, 1+c², 0], [0, 0, 1]] with
     c = s(2π/L)cos(2πy/L) and det g = 1. Only the parameter <code>shear</code> = s changes between the two coordinate systems.</span></div>
   <p class="description">The metric, its inverse and its analytic derivatives are evaluated by Egison from the declaration at initialization into coefficient fields,

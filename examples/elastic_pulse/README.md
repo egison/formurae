@@ -16,11 +16,12 @@ $\lambda=2$，$\mu=\rho_0=1$ なので P 波の速さは 2，S 波の速さは 1
 
 \[
 e_{ij}=\tfrac12\bigl(g_{ik}\partial_jv^k+g_{jk}\partial_iv^k+(\partial_kg_{ij})v^k\bigr),\qquad
-(\mathcal D\sigma)^i=\frac{g^{ik}}{J}\partial_j(Jg_{k\ell}\sigma^{\ell j})-\tfrac12g^{ik}(\partial_kg_{j\ell})\sigma^{j\ell}
+\nabla_j\sigma^{ij}=\frac{g^{ik}}{J}\partial_j(Jg_{k\ell}\sigma^{\ell j})-\tfrac12g^{ik}(\partial_kg_{j\ell})\sigma^{j\ell}
 \]
 
-がひずみ速度と応力の発散，$\mathcal C(e)^{ij}=\lambda g^{ij}g^{k\ell}e_{k\ell}+2\mu g^{ik}g^{j\ell}e_{k\ell}$ が
-等方な構成則である．$\partial_tv=\mathcal D\sigma/\rho_0$，$\partial_t\sigma=\mathcal C(e(v))$ を
+がひずみ速度（共変な速度勾配の対称部分）と応力の共変発散，
+$\partial_t\sigma^{ij}=C^{ijk\ell}e_{k\ell}$，$C^{ijk\ell}=\lambda g^{ij}g^{k\ell}+\mu(g^{ik}g^{j\ell}+g^{i\ell}g^{jk})$ が
+等方な構成則（速度形の Hooke 則）である．$\rho_0\partial_tv^i=\nabla_j\sigma^{ij}$，$\partial_t\sigma^{ij}=C^{ijk\ell}e_{k\ell}(v)$ を
 速度 Verlet 法（速度半ステップ・応力 1 ステップ・速度半ステップ）で進める．
 
 座標 $(x,y,z)$ は物理位置 $(x+s\sin(2\pi y/L),\,y,\,z)$ に写す．$s=0$ が直交座標，
