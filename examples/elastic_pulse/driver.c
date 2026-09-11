@@ -77,9 +77,9 @@ static void dump(Formura_Navi n, const char *directory, int full) {
 
 static int report(Formura_Navi n) {
   if (n.my_rank == 0) {
-    printf("%d,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g", n.time_step, n.reduce_energy,
-           n.reduce_modified, n.reduce_pw, n.reduce_pr, n.reduce_sw, n.reduce_sr,
-           n.reduce_vmax);
+    printf("%d,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g", n.time_step,
+           n.reduce_energy, n.reduce_modified, n.reduce_pw, n.reduce_pr, n.reduce_sw,
+           n.reduce_sr, n.reduce_pfront, n.reduce_sfront, n.reduce_vmax);
 #ifdef ACCURACY
     printf(",%.17g,%.17g", n.reduce_err, n.reduce_ref);
 #endif
@@ -103,7 +103,7 @@ int main(int argc, char **argv) {
   Formura_Navi n;
   Formura_Init(&argc, &argv, &n);
   if (n.my_rank == 0) {
-    printf("step,energy,modified,pw,pr,sw,sr,vmax");
+    printf("step,energy,modified,pw,pr,sw,sr,pfront,sfront,vmax");
 #ifdef ACCURACY
     printf(",err,ref");
 #endif

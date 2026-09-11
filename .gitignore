@@ -89,3 +89,6 @@ examples/nematic_torus/__pycache__/
 examples/transformation_optics/transformation_optics.c
 examples/transformation_optics/transformation_optics.h
 examples/transformation_optics/__pycache__/
+examples/elastic_pulse/elastic_pulse.c
+examples/elastic_pulse/elastic_pulse.h
+examples/elastic_pulse/__pycache__/

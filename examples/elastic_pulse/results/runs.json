@@ -1,0 +1,252 @@
+{
+  "runs": {
+    "cartesian": {
+      "metadata": {
+        "case": "cartesian",
+        "source": "elastic_pulse.fme",
+        "grid": [
+          128,
+          128,
+          128
+        ],
+        "mpi": [
+          1,
+          2,
+          1
+        ],
+        "blocking": 0,
+        "fresh": true,
+        "parameters": {
+          "\u03bb": "2.0",
+          "\u03bc": "1.0",
+          "\u03c10": "1.0",
+          "dt": "0.1 * dx",
+          "shear": "0.0",
+          "wavenumber": "1.5707963267948966",
+          "radius": "0.25",
+          "x0": "2.0",
+          "y0": "2.0",
+          "z0": "2.0",
+          "cell": "dx * dy * dz",
+          "front": "0.0001"
+        },
+        "source_sha256": "356d9de910c041a7f0cb2f8e3041a36f4c4ef5c8f4c9e22fd191c0cb7ebeb6d9",
+        "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+        "steps": 256,
+        "output_interval": 16,
+        "mpi_environment": {
+          "HWLOC_SYNTHETIC": "node:1 core:10 pu:1",
+          "MPIRUN_ARGS": "--bind-to none"
+        }
+      },
+      "stats_sha256": "3119d63d07744e48842963033916fb9c5dc323b5729308ead93e9987d0c92ce6",
+      "p_speed": 1.860769705846803,
+      "s_speed": 0.9596402860413951,
+      "energy_band": [
+        0.9997470592852727,
+        1.0
+      ],
+      "modified_energy_relative_drift": 3.8862219729785057e-13
+    },
+    "sheared": {
+      "metadata": {
+        "case": "sheared",
+        "source": "elastic_pulse.fme",
+        "grid": [
+          128,
+          128,
+          128
+        ],
+        "mpi": [
+          1,
+          2,
+          1
+        ],
+        "blocking": 0,
+        "fresh": true,
+        "parameters": {
+          "\u03bb": "2.0",
+          "\u03bc": "1.0",
+          "\u03c10": "1.0",
+          "dt": "0.1 * dx",
+          "shear": "0.3",
+          "wavenumber": "1.5707963267948966",
+          "radius": "0.25",
+          "x0": "2.0",
+          "y0": "2.0",
+          "z0": "2.0",
+          "cell": "dx * dy * dz",
+          "front": "0.0001"
+        },
+        "source_sha256": "4a6b2f6c3b2b28af6f08a3b048f680baaf50ab4fc84f735e1c24611113051819",
+        "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+        "steps": 256,
+        "output_interval": 16,
+        "mpi_environment": {
+          "HWLOC_SYNTHETIC": "node:1 core:10 pu:1",
+          "MPIRUN_ARGS": "--bind-to none"
+        }
+      },
+      "stats_sha256": "10de893e08e12b714294f22e431d953c1f6b5b410766fb60c7119546e127becf",
+      "p_speed": 1.8608484239780354,
+      "s_speed": 0.9514171401914508,
+      "energy_band": [
+        0.9997463608668592,
+        1.0
+      ],
+      "modified_energy_relative_drift": 4.005073754727136e-13
+    },
+    "cartesian-anisotropic": {
+      "metadata": {
+        "case": "cartesian",
+        "source": "elastic_pulse_anisotropic.fme",
+        "grid": [
+          128,
+          128,
+          128
+        ],
+        "mpi": [
+          1,
+          2,
+          1
+        ],
+        "blocking": 0,
+        "fresh": true,
+        "parameters": {
+          "\u03bb": "2.0",
+          "\u03bc": "1.0",
+          "\u03c10": "1.0",
+          "dt": "0.1 * dx",
+          "shear": "0.0",
+          "wavenumber": "1.5707963267948966",
+          "radius": "0.25",
+          "x0": "2.0",
+          "y0": "2.0",
+          "z0": "2.0",
+          "cell": "dx * dy * dz",
+          "front": "0.0001",
+          "alpha": "3.0"
+        },
+        "source_sha256": "37531297274f6d8d65fa84a38ccd17b0a114aa90b91739a5c1655085088f9da7",
+        "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+        "steps": 256,
+        "output_interval": 16,
+        "mpi_environment": {
+          "HWLOC_SYNTHETIC": "node:1 core:10 pu:1",
+          "MPIRUN_ARGS": "--bind-to none"
+        }
+      },
+      "stats_sha256": "3787a04c921ed282052ba361b8b86e80399ec8d81bc45d89016c4c3bbf16a1ec"
+    },
+    "sheared-anisotropic": {
+      "metadata": {
+        "case": "sheared",
+        "source": "elastic_pulse_anisotropic.fme",
+        "grid": [
+          128,
+          128,
+          128
+        ],
+        "mpi": [
+          1,
+          2,
+          1
+        ],
+        "blocking": 0,
+        "fresh": true,
+        "parameters": {
+          "\u03bb": "2.0",
+          "\u03bc": "1.0",
+          "\u03c10": "1.0",
+          "dt": "0.1 * dx",
+          "shear": "0.3",
+          "wavenumber": "1.5707963267948966",
+          "radius": "0.25",
+          "x0": "2.0",
+          "y0": "2.0",
+          "z0": "2.0",
+          "cell": "dx * dy * dz",
+          "front": "0.0001",
+          "alpha": "3.0"
+        },
+        "source_sha256": "322f385f5e2622a4c7d8bdf5cb6a53c50f8979f27ad8f5f39b4d295f998f6fd3",
+        "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+        "steps": 256,
+        "output_interval": 16,
+        "mpi_environment": {
+          "HWLOC_SYNTHETIC": "node:1 core:10 pu:1",
+          "MPIRUN_ARGS": "--bind-to none"
+        }
+      },
+      "stats_sha256": "70a008d254ab9ffc4b450fbcaefbae0a904482f32de94aa6bbbae65bc9a6fb93"
+    }
+  },
+  "figures": {
+    "en": {
+      "maxima": {
+        "cartesian-128": {
+          "p_max": 0.16651109486085885,
+          "s_max": 0.5132951719568782
+        },
+        "cartesian-256": {
+          "p_max": 0.07308705181864597,
+          "s_max": 0.1656028626930135
+        },
+        "cartesian-anisotropic-256": {
+          "p_max": 0.16138070517308958,
+          "s_max": 0.2449136321442278
+        },
+        "sheared-128": {
+          "p_max": 0.17459116406062516,
+          "s_max": 0.4599054215077377
+        },
+        "sheared-256": {
+          "p_max": 0.08116442442818382,
+          "s_max": 0.19737575200309967
+        },
+        "sheared-anisotropic-256": {
+          "p_max": 0.16831368374889677,
+          "s_max": 0.23261124562491234
+        }
+      },
+      "sha256": "56ccb8aba980c00bacf562b9f1315ba9263d876236ff11ef31c5360f5066e3f4"
+    },
+    "ja": {
+      "maxima": {
+        "cartesian-128": {
+          "p_max": 0.16651109486085885,
+          "s_max": 0.5132951719568782
+        },
+        "cartesian-256": {
+          "p_max": 0.07308705181864597,
+          "s_max": 0.1656028626930135
+        },
+        "cartesian-anisotropic-256": {
+          "p_max": 0.16138070517308958,
+          "s_max": 0.2449136321442278
+        },
+        "sheared-128": {
+          "p_max": 0.17459116406062516,
+          "s_max": 0.4599054215077377
+        },
+        "sheared-256": {
+          "p_max": 0.08116442442818382,
+          "s_max": 0.19737575200309967
+        },
+        "sheared-anisotropic-256": {
+          "p_max": 0.16831368374889677,
+          "s_max": 0.23261124562491234
+        }
+      },
+      "sha256": "90e5d35573fcd7965cd1c48299a97d5cd2e7d93267a6834ab970c739208c93bf"
+    }
+  },
+  "chart_agreement": {
+    "p_front_max_difference": 0.0012670694683389883,
+    "s_front_max_difference": 0.0067224375781057555,
+    "p_mean_radius_max_difference": 0.009505524264811216,
+    "s_mean_radius_max_difference": 0.0018972666989518494,
+    "energy_relative": 2.6789296048916844e-06
+  },
+  "grid_spacing": 0.03125
+}

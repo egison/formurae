@@ -35,7 +35,7 @@ FME_EXAMPLES := acoustic3d diffusion1d diffusion2d divergence2d diffusion3d maxw
                 sbp_diffusion1d sbp_wave1d sbp_diffusion2d sbp_highorder4 \
                 sbp_neumann sbp_wave_open \
                 metric_torus metric_sphere hyperbolic polar2d spherical3d yinyang_diffusion mhd_ot lbm_d3q19 excitable_torus \
-                nematic_torus transformation_optics
+                nematic_torus transformation_optics elastic_pulse
 
 CHECK_diffusion1d         := diffusion1d_check.c
 CHECK_diffusion2d         := diffusion2d_check.c
@@ -74,8 +74,10 @@ CHECK_acoustic3d          := ac_check.c
 CHECK_excitable_torus     := driver.c
 CHECK_nematic_torus       := driver.c
 CHECK_transformation_optics := driver.c
+CHECK_elastic_pulse       := driver.c
 
 RUNARGS_pearson3d := 20000
+RUNARGS_elastic_pulse := 40 40
 
 # ----------------------------------------------------------------- recipes
 
