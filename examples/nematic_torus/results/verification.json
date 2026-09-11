@@ -1,0 +1,57 @@
+{
+  "source_sha256": "64766ae00c9957fe8cbf5e6e21c572079e674e1adb736d5ef31ffa96499d75c3",
+  "accuracy_sha256": "7a8610132759fecb6b73d5187bf15fc9f1b1450916903380d4b751dc9b72e333",
+  "mpi_environment": {
+    "HWLOC_SYNTHETIC": "node:1 core:10 pu:1",
+    "MPIRUN_ARGS": "--bind-to none"
+  },
+  "random": {
+    "energy_initial": -364.2869040125078,
+    "energy_final": -519.949622426155,
+    "trace_max": 3.3306690738754696e-16,
+    "defects_initial": 28.0,
+    "defects_final": 15.0
+  },
+  "favored": {
+    "energy_initial": -664.5096726105998,
+    "energy_final": -679.1833956078303,
+    "trace_max": 3.3306690738754696e-16,
+    "defects_initial": 2.0,
+    "defects_final": 2.0
+  },
+  "disfavored": {
+    "energy_initial": -613.9537495820234,
+    "energy_final": -628.1201520444104,
+    "trace_max": 3.3306690738754696e-16,
+    "defects_initial": 2.0,
+    "defects_final": 2.0
+  },
+  "blocking_max_error": 0.0,
+  "mpi_2_1_max_error": 0.0,
+  "mpi_1_2_max_error": 0.0,
+  "spatial_convergence": {
+    "grids": [
+      [
+        32,
+        64
+      ],
+      [
+        64,
+        128
+      ],
+      [
+        128,
+        256
+      ]
+    ],
+    "relative_squared_errors": [
+      0.00027618171809642663,
+      1.7480037036063305e-05,
+      1.0959665545483655e-06
+    ],
+    "squared_error_ratios": [
+      15.79983598013164,
+      15.9494256129619
+    ]
+  }
+}

@@ -322,7 +322,9 @@ formurae-pre does not infer a result variance from the function name or body; on
 directly to an ordinary covector equation target does it map that anonymous down axis to the target's
 subscript. It therefore does not implicitly merge the anonymous axis of <code>E_i + gradLike u</code> into
 the existing <code>i</code>. To combine along the same axis, make the subscript explicit at the
-call site, as in <code>withSymbols [i] (E_i + (gradLike u)..._i)</code>.</p>
+call site, as in <code>withSymbols [i] (E_i + (gradLike u)..._i)</code>, or with Egison's own spelling
+<code>(gradLike u)_i</code>; a parenthesized expression followed by indices is a structured expression in
+init, step and def alike, and combines with the <code>.</code> contraction.</p>
 
 <p>Formurae does not attach a result signature by analyzing the expression structure or computation history
 of a user function body. After Egison evaluates the RHS, only the declared target's shape, logical variance,
@@ -559,6 +561,12 @@ embedding [ `(2 + cos θ) * cos φ, `(2 + cos θ) * sin φ, sin θ, z ]
 
 u' = u + dt * Δ u</pre>
 
+<p>When the coordinate lines are not orthogonal, declare the metric by its components with
+<code>metric tensor [[...], [...]]</code> (an optional <code>metric volume EXPR</code> supplies the volume element).
+Egison checks the symmetry and derives the inverse metric and sqrt(det g), so <code>g~i~j</code>,
+<code>g_i_j</code> and <code>volume</code> are available. The canonical <code>Δ</code>, <code>δ</code> and
+<code>hodge</code>, which assume orthogonality, are compile-time errors on this geometry, so the flux form is
+written explicitly (see <code>examples/excitable_torus/excitable_torus_twisted.fme</code>).</p>
 <p><code>metric scale [...]</code> specifies the Lamé factors directly; with <code>embedding [...]</code>, Egison
 derives the induced metric and gates on orthogonality. The metric, its inverse, the scales, and the volume enter the GeometryNF.</p>
 

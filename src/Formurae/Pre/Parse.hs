@@ -75,6 +75,7 @@ generatedNormalizationNames = ambientNames ++
   , "feParameters", "feCoordinatesRegistry", "feFields"
   , "feIntrinsics", "feAnalytics", "feProgram"
   , "feGeometryScaleRaw", "feGeometryMetricRaw", "feGeometryEmbedding"
+  , "feGeometryMetricRows", "feGeometrySymmetryVerified", "feGeometryVolumeRaw"
   , "feGeometryInverseMetricRaw", "feGeometryScales"
   , "feGeometryOrthogonalityVerified", "feGeometryMetric"
   , "feGeometryScale", "feGeometryInverseMetric", "feGeometryVolume"
@@ -796,6 +797,8 @@ parseModel sourceFile name txt = do
       , mSteps = []
       , mMetric = Nothing
       , mEmbed = Nothing
+      , mMetricTensor = Nothing
+      , mMetricVolume = Nothing
       , mDefs = []
       , mDiscretizationDecls = []
       , mBoundaryDecls = []
@@ -856,6 +859,10 @@ parseModel sourceFile name txt = do
             (maybe [] id (mEmbed mUse))
           mapM_ (checkUserSurface mUse [] "in metric scale expression")
             (maybe [] id (mMetric mUse))
+          mapM_ (checkUserSurface mUse [] "in metric tensor expression")
+            (concat (maybe [] id (mMetricTensor mUse)))
+          mapM_ (checkUserSurface mUse [] "in metric volume expression")
+            (maybe [] (: []) (mMetricVolume mUse))
           mapM_ (\df ->
                     checkUserSurface mUse (map defParamBase (defParams df))
                       ("in def " ++ defName df) (defBody df))
@@ -1034,6 +1041,30 @@ parseModel sourceFile name txt = do
             ('[':r1) | last r1 == ']' ->
               return m { mEmbed = Just (splitTop ',' (init r1)) }
             _ -> fatal ("bad embedding (line " ++ show ln ++ ")")
+      | Just r <- stripPrefix "metric tensor " s =
+          case strip r of
+            ('[':r1) | last r1 == ']' ->
+              let rows = splitTop ',' (init r1)
+                  parseRow row = case strip row of
+                    ('[':r2) | not (null r2), last r2 == ']' ->
+                      Just (map strip (splitTop ',' (init r2)))
+                    _ -> Nothing
+              in if mDim m == 0
+                   then fatal ("dimension must be declared before metric tensor (line " ++ show ln ++ ")")
+                   else if mMetric m /= Nothing || mEmbed m /= Nothing
+                   then fatal ("metric tensor cannot be combined with metric scale or embedding (line " ++ show ln ++ ")")
+                   else case mapM parseRow rows of
+                     Just entries
+                       | length entries == mDim m
+                       , all ((== mDim m) . length) entries ->
+                           return m { mMetricTensor = Just entries }
+                     _ -> fatal ("metric tensor needs " ++ show (mDim m) ++ " rows of "
+                                 ++ show (mDim m) ++ " components (line " ++ show ln ++ ")")
+            _ -> fatal ("bad metric tensor (line " ++ show ln ++ ")")
+      | Just r <- stripPrefix "metric volume " s =
+          if null (strip r)
+            then fatal ("metric volume needs an expression (line " ++ show ln ++ ")")
+            else return m { mMetricVolume = Just (strip r) }
       | Just r <- stripPrefix "metric scale " s =
           case strip r of
             ('[':r1) | last r1 == ']' ->
@@ -1963,6 +1994,10 @@ expandMacros macros model = do
       ++ [("metric scale expression", text)
          | text <- maybe [] id (mMetric model)]
       ++ [("embedding expression", text) | text <- maybe [] id (mEmbed model)]
+      ++ [("metric tensor expression", text)
+         | text <- concat (maybe [] id (mMetricTensor model))]
+      ++ [("metric volume expression", text)
+         | text <- maybe [] (: []) (mMetricVolume model)]
 
     initTexts it = case it of
       IRaw _ text -> [text]

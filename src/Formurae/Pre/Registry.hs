@@ -116,8 +116,12 @@ buildRegistry model = do
     (length (Surface.mHelp model)) (length (Surface.mHelpKinds model))
   ensureParallel "initializer origins"
     (length (Surface.mInits model)) (length (Surface.mInitSourceTexts model))
-  case (Surface.mMetric model, Surface.mEmbed model) of
-    (Just _, Just _) -> Left UnsupportedRegistryGeometry
+  case (Surface.mMetric model, Surface.mEmbed model, Surface.mMetricTensor model) of
+    (Just _, Just _, _) -> Left UnsupportedRegistryGeometry
+    (Just _, _, Just _) -> Left UnsupportedRegistryGeometry
+    (_, Just _, Just _) -> Left UnsupportedRegistryGeometry
+    (_, _, Nothing) | Surface.mMetricVolume model /= Nothing ->
+      Left UnsupportedRegistryGeometry
     _ -> Right ()
   let sourceIdentity = modelSourceIdentity model
       seeds = originSeeds axesLine model
@@ -638,18 +642,23 @@ buildGeometry assignments model = do
       normalForm = placeholderGeometryNF (Surface.mDim model)
       axes = map FEIR.axisDeclId <$> buildAxes assignments model
   axisIds <- axes
-  Right $ case (Surface.mMetric model, Surface.mEmbed model) of
-    (Nothing, Nothing) ->
+  Right $ case (Surface.mMetric model, Surface.mEmbed model, Surface.mMetricTensor model) of
+    (Nothing, Nothing, Nothing) ->
       FEIR.GeometryDecl identifier sourceName Nothing FEIR.EuclideanGeometry
-    (Just _, Nothing) ->
+    (Nothing, Nothing, Just rows) ->
+      FEIR.GeometryDecl identifier sourceName (Just axesOrigin)
+        (FEIR.GeneralMetricGeometry
+          [[FEIR.Exact 0 1 | _ <- row] | row <- rows]
+          normalForm { FEIR.geometryOrthogonalityVerified = False })
+    (Just _, Nothing, Nothing) ->
       FEIR.GeometryDecl identifier sourceName (Just axesOrigin)
         (FEIR.OrthogonalScaleGeometry
           [(axisId, FEIR.Exact 1 1) | axisId <- axisIds] normalForm)
-    (Nothing, Just embedding) ->
+    (Nothing, Just embedding, Nothing) ->
       FEIR.GeometryDecl identifier sourceName (Just axesOrigin)
         (FEIR.EmbeddedOrthogonalGeometry
           (replicate (length embedding) (FEIR.Exact 0 1)) normalForm)
-    (Just _, Just _) -> error "buildGeometry: mutually exclusive geometry inputs"
+    _ -> error "buildGeometry: mutually exclusive geometry inputs"
 
 placeholderGeometryNF :: Int -> FEIR.GeometryNF
 placeholderGeometryNF dimension = FEIR.GeometryNF

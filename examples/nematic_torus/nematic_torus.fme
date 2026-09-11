@@ -1,0 +1,139 @@
+-- Nematic liquid crystal on a torus: relaxation of the contravariant order
+-- tensor Q^{ij} (symmetric, traceless) under the Landau--de Gennes energy.
+-- The covariant derivative uses the Christoffel symbols that Egison derives
+-- from the metric; the connection terms are contracted with index notation.
+-- theta circles the tube; phi circles the hole. Both are periodic.
+dimension 2
+axes θ, φ
+metric g
+metric scale [r, R + r * cos θ]
+
+param R = 12.0
+param r = 6.0
+param dt = 0.005
+param L = 1.0
+param a = 1.0
+param c = 1.0
+param seed = 1.0
+param arrangement = 0.0
+param cell = dtheta * dphi
+param htheta = dtheta
+param hphi = dphi
+extern sqrt
+
+-- Christoffel symbols of the metric, frozen into coefficient fields at init
+def gamma unused = withSymbols [i, j, k, l] ((g~i~l . (∂/∂ g_l_k coordinates~j + ∂/∂ g_l_j coordinates~k - ∂/∂ g_j_k coordinates~l)) / 2)
+def gammaTheta unused = withSymbols [j, k] ((gamma 0)~1_j_k)
+def gammaPhi unused = withSymbols [j, k] ((gamma 0)~2_j_k)
+def christoffel unused = [| G1_j_k, G2_j_k |]~i_j_k
+-- covariant derivative components of a rank-2 contravariant tensor
+def covTheta Q~a~b = withSymbols [i, j, l] (∂_θ Q~i~j + (christoffel 0)~i_1_l . Q~l~j + (christoffel 0)~j_1_l . Q~i~l)
+def covPhi Q~a~b = withSymbols [i, j, l] (∂_φ Q~i~j + (christoffel 0)~i_2_l . Q~l~j + (christoffel 0)~j_2_l . Q~i~l)
+-- Laplace--Beltrami of one component, and the connection terms that complete
+-- the covariant Laplacian g^{kl} ∇_k ∇_l Q^{ij} of the tensor.  Every
+-- coefficient that depends on the position (metric, inverse metric, the
+-- derivatives of volume * g^{kk}) is frozen into a field at init: the step
+-- itself contains no position-dependent arithmetic, which temporal blocking
+-- requires.
+def lb F = w1 * ∂^2_θ F + w2 * ∂^2_φ F + c1 * ∂_θ F + c2 * ∂_φ F
+def connection Q~a~b D1~c~d D2~e~f = withSymbols [i, j, m, n] (w1 * (∂_θ ((christoffel 0)~i_1_m . Q~m~j + (christoffel 0)~j_1_m . Q~i~m) - (christoffel 0)~m_1_1 . ((christoffel 0)~i_m_n . Q~n~j + (christoffel 0)~j_m_n . Q~i~n) + (christoffel 0)~i_1_m . D1~m~j + (christoffel 0)~j_1_m . D1~i~m) + w2 * (∂_φ ((christoffel 0)~i_2_m . Q~m~j + (christoffel 0)~j_2_m . Q~i~m) - (christoffel 0)~m_2_2 . ((christoffel 0)~i_m_n . Q~n~j + (christoffel 0)~j_m_n . Q~i~n) + (christoffel 0)~i_2_m . D2~m~j + (christoffel 0)~j_2_m . D2~i~m))
+def norm2 Q~a~b = withSymbols [i, j, k, l] (GD_i_k . GD_j_l . Q~i~j . Q~k~l)
+def gradient2 D1~a~b D2~c~d = w1 * norm2 D1 + w2 * norm2 D2
+def traceless T~a~b = withSymbols [i, j, k, l] (T~i~j - GU~i~j * (GD_k_l . T~k~l) / 2)
+-- initial doubled director (mx, my) = S (cos 2α, sin 2α) in the orthonormal frame:
+-- seed = 1 takes a smooth pseudo-random vector field whose zeros are the defects;
+-- seed = 0 places four defects, +1/2 on the outer side (arrangement = 1) or inner side (-1)
+def doubledX unused = seed * (sin (3 * θ + 1) * cos (2 * φ) + cos (5 * φ + 2 * θ + 0.5)) + (1 - seed) * cos φ
+def doubledY unused = seed * (sin (θ - 4 * φ + 2) + cos (3 * θ + 7 * φ - 1) * sin (2 * θ)) + (1 - seed) * arrangement * sin θ * sin φ
+def doubledNorm unused = sqrt ((doubledX 0)^2 + (doubledY 0)^2 + 0.01)
+def initial unused = withSymbols [i, j] ([| [| doubledX 0 / (2 * g_1_1), doubledY 0 / (2 * volume) |], [| doubledY 0 / (2 * volume), 0 - doubledX 0 / (2 * g_2_2) |] |]~i~j / doubledNorm 0)
+-- exact one-cell shifts from compact differences (the LBM pull identity),
+-- and branch-cut crossings of the doubled director along an edge.  The
+-- winding number is counted on the two triangles that meet at a grid point,
+-- (i,j)->(i+1,j)->(i,j+1) and (i,j)->(i-1,j)->(i,j-1), which tile the torus
+-- and read only the four axis neighbours, so every update stays within one cell.
+def shift c q = q + c * htheta * ∂_θ q + htheta^2 * ∂^2_θ q / 2
+def shiftPhi c q = q + c * hphi * ∂_φ q + hphi^2 * ∂^2_φ q / 2
+def crossing ax ay bx by = if ay >= 0 && by < 0 && ax * by - bx * ay > 0 then 1 else (if ay < 0 && by >= 0 && ax * by - bx * ay < 0 then -1 else 0)
+
+field Q~i~j @ collocated
+field G1{_j_k} @ collocated
+field G2{_j_k} @ collocated
+field GD{_i_j} @ collocated
+field GU{~i~j} @ collocated
+field J : scalar @ collocated
+field w1 : scalar @ collocated
+field w2 : scalar @ collocated
+field c1 : scalar @ collocated
+field c2 : scalar @ collocated
+field outer : scalar @ collocated
+field order : scalar @ collocated
+field energy : scalar @ collocated
+field winding : scalar @ collocated
+field plus : scalar @ collocated
+field minus : scalar @ collocated
+field plusOuter : scalar @ collocated
+field minusOuter : scalar @ collocated
+field tr : scalar @ collocated
+field asym : scalar @ collocated
+
+init:
+  Q~i~j := initial 0
+  G1_j_k := gammaTheta 0
+  G2_j_k := gammaPhi 0
+  GD_i_j := g_i_j
+  GU~i~j := g~i~j
+  J := volume
+  w1 := inverseMetric~1~1
+  w2 := inverseMetric~2~2
+  c1 := (∂/∂ (volume * inverseMetric~1~1) θ) / volume
+  c2 := (∂/∂ (volume * inverseMetric~2~2) φ) / volume
+  outer := if cos θ > 0 then 1 else 0
+  order := 0
+  energy := 0
+  winding := 0
+  plus := 0
+  minus := 0
+  plusOuter := 0
+  minusOuter := 0
+  tr := 0
+  asym := 0
+
+step:
+  local D1~i~j @ collocated = covTheta Q
+  local D2~i~j @ collocated = covPhi Q
+  local Lw~i~j @ collocated = connection Q D1 D2
+  local Qn~i~j @ collocated = Q~i~j + dt * (L * (Lw~i~j + [| [| lb Q~1~1, lb Q~1~2 |], [| lb Q~2~1, lb Q~2~2 |] |]~i~j) + (a - c * norm2 Q) * Q~i~j)
+  Q'~i~j = traceless Qn
+  G1' = G1
+  G2' = G2
+  GD' = GD
+  GU' = GU
+  J' = J
+  w1' = w1
+  w2' = w2
+  c1' = c1
+  c2' = c2
+  outer' = outer
+  order' = norm2 Q'
+  tr' = GD_1_1 * Q'~1~1 + GD_2_2 * Q'~2~2
+  asym' = Q'~1~2 - Q'~2~1
+  -- The energy and the defect windings are evaluated on the state entering
+  -- the step, so that every update reads at most two cells away and the
+  -- temporal-blocking halo stays exact.
+  energy' = cell * J * (L * gradient2 D1 D2 / 2 - a * norm2 Q / 2 + c * (norm2 Q)^2 / 4)
+  local mx = GD_1_1 * Q~1~1 - GD_2_2 * Q~2~2
+  local my = 2 * J * Q~1~2
+  local mxp = shift 1 mx
+  local myp = shift 1 my
+  local mxm = shift (-1) mx
+  local mym = shift (-1) my
+  local mxq = shiftPhi 1 mx
+  local myq = shiftPhi 1 my
+  local mxr = shiftPhi (-1) mx
+  local myr = shiftPhi (-1) my
+  winding' = crossing mx my mxp myp + crossing mxp myp mxq myq + crossing mxq myq mx my + crossing mx my mxm mym + crossing mxm mym mxr myr + crossing mxr myr mx my
+  plus' = if winding' > 0 then winding' else 0
+  minus' = if winding' < 0 then 0 - winding' else 0
+  plusOuter' = if winding' > 0 && outer > 0.5 then winding' else 0
+  minusOuter' = if winding' < 0 && outer > 0.5 then 0 - winding' else 0

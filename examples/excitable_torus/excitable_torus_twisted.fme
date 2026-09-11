@@ -1,0 +1,57 @@
+-- The same model as excitable_torus.fme in a sheared chart of the same torus:
+-- phi = psi + theta.  Both coordinates stay periodic, but the coordinate
+-- lines are no longer orthogonal, so the metric is declared by its
+-- components and the compiler derives g~i~j from them.  Every equation
+-- below is the one of the orthogonal chart, written in the new coordinates.
+dimension 2
+axes θ, ψ
+metric g
+metric tensor [[r^2 + (R + r * cos θ)^2, (R + r * cos θ)^2], [(R + r * cos θ)^2, (R + r * cos θ)^2]]
+metric volume r * (R + r * cos θ)
+
+param R = 12.0
+param r = 6.0
+param dt = 0.005
+param beta = 1.1
+param eps = 0.3
+param perpendicular = 0.25
+param parallel = 1.0
+param angle = 0.7853981633974483
+param twist = 0.0
+param reaction = 1.0
+param stimulus = 1.0
+param cell = dtheta * dpsi
+
+-- the same physical unit vector; its psi component is n^phi - n^theta in this chart
+def direction alpha = [| cos alpha / r, sin alpha / (R + r * cos θ) - cos alpha / r |]
+def diffusivity alpha = withSymbols [i,j] (perpendicular * g~i~j + (parallel - perpendicular) * (direction alpha)~i * (direction alpha)~j)
+def fluxTheta K~a~b P_c = withSymbols [j] (K~1~j . P_j)
+def fluxPsi K~a~b P_c = withSymbols [j] (K~2~j . P_j)
+
+field u : scalar @ primal
+field v : scalar @ primal
+field A{~i~j} @ collocated
+field J : scalar @ primal
+field mass : scalar @ primal
+field square : scalar @ primal
+field active : scalar @ primal
+
+init:
+  u := if stimulus > 0 then (if sin (ψ + θ) > 0 && cos (ψ + θ) > 0.95 && cos θ > 0 then 2 else -beta) else (if stimulus < 0 then -beta else (1 + sin θ * cos (ψ + θ)))
+  v := if stimulus > 0 then (if sin (ψ + θ) < 0 && cos (ψ + θ) > 0.8 && cos θ > 0 then 2 else -3 * beta + beta^3) else (if stimulus < 0 then -3 * beta + beta^3 else 0)
+  A~i~j := volume * diffusivity (angle + twist * sin θ)
+  J := volume
+  mass := cell * volume * (if stimulus > 0 then (if sin (ψ + θ) > 0 && cos (ψ + θ) > 0.95 && cos θ > 0 then 2 else -beta) else (if stimulus < 0 then -beta else (1 + sin θ * cos (ψ + θ))))
+  square := cell * volume * (if stimulus > 0 then (if sin (ψ + θ) > 0 && cos (ψ + θ) > 0.95 && cos θ > 0 then 2 else -beta) else (if stimulus < 0 then -beta else (1 + sin θ * cos (ψ + θ))))^2
+  active := if stimulus == 0 then (if 1 + sin θ * cos (ψ + θ) > 0 then cell * volume else 0) else (if stimulus > 0 && sin (ψ + θ) > 0 && cos (ψ + θ) > 0.95 && cos θ > 0 then cell * volume else 0)
+
+step:
+  local p_i @ primal = [| ∂_θ u, ∂_ψ u |]_i
+  local q~i @ primal = [| fluxTheta (resample(A, 1, 0)) (resample(p, 1, 0)), fluxPsi (resample(A, 0, 1)) (resample(p, 0, 1)) |]~i
+  u' = u + dt * ((∂_i q~i) / J + reaction * (3 * u - u^3 - v))
+  v' = v + dt * reaction * eps * (u + beta)
+  A' = A
+  J' = J
+  mass' = cell * J * u'
+  square' = cell * J * u'^2
+  active' = if u' > 0 then cell * J else 0

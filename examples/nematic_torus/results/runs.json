@@ -1,0 +1,98 @@
+{
+  "random": {
+    "case": "random",
+    "grid": [
+      120,
+      240
+    ],
+    "mpi": [
+      1,
+      1
+    ],
+    "blocking": 0,
+    "parameters": {
+      "R": "12.0",
+      "r": "6.0",
+      "dt": "0.00375",
+      "L": "1.0",
+      "a": "1.0",
+      "c": "1.0",
+      "seed": "1.0",
+      "arrangement": "0.0",
+      "cell": "dtheta * dphi",
+      "htheta": "dtheta",
+      "hphi": "dphi"
+    },
+    "source_sha256": "39d276dc3ecc3cdfa13ff200a1cd5a63b5dbf6a98df9297ceabdfabce5f59f4f",
+    "normalized_source_sha256": "7d6d92d908b5b1400ee40e3027b8607d746fa02f3beeb7bf87ba7f3d930014b5",
+    "egison_revision": "87cbb478c845e9760ecfc1d0518b464df10a72cf",
+    "steps": 16000,
+    "output_interval": 160,
+    "mpi_environment": {},
+    "run_log": "steps=16000 elapsed_seconds=235.319801 bounds=ok"
+  },
+  "favored": {
+    "case": "favored",
+    "grid": [
+      120,
+      240
+    ],
+    "mpi": [
+      1,
+      1
+    ],
+    "blocking": 0,
+    "parameters": {
+      "R": "12.0",
+      "r": "6.0",
+      "dt": "0.00375",
+      "L": "1.0",
+      "a": "1.0",
+      "c": "1.0",
+      "seed": "0.0",
+      "arrangement": "1.0",
+      "cell": "dtheta * dphi",
+      "htheta": "dtheta",
+      "hphi": "dphi"
+    },
+    "source_sha256": "563cd5162873910aeb3ed0cc4fbdd8c0aa958a5776280367dd4155a3f0ed6c97",
+    "normalized_source_sha256": "7d6d92d908b5b1400ee40e3027b8607d746fa02f3beeb7bf87ba7f3d930014b5",
+    "egison_revision": "87cbb478c845e9760ecfc1d0518b464df10a72cf",
+    "steps": 16000,
+    "output_interval": 160,
+    "mpi_environment": {},
+    "run_log": "steps=16000 elapsed_seconds=207.584487 bounds=ok"
+  },
+  "disfavored": {
+    "case": "disfavored",
+    "grid": [
+      120,
+      240
+    ],
+    "mpi": [
+      1,
+      1
+    ],
+    "blocking": 0,
+    "parameters": {
+      "R": "12.0",
+      "r": "6.0",
+      "dt": "0.00375",
+      "L": "1.0",
+      "a": "1.0",
+      "c": "1.0",
+      "seed": "0.0",
+      "arrangement": "-1.0",
+      "cell": "dtheta * dphi",
+      "htheta": "dtheta",
+      "hphi": "dphi"
+    },
+    "source_sha256": "53ad3f58afb4fefea495afd6e8b78e1b6cd2ed1d0243c5f80d9930b86a2c7bee",
+    "normalized_source_sha256": "7d6d92d908b5b1400ee40e3027b8607d746fa02f3beeb7bf87ba7f3d930014b5",
+    "egison_revision": "87cbb478c845e9760ecfc1d0518b464df10a72cf",
+    "steps": 16000,
+    "output_interval": 160,
+    "mpi_environment": {},
+    "run_log": "steps=16000 elapsed_seconds=241.335428 bounds=ok"
+  }
+}

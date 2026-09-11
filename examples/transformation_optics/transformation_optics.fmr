@@ -1,0 +1,100 @@
+dimension :: 3
+axes :: x,y,z
+
+double :: dt = 0.1 * dx
+double :: x0 = 3.0
+double :: cx = 8.0 + 0.25 * dx
+double :: cy = 6.0 + 0.25 * dy
+double :: width = 3.0
+double :: wavenumber = 3.141592653589793
+double :: R1 = 1.0
+double :: R2 = 2.0
+double :: R1s = 0.9
+double :: twist = 0.7853981633974483
+double :: cloak = 0.0
+double :: rotator = 0.0
+double :: obstacle = 0.0
+double :: cell = dx * dy
+
+extern function :: cos
+extern function :: exp
+extern function :: sqrt
+
+begin function (E_down1,E_down2,E_down3,B_down1,B_down2,B_down3,H_down1,H_down2,H_down3,Ev_down1,Ev_down2,Ev_down3,Bv_down1,Bv_down2,Bv_down3,rh_up1,rh_up2,rh_up3,ph_up1,ph_up2,ph_up3,a,b,c,epsz,ie_down1,ie_down2,ie_down3,outside,scatter,incident,energy) = init()
+  double [] :: E_down1, E_down2, E_down3, B_down1, B_down2, B_down3, H_down1, H_down2, H_down3, Ev_down1, Ev_down2, Ev_down3, Bv_down1, Bv_down2, Bv_down3, rh_up1, rh_up2, rh_up3, ph_up1, ph_up2, ph_up3, a, b, c, epsz, ie_down1, ie_down2, ie_down3, outside, scatter, incident, energy
+  E_down1[i,j,k] = 0
+  E_down2[i,j,k] = 0
+  E_down3[i,j,k] = (-1) * obstacle * cos((-1) * wavenumber * x0 + dx * wavenumber * ((1 / 2) + i)) * exp((-1) * width**(-2) * x0**2 + (-1) * width**(-2) * (dx * ((1 / 2) + i))**2 + 2 * dx * x0 * ((1 / 2) + i) * width**(-2)) * (if sqrt((-2) * cx * dx * ((1 / 2) + i) + (-2) * cy * dy * ((1 / 2) + j) + cx**2 + cy**2 + (dx * ((1 / 2) + i))**2 + (dy * ((1 / 2) + j))**2) < R1 then 1 else 0) + cos((-1) * wavenumber * x0 + dx * wavenumber * ((1 / 2) + i)) * exp((-1) * width**(-2) * x0**2 + (-1) * width**(-2) * (dx * ((1 / 2) + i))**2 + 2 * dx * x0 * ((1 / 2) + i) * width**(-2))
+  B_down1[i,j,k] = 0
+  B_down2[i,j,k] = (-1) * cos((-1) * wavenumber * x0 + dx * i * wavenumber) * exp((-1) * width**(-2) * x0**2 + (-1) * width**(-2) * (dx * i)**2 + 2 * dx * i * x0 * width**(-2)) + obstacle * cos((-1) * wavenumber * x0 + dx * i * wavenumber) * exp((-1) * width**(-2) * x0**2 + (-1) * width**(-2) * (dx * i)**2 + 2 * dx * i * x0 * width**(-2)) * (if sqrt((-2) * cx * dx * i + (-2) * cy * dy * ((1 / 2) + j) + cx**2 + cy**2 + (dx * i)**2 + (dy * ((1 / 2) + j))**2) < R1 then 1 else 0)
+  B_down3[i,j,k] = 0
+  H_down1[i,j,k] = 0
+  H_down2[i,j,k] = (-1) * cos((-1) * wavenumber * x0 + dx * i * wavenumber) * exp((-1) * width**(-2) * x0**2 + (-1) * width**(-2) * (dx * i)**2 + 2 * dx * i * x0 * width**(-2)) + obstacle * cos((-1) * wavenumber * x0 + dx * i * wavenumber) * exp((-1) * width**(-2) * x0**2 + (-1) * width**(-2) * (dx * i)**2 + 2 * dx * i * x0 * width**(-2)) * (if sqrt((-2) * cx * dx * i + (-2) * cy * dy * ((1 / 2) + j) + cx**2 + cy**2 + (dx * i)**2 + (dy * ((1 / 2) + j))**2) < R1 then 1 else 0)
+  H_down3[i,j,k] = 0
+  Ev_down1[i,j,k] = 0
+  Ev_down2[i,j,k] = 0
+  Ev_down3[i,j,k] = cos((-1) * wavenumber * x0 + dx * wavenumber * ((1 / 2) + i)) * exp((-1) * width**(-2) * x0**2 + (-1) * width**(-2) * (dx * ((1 / 2) + i))**2 + 2 * dx * x0 * ((1 / 2) + i) * width**(-2))
+  Bv_down1[i,j,k] = 0
+  Bv_down2[i,j,k] = (-1) * cos((-1) * wavenumber * x0 + dx * i * wavenumber) * exp((-1) * width**(-2) * x0**2 + (-1) * width**(-2) * (dx * i)**2 + 2 * dx * i * x0 * width**(-2))
+  Bv_down3[i,j,k] = 0
+  rh_up1[i,j,k] = (-1) * cx * sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2)**(-1) + dx * i * sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2)**(-1)
+  rh_up2[i,j,k] = (-1) * cy * sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2)**(-1) + dy * j * sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2)**(-1)
+  rh_up3[i,j,k] = 0
+  ph_up1[i,j,k] = (-1) * dy * j * sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2)**(-1) + cy * sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2)**(-1)
+  ph_up2[i,j,k] = (-1) * cx * sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2)**(-1) + dx * i * sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2)**(-1)
+  ph_up3[i,j,k] = 0
+  a[i,j,k] = ((-2) * R1 * R1s * R2 * cloak * (if (sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) < R2) * (sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) > R1) then 1 else 0) + (-2) * R1 * R2 * sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) + (-2) * cx * dx * i * rotator * twist**2 * sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) * (if (sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) < R2) * (sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) > R1) then 1 else 0) + (-2) * cy * dy * j * rotator * twist**2 * sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) * (if (sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) < R2) * (sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) > R1) then 1 else 0) + (-1) * R1s * rotator * cx**2 * twist**2 * (if (sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) < R2) * (sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) > R1) then 1 else 0) + (-1) * R1s * rotator * cy**2 * twist**2 * (if (sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) < R2) * (sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) > R1) then 1 else 0) + (-1) * R1s * rotator * twist**2 * (dx * i)**2 * (if (sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) < R2) * (sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) > R1) then 1 else 0) + (-1) * R1s * rotator * twist**2 * (dy * j)**2 * (if (sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) < R2) * (sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) > R1) then 1 else 0) + (-1) * R1s * R1**2 + (-1) * R1s * R2**2 + 2 * R1 * R1s * R2 + 2 * R1s * cx * dx * i * rotator * twist**2 * (if (sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) < R2) * (sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) > R1) then 1 else 0) + 2 * R1s * cy * dy * j * rotator * twist**2 * (if (sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) < R2) * (sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) > R1) then 1 else 0) + R1s * cloak * R1**2 * (if (sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) < R2) * (sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) > R1) then 1 else 0) + R1s * cloak * R2**2 * (if (sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) < R2) * (sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) > R1) then 1 else 0) + rotator * cx**2 * twist**2 * sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) * (if (sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) < R2) * (sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) > R1) then 1 else 0) + rotator * cy**2 * twist**2 * sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) * (if (sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) < R2) * (sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) > R1) then 1 else 0) + rotator * twist**2 * (dx * i)**2 * sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) * (if (sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) < R2) * (sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) > R1) then 1 else 0) + rotator * twist**2 * (dy * j)**2 * sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) * (if (sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) < R2) * (sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) > R1) then 1 else 0) + R1**2 * sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) + R2**2 * sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2)) / ((-2) * R1 * R2 * sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) + (-1) * R1s * R1**2 + (-1) * R1s * R2**2 + 2 * R1 * R1s * R2 + R1**2 * sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) + R2**2 * sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2))
+  b[i,j,k] = (-1) * rotator * twist * sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) * (if (sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) < R2) * (sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) > R1) then 1 else 0) / (R2 + (-1) * R1)
+  c[i,j,k] = (R2 + (-1) * R1s + (-1) * R1s * R2 * cloak * sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2)**(-1) * (if (sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) < R2) * (sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) > R1) then 1 else 0) + cloak * R1s**2 * sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2)**(-1) * (if (sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) < R2) * (sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) > R1) then 1 else 0)) / (R2 + (-1) * R1s)
+  epsz[i,j,k] = ((-2) * R1s * R2 + (-1) * R1s * cloak * R2**2 * sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2)**(-1) * (if (sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) < R2) * (sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) > R1) then 1 else 0) + (-1) * cloak * R1s**2 * (if (sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) < R2) * (sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) > R1) then 1 else 0) + 2 * R1s * R2 * cloak * (if (sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) < R2) * (sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) > R1) then 1 else 0) + R1s**2 + R2**2) / ((-2) * R1s * R2 + R1s**2 + R2**2)
+  ie_down1[i,j,k] = 0
+  ie_down2[i,j,k] = 0
+  ie_down3[i,j,k] = ((-2) * R1s * R2 + (-1) * obstacle * R1s**2 * (if sqrt((-2) * cx * dx * ((1 / 2) + i) + (-2) * cy * dy * ((1 / 2) + j) + cx**2 + cy**2 + (dx * ((1 / 2) + i))**2 + (dy * ((1 / 2) + j))**2) < R1 then 1 else 0) + (-1) * obstacle * R2**2 * (if sqrt((-2) * cx * dx * ((1 / 2) + i) + (-2) * cy * dy * ((1 / 2) + j) + cx**2 + cy**2 + (dx * ((1 / 2) + i))**2 + (dy * ((1 / 2) + j))**2) < R1 then 1 else 0) + 2 * R1s * R2 * obstacle * (if sqrt((-2) * cx * dx * ((1 / 2) + i) + (-2) * cy * dy * ((1 / 2) + j) + cx**2 + cy**2 + (dx * ((1 / 2) + i))**2 + (dy * ((1 / 2) + j))**2) < R1 then 1 else 0) + R1s**2 + R2**2) / ((-2) * R1s * R2 + (-1) * R1s * cloak * R2**2 * sqrt((-2) * cx * dx * ((1 / 2) + i) + (-2) * cy * dy * ((1 / 2) + j) + cx**2 + cy**2 + (dx * ((1 / 2) + i))**2 + (dy * ((1 / 2) + j))**2)**(-1) * (if (sqrt((-2) * cx * dx * ((1 / 2) + i) + (-2) * cy * dy * ((1 / 2) + j) + cx**2 + cy**2 + (dx * ((1 / 2) + i))**2 + (dy * ((1 / 2) + j))**2) < R2) * (sqrt((-2) * cx * dx * ((1 / 2) + i) + (-2) * cy * dy * ((1 / 2) + j) + cx**2 + cy**2 + (dx * ((1 / 2) + i))**2 + (dy * ((1 / 2) + j))**2) > R1) then 1 else 0) + (-1) * cloak * R1s**2 * (if (sqrt((-2) * cx * dx * ((1 / 2) + i) + (-2) * cy * dy * ((1 / 2) + j) + cx**2 + cy**2 + (dx * ((1 / 2) + i))**2 + (dy * ((1 / 2) + j))**2) < R2) * (sqrt((-2) * cx * dx * ((1 / 2) + i) + (-2) * cy * dy * ((1 / 2) + j) + cx**2 + cy**2 + (dx * ((1 / 2) + i))**2 + (dy * ((1 / 2) + j))**2) > R1) then 1 else 0) + 2 * R1s * R2 * cloak * (if (sqrt((-2) * cx * dx * ((1 / 2) + i) + (-2) * cy * dy * ((1 / 2) + j) + cx**2 + cy**2 + (dx * ((1 / 2) + i))**2 + (dy * ((1 / 2) + j))**2) < R2) * (sqrt((-2) * cx * dx * ((1 / 2) + i) + (-2) * cy * dy * ((1 / 2) + j) + cx**2 + cy**2 + (dx * ((1 / 2) + i))**2 + (dy * ((1 / 2) + j))**2) > R1) then 1 else 0) + R1s**2 + R2**2)
+  outside[i,j,k] = if sqrt((-2) * cx * dx * i + (-2) * cy * dy * j + cx**2 + cy**2 + (dx * i)**2 + (dy * j)**2) > (1 / 2) + R2 then cell else 0
+  scatter[i,j,k] = 0
+  incident[i,j,k] = 0
+  energy[i,j,k] = 0
+end function
+
+begin function (E_down1',E_down2',E_down3',B_down1',B_down2',B_down3',H_down1',H_down2',H_down3',Ev_down1',Ev_down2',Ev_down3',Bv_down1',Bv_down2',Bv_down3',rh_up1',rh_up2',rh_up3',ph_up1',ph_up2',ph_up3',a',b',c',epsz',ie_down1',ie_down2',ie_down3',outside',scatter',incident',energy') = step(E_down1,E_down2,E_down3,B_down1,B_down2,B_down3,H_down1,H_down2,H_down3,Ev_down1,Ev_down2,Ev_down3,Bv_down1,Bv_down2,Bv_down3,rh_up1,rh_up2,rh_up3,ph_up1,ph_up2,ph_up3,a,b,c,epsz,ie_down1,ie_down2,ie_down3,outside,scatter,incident,energy)
+  double [] :: E_down1', E_down2', E_down3', B_down1', B_down2', B_down3', H_down1', H_down2', H_down3', Ev_down1', Ev_down2', Ev_down3', Bv_down1', Bv_down2', Bv_down3', rh_up1', rh_up2', rh_up3', ph_up1', ph_up2', ph_up3', a', b', c', epsz', ie_down1', ie_down2', ie_down3', outside', scatter', incident', energy'
+  Minv_up1_up1[i,j,k] = 2 * b[i,j,k] * ph_up1[i,j,k] * rh_up1[i,j,k] + a[i,j,k] * rh_up1[i,j,k]**2 + c[i,j,k] * ph_up1[i,j,k]**2
+  Minv_up2_up2[i,j,k] = 2 * b[i,j,k] * ph_up2[i,j,k] * rh_up2[i,j,k] + a[i,j,k] * rh_up2[i,j,k]**2 + c[i,j,k] * ph_up2[i,j,k]**2
+  Minv_up3_up3[i,j,k] = 2 * b[i,j,k] * ph_up3[i,j,k] * rh_up3[i,j,k] + a[i,j,k] * rh_up3[i,j,k]**2 + c[i,j,k] * ph_up3[i,j,k]**2
+  Minv_up1_up2[i,j,k] = a[i,j,k] * rh_up1[i,j,k] * rh_up2[i,j,k] + b[i,j,k] * ph_up1[i,j,k] * rh_up2[i,j,k] + b[i,j,k] * ph_up2[i,j,k] * rh_up1[i,j,k] + c[i,j,k] * ph_up1[i,j,k] * ph_up2[i,j,k]
+  Minv_up1_up3[i,j,k] = a[i,j,k] * rh_up1[i,j,k] * rh_up3[i,j,k] + b[i,j,k] * ph_up1[i,j,k] * rh_up3[i,j,k] + b[i,j,k] * ph_up3[i,j,k] * rh_up1[i,j,k] + c[i,j,k] * ph_up1[i,j,k] * ph_up3[i,j,k]
+  Minv_up2_up3[i,j,k] = a[i,j,k] * rh_up2[i,j,k] * rh_up3[i,j,k] + b[i,j,k] * ph_up2[i,j,k] * rh_up3[i,j,k] + b[i,j,k] * ph_up3[i,j,k] * rh_up2[i,j,k] + c[i,j,k] * ph_up2[i,j,k] * ph_up3[i,j,k]
+  E_down1'[i,j,k] = 0
+  E_down2'[i,j,k] = 0
+  E_down3'[i,j,k] = E_down3[i,j,k] + (-1) * dt * ie_down3[i,j,k] * (H_down1[i,j+1,k] + (-1) * H_down1[i,j,k]) / dy + dt * ie_down3[i,j,k] * (H_down2[i+1,j,k] + (-1) * H_down2[i,j,k]) / dx
+  B_down1'[i,j,k] = B_down1[i,j,k] + (-1) * dt * (E_down3'[i,j,k] + (-1) * E_down3'[i,j-1,k]) / dy + dt * (E_down2'[i,j,k] + (-1) * E_down2'[i,j,k-1]) / dz
+  B_down2'[i,j,k] = B_down2[i,j,k] + (-1) * dt * (E_down1'[i,j,k] + (-1) * E_down1'[i,j,k-1]) / dz + dt * (E_down3'[i,j,k] + (-1) * E_down3'[i-1,j,k]) / dx
+  B_down3'[i,j,k] = B_down3[i,j,k] + (-1) * dt * (E_down2'[i,j,k] + (-1) * E_down2'[i-1,j,k]) / dx + dt * (E_down1'[i,j,k] + (-1) * E_down1'[i,j-1,k]) / dy
+  H_down1'[i,j,k] = B_down1'[i,j,k] * ((1 / 2) * Minv_up1_up1[i,j,k] + (1 / 2) * Minv_up1_up1[i+1,j,k]) + ((1 / 2) * Minv_up1_up2[i,j,k] + (1 / 2) * Minv_up1_up2[i+1,j,k]) * ((1 / 4) * B_down2'[i,j-1,k] + (1 / 4) * B_down2'[i,j,k] + (1 / 4) * B_down2'[i+1,j-1,k] + (1 / 4) * B_down2'[i+1,j,k]) + ((1 / 2) * Minv_up1_up3[i,j,k] + (1 / 2) * Minv_up1_up3[i+1,j,k]) * ((1 / 4) * B_down3'[i,j,k-1] + (1 / 4) * B_down3'[i,j,k] + (1 / 4) * B_down3'[i+1,j,k-1] + (1 / 4) * B_down3'[i+1,j,k])
+  H_down2'[i,j,k] = B_down2'[i,j,k] * ((1 / 2) * Minv_up2_up2[i,j,k] + (1 / 2) * Minv_up2_up2[i,j+1,k]) + ((1 / 2) * Minv_up1_up2[i,j,k] + (1 / 2) * Minv_up1_up2[i,j+1,k]) * ((1 / 4) * B_down1'[i-1,j,k] + (1 / 4) * B_down1'[i-1,j+1,k] + (1 / 4) * B_down1'[i,j,k] + (1 / 4) * B_down1'[i,j+1,k]) + ((1 / 2) * Minv_up2_up3[i,j,k] + (1 / 2) * Minv_up2_up3[i,j+1,k]) * ((1 / 4) * B_down3'[i,j,k-1] + (1 / 4) * B_down3'[i,j,k] + (1 / 4) * B_down3'[i,j+1,k-1] + (1 / 4) * B_down3'[i,j+1,k])
+  H_down3'[i,j,k] = 0
+  Ev_down1'[i,j,k] = Ev_down1[i,j,k] + (-1) * dt * (Bv_down2[i,j,k+1] + (-1) * Bv_down2[i,j,k]) / dz + dt * (Bv_down3[i,j+1,k] + (-1) * Bv_down3[i,j,k]) / dy
+  Ev_down2'[i,j,k] = Ev_down2[i,j,k] + (-1) * dt * (Bv_down3[i+1,j,k] + (-1) * Bv_down3[i,j,k]) / dx + dt * (Bv_down1[i,j,k+1] + (-1) * Bv_down1[i,j,k]) / dz
+  Ev_down3'[i,j,k] = Ev_down3[i,j,k] + (-1) * dt * (Bv_down1[i,j+1,k] + (-1) * Bv_down1[i,j,k]) / dy + dt * (Bv_down2[i+1,j,k] + (-1) * Bv_down2[i,j,k]) / dx
+  Bv_down1'[i,j,k] = Bv_down1[i,j,k] + (-1) * dt * (Ev_down3'[i,j,k] + (-1) * Ev_down3'[i,j-1,k]) / dy + dt * (Ev_down2'[i,j,k] + (-1) * Ev_down2'[i,j,k-1]) / dz
+  Bv_down2'[i,j,k] = Bv_down2[i,j,k] + (-1) * dt * (Ev_down1'[i,j,k] + (-1) * Ev_down1'[i,j,k-1]) / dz + dt * (Ev_down3'[i,j,k] + (-1) * Ev_down3'[i-1,j,k]) / dx
+  Bv_down3'[i,j,k] = Bv_down3[i,j,k] + (-1) * dt * (Ev_down2'[i,j,k] + (-1) * Ev_down2'[i-1,j,k]) / dx + dt * (Ev_down1'[i,j,k] + (-1) * Ev_down1'[i,j-1,k]) / dy
+  rh_up1'[i,j,k] = rh_up1[i,j,k]
+  rh_up2'[i,j,k] = rh_up2[i,j,k]
+  rh_up3'[i,j,k] = rh_up3[i,j,k]
+  ph_up1'[i,j,k] = ph_up1[i,j,k]
+  ph_up2'[i,j,k] = ph_up2[i,j,k]
+  ph_up3'[i,j,k] = ph_up3[i,j,k]
+  a'[i,j,k] = a[i,j,k]
+  b'[i,j,k] = b[i,j,k]
+  c'[i,j,k] = c[i,j,k]
+  epsz'[i,j,k] = epsz[i,j,k]
+  ie_down1'[i,j,k] = ie_down1[i,j,k]
+  ie_down2'[i,j,k] = ie_down2[i,j,k]
+  ie_down3'[i,j,k] = ie_down3[i,j,k]
+  outside'[i,j,k] = outside[i,j,k]
+  diff[i,j,k] = (-1) * ((1 / 4) * Ev_down3'[i-1,j-1,k] + (1 / 4) * Ev_down3'[i-1,j,k] + (1 / 4) * Ev_down3'[i,j-1,k] + (1 / 4) * Ev_down3'[i,j,k]) + (1 / 4) * E_down3'[i-1,j-1,k] + (1 / 4) * E_down3'[i-1,j,k] + (1 / 4) * E_down3'[i,j-1,k] + (1 / 4) * E_down3'[i,j,k]
+  scatter'[i,j,k] = outside[i,j,k] * diff[i,j,k]**2
+  incident'[i,j,k] = outside[i,j,k] * ((1 / 4) * Ev_down3'[i-1,j-1,k] + (1 / 4) * Ev_down3'[i-1,j,k] + (1 / 4) * Ev_down3'[i,j-1,k] + (1 / 4) * Ev_down3'[i,j,k])**2
+  energy'[i,j,k] = (1 / 2) * cell * epsz[i,j,k] * ((1 / 4) * E_down3'[i-1,j-1,k] + (1 / 4) * E_down3'[i-1,j,k] + (1 / 4) * E_down3'[i,j-1,k] + (1 / 4) * E_down3'[i,j,k])**2 + (1 / 2) * cell * ((1 / 2) * B_down1'[i-1,j,k] + (1 / 2) * B_down1'[i,j,k]) * ((1 / 2) * H_down1'[i-1,j,k] + (1 / 2) * H_down1'[i,j,k]) + (1 / 2) * cell * ((1 / 2) * B_down2'[i,j-1,k] + (1 / 2) * B_down2'[i,j,k]) * ((1 / 2) * H_down2'[i,j-1,k] + (1 / 2) * H_down2'[i,j,k]) + (1 / 2) * cell * ((1 / 2) * B_down3'[i,j,k-1] + (1 / 2) * B_down3'[i,j,k]) * ((1 / 2) * H_down3'[i,j,k-1] + (1 / 2) * H_down3'[i,j,k])
+end function

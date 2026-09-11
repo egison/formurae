@@ -187,6 +187,8 @@ data Model = Model
   , mSteps  :: [Step]
   , mMetric :: Maybe [String]
   , mEmbed  :: Maybe [String]
+  , mMetricTensor :: Maybe [[String]]
+  , mMetricVolume :: Maybe String
   , mDefs   :: [Def]
   , mDiscretizationDecls :: [DiscretizationDecl]
   , mBoundaryDecls :: [BoundaryDecl]

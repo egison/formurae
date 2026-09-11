@@ -1,0 +1,98 @@
+{
+  "torus": {
+    "description": "Torus R = 12, r = 6 (curvature changes sign)",
+    "metric": "metric scale [r, R + r * cos \u03b8]",
+    "direction": "def direction alpha = [| cos alpha / r, sin alpha / (R + r * cos \u03b8) |]",
+    "stimulus": "cos \u03b8 > 0",
+    "theta_length": 6.283185307179586,
+    "theta_boundary": "periodic",
+    "grid": [
+      96,
+      192
+    ],
+    "dt": 0.005,
+    "mass_drift_without_reaction": 4.411049303598702e-11,
+    "final": {
+      "step": 12000.0,
+      "umin": -2.0182499155956286,
+      "umax": 1.914199953658739,
+      "vmin": -2.322859287349567,
+      "vmax": 2.574516605015588,
+      "mass": -2847.785864835854,
+      "square": 8230.392043677319,
+      "active": 636.9929035645213
+    }
+  },
+  "sphere": {
+    "description": "Sphere band, radius 12 (positive curvature)",
+    "metric": "metric scale [12, 12 * sin (0.6 + \u03b8)]",
+    "direction": "def direction alpha = [| cos alpha / 12, sin alpha / (12 * sin (0.6 + \u03b8)) |]",
+    "stimulus": "\u03b8 > 0.75 && \u03b8 < 1.2",
+    "theta_length": 1.9415926535897932,
+    "theta_boundary": "mirror",
+    "grid": [
+      112,
+      192
+    ],
+    "dt": 0.002,
+    "mass_drift_without_reaction": 2.1600499167107046e-11,
+    "final": {
+      "step": 30000.0,
+      "umin": -1.1897938848087972,
+      "umax": -1.066660469139378,
+      "vmin": -2.957089326827631,
+      "vmax": -0.6075395764249311,
+      "mass": -1655.348759232923,
+      "square": 1835.4267270230491,
+      "active": 0.0
+    }
+  },
+  "hyperbolic": {
+    "description": "Hyperbolic band, curvature -1/144 (negative curvature)",
+    "metric": "metric scale [12 / (1 + \u03b8), 12 / (1 + \u03b8)]",
+    "direction": "def direction alpha = [| cos alpha * (1 + \u03b8) / 12, sin alpha * (1 + \u03b8) / 12 |]",
+    "stimulus": "\u03b8 > 0.7 && \u03b8 < 1.3",
+    "theta_length": 2.0,
+    "theta_boundary": "mirror",
+    "grid": [
+      64,
+      192
+    ],
+    "dt": 0.002,
+    "mass_drift_without_reaction": 5.002220859751105e-12,
+    "final": {
+      "step": 30000.0,
+      "umin": -1.1535249045347755,
+      "umax": -1.065204622777003,
+      "vmin": -3.1321004274122175,
+      "vmax": 0.1280658063230721,
+      "mass": -677.2428850842699,
+      "square": 744.7109727025183,
+      "active": 0.0
+    }
+  },
+  "annulus": {
+    "description": "Flat annulus, radii 6 to 18 (zero curvature)",
+    "metric": "metric scale [1, 6 + \u03b8]",
+    "direction": "def direction alpha = [| cos alpha, sin alpha / (6 + \u03b8) |]",
+    "stimulus": "\u03b8 > 4 && \u03b8 < 8",
+    "theta_length": 12.0,
+    "theta_boundary": "mirror",
+    "grid": [
+      64,
+      192
+    ],
+    "dt": 0.004,
+    "mass_drift_without_reaction": 6.252776074688882e-12,
+    "final": {
+      "step": 14976.0,
+      "umin": -1.167058880127005,
+      "umax": -1.066488866112609,
+      "vmin": -3.04737172770202,
+      "vmax": -0.4452789292421055,
+      "mass": -989.7777131852844,
+      "square": 1091.4082460254149,
+      "active": 0.0
+    }
+  }
+}

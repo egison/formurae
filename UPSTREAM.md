@@ -1,8 +1,9 @@
-# Formura 本体への拡張計画(upstream ロードマップ)
+# Formura 本体への過去の拡張案と実装記録
 
-Egi は GitHub の formura organization メンバーであり、formura/formura に直接
-PR/push できる。本ファイルは「issue を立てて待つ」のではなく**自分たちで本体を
-更新する**前提の作業計画。小さい PR に分割して出す。
+**現在の方針（2026-09-10）:** Formurae の例題・デモ・ベンチマークは、Formura 本体を
+拡張せず、既存の機能で実装できるシミュレーションを対象とする。
+以下は過去の検討・実装の記録であり、未実装の案や「残」「次の作業」は現在の実装指示ではない。
+題材の選定と開発は [AGENTS.md](AGENTS.md) に従う。
 
 ## PR 分割案(依存順)
 
@@ -186,7 +187,18 @@ Euler/MHD の適応 dt(V2 で解禁)。Formurae でこれらを表層化する�
 Egison の数学演算子には混ぜず、`formurae-pre` が宣言を FEIR に保持し、
 `formurae-post` が Formura 用の .fmr/.yaml 設定へ変換する。
 
-## formurae 側の追随
+## 記録: 袖幅は前向きの累積シフトだけで決まる（2026-09-11、未修正）
+
+`OrthotopeMachine/Translate.hs` の `calcSleeve` は，データフローグラフに沿って `Shift` を符号つきで
+累積し，その**最大値**（前向きの到達距離）を袖幅にする．後ろ向きの到達距離が前向きより大きい更新
+（例: 異方性 Yee 格子で，新しい B を隣の面へ補間してから H = μ⁻¹B を作る連鎖: 前向き 1・後ろ向き 2）
+では，時間ブロッキングと MPI の halo が 1 セル不足し，ブロック境界・rank 境界の近くで値が
+5e-4 程度ずれる（`transformation_optics` で実測，ダミー軸の層数を増やしても変わらない）．
+現在の方針では Formura 本体を直さず，Formurae 側で配置を選び直して回避する: 電場を双対格子，
+磁場を主格子に置くと同じ連鎖の到達距離が前向き 2・後ろ向き 1 になり，袖幅 2 が正しく取られて
+ブロッキング・MPI とも一致する．本体を直すなら `getMax` を累積シフトの絶対値の最大に変えるだけである．
+
+## 当時の Formurae 側の追随案
 
 - FEIR: 境界宣言・reduce のversioned declarationとsource provenanceを追加
 - formurae-post: 宣言を Formura の .fmr/.yaml 設定へ変換

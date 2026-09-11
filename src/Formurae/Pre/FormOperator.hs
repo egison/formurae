@@ -16,6 +16,7 @@ module Formurae.Pre.FormOperator
   , matchScalarDeltaExpression
   , matchHodgeExteriorHodge
   , hasVariableGeometry
+  , hasGeneralMetric
   ) where
 
 import Formurae.Syntax
@@ -113,9 +114,15 @@ matchHodgeExteriorHodge scope expression = do
   matchCanonicalUnary scope CanonicalHodge innerHodge
 
 hasVariableGeometry :: Model -> Bool
-hasVariableGeometry model = case (mMetric model, mEmbed model) of
-  (Nothing, Nothing) -> False
+hasVariableGeometry model = case (mMetric model, mEmbed model, mMetricTensor model) of
+  (Nothing, Nothing, Nothing) -> False
   _ -> True
+
+-- | A metric declared by its full component matrix.  Its coordinates need
+-- not be orthogonal, so canonical operators that rely on scale factors
+-- (Δ, δ, hodge) are unavailable and the flux form is written explicitly.
+hasGeneralMetric :: Model -> Bool
+hasGeneralMetric model = mMetricTensor model /= Nothing
 
 ungroup :: TensorExpr -> TensorExpr
 ungroup (TEGroup expression) = ungroup expression

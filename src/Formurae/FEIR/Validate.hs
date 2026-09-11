@@ -130,6 +130,7 @@ data ValidationIssue
   | ConflictingOpaqueSemanticKey SemanticKey
   | UnverifiedOrthogonalGeometry
   | InvalidEmbeddedGeometry
+  | InvalidGeneralMetricGeometry
   | EmptyProvenance
   | EmptyGhostBoundaryFill
   deriving (Eq, Ord, Show)
@@ -374,6 +375,16 @@ validateGeometry environment = concat
             ]
         , validateGeometryNF environment path geometryNF
         ]
+      GeneralMetricGeometry rows geometryNF -> concat
+        [ [validationError path InvalidGeneralMetricGeometry
+          | null rows || any ((/= length rows) . length) rows]
+        , concat
+            [ validateScalar environment StaticValueContext
+                (path ++ [ScalarChildPath index]) scalar
+            | (index, scalar) <- zip [0 ..] (concat rows)
+            ]
+        , validateGeneralGeometryNF environment path geometryNF
+        ]
   ]
   where
     geometry = feProgramGeometry (environmentProgram environment)
@@ -383,10 +394,17 @@ validateGeometry environment = concat
 
 validateGeometryNF
     :: Environment -> [ValidationPath] -> GeometryNF -> [ValidationError]
-validateGeometryNF environment path geometryNF = concat
-  [ [validationError path UnverifiedOrthogonalGeometry
-    | not (geometryOrthogonalityVerified geometryNF)]
-  , validateMetricTensor "metric" (geometryMetricComponents geometryNF)
+validateGeometryNF environment path geometryNF =
+  [validationError path UnverifiedOrthogonalGeometry
+  | not (geometryOrthogonalityVerified geometryNF)]
+  ++ validateGeneralGeometryNF environment path geometryNF
+
+-- | The checks shared with a general (possibly non-orthogonal) metric, whose
+-- normal form is never orthogonality-verified.
+validateGeneralGeometryNF
+    :: Environment -> [ValidationPath] -> GeometryNF -> [ValidationError]
+validateGeneralGeometryNF environment path geometryNF = concat
+  [ validateMetricTensor "metric" (geometryMetricComponents geometryNF)
   , validateMetricTensor "inverse metric" (geometryInverseMetric geometryNF)
   , validateAxisScalarList environment path StaticValueContext
       (geometryScaleFactors geometryNF)
@@ -1492,6 +1510,9 @@ collectGeometryOpaqueCalls geometryKind =
       ++ collectGeometryNFOpaqueCalls geometryNF
     EmbeddedOrthogonalGeometry embedding geometryNF ->
       concatMap collectScalarOpaqueCalls embedding
+      ++ collectGeometryNFOpaqueCalls geometryNF
+    GeneralMetricGeometry rows geometryNF ->
+      concatMap collectScalarOpaqueCalls (concat rows)
       ++ collectGeometryNFOpaqueCalls geometryNF
 
 collectGeometryNFOpaqueCalls :: GeometryNF -> [OpaqueDiscrete]

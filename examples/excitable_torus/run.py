@@ -51,10 +51,18 @@ def block_size(n, interval):
 
 
 def build(directory, case="oblique", grid=(120, 248), mpi=(1, 1), blocking=4,
-          overrides=None, extra_fme=""):
+          overrides=None, extra_fme="", reductions=None, flag="ACCURACY",
+          substitutions=None, length=(6.283185307179586, 6.283185307179586),
+          boundary=("periodic", "periodic")):
     directory = Path(directory).resolve()
     directory.mkdir(parents=True, exist_ok=True)
     source = (HERE / (NAME + ".fme")).read_text()
+    # Whole-line substitutions select another surface (metric scale, direction
+    # vector, stimulus region); see surfaces.py.
+    for old, new in (substitutions or {}).items():
+        if old not in source:
+            raise ValueError("substitution target not found: " + old)
+        source = source.replace(old, new)
     changes = CASES[case] | (overrides or {})
     for key, value in changes.items():
         source, count = re.subn(r"^param " + re.escape(key) + r" = .*$",
@@ -71,18 +79,18 @@ def build(directory, case="oblique", grid=(120, 248), mpi=(1, 1), blocking=4,
     if any(n % p for n, p in zip(grid, mpi)):
         raise ValueError("grid must divide evenly among MPI ranks")
     local = [n // p for n, p in zip(grid, mpi)]
-    length = [6.283185307179586 / p for p in mpi]
-    config = ["length_per_node: " + json.dumps(length),
+    lengths = [l / p for l, p in zip(length, mpi)]
+    config = ["length_per_node: " + json.dumps(lengths),
               "grid_per_node: " + json.dumps(local),
               "mpi_shape: " + json.dumps(mpi),
-              "boundary: [periodic, periodic]"]
+              "boundary: [" + ", ".join(boundary) + "]"]
     if blocking:
         config += ["grid_per_block: " + json.dumps([block_size(n, blocking) for n in local]),
                    "temporal_blocking_interval: " + str(blocking)]
-    reductions = "umin = min u, umax = max u, vmin = min v, vmax = max v, mass = sum mass, square = sum square, active = sum active"
-    if extra_fme:
-        reductions += ", error = sum error, reference = sum reference"
-    config += ["reduces: [" + reductions + "]"]
+    base = "umin = min u, umax = max u, vmin = min v, vmax = max v, mass = sum mass, square = sum square, active = sum active"
+    if extra_fme and reductions is None:
+        reductions = "error = sum error, reference = sum reference"
+    config += ["reduces: [" + base + (", " + reductions if reductions else "") + "]"]
     (directory / (NAME + ".yaml")).write_text("\n".join(config) + "\n")
     env = dict(os.environ, EGISON_HEAP_LIMIT=os.environ.get("EGISON_HEAP_LIMIT", "1G"))
     egison = Path(os.environ.get("EGISON_DIR", ROOT.parent / "egison")).resolve()
@@ -99,9 +107,12 @@ def build(directory, case="oblique", grid=(120, 248), mpi=(1, 1), blocking=4,
     compiler = os.environ.get("MPICC", "mpicc") if mpi != (1, 1) else os.environ.get("CC", "cc")
     flags = [] if mpi != (1, 1) else ["-I" + str(ROOT / "mpistub")]
     if extra_fme:
-        flags += ["-DACCURACY"]
+        flags += ["-D" + flag]
+    # The driver is copied next to the generated header so that its include
+    # resolves to this build's array layout, never to another grid's.
+    (directory / "driver.c").write_text((HERE / "driver.c").read_text())
     call([compiler, "-O2", "-std=c11", "-I" + str(directory), *flags,
-          HERE / "driver.c", directory / (NAME + ".c"), "-lm", "-o", directory / "check"],
+          directory / "driver.c", directory / (NAME + ".c"), "-lm", "-o", directory / "check"],
          directory, "cc", env)
     parameters = dict(re.findall(r"^param (\w+) = (.*)$", source, flags=re.MULTILINE))
     metadata = {"case": case, "grid": grid, "mpi": mpi, "blocking": blocking,

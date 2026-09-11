@@ -1,0 +1,126 @@
+-- Transformation optics: TE Maxwell (Ez, Bx, By) on a Cartesian Yee grid.
+-- A coordinate map of the plane is realized as an anisotropic material with
+-- mu^{ij} = sqrt(g) g^{ij} and eps_z = sqrt(g), where g is the metric of the
+-- map pulled back to the physical plane (Ward and Pendry).  The material is
+-- given by its principal values in the polar frame (rhat, phat) and assembled
+-- with index notation.  The vacuum reference (Ev, Bv) runs in the same program
+-- so the scattered field is measured inside the generated solver.
+-- z is a dummy periodic axis that carries the Yee (edge/face) placements.
+-- E lives on the dual grid and B, H on the primal grid: H = mu^{-1} B
+-- interpolates the new B to the other edge, B' reads E' one cell back and
+-- E' reads H one cell ahead, so an update reaches two cells forward and one
+-- cell backward.  Formura sizes the halo by the forward reach, which is why
+-- this placement (and not the mirrored one) blocks and decomposes exactly.
+-- H is kept as a field so that the E update does not go through the interpolation.
+dimension 3
+axes x, y, z
+metric g
+
+param dt = 0.1 * dx
+param x0 = 3.0
+-- the device centre sits a quarter cell off the nodes, edges and cell centres, so no
+-- sample of the frame vectors or of 1/eps_z falls on the singular point r = 0
+param cx = 8.0 + 0.25 * dx
+param cy = 6.0 + 0.25 * dy
+param width = 3.0
+param wavenumber = 3.141592653589793
+param R1 = 1.0
+param R2 = 2.0
+param R1s = 0.9
+param twist = 0.7853981633974483
+param cloak = 0.0
+param rotator = 0.0
+param obstacle = 0.0
+param cell = dx * dy
+extern sqrt
+extern exp
+
+def rr unused = sqrt ((x - cx)^2 + (y - cy)^2)
+def shell unused = if rr 0 > R1 && rr 0 < R2 then 1 else 0
+def core unused = if rr 0 < R1 then 1 else 0
+-- The solver uses H = mu^{-1} B with mu^{-1}_{ij} = g_{ij} / sqrt(g), so the
+-- coefficients below are those of the pulled-back metric g itself.
+-- rotator (r, phi) -> (r, phi + twist (R2 - r)/(R2 - R1)): in the polar frame
+-- g = [[1 + s^2, s], [s, 1]] with s = r f' = -twist r/(R2 - R1) and det g = 1.
+def shear unused = 0 - twist * rr 0 / (R2 - R1)
+-- cloak r' = R2 (r - R1s)/(R2 - R1s) on R1 < r < R2 (R1s < R1 keeps every value finite):
+-- g = diag(h'^2, (r'/r)^2), sqrt(g) = h' r'/r, hence mu^{-1} = diag(h' r/r', r'/(h' r))
+-- and eps_z = sqrt(g), with h' = R2/(R2 - R1s).
+def stretch unused = R2 / (R2 - R1s)
+def image unused = stretch 0 * (rr 0 - R1s)
+def coefRR unused = 1 + shell 0 * (cloak * (stretch 0 * rr 0 / image 0 - 1) + rotator * (shear 0)^2)
+def coefRP unused = shell 0 * rotator * shear 0
+def coefPP unused = 1 + shell 0 * cloak * (image 0 / (stretch 0 * rr 0) - 1)
+def permittivity unused = 1 + shell 0 * cloak * (stretch 0 * image 0 / rr 0 - 1)
+def inversePermittivity unused = (1 - core 0 * obstacle) / permittivity 0
+def pulse unused = exp (0 - ((x - x0) / width)^2) * cos (wavenumber * (x - x0))
+-- the tail of the pulse must not be frozen inside the conductor, where E_z is held at zero
+def masked unused = (1 - core 0 * obstacle) * pulse 0
+-- mu^{-1} = A rhat rhat + B (rhat phat + phat rhat) + C phat phat is assembled from
+-- the frame vectors and the coefficient fields (which never change in time),
+-- then resampled to the placement of each H component and contracted with B.
+def assemble A B C U~a V~b = withSymbols [i, j] (A * U~i * U~j + B * (U~i * V~j + V~i * U~j) + C * V~i * V~j)
+def hx M~a~b V_c = withSymbols [j] (M~1~j . V_j)
+def hy M~a~b V_c = withSymbols [j] (M~2~j . V_j)
+def curlz H_c = ∂_x H_2 - ∂_y H_1
+def ez V_c = V_3
+def magnetic V_c W_d = withSymbols [i, j] (g~i~j . V_i . W_j)
+
+field E_i @ dual
+field B_i @ primal
+field H_i @ primal
+field Ev_i @ dual
+field Bv_i @ primal
+field rh~i @ collocated
+field ph~i @ collocated
+field a : scalar @ collocated
+field b : scalar @ collocated
+field c : scalar @ collocated
+field epsz : scalar @ collocated
+-- 1/eps_z sampled where E_z lives (the third component of a dual vector), so the
+-- conductor mask stays sharp instead of being interpolated from the nodes
+field ie_i @ dual
+field outside : scalar @ collocated
+field scatter : scalar @ collocated
+field incident : scalar @ collocated
+field energy : scalar @ collocated
+
+init:
+  E_i := [| 0, 0, masked 0 |]_i
+  B_i := [| 0, 0 - masked 0, 0 |]_i
+  H_i := [| 0, 0 - masked 0, 0 |]_i
+  Ev_i := [| 0, 0, pulse 0 |]_i
+  Bv_i := [| 0, 0 - pulse 0, 0 |]_i
+  rh~i := [| (x - cx) / rr 0, (y - cy) / rr 0, 0 |]~i
+  ph~i := [| 0 - (y - cy) / rr 0, (x - cx) / rr 0, 0 |]~i
+  a := coefRR 0
+  b := coefRP 0
+  c := coefPP 0
+  epsz := permittivity 0
+  ie_i := [| 0, 0, inversePermittivity 0 |]_i
+  outside := if rr 0 > R2 + 0.5 then cell else 0
+  scatter := 0
+  incident := 0
+  energy := 0
+
+step:
+  local Minv{~i~j} @ collocated = assemble a b c rh ph
+  E'_i = [| 0, 0, E_3 + dt * ie_3 * curlz H |]_i
+  B' = B - dt * curl E'
+  H'_i = [| hx (resample(Minv, 1, 0, 0)) (resample(B', 1, 0, 0)), hy (resample(Minv, 0, 1, 0)) (resample(B', 0, 1, 0)), 0 |]_i
+  Ev' = Ev + dt * curl Bv
+  Bv' = Bv - dt * curl Ev'
+  rh' = rh
+  ph' = ph
+  a' = a
+  b' = b
+  c' = c
+  epsz' = epsz
+  ie' = ie
+  outside' = outside
+  -- the difference is formed before squaring, so that the vacuum case measures the
+  -- actual departure from the reference copy rather than cancellation error
+  local diff @ collocated = ez (resample(E', 0, 0, 0)) - ez (resample(Ev', 0, 0, 0))
+  scatter' = outside * diff^2
+  incident' = outside * (ez (resample(Ev', 0, 0, 0)))^2
+  energy' = cell * (epsz * (ez (resample(E', 0, 0, 0)))^2 + magnetic (resample(B', 0, 0, 0)) (resample(H', 0, 0, 0))) / 2

@@ -46,7 +46,64 @@ main = do
   assertAbsent "ambient operators do not construct a context"
     "Formurae.operatorContext" embeddedUnit
   assertAbsent "no eager whole-expression expansion" "expandAll" embeddedUnit
+  tensorModel <- parseModel "tensor.fme" "tensor" tensorSource
+  tensorRegistry <- requireRegistry (buildRegistry tensorModel)
+  tensorUnit <- requireEmit =<< emitNormalizationUnit manifestId tensorModel
+  assert "metric tensor has the FEIR general-metric kind" $
+    case geometryDeclKind (preRegistryGeometry tensorRegistry) of
+      GeneralMetricGeometry rows nf -> length rows == 2 && all ((== 2) . length) rows
+        && not (geometryOrthogonalityVerified nf)
+      _ -> False
+  assertContains "metric tensor rows reach Egison"
+    "def feGeometryMetricRows := [[1 + y^2, y], [y, 1]]" tensorUnit
+  assertContains "metric tensor symmetry gates serialization"
+    "metric tensor must be symmetric" tensorUnit
+  assertContains "the inverse of a component metric is derived in Egison"
+    "FE.inverseMetricTensor feDimension feGeometryMetricRaw" tensorUnit
+  assertContains "the explicit volume element is used"
+    "def feGeometryVolumeRaw := 1" tensorUnit
+  deltaModel <- parseModel "tensor-delta.fme" "tensor-delta" tensorDeltaSource
+  deltaResult <- emitNormalizationUnit manifestId deltaModel
+  assert "canonical Delta is rejected on a component metric" $
+    case deltaResult of
+      Left err -> "orthogonal metric" `isInfixOf` show err
+      Right _ -> False
   putStrLn "formurae-pre geometry emitter tests: ok"
+
+-- A sheared plane: phi = psi + x style chart with a non-diagonal metric.
+tensorSource :: String
+tensorSource = unlines
+  [ "dimension 2"
+  , "axes x, y"
+  , "metric g"
+  , "metric tensor [[1 + y^2, y], [y, 1]]"
+  , "metric volume 1"
+  , "param dt = 0.1"
+  , "field u : scalar @ primal"
+  , "field J : scalar @ primal"
+  , "init:"
+  , "  u := exp (0 - x^2)"
+  , "  J := volume"
+  , "step:"
+  , "  local p_i @ primal = [| ∂_x u, ∂_y u |]_i"
+  , "  local q~i @ primal = withSymbols [j] (g~i~j . p_j)"
+  , "  u' = u + dt * (∂_i q~i) / J"
+  , "  J' = J"
+  ]
+
+tensorDeltaSource :: String
+tensorDeltaSource = unlines
+  [ "dimension 2"
+  , "axes x, y"
+  , "metric g"
+  , "metric tensor [[1 + y^2, y], [y, 1]]"
+  , "param dt = 0.1"
+  , "field u : scalar @ primal"
+  , "init:"
+  , "  u := exp (0 - x^2)"
+  , "step:"
+  , "  u' = u + dt * Δ u"
+  ]
 
 manifestId :: PrimitiveManifestId
 manifestId = PrimitiveManifestId

@@ -246,6 +246,10 @@ data GeometryKind
   = EuclideanGeometry
   | OrthogonalScaleGeometry [(AxisId, ScalarNF)] GeometryNF
   | EmbeddedOrthogonalGeometry [ScalarNF] GeometryNF
+  -- ^ A metric given by its full covariant component matrix (rows); the
+  -- coordinates need not be orthogonal and the normal form is not verified
+  -- orthogonal, so only the metric, its inverse and the volume are usable.
+  | GeneralMetricGeometry [[ScalarNF]] GeometryNF
   deriving (Eq, Ord, Show)
 
 data GeometryNF = GeometryNF

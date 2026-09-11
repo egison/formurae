@@ -33,6 +33,7 @@ module Formurae.TensorExpr
   , preprocessTensorExpr
   ) where
 
+import Control.Applicative ((<|>))
 import Data.Char (isDigit, isSpace)
 import Data.List (elemIndex, intercalate)
 
@@ -370,7 +371,12 @@ parseTensorTokensE src ts0 =
                                TEDisjoint <$> mapM parse (splitTopDisjointI ts)
                              _ ->
                                case splitTopDotsI ts of
-                                 (_:_:_) | not (hasEllipsisAtTop ts) ->
+                                 -- A spaced "." is the contraction operator
+                                 -- even when a segment carries an "...~i"
+                                 -- index application: the three dots of an
+                                 -- ellipsis are never spaced, so the split
+                                 -- keeps every appended expression intact.
+                                 (_:_:_) ->
                                    TEDot <$> mapM parse (splitTopDotsI ts)
                                  _ ->
                                    case splitTopMulDivI ts of
@@ -408,7 +414,7 @@ sourceSpanOf _ ts =
 
 parseTensorAtomE :: String -> [ITok] -> Either String TensorExpr
 parseTensorAtomE src ts =
-  case parseGridDerivativeExprE src ts of
+  case parseGridDerivativeExprE src ts <|> parseGroupIndexedExprE src ts of
     Just e -> e
     Nothing ->
       case stripOuterGroupI ts of
@@ -675,14 +681,36 @@ parseDerivativeExprE src ts =
             _ -> Just (acc, partial : marker : name : rest)
     collectDerivatives acc rest = Just (acc, rest)
 
+-- Egison's plain index application on a parenthesized expression, as in
+-- @(gamma 0)~i_j_k@ or @(covD Q)~i~j_k@.  The marked suffix must be
+-- adjacent to the closing parenthesis and must be the whole remainder; the
+-- result is the same append node as the explicit @(expr)...~i@ spelling, so
+-- typing, effect analysis, and Egison emission are shared with it.
+parseGroupIndexedExprE :: String -> [ITok] -> Maybe (Either String TensorExpr)
+parseGroupIndexedExprE src ts =
+  case trimTensorIToks ts of
+    IC '(' : rest ->
+      case closeGroupI ')' rest [] of
+        Just (inner, suffix@(IC mark : _))
+          | mark == '~' || mark == '_'
+          , Just parts <- indexedSuffixOnlyI suffix
+          , not (null parts) ->
+              Just (TEAppendIndexed <$> (TEGroup <$> parseTensorTokensE src inner)
+                                    <*> pure parts)
+        _ -> Nothing
+    _ -> Nothing
+
 parseAppendExprE :: String -> [ITok] -> Maybe (Either String TensorExpr)
 parseAppendExprE src ts =
   case breakTopEllipsis ts of
     Just (headT, suffixT) ->
-      Just $
-        case indexedSuffixOnlyI suffixT of
-          Just parts -> TEAppendIndexed <$> parseTensorTokensE src headT <*> pure parts
-          Nothing -> parseError src ts "append-index syntax needs marked indices after ..."
+      case indexedSuffixOnlyI suffixT of
+        Just parts -> Just (TEAppendIndexed <$> parseTensorTokensE src headT <*> pure parts)
+        -- The ellipsis belongs to an inner atom of a wider application, as in
+        -- @f (g x)...~i y@: let the application rules split the atoms first.
+        Nothing
+          | any isSpaceITok (trimTensorIToks ts) -> Nothing
+          | otherwise -> Just (parseError src ts "append-index syntax needs marked indices after ...")
     Nothing -> Nothing
 
 parseCallExprE :: String -> [ITok] -> Maybe (Either String TensorExpr)
@@ -988,12 +1016,6 @@ rightSpaceI :: [ITok] -> Bool
 rightSpaceI (IC c : _) = isSpace c
 rightSpaceI _ = False
 
-hasEllipsisAtTop :: [ITok] -> Bool
-hasEllipsisAtTop ts =
-  case breakTopEllipsis ts of
-    Just _ -> True
-    Nothing -> False
-
 breakTopEllipsis :: [ITok] -> Maybe ([ITok], [ITok])
 breakTopEllipsis = go (0 :: Int) []
   where
@@ -1073,6 +1095,20 @@ indexedSuffixTx (marker@(IC m) : name@(II nm) : rest)
           let (more, rest') = indexedSuffixTx rest
           in (parts ++ more, rest')
         _ -> ([], marker : name : rest)
+-- Numeric component indices such as @_1_1@ tokenize as single characters
+-- rather than as an identifier word, so collect each digit run here.
+indexedSuffixTx (IC m : rest0@(IC d : _))
+  | (m == '~' || m == '_') && isDigit d =
+      let (digits, rest) = span isDigitTok rest0
+          name = concatMap digitOf digits
+          variance = if m == '~' then VUp else VDown
+          (more, rest') = indexedSuffixTx rest
+      in (IxPart variance name : more, rest')
+  where
+    isDigitTok (IC c) = isDigit c
+    isDigitTok _ = False
+    digitOf (IC c) = [c]
+    digitOf _ = []
 indexedSuffixTx ts = ([], ts)
 
 trimTensorIToks :: [ITok] -> [ITok]

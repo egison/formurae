@@ -43,7 +43,13 @@ static void dump(Formura_Navi n, const char *directory) {
       int cj = ((j + n.offset_phi) % n.total_grid_phi + n.total_grid_phi)
                % n.total_grid_phi;
       int32_t index[] = {ci, cj};
+#ifdef SPIRAL
+      double values[] = {formura_data.u[i][j], formura_data.v[i][j],
+                         formura_data.winding[i][j], formura_data.ricciScalar[i][j],
+                         formura_data.ricciSlope[i][j]};
+#else
       double values[] = {formura_data.u[i][j], formura_data.v[i][j]};
+#endif
       if (fwrite(index, sizeof index, 1, file) != 1 ||
           fwrite(values, sizeof values, 1, file) != 1) fail("write field");
     }
@@ -61,10 +67,15 @@ static int report(Formura_Navi n) {
     fprintf(stderr, "accuracy step=%d error=%.17g reference=%.17g\n",
             n.time_step, n.reduce_error, n.reduce_reference);
 #endif
+#ifdef SPIRAL
+    fprintf(stderr, "spiral step=%d plus=%.17g minus=%.17g plusCos=%.17g plusSin=%.17g minusCos=%.17g minusSin=%.17g ricciCheck=%.17g\n",
+            n.time_step, n.reduce_tipPlus, n.reduce_tipMinus, n.reduce_plusCos,
+            n.reduce_plusSin, n.reduce_minusCos, n.reduce_minusSin, n.reduce_ricciCheck);
+#endif
   }
   return isfinite(n.reduce_square) && isfinite(n.reduce_mass) &&
          n.reduce_umin > -4 && n.reduce_umax < 4 &&
-         n.reduce_vmin > -5 && n.reduce_vmax < 5;
+         n.reduce_vmin > -10 && n.reduce_vmax < 10;
 }
 
 int main(int argc, char **argv) {

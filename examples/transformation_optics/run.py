@@ -1,0 +1,166 @@
+#!/usr/bin/env python3
+"""Build and run the FME model through the normal Egison/Formura pipeline.
+
+This script only selects device parameters and grid layouts, invokes the
+tools, and handles files. Materials, initial conditions, integration and the
+scattering/energy diagnostics belong to FME. All builds and runs are
+sequential.
+"""
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import shlex
+import subprocess
+
+HERE = Path(__file__).resolve().parent
+ROOT = HERE.parents[1]
+NAME = "transformation_optics"
+LENGTH = (16.0, 12.0)
+CASES = {
+    "vacuum": {"cloak": "0.0", "rotator": "0.0", "obstacle": "0.0"},
+    "obstacle": {"cloak": "0.0", "rotator": "0.0", "obstacle": "1.0"},
+    "cloak": {"cloak": "1.0", "rotator": "0.0", "obstacle": "1.0"},
+    "rotator": {"cloak": "0.0", "rotator": "1.0", "obstacle": "0.0"},
+}
+# The magnetic update reads the new B two cells ahead: H = mu^-1 B interpolates
+# B' to the other edge, B' reads E' one cell back and E' reads H one cell ahead.
+# Formura sizes the halo by this forward reach (its backward reach is one cell).
+SLEEVE = 2
+
+
+def call(command, directory, name, env=None, stdout=None):
+    print(name, flush=True)
+    log = directory / (name + ".log")
+    try:
+        with log.open("w") as err:
+            if stdout is None:
+                subprocess.run([str(x) for x in command], cwd=ROOT, env=env,
+                               stdout=err, stderr=subprocess.STDOUT, check=True)
+            else:
+                with stdout.open("w") as out:
+                    subprocess.run([str(x) for x in command], cwd=ROOT, env=env,
+                                   stdout=out, stderr=err, check=True)
+    except subprocess.CalledProcessError:
+        print(log.read_text()[-5000:], flush=True)
+        raise
+
+
+def block_size(n, interval):
+    # Formura pads each axis by 2*sleeve*interval cells and needs the padded
+    # extent to be a multiple of the block; blocks must also cover that halo.
+    total = n + 2 * SLEEVE * interval
+    least = 2 * SLEEVE * interval
+    choices = [b for b in range(least, total + 1) if total % b == 0]
+    if not choices:
+        raise ValueError("grid has no suitable block divisor")
+    preferred = [b for b in choices if b <= 128]
+    return (preferred or choices)[-1]
+
+
+def build(directory, case="rotator", grid=(320, 240), mpi=(1, 1), blocking=4,
+          overrides=None, layers=None):
+    directory = Path(directory).resolve()
+    directory.mkdir(parents=True, exist_ok=True)
+    source = (HERE / (NAME + ".fme")).read_text()
+    changes = CASES[case] | (overrides or {})
+    for key, value in changes.items():
+        source, count = re.subn(r"^param " + re.escape(key) + r" = .*$",
+                                "param " + key + " = " + str(value), source,
+                                flags=re.MULTILINE)
+        if count != 1:
+            raise ValueError("unknown or repeated parameter: " + key)
+    model = directory / (NAME + ".fme")
+    model.write_text(source)
+    if any(n % p for n, p in zip(grid, mpi)):
+        raise ValueError("grid must divide evenly among MPI ranks")
+    # The dummy z axis needs 2*sleeve*interval cells when time blocking is on.
+    layers = layers or (2 * SLEEVE * blocking if blocking else 4)
+    local = [n // p for n, p in zip(grid, mpi)] + [layers]
+    spacing = LENGTH[0] / grid[0]
+    length = [LENGTH[0] / mpi[0], LENGTH[1] / mpi[1], spacing * layers]
+    config = ["length_per_node: " + json.dumps(length),
+              "grid_per_node: " + json.dumps(local),
+              "mpi_shape: " + json.dumps(list(mpi) + [1]),
+              "boundary: [periodic, periodic, periodic]"]
+    if blocking:
+        config += ["grid_per_block: " + json.dumps([block_size(n, blocking) for n in local]),
+                   "temporal_blocking_interval: " + str(blocking)]
+    config += ["reduces: [emax = absmax E_down3, scatter = sum scatter, incident = sum incident, energy = sum energy]"]
+    (directory / (NAME + ".yaml")).write_text("\n".join(config) + "\n")
+    env = dict(os.environ, EGISON_HEAP_LIMIT=os.environ.get("EGISON_HEAP_LIMIT", "1G"))
+    egison = Path(os.environ.get("EGISON_DIR", ROOT.parent / "egison")).resolve()
+    call(["cabal", "run", "-v0", "formurae-pre", "--", model], directory, "pre",
+         env, directory / (NAME + ".egi"))
+    call([ROOT / "tools/run_formurae_normalization.sh", egison, directory / (NAME + ".egi")],
+         directory, "egison", env, directory / (NAME + ".feir"))
+    call(["cabal", "run", "-v0", "formurae-post", "--", directory / (NAME + ".feir")],
+         directory, "post", env, directory / (NAME + ".fmr"))
+    formura = os.environ.get("FORMURA", str(ROOT / "bin/formura"))
+    with (directory / "formura.log").open("w") as log:
+        subprocess.run([formura, NAME + ".fmr"], cwd=directory,
+                       stdout=log, stderr=subprocess.STDOUT, check=True)
+    compiler = os.environ.get("MPICC", "mpicc") if mpi != (1, 1) else os.environ.get("CC", "cc")
+    flags = [] if mpi != (1, 1) else ["-I" + str(ROOT / "mpistub")]
+    # The driver is copied next to the generated header so that its include
+    # resolves to this build's array layout, never to another grid's.
+    (directory / "driver.c").write_text((HERE / "driver.c").read_text())
+    call([compiler, "-O2", "-std=c11", "-I" + str(directory), *flags,
+          directory / "driver.c", directory / (NAME + ".c"), "-lm", "-o", directory / "check"],
+         directory, "cc", env)
+    parameters = dict(re.findall(r"^param (\w+) = (.*)$", source, flags=re.MULTILINE))
+    metadata = {"case": case, "grid": grid, "layers": layers, "mpi": mpi, "blocking": blocking,
+                "parameters": parameters, "source_sha256": hashlib.sha256(source.encode()).hexdigest(),
+                "egison_revision": subprocess.check_output(["git", "-C", str(egison), "rev-parse", "HEAD"], text=True).strip()}
+    (directory / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
+    return directory
+
+
+def run(directory, steps, every, mpi=(1, 1), dump=True):
+    directory = Path(directory).resolve()
+    data = directory / "data"
+    data.mkdir(exist_ok=True)
+    for old in data.glob("frame-*-rank-*.bin"):
+        old.unlink()
+    command = [directory / "check", steps, every]
+    if dump:
+        command.append(data)
+    if mpi != (1, 1):
+        command = [os.environ.get("MPIRUN", "mpirun"),
+                   *shlex.split(os.environ.get("MPIRUN_ARGS", "")),
+                   "-np", mpi[0] * mpi[1], *command]
+    call(command, directory, "run", stdout=directory / "stats.csv")
+    metadata = json.loads((directory / "metadata.json").read_text())
+    metadata.update(steps=steps, output_interval=every,
+                    mpi_environment={key: os.environ[key] for key in
+                                     ("HWLOC_SYNTHETIC", "MPIRUN_ARGS") if key in os.environ})
+    (directory / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
+    print((directory / "run.log").read_text().strip(), flush=True)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--case", choices=[*CASES, "all"], default="all")
+    parser.add_argument("--grid", type=int, nargs=2, default=[320, 240])
+    parser.add_argument("--mpi", type=int, nargs=2, default=[1, 1])
+    parser.add_argument("--blocking", type=int, default=4, help="0 disables time blocking")
+    parser.add_argument("--steps", type=int, default=2000)
+    parser.add_argument("--every", type=int, default=40)
+    parser.add_argument("--param", action="append", default=[], metavar="NAME=VALUE")
+    parser.add_argument("--output", type=Path, default=ROOT / ".build/transformation_optics/demo")
+    args = parser.parse_args()
+    if min(*args.grid, *args.mpi, args.steps, args.every) < 1 or args.blocking < 0:
+        parser.error("sizes and intervals must be positive")
+    if args.steps % args.every or args.every % (args.blocking or 1):
+        parser.error("steps/every must align with the output/blocking interval")
+    overrides = dict(value.split("=", 1) for value in args.param)
+    for case in CASES if args.case == "all" else [args.case]:
+        directory = build(args.output / case, case, tuple(args.grid), tuple(args.mpi),
+                          args.blocking, overrides)
+        run(directory, args.steps, args.every, tuple(args.mpi))
+
+
+if __name__ == "__main__":
+    main()

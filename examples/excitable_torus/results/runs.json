@@ -11,6 +11,8 @@
     ],
     "blocking": 4,
     "parameters": {
+      "R": "12.0",
+      "r": "6.0",
       "dt": "0.005",
       "beta": "1.1",
       "eps": "0.3",
@@ -22,12 +24,15 @@
       "stimulus": "1.0",
       "cell": "dtheta * dphi"
     },
-    "source_sha256": "268c2424e719bbaa0c24fbac1e2d7f2b42150f11575fab7df4e5933247a3581f",
+    "source_sha256": "3a1b118ebee9439ea5da5db2c939c7a9b60edcf6d658f95b4d5254b5a59e8593",
     "egison_revision": "87cbb478c845e9760ecfc1d0518b464df10a72cf",
     "steps": 24000,
     "output_interval": 200,
-    "mpi_environment": {},
-    "run_log": "steps=24000 elapsed_seconds=30.680082 bounds=ok"
+    "mpi_environment": {
+      "HWLOC_SYNTHETIC": "node:1 core:10 pu:1",
+      "MPIRUN_ARGS": "--bind-to none"
+    },
+    "run_log": "steps=24000 elapsed_seconds=30.574715 bounds=ok"
   },
   "oblique": {
     "case": "oblique",
@@ -41,6 +46,8 @@
     ],
     "blocking": 4,
     "parameters": {
+      "R": "12.0",
+      "r": "6.0",
       "dt": "0.005",
       "beta": "1.1",
       "eps": "0.3",
@@ -52,12 +59,15 @@
       "stimulus": "1.0",
       "cell": "dtheta * dphi"
     },
-    "source_sha256": "65ce0e5d5c9d2d7d979ca8216ac3c393c3dd3cc35d8ffdba9d27f4cc41bb75e4",
+    "source_sha256": "7e792473c56b070b598183f1ab370bca218e8f67f0355cf2389ddaf20e335266",
     "egison_revision": "87cbb478c845e9760ecfc1d0518b464df10a72cf",
     "steps": 24000,
     "output_interval": 200,
-    "mpi_environment": {},
-    "run_log": "steps=24000 elapsed_seconds=30.777700 bounds=ok"
+    "mpi_environment": {
+      "HWLOC_SYNTHETIC": "node:1 core:10 pu:1",
+      "MPIRUN_ARGS": "--bind-to none"
+    },
+    "run_log": "steps=24000 elapsed_seconds=30.490004 bounds=ok"
   },
   "twisted": {
     "case": "twisted",
@@ -71,6 +81,8 @@
     ],
     "blocking": 4,
     "parameters": {
+      "R": "12.0",
+      "r": "6.0",
       "dt": "0.005",
       "beta": "1.1",
       "eps": "0.3",
@@ -82,11 +94,14 @@
       "stimulus": "1.0",
       "cell": "dtheta * dphi"
     },
-    "source_sha256": "b0e9baed2d283036696b28f2be244fd2f4227c36d672dc553f809bbc363155b8",
+    "source_sha256": "9638d3675e11b6eedf3fd4d71247f5c464f7c14a57878d411094ee4334d8aae9",
     "egison_revision": "87cbb478c845e9760ecfc1d0518b464df10a72cf",
     "steps": 24000,
     "output_interval": 200,
-    "mpi_environment": {},
-    "run_log": "steps=24000 elapsed_seconds=30.748956 bounds=ok"
+    "mpi_environment": {
+      "HWLOC_SYNTHETIC": "node:1 core:10 pu:1",
+      "MPIRUN_ARGS": "--bind-to none"
+    },
+    "run_log": "steps=24000 elapsed_seconds=30.629827 bounds=ok"
   }
 }

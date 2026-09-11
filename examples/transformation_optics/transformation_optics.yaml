@@ -1,0 +1,5 @@
+length_per_node: [16.0, 12.0, 0.2]
+grid_per_node: [320, 240, 4]
+mpi_shape: [1, 1, 1]
+boundary: [periodic, periodic, periodic]
+reduces: [emax = absmax E_down3, scatter = sum scatter, incident = sum incident, energy = sum energy]

@@ -628,6 +628,7 @@ validationIssueMessage issue =
     UnverifiedOrthogonalGeometry ->
       "orthogonal geometry has not been symbolically verified"
     InvalidEmbeddedGeometry -> "embedded geometry must not be empty"
+    InvalidGeneralMetricGeometry -> "metric tensor components must form a square matrix"
     EmptyProvenance -> "provenance origin set must not be empty"
     EmptyGhostBoundaryFill -> "ghost boundary fill value must not be empty"
 

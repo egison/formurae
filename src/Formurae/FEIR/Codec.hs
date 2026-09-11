@@ -761,6 +761,11 @@ encodeGeometryKind (EmbeddedOrthogonalGeometry embedding normalForm) =
     [ ("embedding", encodeList encodeScalarNF embedding)
     , ("normal-form", encodeGeometryNF normalForm)
     ]
+encodeGeometryKind (GeneralMetricGeometry rows normalForm) =
+  record "general-metric"
+    [ ("components", encodeList (encodeList encodeScalarNF) rows)
+    , ("normal-form", encodeGeometryNF normalForm)
+    ]
 
 decodeGeometryKind :: SExpr -> Either CodecError GeometryKind
 decodeGeometryKind (List [Atom "euclidean"]) = Right EuclideanGeometry
@@ -773,6 +778,12 @@ decodeGeometryKind expression@(List (Atom "embedded-orthogonal" : _)) = do
   fields <- decodeRecord "embedded-orthogonal" ["embedding", "normal-form"] expression
   EmbeddedOrthogonalGeometry
     <$> (required "embedding" fields >>= decodeList "embedding" decodeScalarNF)
+    <*> (required "normal-form" fields >>= decodeGeometryNF)
+decodeGeometryKind expression@(List (Atom "general-metric" : _)) = do
+  fields <- decodeRecord "general-metric" ["components", "normal-form"] expression
+  GeneralMetricGeometry
+    <$> (required "components" fields
+           >>= decodeList "components" (decodeList "components-row" decodeScalarNF))
     <*> (required "normal-form" fields >>= decodeGeometryNF)
 decodeGeometryKind expression = codecError "geometry-kind"
   ("unknown geometry kind: " ++ renderSExpr expression)

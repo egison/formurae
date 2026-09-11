@@ -83,3 +83,9 @@ examples/elastic_spherical/elastic_spherical.h
 examples/excitable_torus/excitable_torus.c
 examples/excitable_torus/excitable_torus.h
 examples/excitable_torus/__pycache__/
+examples/nematic_torus/nematic_torus.c
+examples/nematic_torus/nematic_torus.h
+examples/nematic_torus/__pycache__/
+examples/transformation_optics/transformation_optics.c
+examples/transformation_optics/transformation_optics.h
+examples/transformation_optics/__pycache__/

@@ -4,6 +4,11 @@ Formurae は、Egison のテンソル添字記法で書いた偏微分方程式�
 [Formura](https://github.com/formura/formura) の stencil programへ変換し、
 MPI・temporal blocking付きC codeを生成するための実験的な言語処理系です。
 
+例題・デモ・ベンチマークは、Formura 本体を拡張せず、既存の機能と通常のコード生成経路で
+実装できるシミュレーションを対象にします。近傍格子点を参照する局所更新を中心に、
+初期条件・境界処理・補助計算も含めて実装可能性を確認します。
+開発時の詳細は [AGENTS.md](AGENTS.md) に従います。
+
 表層言語の拡張子は `.fme` です。数式の意味と離散化を分離し、次の4段で処理します。
 
 ```text
@@ -41,6 +46,10 @@ step:
 したがって、`E_i + gradLike u`のanonymous軸が既存の`i`へ暗黙に統合されることはありません。
 この式では両者は別の軸です。同じ軸で合成する意図は、
 `withSymbols [i] (E_i + (gradLike u)..._i)`のようにcall siteで下添字を明示できます。
+Egisonと同じ`(gradLike u)_i`という綴りも同じ意味で使えます。括弧でくくった式の直後に
+添字をつける書き方はinit・step・defのどこでも構造化された式として解析され、
+`(gamma 0)~i_k_l . Q~l~j`のように`.`による縮約とも組み合わせられます
+(defの結果は`(christoffel 0)~i_1_l`のように数値添字で成分を取り出せます)。
 
 pure user operatorの本体は1行に限定されません。`=`の次をindentすると、Egisonの`let`、lambda、
 `match`、`withSymbols`、`generateTensor`を含む式blockをそのままnormalizationへ渡せます。
@@ -228,6 +237,21 @@ step:
   u' = u + dt * Δ u
 ```
 
+座標線が直交しない座標系では、計量を成分で宣言します。
+
+```formurae
+axes θ, ψ                                    -- トーラスのねじった座標 φ = ψ + θ
+metric g
+metric tensor [[36 + (12 + 6 * cos θ)^2, (12 + 6 * cos θ)^2], [(12 + 6 * cos θ)^2, (12 + 6 * cos θ)^2]]
+metric volume 6 * (12 + 6 * cos θ)         -- 省略すると sqrt(det g) をEgisonが作る
+```
+
+`metric tensor`ではEgisonが対称性を検査し、逆計量と体積要素を導きます。このとき使えるのは
+`g~i~j`・`g_i_j`・`volume`と`∂/∂`による計量の解析微分で、直交性を前提とするcanonicalな
+`Δ`・`δ`・`hodge`はコンパイル時エラーになります(流束形を明示的に書きます)。
+`examples/excitable_torus/excitable_torus_twisted.fme`は同じ興奮波のモデルをこの座標で書き、
+直交座標の結果と2次精度で一致することを`charts.py`で確認します。
+
 Egisonはmetric、inverse metric、scale factor、volumeを記号的に作り、embeddingでは直交性を
 検査します。geometryを宣言したモデルの`Δ u`はpreludeマクロとして、実体化した重み・flux
 localと符号付きadjoint divergenceへ展開されます。FEIRに残るのはordinaryなMaterialize
@@ -405,7 +429,7 @@ EGISON_HEAP_LIMIT=4G make all EGISON_DIR="$EGISON_DIR"
 - [`html/ja/usage.html`](html/ja/usage.html)/[`html/en/usage.html`](html/en/usage.html): tutorialとusage guide
 - [`html/ja/gallery.html`](html/ja/gallery.html)/[`html/en/gallery.html`](html/en/gallery.html): 検証済み応用のgallery
 - [`APPLICATIONS.md`](APPLICATIONS.md): 応用例一覧
-- [`UPSTREAM.md`](UPSTREAM.md): Formura側の拡張計画
+- [`UPSTREAM.md`](UPSTREAM.md): Formura側の過去の拡張案と実装記録
 
 ## ライセンス
 

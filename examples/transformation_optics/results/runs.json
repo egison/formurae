@@ -1,0 +1,154 @@
+{
+  "vacuum": {
+    "case": "vacuum",
+    "grid": [
+      320,
+      240
+    ],
+    "layers": 4,
+    "mpi": [
+      1,
+      1
+    ],
+    "blocking": 0,
+    "parameters": {
+      "dt": "0.1 * dx",
+      "x0": "3.0",
+      "cx": "8.0 + 0.25 * dx",
+      "cy": "6.0 + 0.25 * dy",
+      "width": "3.0",
+      "wavenumber": "3.141592653589793",
+      "R1": "1.0",
+      "R2": "2.0",
+      "R1s": "0.9",
+      "twist": "0.7853981633974483",
+      "cloak": "0.0",
+      "rotator": "0.0",
+      "obstacle": "0.0",
+      "cell": "dx * dy"
+    },
+    "source_sha256": "2af0e3ac2acc35f9ae733bf00db78449c7727639db99ff243118023ef5f5a6d1",
+    "egison_revision": "87cbb478c845e9760ecfc1d0518b464df10a72cf",
+    "steps": 2000,
+    "output_interval": 40,
+    "mpi_environment": {
+      "HWLOC_SYNTHETIC": "node:1 core:10 pu:1",
+      "MPIRUN_ARGS": "--bind-to none"
+    },
+    "run_log": "steps=2000 elapsed_seconds=113.623825 bounds=ok"
+  },
+  "obstacle": {
+    "case": "obstacle",
+    "grid": [
+      320,
+      240
+    ],
+    "layers": 4,
+    "mpi": [
+      1,
+      1
+    ],
+    "blocking": 0,
+    "parameters": {
+      "dt": "0.1 * dx",
+      "x0": "3.0",
+      "cx": "8.0 + 0.25 * dx",
+      "cy": "6.0 + 0.25 * dy",
+      "width": "3.0",
+      "wavenumber": "3.141592653589793",
+      "R1": "1.0",
+      "R2": "2.0",
+      "R1s": "0.9",
+      "twist": "0.7853981633974483",
+      "cloak": "0.0",
+      "rotator": "0.0",
+      "obstacle": "1.0",
+      "cell": "dx * dy"
+    },
+    "source_sha256": "de3ad8707612cd4ce81d362e4875f92b2975550cb7b918a8a17b849298d2cbaa",
+    "egison_revision": "87cbb478c845e9760ecfc1d0518b464df10a72cf",
+    "steps": 2000,
+    "output_interval": 40,
+    "mpi_environment": {
+      "HWLOC_SYNTHETIC": "node:1 core:10 pu:1",
+      "MPIRUN_ARGS": "--bind-to none"
+    },
+    "run_log": "steps=2000 elapsed_seconds=125.386519 bounds=ok"
+  },
+  "cloak": {
+    "case": "cloak",
+    "grid": [
+      320,
+      240
+    ],
+    "layers": 4,
+    "mpi": [
+      1,
+      1
+    ],
+    "blocking": 0,
+    "parameters": {
+      "dt": "0.1 * dx",
+      "x0": "3.0",
+      "cx": "8.0 + 0.25 * dx",
+      "cy": "6.0 + 0.25 * dy",
+      "width": "3.0",
+      "wavenumber": "3.141592653589793",
+      "R1": "1.0",
+      "R2": "2.0",
+      "R1s": "0.9",
+      "twist": "0.7853981633974483",
+      "cloak": "1.0",
+      "rotator": "0.0",
+      "obstacle": "1.0",
+      "cell": "dx * dy"
+    },
+    "source_sha256": "9c0b76e4f1728ff77dcd69afacd1cc09c56380b10cc16eb1aebe1b16f11e39ea",
+    "egison_revision": "87cbb478c845e9760ecfc1d0518b464df10a72cf",
+    "steps": 2000,
+    "output_interval": 40,
+    "mpi_environment": {
+      "HWLOC_SYNTHETIC": "node:1 core:10 pu:1",
+      "MPIRUN_ARGS": "--bind-to none"
+    },
+    "run_log": "steps=2000 elapsed_seconds=128.545260 bounds=ok"
+  },
+  "rotator": {
+    "case": "rotator",
+    "grid": [
+      320,
+      240
+    ],
+    "layers": 4,
+    "mpi": [
+      1,
+      1
+    ],
+    "blocking": 0,
+    "parameters": {
+      "dt": "0.1 * dx",
+      "x0": "3.0",
+      "cx": "8.0 + 0.25 * dx",
+      "cy": "6.0 + 0.25 * dy",
+      "width": "3.0",
+      "wavenumber": "3.141592653589793",
+      "R1": "1.0",
+      "R2": "2.0",
+      "R1s": "0.9",
+      "twist": "0.7853981633974483",
+      "cloak": "0.0",
+      "rotator": "1.0",
+      "obstacle": "0.0",
+      "cell": "dx * dy"
+    },
+    "source_sha256": "38a64228822d42b3e513850751c23c09a95ad87f674b1c9b82d600332e9198ff",
+    "egison_revision": "87cbb478c845e9760ecfc1d0518b464df10a72cf",
+    "steps": 2000,
+    "output_interval": 40,
+    "mpi_environment": {
+      "HWLOC_SYNTHETIC": "node:1 core:10 pu:1",
+      "MPIRUN_ARGS": "--bind-to none"
+    },
+    "run_log": "steps=2000 elapsed_seconds=128.370048 bounds=ok"
+  }
+}

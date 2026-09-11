@@ -47,6 +47,10 @@ validateModelOperatorTypes model = do
     (maybe [] id (mMetric model))
   mapM_ (checkGeometryExpression "embedding")
     (maybe [] id (mEmbed model))
+  mapM_ (checkGeometryExpression "metric tensor")
+    (concat (maybe [] id (mMetricTensor model)))
+  mapM_ (checkGeometryExpression "metric volume")
+    (maybe [] (: []) (mMetricVolume model))
   mapM_ checkInitializer (zip (mInits model) (mInitSourceTexts model))
   checkSteps baseEnvironment (mSteps model)
   where
@@ -219,6 +223,11 @@ infer model shadowed environment source expression
       | not (null parts), all numericIndex parts
       , Just field <- fieldDeclOf model (dropNextPrime name)
       , length parts == componentRank (fdKind field) -> pure StaticScalar
+      -- A fully numeric component of an ambient geometry tensor (for
+      -- example @g_1_1@ or @coordinates~2@) is a scalar coefficient.
+      | not (null parts), all numericIndex parts
+      , Just rank <- ambientTensorRank name
+      , length parts == rank -> pure StaticScalar
       | not (null parts) -> pure StaticTensor
       | Just operator <- canonicalOperator name
       , canonicalOperatorIsVisible operatorScope operator ->
@@ -235,7 +244,12 @@ infer model shadowed environment source expression
       combineBranches <$> inferHere yes <*> inferHere no
     TEAppendIndexed body parts -> do
       _ <- inferHere body
-      if null parts then pure StaticUnknown else pure StaticTensor
+      -- A fully numeric index list selects a component of an expression
+      -- whose rank is not known statically (for example a definition
+      -- result), so its kind stays unknown; symbolic indices keep a tensor.
+      if null parts || all numericIndex parts
+        then pure StaticUnknown
+        else pure StaticTensor
     TEWithSymbols _ body -> inferHere body
     TEContractWith reducer body -> do
       _ <- inferHere (TEIdent reducer [])
@@ -287,6 +301,13 @@ infer model shadowed environment source expression
     -- Selecting every axis of a declared tensor by an integer gives a scalar.
     -- Symbolic or partial indexing must retain the tensor kind.
     numericIndex (IxPart _ name) = not (null name) && all isDigit name
+
+    ambientTensorRank name
+      | name `elem` ["metric", "inverseMetric"] = Just 2
+      | Just metricName <- mMetricName model, name == metricName = Just 2
+      | name == "epsilon" = Just (mDim model)
+      | name == "coordinates" = Just 1
+      | otherwise = Nothing
 
     inferApplication function arguments =
       case canonicalHead function of

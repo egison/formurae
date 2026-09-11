@@ -57,8 +57,10 @@ n^i=\left(\frac{\cos\alpha}{6},
 角度αは，物理的な接平面でθ方向となす角度である．
 twistedの方向場は時間によらず固定されている．
 
-この方程式は非直交座標でも成立する．本例では現行Formuraeの自動計量生成が
-対応する直交曲線座標を使う．非直交座標での実装・検証はこの例には含まない．
+この方程式は非直交座標でも成立する．本例の `.fme` はトーラスの半径を `param R`，`param r` で持ち，
+計量は `metric scale [r, R + r * cos θ]` と宣言する（直交曲線座標）．
+同じ方程式を非直交の座標系で書いた `excitable_torus_twisted.fme` と，
+別の曲面での実行は後述の「同じプログラムを別の座標系・別の曲面で動かす」を参照．
 
 ## 離散化と計算の分担
 
@@ -96,6 +98,11 @@ Cコンパイラを用意する．Haskellのビルドと数値実行はすべて
 ```sh
 # 標準例の生成と短い有界性検査
 make excitable_torus
+
+# ねじった座標系との比較、四つの曲面、渦巻き波の移動則（描画には plot-env を使う）
+.build/excitable_torus/plot-env/bin/python examples/excitable_torus/charts.py --figure
+.build/excitable_torus/plot-env/bin/python examples/excitable_torus/surfaces.py --figure
+.build/excitable_torus/plot-env/bin/python examples/excitable_torus/spiral.py --figure
 
 # 三例をt=120まで実行（各24000ステップ）
 make excitable_torus-demo
@@ -153,6 +160,7 @@ HWLOC_SYNTHETIC='node:1 core:10 pu:1' MPIRUN_ARGS='--bind-to none' \
 4. 滑らかな初期値1+sin θ cos φに対して，曲面上の流束をEgisonで解析的に
    微分した値と，生成された差分による初期変化率を比較する．
    32×64，64×128，128×256の格子で2次の空間収束を確認する．
+5. `spiral.py` は，Egison が導いた Ricci スカラーをトーラスの閉じた式と全格子点で比べる（差 1e-14 以下）．
 
 4の追加定義・初期値・更新式は`accuracy.fme.inc`にある．区切り行`---`で
 三つの部分を分け，検証時に本体の対応する位置へ挿入して一つの`.fme`として
@@ -160,7 +168,55 @@ HWLOC_SYNTHETIC='node:1 core:10 pu:1' MPIRUN_ARGS='--bind-to none' \
 このFormuraeソースにあり，Python側には別の差分ソルバーを置かない．
 この検査は空間差分の精度を対象とし，長時間の非線形解の収束検査とは異なる．
 
+## 同じプログラムを別の座標系・別の曲面で動かす
+
+**ねじった座標系（`excitable_torus_twisted.fme`）**：同じトーラスを座標 (θ, ψ)，φ = ψ + θ で表すと，
+両方向とも周期のまま計量が非対角になる（g_θψ = (R + r cos θ)²）．
+このために Formurae に `metric tensor [[...], [...]]` と `metric volume` の宣言を追加した．
+方程式は直交座標のものを新しい座標で書き直しただけで，流束の式は一行も変わらない
+（方向ベクトルの ψ 成分は n^φ − n^θ になる）．
+`charts.py` は両方の座標系を格子幅が整合する格子（Nψ = 2Nθ）で実行し，
+φ の格子番号 = ψ の格子番号 + 2 × θ の格子番号 で対応づけて比べる．
+反応を止めた滑らかな拡散では，t = 4 における最大差が 128×256 格子で 7.4e-5，256×512 格子で 1.9e-5 と，
+格子幅の 2 乗で減る（比 4.00）．興奮波では波面が鋭いため差は波面に集中し，二乗平均の差は t = 6 で
+0.43 から 0.24 へと格子を細かくすると減るが，最大差は波面の幅の分だけ残る（`results/charts.json`，`results/charts.png`）．
+
+![二つの座標系](results/charts.png)
+
+**四つの曲面（`surfaces.py`）**：計量の宣言・方向ベクトルの成分・初期刺激の範囲の 3 行だけを差し替え，
+トーラス（曲率の符号が変わる），球面の帯（正曲率），双曲平面の帯（負曲率），平坦な円環（曲率 0）で
+同じ興奮波を計算する（`results/surfaces.json`，`results/surfaces.png`）．
+壁のある曲面では Formura の mirror 境界を使い，時間ブロッキングは使わない．
+各曲面で，反応を止めた拡散の計量重みつき熱量 ∫u dA が保存されることを確認する（変化は 5e-11 以下）．
+壁のある三つの帯では，巻き込んだ波端が壁に達すると興奮は t ≈ 15〜30 で消える．
+壁のないトーラスでは旋回する波の対が残る．図は t = 5, 10, 15, 20 の展開図である．
+
+![四つの曲面](results/surfaces.png)
+
+**渦巻き波の移動則（`spiral.py`）**：初期の帯の両端が巻き込んでできる一対の渦巻き波の先端は，
+ベクトル (u − u*, v − v*) の位相特異点である．その巻き数を格子ごとに厳密に数え，位置の sin・cos の和を
+`reduces` で集計して先端の平均位置を追跡する．Dierckx らの移動則は，等方的な媒質では先端が
+Ricci スカラー R = 2K（K はガウス曲率）の勾配に沿って，|∂R/∂θ| に比例する速さで移動すると述べる．
+比例係数は反応項だけで決まるので，小半径 r = 6, 8, 10 のトーラスで同じ値になるはずである．
+R と ∂R/∂θ は同じ計量から Egison が記号的に導き（Christoffel 記号 → Riemann テンソル → Ricci スカラー），
+各実行の出力に保存する（`results/spiral.json`）．導いた R はトーラスの閉じた式 2 cos θ / (r (R + r cos θ)) と
+全格子点で比較し，差の最大値を `reduces` で集計する（1e-14 以下）．
+Egison は微分変数の添字を微分されるテンソルの添字の後ろに付けるので，Riemann テンソルの添字の並びは
+i, j, l, k になる．Ricci テンソル R_ij = R^m_imj は，位置で添字を付け直すときこの並びに従って
+第 1 添字と第 4 添字を縮約する（`contractWith (+) (riemann 0)~m_i_j_m`）．
+
+結果（t = 0 → 600，96×192 格子，t ≥ 100 で直線＋回転成分をあてはめ；`results/spiral.json`，`results/spiral.png`）：
+対の先端は θ = ±(1.2〜1.5) rad のまわりを周期約 60 で回りながら，
+r = 6 では内側（曲率の低い側，∂R/∂θ の向き）へ 1.2e-3 rad/時間で移動し，
+r = 8 ではほとんど移動せず（1e-5 rad/時間），r = 10 では外側へ 1.4e-4 rad/時間で移動した．
+物理単位の比例係数 q1 = −(r dθ/dt)/((1/r) ∂R/∂θ) は 1.7，0.05，−1.6 と一致しない．
+つまり，トーラス上で対になった渦巻き波の移動は，単独の渦巻き波に対する移動則だけでは説明できない
+（対の相互作用と周期方向の像の影響が加わる）．この例が示すのは，先端の位置を厳密な巻き数で追い，
+曲率とその勾配を同じ計量から記号的に導いて比較する，という測定の枠組みである．
+
+![渦巻き波の先端](results/spiral.png)
+
 ## 関連研究
 
 - [Kneer, Schöll, Dahlem (2014), Nucleation of reaction-diffusion waves on curved surfaces](https://arxiv.org/abs/1403.1716)：本例で使う形のFitzHugh–Nagumo方程式と，トーラス上の興奮波を扱う．本例の寸法・係数・初期条件は独自のデモ設定である．
-- [Dierckx et al. (2013), Drift laws for spiral waves on curved anisotropic surfaces](https://arxiv.org/abs/1301.5469)：曲率・異方性と渦巻き波の移動の関係を扱う．本例ではその移動法則の定量的な再現までは検証していない．
+- [Dierckx et al. (2013), Drift laws for spiral waves on curved anisotropic surfaces](https://arxiv.org/abs/1301.5469)：曲率・異方性と渦巻き波の移動の関係を扱う．`spiral.py` はその等方的な場合の移動則を，太さの異なるトーラスで比べる．

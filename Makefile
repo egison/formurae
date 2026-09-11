@@ -34,7 +34,8 @@ FME_EXAMPLES := acoustic3d diffusion1d diffusion2d divergence2d diffusion3d maxw
                 euler_sod highorder4 dirichlet_diffusion elastic3d elastic_spherical \
                 sbp_diffusion1d sbp_wave1d sbp_diffusion2d sbp_highorder4 \
                 sbp_neumann sbp_wave_open \
-                metric_torus metric_sphere hyperbolic polar2d spherical3d yinyang_diffusion mhd_ot lbm_d3q19 excitable_torus
+                metric_torus metric_sphere hyperbolic polar2d spherical3d yinyang_diffusion mhd_ot lbm_d3q19 excitable_torus \
+                nematic_torus transformation_optics
 
 CHECK_diffusion1d         := diffusion1d_check.c
 CHECK_diffusion2d         := diffusion2d_check.c
@@ -71,6 +72,8 @@ CHECK_mhd_ot              := mhd_check.c
 CHECK_lbm_d3q19           := lbm_check.c
 CHECK_acoustic3d          := ac_check.c
 CHECK_excitable_torus     := driver.c
+CHECK_nematic_torus       := driver.c
+CHECK_transformation_optics := driver.c
 
 RUNARGS_pearson3d := 20000
 
@@ -109,6 +112,20 @@ excitable_torus-demo:
 
 excitable_torus-verify:
 	python3 examples/excitable_torus/verify.py
+
+.PHONY: nematic_torus-demo nematic_torus-verify
+nematic_torus-demo:
+	python3 examples/nematic_torus/run.py --case all --grid 120 240 --blocking 0 --steps 16000 --every 160 --param dt=0.00375
+
+nematic_torus-verify:
+	python3 examples/nematic_torus/verify.py
+
+.PHONY: transformation_optics-demo transformation_optics-verify
+transformation_optics-demo:
+	python3 examples/transformation_optics/run.py --case all --grid 320 240 --blocking 0 --steps 2000 --every 40
+
+transformation_optics-verify:
+	python3 examples/transformation_optics/verify.py
 
 # Kept out of all: yy_check runs the global x/y/z eigenmodes, so the long
 # regression is deliberately opt-in for local/CI endurance testing.

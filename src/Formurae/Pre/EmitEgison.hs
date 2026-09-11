@@ -184,6 +184,28 @@ prepareGeometry model registry state0 =
         { FEIR.geometryDeclKind = FEIR.EmbeddedOrthogonalGeometry
             (map (scalarMarker . dynamicId) embeddingDynamics) normalForm
         }, state5)
+    FEIR.GeneralMetricGeometry placeholderRows _ -> do
+      let (metricDynamic, state1) = geometryDynamic
+            "feGeometryMetric"
+            (EncodeTensor covariantMetricType FEIR.FullLayout) state0
+          (inverseDynamic, state2) = geometryDynamic
+            "feGeometryInverseMetric"
+            (EncodeTensor contravariantMetricType FEIR.FullLayout) state1
+          (scaleDynamics, state3) = addScaleDynamics axisIds state2
+          (volumeDynamic, state4) = geometryDynamic
+            "feGeometryVolume" EncodeScalar state3
+          rows = length placeholderRows
+          (componentDynamics, state5) = addComponentDynamics rows state4
+          normalForm = (geometryNormalForm metricDynamic inverseDynamic
+            scaleDynamics volumeDynamic)
+            { FEIR.geometryOrthogonalityVerified = False }
+          markers = map (scalarMarker . dynamicId) componentDynamics
+          chunk [] = []
+          chunk values = take rows values : chunk (drop rows values)
+      Right (declaration
+        { FEIR.geometryDeclKind = FEIR.GeneralMetricGeometry
+            (chunk markers) normalForm
+        }, state5)
   where
     declaration = preRegistryGeometry registry
     dimension = Surface.mDim model
@@ -202,6 +224,9 @@ prepareGeometry model registry state0 =
     addEmbeddingDynamics count state = addMany
       ["nth " ++ show index ++ " feGeometryEmbedding"
       | index <- [1 .. count]] state
+    addComponentDynamics rows state = addMany
+      ["nth " ++ show column ++ " (nth " ++ show row ++ " feGeometryMetricRows)"
+      | row <- [1 .. rows], column <- [1 .. rows]] state
     addMany sources state = foldl addOne ([], state) sources
       where
         addOne (values, current) source =
@@ -413,16 +438,22 @@ mapVariance Surface.VDown = FEIR.VarianceDown
 prepareGeometryDeclarations
   :: Surface.Model -> IO (Either EmitError [String])
 prepareGeometryDeclarations model =
-  case (Surface.mMetric model, Surface.mEmbed model) of
-    (Nothing, Nothing) -> pure (Right euclideanGeometryLines)
-    (Just scaleFactors, Nothing) -> do
+  case (Surface.mMetric model, Surface.mEmbed model, Surface.mMetricTensor model) of
+    (Nothing, Nothing, Nothing) -> pure (Right euclideanGeometryLines)
+    (Nothing, Nothing, Just rows) -> do
+      prepared <- mapM (mapM prepare) rows
+      volume <- mapM prepare (Surface.mMetricVolume model)
+      pure $ generalMetricLines
+        <$> mapM sequence prepared
+        <*> sequence volume
+    (Just scaleFactors, Nothing, Nothing) -> do
       prepared <- mapM prepare scaleFactors
       pure $ geometryLines GeometryFromScale <$> sequence prepared
-    (Nothing, Just embedding) -> do
+    (Nothing, Just embedding, Nothing) -> do
       prepared <- mapM prepare embedding
       pure $ geometryLines GeometryFromEmbedding <$> sequence prepared
-    (Just _, Just _) -> pure (Left
-      (EmitExpressionError "metric scale and embedding are mutually exclusive"))
+    _ -> pure (Left
+      (EmitExpressionError "metric scale, embedding and metric tensor are mutually exclusive"))
   where
     -- Lower numbers before renaming coordinates.  Otherwise a legal axis
     -- named @e3@ would make the exponent in @1e3@ look like that axis.
@@ -457,6 +488,43 @@ prepareGeometryDeclarations model =
              ++ " feGeometryScaleRaw"
          , ""
          ]
+
+    -- A metric given by its components: the coordinates need not be
+    -- orthogonal, so the scale factors are only the coordinate scales
+    -- sqrt(g_aa) and no canonical operator is expanded on this geometry.
+    -- The inverse and the volume element sqrt(det g) are derived by the CAS
+    -- unless `metric volume` supplies the volume explicitly.
+    generalMetricLines rows volume =
+      [ "def feGeometryMetricRows := " ++ renderRows rows
+      , "def feGeometryMetricRaw := "
+          ++ attachTensorVariances [Surface.VDown, Surface.VDown]
+               "FE.metricTensor feDimension (\\row column -> nth column (nth row feGeometryMetricRows))"
+      , "def feGeometrySymmetryVerified : Bool := assert \"metric tensor must be symmetric\" ("
+          ++ symmetryCondition ++ ")"
+      , "def feGeometryOrthogonalityVerified : Bool := False"
+      , "def feGeometryScaleRaw axis := sqrt (FE.tensorComponentAt feGeometryMetricRaw [axis, axis])"
+      , "def feGeometryInverseMetricRaw := "
+          ++ attachTensorVariances [Surface.VUp, Surface.VUp]
+               "FE.inverseMetricTensor feDimension feGeometryMetricRaw"
+      , "def feGeometryVolumeRaw := "
+          ++ maybe "sqrt (FE.metricDeterminant feDimension feGeometryMetricRaw)" id volume
+      , "def feGeometryMetric := match feGeometrySymmetryVerified as bool with"
+      , "  | #True -> feGeometryMetricRaw"
+      , "def feGeometryScale axis := match feGeometrySymmetryVerified as bool with"
+      , "  | #True -> feGeometryScaleRaw axis"
+      , "def feGeometryInverseMetric := match feGeometrySymmetryVerified as bool with"
+      , "  | #True -> feGeometryInverseMetricRaw"
+      , "def feGeometryVolume := match feGeometrySymmetryVerified as bool with"
+      , "  | #True -> feGeometryVolumeRaw"
+      , ""
+      ]
+    renderRows rows = "[" ++ intercalate ", " (map renderList rows) ++ "]"
+    symmetryCondition = case offDiagonalPairs of
+      [] -> "True"
+      pairs -> intercalate " && "
+        ["FE.tensorComponentAt feGeometryMetricRaw " ++ show [row, column]
+          ++ " = FE.tensorComponentAt feGeometryMetricRaw " ++ show [column, row]
+        | (row, column) <- pairs]
 
     euclideanGeometryLines =
       [ "def feGeometryScale axis := 1"
@@ -698,6 +766,9 @@ contextualize model userDefinitions shadowedNames boundNames expression
   , Just _ <- matchHodgeExteriorHodge operatorScope expression =
       Left (EmitExpressionError
         "hodge (d (hodge A)) cannot be analytically expanded on variable metric geometry; write canonical δ A so the compiler preserves the weighted discrete adjoint")
+  | hasGeneralMetric model
+  , Just _ <- matchScalarDeltaExpression operatorScope expression =
+      Left (EmitExpressionError generalMetricOperatorMessage)
   | Just operand <- matchScalarDeltaExpression operatorScope expression = do
       operand' <- walk operand
       Right (TEApply (TEIdent "FormuraeInternalScalarDelta" [])
@@ -861,7 +932,12 @@ contextualize model userDefinitions shadowedNames boundNames expression
       | operator == CanonicalHodgeLaplacian
       , hasVariableGeometry model = Left (EmitExpressionError
           "canonical Δ_H is not supported for variable metric geometry; write its metric-dependent discretization explicitly")
+      | hasGeneralMetric model
+      , operator `elem` [CanonicalHodge, CanonicalCodifferential, CanonicalScalarLaplacian] =
+          Left (EmitExpressionError generalMetricOperatorMessage)
       | otherwise = Right (canonicalInternalName operator)
+    generalMetricOperatorMessage =
+      "canonical Δ, δ and hodge need an orthogonal metric (metric scale or embedding); under metric tensor write the flux form explicitly with g~i~j, g_i_j and volume"
     isLexicallyShadowed name =
       name `elem` boundNames
       || name `elem` shadowedNames

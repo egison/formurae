@@ -308,7 +308,8 @@ placement誘導grid∂の交代和 <code>dExterior</code> を使うと、
 formurae-preはfunction名やbodyからresult varianceを推論せず、ordinary covectorのequation targetへ
 直接代入したときだけ、そのanonymous down軸をtargetの下添字へ対応付けます。
 したがって<code>E_i + gradLike u</code>のanonymous軸を既存の<code>i</code>へ暗黙に統合しません。
-同じ軸で合成する意図は、<code>withSymbols [i] (E_i + (gradLike u)..._i)</code>のように
+同じ軸で合成する意図は、<code>withSymbols [i] (E_i + (gradLike u)..._i)</code>のように、
+またはEgisonと同じ<code>(gradLike u)_i</code>の綴りで
 call siteで下添字を明示します。</p>
 
 <p>Formuraeはuser function本体の式構造や計算履歴を解析してresult signatureを付けません。
@@ -541,6 +542,11 @@ embedding [ `(2 + cos θ) * cos φ, `(2 + cos θ) * sin φ, sin θ, z ]
 
 u' = u + dt * Δ u</pre>
 
+<p>座標線が直交しない座標系では、<code>metric tensor [[...], [...]]</code>で計量を成分で宣言します
+(省略できる<code>metric volume EXPR</code>で体積要素を与えます)。Egisonが対称性を検査して逆計量と
+sqrt(det g)を導き、<code>g~i~j</code>・<code>g_i_j</code>・<code>volume</code>が使えます。
+直交性を前提とするcanonicalな<code>Δ</code>・<code>δ</code>・<code>hodge</code>はこの幾何ではエラーになるので、
+流束形を明示的に書きます(例: <code>examples/excitable_torus/excitable_torus_twisted.fme</code>)。</p>
 <p><code>metric scale [...]</code>ではLamé factorを直接指定し、<code>embedding [...]</code>ではEgisonが
 induced metricを導出して直交性をgateします。metric、inverse、scale、volumeはGeometryNFへ入ります。</p>
 

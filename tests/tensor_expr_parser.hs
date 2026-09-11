@@ -26,6 +26,7 @@ main = do
   assertTensorLiteralPreprocessing
   assertGenericQuoteIsNotCaptured
   assertParseDiagnostic
+  assertGroupIndexApplication
   putStrLn "tensor expression parser tests: ok"
 
 assertIdentifierSpans :: IO ()
@@ -236,3 +237,30 @@ assertEqual label expected actual
   | expected == actual = pure ()
   | otherwise = fail
       (label ++ ": expected " ++ show expected ++ ", got " ++ show actual)
+
+-- Egison's plain index application on a parenthesized expression is the
+-- same append node as the explicit "..." spelling and renders as it.
+assertGroupIndexApplication :: IO ()
+assertGroupIndexApplication = do
+  case parseTensorExprEither "(gamma 0)~i_j_k" of
+    Right (TEAppendIndexed (TEGroup (TEApply (TEIdent "gamma" []) [TENumber "0"])) parts)
+      | map ixName parts == ["i", "j", "k"]
+      , map ixVariance parts == [VUp, VDown, VDown] -> pure ()
+    result -> fail ("unexpected group index application AST: " ++ show result)
+  case parseTensorExprEither "(gamma 0)~i_j_k" of
+    Right expression
+      | renderTensorExpr expression == "(gamma 0)...~i_j_k" -> pure ()
+      | otherwise -> fail ("unexpected rendering: " ++ renderTensorExpr expression)
+    Left message -> fail message
+  case parseTensorExprEither "withSymbols [i, j] ((covD Q)~i~j_k . V~k)" of
+    Right (TEWithSymbols ["i", "j"] (TEGroup (TEDot [TEAppendIndexed _ parts, TEIdent "V" _])))
+      | map ixName parts == ["i", "j", "k"] -> pure ()
+    result -> fail ("unexpected contracted group index application AST: " ++ show result)
+  case parseTensorExprEither "(pull 0)_1_1 * 2" of
+    Right (TEBinary "*" (TEAppendIndexed (TEGroup _) parts) (TENumber "2"))
+      | map ixName parts == ["1", "1"] -> pure ()
+    result -> fail ("unexpected numeric group index application AST: " ++ show result)
+  case parseTensorExprEither "(a + b) ~i" of
+    Left _ -> pure ()
+    Right (TEAppendIndexed _ _) -> fail "a detached index suffix must not be an index application"
+    Right _ -> pure ()

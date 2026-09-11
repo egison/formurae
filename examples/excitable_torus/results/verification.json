@@ -1,23 +1,23 @@
 {
-  "source_sha256": "65ce0e5d5c9d2d7d979ca8216ac3c393c3dd3cc35d8ffdba9d27f4cc41bb75e4",
+  "source_sha256": "7e792473c56b070b598183f1ab370bca218e8f67f0355cf2389ddaf20e335266",
   "accuracy_sha256": "2b49b4f6150dbf47834cfb136a2c7eae4c4339ab47389ce3b9da8c59b2b96b4d",
   "mpi_environment": {
     "HWLOC_SYNTHETIC": "node:1 core:10 pu:1",
     "MPIRUN_ARGS": "--bind-to none"
   },
   "isotropic_diffusion": {
-    "mass_drift": 1.5916157281026244e-11,
-    "square_initial": 3553.0575843921633,
+    "mass_drift": 1.6825651982799172e-11,
+    "square_initial": 3553.057584392164,
     "square_final": 3438.499557544812
   },
   "oblique_diffusion": {
-    "mass_drift": 1.6370904631912708e-11,
-    "square_initial": 3553.0575843921633,
+    "mass_drift": 1.546140993013978e-11,
+    "square_initial": 3553.057584392164,
     "square_final": 3440.9972019135325
   },
   "twisted_diffusion": {
-    "mass_drift": 1.546140993013978e-11,
-    "square_initial": 3553.0575843921633,
+    "mass_drift": 1.4551915228366852e-11,
+    "square_initial": 3553.057584392164,
     "square_final": 3442.0992732053505
   },
   "rest_max_error": 1.9984014443252818e-15,
@@ -40,13 +40,13 @@
       ]
     ],
     "relative_squared_errors": [
-      0.0001920069440847669,
-      1.227622808582121e-05,
-      7.729299237026421e-07
+      0.0001920069871834233,
+      1.2276229762127026e-05,
+      7.72924732885013e-07
     ],
     "squared_error_ratios": [
-      15.640548769742308,
-      15.882718095598097
+      15.640550144782843,
+      15.882826929738505
     ]
   }
 }

@@ -76,6 +76,7 @@ geometryKindTag :: GeometryKind -> String
 geometryKindTag EuclideanGeometry = "euclidean"
 geometryKindTag (OrthogonalScaleGeometry _ _) = "orthogonal-scale"
 geometryKindTag (EmbeddedOrthogonalGeometry _ _) = "embedded-orthogonal"
+geometryKindTag (GeneralMetricGeometry _ _) = "general-metric"
 
 numericId :: Int -> SExpr
 numericId = Atom . show
