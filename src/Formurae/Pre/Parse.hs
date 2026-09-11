@@ -45,6 +45,20 @@ standardNames =
 mathematicalConstantNames :: [String]
 mathematicalConstantNames = ["π", "pi"]
 
+-- Symbols that Egison's mathematical normalization library rewrites
+-- (lib/math/normalize.egi): a parameter or coordinate declared under one of
+-- these names becomes the same Egison symbol, and the generated code would
+-- be rewritten silently (a parameter w turned w^2 into -1 - w).
+egisonMathematicalSymbols :: [(String, String)]
+egisonMathematicalSymbols =
+  [ ("i", "the imaginary unit (i^2 = -1)")
+  , ("w", "the primitive cube root of unity (w^2 + w + 1 = 0)")
+  , ("e", "Euler's constant (log e = 1)")
+  ]
+
+mathematicalSymbolConflict :: String -> Maybe String
+mathematicalSymbolConflict name = lookup name egisonMathematicalSymbols
+
 scalarIntrinsics :: [String]
 scalarIntrinsics =
   [ "sin", "cos", "tan"
@@ -117,11 +131,26 @@ metricNameConflicts m =
 validateValueBindingNames :: Model -> IO ()
 validateValueBindingNames m =
   case duplicateBindings of
-    [] -> checkDuplicateDefinitions
+    [] -> checkMathematicalSymbolConflicts
     (name, kinds) : _ ->
       fatal ("value name '" ++ name ++ "' is declared more than once as "
              ++ intercalate "/" kinds)
   where
+    -- Parameters are emitted as Egison symbols (declare symbol), so a
+    -- parameter named after one of Egison's mathematical symbols would be
+    -- rewritten by the normalization library instead of staying a parameter.
+    checkMathematicalSymbolConflicts =
+      case [ (nm, ln, meaning)
+           | ((nm, _), ln) <- zip (mParams m) (mParamSourceLines m)
+           , Just meaning <- [mathematicalSymbolConflict nm]
+           ] of
+        [] -> checkDuplicateDefinitions
+        (nm, ln, meaning) : _ ->
+          fatal ("parameter name '" ++ nm
+                 ++ "' is reserved for Egison's mathematical symbol "
+                 ++ nm ++ ", " ++ meaning
+                 ++ "; Egison would rewrite it, so rename the parameter (line "
+                 ++ show ln ++ ")")
     bindings =
       [("param", nm, ln)
       | ((nm, _), ln) <- zip (mParams m) (mParamSourceLines m)]
@@ -824,6 +853,13 @@ parseModel sourceFile name txt = do
                                ++ egisonReservedWords)] =
           fatal ("coordinate name '" ++ reservedAxis
                  ++ "' is reserved for a surface operator or intrinsic (axes line "
+                 ++ show (maybe 0 id (mAxesSourceLine m)) ++ ")")
+      | (axis, meaning) : _ <-
+          [(axis, meaning) | axis <- mAxes m,
+                             Just meaning <- [mathematicalSymbolConflict axis]] =
+          fatal ("coordinate name '" ++ axis
+                 ++ "' is reserved for Egison's mathematical symbol " ++ axis
+                 ++ ", " ++ meaning ++ "; Egison would rewrite it (axes line "
                  ++ show (maybe 0 id (mAxesSourceLine m)) ++ ")")
       | Just ambient <- firstAmbientName (mAxes m) =
           fatal ("coordinate name '" ++ ambient

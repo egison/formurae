@@ -6,14 +6,14 @@ double :: sbpHiX = (total_grid_x - 1.5)*dx
 double :: sbpHinvX = 2.0/dx
 double :: dt = 0.2*dx
 double :: x0 = 20.0
-double :: w = 4.0
+double :: width = 4.0
 
 extern function :: exp
 
 begin function (p,v) = init()
   double [] :: p, v
-  p[i] = exp(0.0 - ((i*dx - x0)/w)*((i*dx - x0)/w))
-  v[i] = exp(0.0 - (((i + 0.5)*dx - x0 + 0.5*dt)/w)*(((i + 0.5)*dx - x0 + 0.5*dt)/w))
+  p[i] = exp(0.0 - ((i*dx - x0)/width)*((i*dx - x0)/width))
+  v[i] = exp(0.0 - (((i + 0.5)*dx - x0 + 0.5*dt)/width)*(((i + 0.5)*dx - x0 + 0.5*dt)/width))
 end function
 
 begin function (p',v') = step(p,v)

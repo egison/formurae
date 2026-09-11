@@ -129,6 +129,14 @@ transformation_optics-demo:
 transformation_optics-verify:
 	python3 examples/transformation_optics/verify.py
 
+.PHONY: elastic_pulse-demo elastic_pulse-verify
+elastic_pulse-demo:
+	python3 examples/elastic_pulse/run.py --case all --fresh --blocking 0 --mpi 1 2 1
+	python3 examples/elastic_pulse/run.py --case all --fresh --blocking 0 --mpi 1 2 1 --source elastic_pulse_anisotropic.fme
+
+elastic_pulse-verify:
+	python3 examples/elastic_pulse/verify.py
+
 # Kept out of all: yy_check runs the global x/y/z eigenmodes, so the long
 # regression is deliberately opt-in for local/CI endurance testing.
 yinyang_diffusion-long: yinyang_diffusion

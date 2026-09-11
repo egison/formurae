@@ -17,7 +17,7 @@ boundary x : sbp
 
 param dt = 0.2*dx
 param x0 = 20.0
-param w = 4.0
+param width = 4.0
 
 extern exp
 
@@ -25,8 +25,8 @@ field p : scalar @ primal
 field v : scalar @ dual
 
 init:
-  p = exp(0.0 - ((i*dx - x0)/w)*((i*dx - x0)/w))
-  v = exp(0.0 - (((i + 0.5)*dx - x0 + 0.5*dt)/w)*(((i + 0.5)*dx - x0 + 0.5*dt)/w))
+  p = exp(0.0 - ((i*dx - x0)/width)*((i*dx - x0)/width))
+  v = exp(0.0 - (((i + 0.5)*dx - x0 + 0.5*dt)/width)*(((i + 0.5)*dx - x0 + 0.5*dt)/width))
 
 step:
   v' = v - dt * ∂_x p
