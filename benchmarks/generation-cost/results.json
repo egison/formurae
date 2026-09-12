@@ -1,0 +1,548 @@
+{
+  "info": {
+    "machine": "Apple M5",
+    "memory_bytes": 25769803776,
+    "os": "26.6.2",
+    "cc": "Apple clang version 17.0.0 (clang-1700.6.4.2)",
+    "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+    "formurae_revision": "3217fb404fad46938fe47c1edb0a9a8bac07fc01",
+    "binaries": {
+      "formurae-pre": "/Users/egisatoshi/PL/formurae/dist-newstyle/build/aarch64-osx/ghc-9.10.1/formurae-0.1.0.0/build/formurae-pre/formurae-pre",
+      "formurae-post": "/Users/egisatoshi/PL/formurae/dist-newstyle/build/aarch64-osx/ghc-9.10.1/formurae-0.1.0.0/build/formurae-post/formurae-post",
+      "egison": "/Users/egisatoshi/PL/egison/dist-newstyle/build/aarch64-osx/ghc-9.10.1/egison-5.1.0/x/egison/build/egison/egison"
+    },
+    "repetitions": 3,
+    "cabal_run_egison_diffusion3d_real_s": 1.25,
+    "direct_binary_matches_cabal_run": true
+  },
+  "results": {
+    "diffusion3d": {
+      "stages": {
+        "pre": {
+          "real_median_s": 0.01,
+          "real_all_s": [
+            0.01,
+            0.01,
+            0.01
+          ],
+          "max_rss_max_bytes": 17858560,
+          "max_rss_all_bytes": [
+            17858560,
+            17858560,
+            17858560
+          ]
+        },
+        "egison": {
+          "real_median_s": 1.02,
+          "real_all_s": [
+            1.08,
+            1.02,
+            1.01
+          ],
+          "max_rss_max_bytes": 232161280,
+          "max_rss_all_bytes": [
+            232161280,
+            232144896,
+            232161280
+          ]
+        },
+        "post": {
+          "real_median_s": 0.01,
+          "real_all_s": [
+            0.03,
+            0.01,
+            0.01
+          ],
+          "max_rss_max_bytes": 16990208,
+          "max_rss_all_bytes": [
+            16990208,
+            16990208,
+            16990208
+          ]
+        },
+        "formura": {
+          "real_median_s": 0.02,
+          "real_all_s": [
+            0.05,
+            0.01,
+            0.02
+          ],
+          "max_rss_max_bytes": 25690112,
+          "max_rss_all_bytes": [
+            25690112,
+            25690112,
+            25690112
+          ]
+        },
+        "cc": {
+          "real_median_s": 0.22,
+          "real_all_s": [
+            0.23,
+            0.22,
+            0.22
+          ],
+          "max_rss_max_bytes": 62406656,
+          "max_rss_all_bytes": [
+            62406656,
+            62177280,
+            62259200
+          ]
+        }
+      },
+      "lines": {
+        ".fme": 18,
+        ".egi": 106,
+        ".fmr": 18,
+        ".c": 781
+      },
+      "bytes": {
+        ".fme": 361,
+        ".egi": 22240,
+        ".feir": 6599,
+        ".fmr": 614,
+        ".c": 20917
+      },
+      "fmr_identical_to_repository": true
+    },
+    "maxwell_dec": {
+      "stages": {
+        "pre": {
+          "real_median_s": 0.01,
+          "real_all_s": [
+            0.01,
+            0.01,
+            0.01
+          ],
+          "max_rss_max_bytes": 16826368,
+          "max_rss_all_bytes": [
+            16826368,
+            16826368,
+            16826368
+          ]
+        },
+        "egison": {
+          "real_median_s": 1.24,
+          "real_all_s": [
+            1.23,
+            1.24,
+            1.24
+          ],
+          "max_rss_max_bytes": 225869824,
+          "max_rss_all_bytes": [
+            225869824,
+            215384064,
+            225869824
+          ]
+        },
+        "post": {
+          "real_median_s": 0.01,
+          "real_all_s": [
+            0.01,
+            0.01,
+            0.01
+          ],
+          "max_rss_max_bytes": 14876672,
+          "max_rss_all_bytes": [
+            14876672,
+            14876672,
+            14876672
+          ]
+        },
+        "formura": {
+          "real_median_s": 0.02,
+          "real_all_s": [
+            0.02,
+            0.02,
+            0.02
+          ],
+          "max_rss_max_bytes": 27787264,
+          "max_rss_all_bytes": [
+            27787264,
+            27787264,
+            27787264
+          ]
+        },
+        "cc": {
+          "real_median_s": 0.47,
+          "real_all_s": [
+            0.47,
+            0.47,
+            0.47
+          ],
+          "max_rss_max_bytes": 89505792,
+          "max_rss_all_bytes": [
+            89473024,
+            89505792,
+            88965120
+          ]
+        }
+      },
+      "lines": {
+        ".fme": 24,
+        ".egi": 127,
+        ".fmr": 27,
+        ".c": 1528
+      },
+      "bytes": {
+        ".fme": 621,
+        ".egi": 29640,
+        ".feir": 12649,
+        ".fmr": 1367,
+        ".c": 49882
+      },
+      "fmr_identical_to_repository": true
+    },
+    "elastic3d": {
+      "stages": {
+        "pre": {
+          "real_median_s": 0.01,
+          "real_all_s": [
+            0.01,
+            0.01,
+            0.01
+          ],
+          "max_rss_max_bytes": 17907712,
+          "max_rss_all_bytes": [
+            17907712,
+            17907712,
+            17891328
+          ]
+        },
+        "egison": {
+          "real_median_s": 5.46,
+          "real_all_s": [
+            5.44,
+            5.51,
+            5.46
+          ],
+          "max_rss_max_bytes": 331743232,
+          "max_rss_all_bytes": [
+            331743232,
+            331726848,
+            331743232
+          ]
+        },
+        "post": {
+          "real_median_s": 0.01,
+          "real_all_s": [
+            0.01,
+            0.01,
+            0.01
+          ],
+          "max_rss_max_bytes": 18022400,
+          "max_rss_all_bytes": [
+            18022400,
+            18022400,
+            18022400
+          ]
+        },
+        "formura": {
+          "real_median_s": 0.05,
+          "real_all_s": [
+            0.05,
+            0.05,
+            0.05
+          ],
+          "max_rss_max_bytes": 29966336,
+          "max_rss_all_bytes": [
+            29949952,
+            29949952,
+            29966336
+          ]
+        },
+        "cc": {
+          "real_median_s": 0.26,
+          "real_all_s": [
+            0.26,
+            0.26,
+            0.26
+          ],
+          "max_rss_max_bytes": 78692352,
+          "max_rss_all_bytes": [
+            78512128,
+            78692352,
+            78020608
+          ]
+        }
+      },
+      "lines": {
+        ".fme": 42,
+        ".egi": 133,
+        ".fmr": 37,
+        ".c": 2909
+      },
+      "bytes": {
+        ".fme": 1501,
+        ".egi": 36200,
+        ".feir": 53157,
+        ".fmr": 3369,
+        ".c": 97775
+      },
+      "fmr_identical_to_repository": true
+    },
+    "mhd_ot": {
+      "stages": {
+        "pre": {
+          "real_median_s": 0.03,
+          "real_all_s": [
+            0.03,
+            0.03,
+            0.03
+          ],
+          "max_rss_max_bytes": 20037632,
+          "max_rss_all_bytes": [
+            20037632,
+            20037632,
+            20037632
+          ]
+        },
+        "egison": {
+          "real_median_s": 9.06,
+          "real_all_s": [
+            9.05,
+            9.06,
+            9.06
+          ],
+          "max_rss_max_bytes": 469090304,
+          "max_rss_all_bytes": [
+            469073920,
+            469090304,
+            469073920
+          ]
+        },
+        "post": {
+          "real_median_s": 0.03,
+          "real_all_s": [
+            0.03,
+            0.03,
+            0.03
+          ],
+          "max_rss_max_bytes": 24281088,
+          "max_rss_all_bytes": [
+            24281088,
+            24281088,
+            24281088
+          ]
+        },
+        "formura": {
+          "real_median_s": 0.06,
+          "real_all_s": [
+            0.06,
+            0.07,
+            0.06
+          ],
+          "max_rss_max_bytes": 33128448,
+          "max_rss_all_bytes": [
+            33128448,
+            33128448,
+            33128448
+          ]
+        },
+        "cc": {
+          "real_median_s": 0.19,
+          "real_all_s": [
+            0.19,
+            0.19,
+            0.19
+          ],
+          "max_rss_max_bytes": 69271552,
+          "max_rss_all_bytes": [
+            69271552,
+            69025792,
+            69238784
+          ]
+        }
+      },
+      "lines": {
+        ".fme": 75,
+        ".egi": 399,
+        ".fmr": 54,
+        ".c": 3767
+      },
+      "bytes": {
+        ".fme": 3002,
+        ".egi": 104205,
+        ".feir": 109237,
+        ".fmr": 7192,
+        ".c": 97528
+      },
+      "fmr_identical_to_repository": true
+    },
+    "transformation_optics": {
+      "stages": {
+        "pre": {
+          "real_median_s": 0.04,
+          "real_all_s": [
+            0.04,
+            0.06,
+            0.04
+          ],
+          "max_rss_max_bytes": 29523968,
+          "max_rss_all_bytes": [
+            29523968,
+            29507584,
+            29523968
+          ]
+        },
+        "egison": {
+          "real_median_s": 36.42,
+          "real_all_s": [
+            36.41,
+            36.71,
+            36.42
+          ],
+          "max_rss_max_bytes": 1599553536,
+          "max_rss_all_bytes": [
+            1599537152,
+            1599553536,
+            1599553536
+          ]
+        },
+        "post": {
+          "real_median_s": 0.06,
+          "real_all_s": [
+            0.08,
+            0.06,
+            0.06
+          ],
+          "max_rss_max_bytes": 36913152,
+          "max_rss_all_bytes": [
+            36913152,
+            36913152,
+            36913152
+          ]
+        },
+        "formura": {
+          "real_median_s": 0.29,
+          "real_all_s": [
+            0.32,
+            0.29,
+            0.29
+          ],
+          "max_rss_max_bytes": 64569344,
+          "max_rss_all_bytes": [
+            62455808,
+            64569344,
+            64552960
+          ]
+        },
+        "cc": {
+          "real_median_s": 0.45,
+          "real_all_s": [
+            0.46,
+            0.45,
+            0.45
+          ],
+          "max_rss_max_bytes": 103923712,
+          "max_rss_all_bytes": [
+            103923712,
+            102481920,
+            101974016
+          ]
+        }
+      },
+      "lines": {
+        ".fme": 137,
+        ".egi": 922,
+        ".fmr": 106,
+        ".c": 12200
+      },
+      "bytes": {
+        ".fme": 6949,
+        ".egi": 420432,
+        ".feir": 266290,
+        ".fmr": 33343,
+        ".c": 318992
+      },
+      "fmr_identical_to_repository": true
+    },
+    "elastic_pulse": {
+      "stages": {
+        "pre": {
+          "real_median_s": 0.02,
+          "real_all_s": [
+            0.02,
+            0.03,
+            0.02
+          ],
+          "max_rss_max_bytes": 23232512,
+          "max_rss_all_bytes": [
+            23232512,
+            23232512,
+            23232512
+          ]
+        },
+        "egison": {
+          "real_median_s": 44.45,
+          "real_all_s": [
+            44.45,
+            44.43,
+            44.67
+          ],
+          "max_rss_max_bytes": 729186304,
+          "max_rss_all_bytes": [
+            729186304,
+            729186304,
+            729169920
+          ]
+        },
+        "post": {
+          "real_median_s": 0.06,
+          "real_all_s": [
+            0.06,
+            0.06,
+            0.04
+          ],
+          "max_rss_max_bytes": 29573120,
+          "max_rss_all_bytes": [
+            29573120,
+            29573120,
+            29573120
+          ]
+        },
+        "formura": {
+          "real_median_s": 5.66,
+          "real_all_s": [
+            5.62,
+            5.67,
+            5.66
+          ],
+          "max_rss_max_bytes": 173670400,
+          "max_rss_all_bytes": [
+            173654016,
+            173670400,
+            173654016
+          ]
+        },
+        "cc": {
+          "real_median_s": 1.37,
+          "real_all_s": [
+            1.37,
+            1.37,
+            1.37
+          ],
+          "max_rss_max_bytes": 236535808,
+          "max_rss_all_bytes": [
+            228098048,
+            236535808,
+            236158976
+          ]
+        }
+      },
+      "lines": {
+        ".fme": 105,
+        ".egi": 522,
+        ".fmr": 92,
+        ".c": 64701
+      },
+      "bytes": {
+        ".fme": 4694,
+        ".egi": 159178,
+        ".feir": 226472,
+        ".fmr": 27370,
+        ".c": 1783401
+      },
+      "fmr_identical_to_repository": true
+    }
+  }
+}
