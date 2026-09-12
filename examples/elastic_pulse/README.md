@@ -32,21 +32,29 @@ metric tensor [[1, c, 0], [c, 1 + c^2, 0], [0, 0, 1]]    -- c = s (2π/L) cos(2�
 metric volume 1
 ```
 
-計量・逆計量・計量の解析微分は Egison が宣言から導き，`init` で係数場
-（`GD`，`GU`，`DG1`〜`DG3`，`J`）に凍結する．`step` は場と定数だけを読むので，
-Formura の時間方向のブロッキングと MPI 分割がそのまま使える．三つの演算子は
-係数場を参照する関数として一度だけ書く．
+計量 `g_i_j`，逆計量 `g~i~j`，体積要素 `volume`，計量の解析微分
+`∂/∂ g_i_j coordinates~k` は宣言から Egison が導き，三つの演算子はそれらを
+その場で使う関数として一度だけ書く．Egison はコンパイル時にこれらを展開して
+簡約し，生成された `step` は残った係数をセルの座標から評価する（計量に関して
+格納される配列はない）．Formura の時間方向のブロッキングと MPI 分割はそのまま
+使える．
 
 ```
-def strain V~a = withSymbols [i, j, k] ((GD_i_k . ∂_j V~k + GD_j_k . ∂_i V~k + DG1_i_j * V~1 + DG2_i_j * V~2 + DG3_i_j * V~3) / 2)
-def stressRate E_i_j = withSymbols [i, j, k, l] (λ * GU~i~j * (GU~k~l . E_k_l) + 2 * μ * (GU~i~k . GU~j~l . E_k_l))
-def stressDiv S~a~b = withSymbols [i, j, k, l] ((GU~i~k . ∂_j (J * (GD_k_l . S~l~j))) / J - (GU~i~1 * (DG1_j_l . S~j~l) + GU~i~2 * (DG2_j_l . S~j~l) + GU~i~3 * (DG3_j_l . S~j~l)) / 2)
+def strain V~a = withSymbols [i, j, k] ((g_i_k . ∂_j V~k + g_j_k . ∂_i V~k + (∂/∂ g_i_j coordinates~k) . V~k) / 2)
+def stressRate E_i_j = withSymbols [i, j, k, l] (λ * g~i~j * (g~k~l . E_k_l) + 2 * μ * (g~i~k . g~j~l . E_k_l))
+def stressDiv S~a~b = withSymbols [i, j, k, l] ((g~i~k . ∂_j (volume * (g_k_l . S~l~j))) / volume - (g~i~k . (∂/∂ g_j_l coordinates~k) . S~j~l) / 2)
 ```
+
+Formura のコード生成器は，時間方向にブロッキングされたステップの中で座標を
+サブステップのずれを無視して計算し，周期領域での折り返しもしていなかった
+（座標を読むステップにブロッキングを使うと係数の評価位置が最大 $2s(n_t-1)$ セル
+ずれる；$s$ は袖幅，$n_t$ はブロッキング間隔）．この例はその修正（fork の
+`test/coordinate-probe.sh` が全セル・全サブステップで検査する）に依存する．
 
 `elastic_pulse_anisotropic.fme` は `stressRate` に
-$\alpha n^in^jn^kn^\ell e_{k\ell}$ の 1 項を足しただけの変種で，
+$\alpha n^in^jn^kn^\ell e_{k\ell}$ の 1 項を足した変種で，
 物理方向 $n=(1,1,0)/\sqrt2$ に沿って材料を硬くする（$\alpha=3$）．
-$n$ の座標成分は場 `NV` に凍結する．
+$n$ の座標成分は定義 `direction` として書く．
 
 ## 検証量はすべて `.fme` の場
 
@@ -78,7 +86,7 @@ $n$ の座標成分は場 `NV` に凍結する．
 | 波面の速さ $c_P$，$c_S$（128³，$0.3\le t\le0.7$） | 1.86，0.96 | 1.86，0.95 |
 | 同（64³） | 1.65，0.84 | 1.72，0.84 |
 | 通常エネルギーの範囲 $[\min E,\max E]/E_0$（128³，256 ステップ） | $[0.99975, 1]$ | $[0.99975, 1]$ |
-| 修正エネルギーの相対ドリフト（128³，256 ステップ） | $3.9\times10^{-13}$ | $4.0\times10^{-13}$ |
+| 修正エネルギーの相対ドリフト（128³，256 ステップ，ブロッキング間隔 4） | $9.7\times10^{-13}$ | $9.4\times10^{-13}$ |
 | 二座標系の波面半径の最大差（128³） | P 0.0013，S 0.0067（格子幅 0.031） | |
 
 - 生成した Formura ソースは，直交座標と非直交座標で `double :: shear` の行だけが異なる
@@ -87,21 +95,28 @@ $n$ の座標成分は場 `NV` に凍結する．
 - 波面の速さが厳密値 2，1 より小さいのは，パルスの縁（パルス半径あたり 8 セルの上で
   最も短い波長を含む）を中心差分が遅く伝えることと，減衰する波面に対して固定閾値が
   遅れることによる．生成された更新式の精度は平面波の検査（2 次収束）で測る．
-- 異方性の変種（$\alpha=3$）は等方版と `stressRate` の 1 行だけが異なる（`verify.py` が確認）．
+- 異方性の変種（$\alpha=3$）は等方版に `direction` の定義を加え，`stressRate` の 1 行だけが
+  異なる（`verify.py` が確認）．
+- 計量をコンパイル時に展開する効果：計量・逆計量・計量微分を `init` で 31 本の係数場に
+  評価して step で読む以前の版と比べ，生成 C は 191,061 行から 64,701 行に，48³・40 ステップ
+  （ブロッキング間隔 4，単一プロセス）の実行時間は 69.6 s から 7.4 s になった（両版の
+  40 ステップ後の総和は丸め誤差の範囲で一致）．この計量では展開で消える成分が多く，
+  step が係数配列を流さなくなるためである．
 
 ## 再現
 
 ```
 python3 examples/elastic_pulse/verify.py        # 数値検証（results/verification.json）
-python3 examples/elastic_pulse/run.py --fresh --blocking 0 --mpi 1 2 1      # 128^3 のデモ（直交・非直交）
-python3 examples/elastic_pulse/run.py --fresh --blocking 0 --mpi 1 2 1 --source elastic_pulse_anisotropic.fme
+python3 examples/elastic_pulse/run.py --fresh    # 128^3 のデモ（直交・非直交）
+python3 examples/elastic_pulse/run.py --fresh --source elastic_pulse_anisotropic.fme
 python3 examples/elastic_pulse/render.py        # 図と実行記録（results/）
 ```
 
-デモは 128³・256 ステップ（$t=0.8$）で，時間方向のブロッキングなし・2 プロセスの
-MPI 分割で実行する（ブロッキング版と単一プロセス版は静的配列が 2 GB を超え，
-macOS のローダが実行ファイルを読み込めない）．ブロッキングと MPI が通常の生成物を
-厳密に再現することは `verify.py` が 48³ で確かめる．
+デモは 128³・256 ステップ（$t=0.8$）を，時間方向のブロッキング（間隔 4）・
+単一プロセスで実行する（計量を係数場に格納していた以前の版は状態配列が 51 本あり，
+128³ のブロッキング版は静的配列が 2 GB を超えて macOS のローダに拒否されたが，
+現在の版は 20 本で収まる）．ブロッキングと MPI が通常の生成物を厳密に再現することは
+`verify.py` が 48³ で確かめる．
 
 `make elastic_pulse` は 48³ の設定（`elastic_pulse.yaml`）で通常のコード生成経路を通し，
 ドライバを 40 ステップ実行する．MPI の検証には `mpicc`，`mpirun` を使う

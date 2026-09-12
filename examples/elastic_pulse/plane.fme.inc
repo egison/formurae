@@ -33,5 +33,5 @@ field ref : scalar @ collocated
   exactS' = exactS
   local dv~i @ collocated = v'~i - exactV~i
   local ds~i~j @ collocated = σ'~i~j - exactS~i~j
-  err' = cell * J * (norm2 dv + stressNorm ds)
-  ref' = cell * J * (norm2 exactV + stressNorm exactS)
+  err' = cell * volume * (norm2 dv + stressNorm ds)
+  ref' = cell * volume * (norm2 exactV + stressNorm exactS)

@@ -58,15 +58,21 @@ def slope(points):
 
 
 def shared_definitions():
-    """The operator definitions shared by the isotropic and anisotropic models."""
+    """The definitions shared by the isotropic and anisotropic models.
+
+    Every definition of the isotropic model appears unchanged in the variant
+    except the constitutive function; the variant may add definitions (the
+    material direction) and parameters.
+    """
     base = (HERE / "elastic_pulse.fme").read_text().splitlines()
     variant = (HERE / "elastic_pulse_anisotropic.fme").read_text().splitlines()
     defs = lambda lines: {l.split()[1]: l for l in lines if l.startswith("def ")}
     a, b = defs(base), defs(variant)
-    assert set(a) == set(b), (set(a) ^ set(b))
+    assert set(a) <= set(b), sorted(set(a) - set(b))
     changed = sorted(name for name in a if a[name] != b[name])
     assert changed == ["stressRate"], changed
-    return sorted(a)
+    return {"shared": sorted(name for name in a if name != "stressRate"),
+            "changed": changed, "added": sorted(set(b) - set(a))}
 
 
 def main():

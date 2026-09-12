@@ -1,7 +1,7 @@
 -- The isotropic model of elastic_pulse.fme with one term added to the
 -- constitutive function: alpha n^i n^j n^k n^l e_kl stiffens the material
 -- along the physical direction n = (1, 1, 0)/sqrt 2, whose chart components
--- are frozen into the field NV at initialization.  Nothing else changes.
+-- are written as a definition.  Nothing else changes.
 dimension 3
 axes x, y, z
 metric g
@@ -32,26 +32,19 @@ def distance2 unused = (physical 0 - x0)^2 + (y - y0)^2 + (z - z0)^2
 -- denominator positive under rounding of the expanded polynomials
 def bump unused = if distance2 0 < 0.99 * radius^2 then 0 - 2 * distance2 0 / (radius^2 - distance2 0) else 0
 def pulse unused = if distance2 0 < 0.99 * radius^2 then exp (bump 0) else 0
-def strain V~a = withSymbols [i, j, k] ((GD_i_k . ∂_j V~k + GD_j_k . ∂_i V~k + DG1_i_j * V~1 + DG2_i_j * V~2 + DG3_i_j * V~3) / 2)
-def stressRate E_i_j = withSymbols [i, j, k, l] (λ * GU~i~j * (GU~k~l . E_k_l) + 2 * μ * (GU~i~k . GU~j~l . E_k_l) + alpha * NV~i * NV~j * (NV~k . NV~l . E_k_l))
-def stressDiv S~a~b = withSymbols [i, j, k, l] ((GU~i~k . ∂_j (J * (GD_k_l . S~l~j))) / J - (GU~i~1 * (DG1_j_l . S~j~l) + GU~i~2 * (DG2_j_l . S~j~l) + GU~i~3 * (DG3_j_l . S~j~l)) / 2)
+def strain V~a = withSymbols [i, j, k] ((g_i_k . ∂_j V~k + g_j_k . ∂_i V~k + (∂/∂ g_i_j coordinates~k) . V~k) / 2)
+def direction unused = [| (1 - shear * wavenumber * cos (wavenumber * y)) / sqrt 2, 1 / sqrt 2, 0 |]~i
+def stressRate E_i_j = withSymbols [i, j, k, l] (λ * g~i~j * (g~k~l . E_k_l) + 2 * μ * (g~i~k . g~j~l . E_k_l) + alpha * (direction 0)~i * (direction 0)~j * ((direction 0)~k . (direction 0)~l . E_k_l))
+def stressDiv S~a~b = withSymbols [i, j, k, l] ((g~i~k . ∂_j (volume * (g_k_l . S~l~j))) / volume - (g~i~k . (∂/∂ g_j_l coordinates~k) . S~j~l) / 2)
 -- coordinate-independent diagnostics of a velocity field
-def waveDiv V~a = withSymbols [i] ((∂_i (J * V~i)) / J)
-def waveCurl V~a = withSymbols [i, j, k, l] ((epsilon~i~j~k . ∂_j (GD_k_l . V~l)) / J)
-def norm2 W~a = withSymbols [i, j] (GD_i_j . W~i . W~j)
-def stressNorm S~a~b = withSymbols [i, j, k, l] (GD_i_k . GD_j_l . S~i~j . S~k~l)
-def stressTrace S~a~b = withSymbols [i, j] (GD_i_j . S~i~j)
+def waveDiv V~a = withSymbols [i] ((∂_i (volume * V~i)) / volume)
+def waveCurl V~a = withSymbols [i, j, k, l] ((epsilon~i~j~k . ∂_j (g_k_l . V~l)) / volume)
+def norm2 W~a = withSymbols [i, j] (g_i_j . W~i . W~j)
+def stressNorm S~a~b = withSymbols [i, j, k, l] (g_i_k . g_j_l . S~i~j . S~k~l)
+def stressTrace S~a~b = withSymbols [i, j] (g_i_j . S~i~j)
 
 field v~i @ collocated
 field σ{~i~j} @ collocated
-field GD{_i_j} @ collocated
-field GU{~i~j} @ collocated
-field DG1{_i_j} @ collocated
-field DG2{_i_j} @ collocated
-field DG3{_i_j} @ collocated
-field J : scalar @ collocated
-field NV~i @ collocated
-field far : scalar @ collocated
 field compression : scalar @ collocated
 field shearing : scalar @ collocated
 field energy : scalar @ collocated
@@ -66,14 +59,6 @@ field sfront : scalar @ collocated
 init:
   v~i := [| pulse 0, 0, 0 |]~i
   σ~i~j := [| [| 0, 0, 0 |], [| 0, 0, 0 |], [| 0, 0, 0 |] |]~i~j
-  GD_i_j := g_i_j
-  GU~i~j := g~i~j
-  DG1_i_j := ∂/∂ g_i_j x
-  DG2_i_j := ∂/∂ g_i_j y
-  DG3_i_j := ∂/∂ g_i_j z
-  J := volume
-  NV~i := [| (1 - shear * wavenumber * cos (wavenumber * y)) / sqrt 2, 1 / sqrt 2, 0 |]~i
-  far := sqrt (distance2 0)
   compression := 0
   shearing := 0
   energy := 0
@@ -94,27 +79,21 @@ step:
   σ'~i~j = σ~i~j + dt * rate~i~j
   local nextForce~i @ collocated = stressDiv σ'
   v'~i = half~i + (dt / (2 * ρ0)) * nextForce~i
-  GD' = GD
-  GU' = GU
-  DG1' = DG1
-  DG2' = DG2
-  DG3' = DG3
-  J' = J
-  NV' = NV
-  far' = far
   -- diagnostics of the state entering the step: P-wave indicator (divergence),
   -- S-wave indicator (norm of the curl), elastic energy, the energy that the
-  -- Verlet step preserves, the moments of the P and S shells, and the distance
-  -- of the farthest point where the dimensionless indicator exceeds sqrt(front)
-  -- (the outer edge of each shell, which advances at the wave speed)
+  -- Verlet step preserves, the moments of the P and S shells, and the physical
+  -- distance from the source of the farthest point where the dimensionless
+  -- indicator exceeds sqrt(front) (the outer edge of each shell, which
+  -- advances at the wave speed)
+  local far @ collocated = sqrt (distance2 0)
   compression' = waveDiv v
   local curlv~i @ collocated = waveCurl v
   shearing' = sqrt (norm2 curlv)
-  energy' = cell * J * (ρ0 * norm2 v / 2 + stressNorm σ / (4 * μ) - λ * (stressTrace σ)^2 / (4 * μ * (3 * λ + 2 * μ)))
-  modified' = energy' - cell * J * dt^2 * norm2 force / (8 * ρ0)
-  pw' = cell * J * compression'^2
+  energy' = cell * volume * (ρ0 * norm2 v / 2 + stressNorm σ / (4 * μ) - λ * (stressTrace σ)^2 / (4 * μ * (3 * λ + 2 * μ)))
+  modified' = energy' - cell * volume * dt^2 * norm2 force / (8 * ρ0)
+  pw' = cell * volume * compression'^2
   pr' = pw' * far
-  sw' = cell * J * shearing'^2
+  sw' = cell * volume * shearing'^2
   sr' = sw' * far
   pfront' = if radius^2 * compression'^2 > front then far else 0
   sfront' = if radius^2 * shearing'^2 > front then far else 0
