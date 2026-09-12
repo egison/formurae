@@ -16,6 +16,7 @@ import Data.List (group, sort, sortOn)
 import Numeric.Natural (Natural)
 import Text.Read (readMaybe)
 
+import Data.Ratio ((%), denominator, numerator)
 import Formurae.FEIR.Fingerprint (sha256Utf8)
 import Formurae.FEIR.SExpr
 import Formurae.FEIR.Syntax
@@ -42,7 +43,14 @@ record :: String -> [(String, SExpr)] -> SExpr
 record tag fields = List (Atom tag : map (uncurry field) fields)
 
 decodeRecord :: String -> [String] -> SExpr -> Either CodecError [(String, SExpr)]
-decodeRecord expectedTag expectedFields expression =
+decodeRecord expectedTag expectedFields =
+  decodeRecordWithOptional expectedTag expectedFields []
+
+-- | A record whose optional fields may be absent; every other field is
+-- required, and no field outside both lists is accepted.
+decodeRecordWithOptional
+  :: String -> [String] -> [String] -> SExpr -> Either CodecError [(String, SExpr)]
+decodeRecordWithOptional expectedTag expectedFields optionalFields expression =
   case expression of
     List (Atom actualTag : encodedFields)
       | actualTag /= expectedTag ->
@@ -50,7 +58,7 @@ decodeRecord expectedTag expectedFields expression =
       | otherwise -> do
           fields <- mapM decodeField encodedFields
           let names = map fst fields
-              unknown = [name | name <- names, name `notElem` expectedFields]
+              unknown = [name | name <- names, name `notElem` expectedFields, name `notElem` optionalFields]
               missing = [name | name <- expectedFields, name `notElem` names]
               duplicates = duplicateValues names
           case unknown of
@@ -593,23 +601,35 @@ decodeCompareOp expression = codecError "compare-op"
 
 encodeAxisDecl :: AxisDecl -> SExpr
 encodeAxisDecl axis = record "axis"
-  [ ("id", encodeAxisId (axisDeclId axis))
-  , ("source-name", encodeString (axisDeclSourceName axis))
-  , ("canonical-name", encodeString (axisDeclCanonicalName axis))
-  , ("boundary", encodeBoundaryCondition (axisDeclBoundary axis))
-  , ("origin", encodeOriginId (axisDeclOrigin axis))
-  ]
+  ([ ("id", encodeAxisId (axisDeclId axis))
+   , ("source-name", encodeString (axisDeclSourceName axis))
+   , ("canonical-name", encodeString (axisDeclCanonicalName axis))
+   , ("boundary", encodeBoundaryCondition (axisDeclBoundary axis))
+   , ("origin", encodeOriginId (axisDeclOrigin axis))
+   ]
+   -- the start is written only when declared, so programs without one
+   -- keep their encoding
+   ++ [ ("start", encodeScalarNF (Exact (numerator start) (denominator start)))
+      | Just start <- [axisDeclStart axis] ])
 
 decodeAxisDecl :: SExpr -> Either CodecError AxisDecl
 decodeAxisDecl expression = do
-  fields <- decodeRecord "axis"
-    ["id", "source-name", "canonical-name", "boundary", "origin"] expression
+  fields <- decodeRecordWithOptional "axis"
+    ["id", "source-name", "canonical-name", "boundary", "origin"] ["start"] expression
   AxisDecl
     <$> (required "id" fields >>= decodeAxisId)
     <*> (required "source-name" fields >>= decodeString "axis-source-name")
     <*> (required "canonical-name" fields >>= decodeString "axis-canonical-name")
     <*> (required "boundary" fields >>= decodeBoundaryCondition)
     <*> (required "origin" fields >>= decodeOriginId)
+    <*> traverse decodeAxisStart (lookup "start" fields)
+
+decodeAxisStart :: SExpr -> Either CodecError Rational
+decodeAxisStart expression = do
+  scalar <- decodeScalarNF expression
+  case scalar of
+    Exact n d | d /= 0 -> Right (n % d)
+    _ -> codecError "axis-start" "the start of an axis must be an exact rational"
 
 encodeBoundaryCondition :: BoundaryCondition -> SExpr
 encodeBoundaryCondition condition =

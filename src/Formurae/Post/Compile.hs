@@ -1473,7 +1473,10 @@ lowerCoordinateShifted environment (Placement bits) sampleOffsets
             | totalOffset == 0 = FVariable index
             | otherwise = FAdd [FVariable index, exactExpr totalOffset]
           step = FVariable ("d" ++ axisDeclSourceName axis)
-      in Right (FMul [shiftedIndex, step])
+          position = FMul [shiftedIndex, step]
+      in Right (case axisDeclStart axis of
+                  Nothing -> position
+                  Just start -> FAdd [exactExpr start, position])
     _ -> Left (PostUnknownAxis axisId)
 
 lowerFieldReferenceShifted

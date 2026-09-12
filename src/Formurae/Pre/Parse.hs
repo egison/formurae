@@ -590,9 +590,12 @@ injectSbpBoundaryConstants macroSources m
           line = boundarySourceLine declaration
           step = "d" ++ axis
           suffix = sbpAxisSuffix axis
-      in ( "sbpLo" ++ suffix, "0.5*" ++ step, line )
+          -- the thresholds are coordinate values, so an origin shifts them
+          start = maybe "" (\value -> show (fromRational value :: Double) ++ "+")
+                    (lookup axis (mAxisStarts m))
+      in ( "sbpLo" ++ suffix, start ++ "0.5*" ++ step, line )
          : ( "sbpHi" ++ suffix
-           , "(total_grid_" ++ axis ++ " - 1.5)*" ++ step, line )
+           , start ++ "(total_grid_" ++ axis ++ " - 1.5)*" ++ step, line )
          : [ (hinvName pairs suffix, hinvValue weight ++ "/" ++ step, line)
            | pairs <- pairCounts
            , Right pair <- [sbpStaggeredPair pairs]
@@ -666,6 +669,24 @@ macroTexts macro =
 -- | The axis suffix of the injected boundary constants: the axis name
 -- with its first letter capitalized, so the joined name stays one plain
 -- Egison symbol.
+-- | A decimal literal (optional sign, digits, optional fraction) as an
+-- exact rational: the value of an origin declaration.
+decimalRational :: String -> Maybe Rational
+decimalRational text =
+  case text of
+    '-' : rest -> negate <$> unsigned rest
+    '+' : rest -> unsigned rest
+    _ -> unsigned text
+  where
+    unsigned digits =
+      let (whole, rest) = span isDigit digits
+      in case rest of
+           [] | not (null whole) -> Just (fromInteger (read whole))
+           '.' : fraction
+             | not (null fraction), all isDigit fraction ->
+                 Just (fromInteger (read (whole ++ fraction)) / 10 ^ length fraction)
+           _ -> Nothing
+
 sbpAxisSuffix :: String -> String
 sbpAxisSuffix axis =
   case axis of
@@ -814,6 +835,8 @@ parseModel sourceFile name txt = do
       , mDim = 0
       , mAxes = []
       , mAxesSourceLine = Nothing
+      , mAxisStarts = []
+      , mAxisStartSourceLines = []
       , mMetricName = Nothing
       , mParams = []
       , mParamSourceLines = []
@@ -847,6 +870,14 @@ parseModel sourceFile name txt = do
       | any (`elem` generatedIndexNames) (mAxes m) =
           fatal ("axes coordinate names conflict with generated index symbols (line "
                  ++ show (maybe 0 id (mAxesSourceLine m)) ++ ")")
+      | (unknown, line) : _ <-
+          [ (axis, line)
+          | ((axis, _), line) <- zip (mAxisStarts m) (mAxisStartSourceLines m)
+          , axis `notElem` mAxes m ] =
+          fatal ("origin declared for an unknown axis: " ++ unknown
+                 ++ " (line " ++ show line ++ ")")
+      | length (nub (map fst (mAxisStarts m))) /= length (mAxisStarts m) =
+          fatal "origin declared twice for one axis"
       | reservedAxis : _ <-
           [axis | axis <- mAxes m,
                   axis `elem` (standardNames ++ scalarIntrinsics
@@ -1037,6 +1068,20 @@ parseModel sourceFile name txt = do
           parseDiscretizationDecl ln r >>= addDiscretizationDecl
       | Just r <- stripPrefix "boundary " s =
           parseBoundaryDecl ln r >>= addBoundaryDecl
+      -- origin AXIS = VALUE: the coordinate of the first grid node, so that a
+      -- coordinate can be the physical radius or colatitude itself and the
+      -- normalizer expands no shifted polynomial
+      | Just r <- stripPrefix "origin " s =
+          case break (== '=') r of
+            (nm, '=':v) | not (null (strip nm)) && not (null (strip v)) ->
+              case decimalRational (strip v) of
+                Just value -> return m
+                  { mAxisStarts = (strip nm, value) : mAxisStarts m
+                  , mAxisStartSourceLines = ln : mAxisStartSourceLines m
+                  }
+                Nothing -> fatal ("origin needs a decimal literal, e.g. origin r = 1.0 (line "
+                                  ++ show ln ++ ")")
+            _ -> fatal ("bad origin: expected origin AXIS = VALUE (line " ++ show ln ++ ")")
       | Just r <- stripPrefix "def " s =
           addDefinition ln (sourceTextForRhs ln originalLine) r m
       | Just r <- stripPrefix "param " s =

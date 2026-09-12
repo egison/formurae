@@ -23,7 +23,7 @@ WORK = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / '.build/tb-walls'
 FORMURA = ROOT / 'bin/formura'
 EXAMPLES = ['sbp_diffusion1d', 'sbp_wave1d', 'sbp_neumann', 'sbp_wave_open', 'sbp_highorder4',
             'sbp_diffusion2d', 'dirichlet_diffusion', 'polar2d', 'hyperbolic', 'metric_sphere',
-            'spherical3d', 'yinyang_diffusion', 'elastic_spherical']
+            'spherical3d', 'yinyang_diffusion', 'elastic_spherical', 'elastic_shell']
 INTERVALS = [2, 3]
 FORWARDS = 6      # blocked forwards; the plain run does FORWARDS * interval
 # decompositions to try (per example, when the grid divides and the
@@ -34,6 +34,7 @@ DECOMPOSITIONS = {
     'spherical3d': [((2, 2, 2), 0), ((2, 2, 2), 2)],
     'polar2d': [((2, 2, 1), 2)],
     'elastic_spherical': [((3, 1, 1), 0), ((3, 1, 1), 2)],
+    'elastic_shell': [((3, 1, 1), 0), ((1, 3, 2), 2)],
 }
 MPIRUN = shutil.which('mpirun')
 MPICC = shutil.which('mpicc')

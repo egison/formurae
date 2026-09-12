@@ -95,6 +95,15 @@ step-level `let` / `local`では予約されます。Egison expression block内�
 
 ## 弾性波の例と適用条件
 
+[壁のある球殻の弾性波の例](examples/elastic_shell/README.md)は，同じプログラムを球座標と，
+同じ球殻の非直交座標（経度の線が半径とともに巻く座標系，`metric tensor` で計量を宣言）で
+実行し，剛体の壁（速度を 0 に保つ球面と円錐）で反射しながら P 波と S 波が速さ 2 対 1 で
+分離して広がることを示します．`origin` 宣言で座標を半径と余緯度そのものにし，
+`boundary … : sbp` の壁でも時間方向のブロッキングと MPI 分割（壁のある軸の分割を含む）が
+通常版とビット単位で一致します．ねじれ振動の厳密なモード（3 次の球 Bessel 関数と
+$P_3^1$）に対する 2 次収束，エネルギー，波速，二つの座標系の一致を `verify.py` が確かめ，
+`run.py`・`render.py` が論文の図の実行と描画を行います．
+
 [周期領域の弾性波の例](examples/elastic_pulse/README.md)は，同じプログラムを直交座標と，
 同じ周期立方体の非直交座標（格子線が横に波打つ座標系，`metric tensor` で計量を宣言）で
 実行し，P 波と S 波が速さ 2 対 1 で分離して広がることを示します．演算子は計量・逆計量・
@@ -200,6 +209,11 @@ step:
 物理的な壁条件は例題の更新式や境界項で与え，FormuraのYAML設定で
 実行時の境界処理を指定します．
 
+`origin r = 1.0` は軸 `r` の最初の格子点の座標値を指定します（省略時は 0）．
+座標 `r` はそのまま物理的な半径や余緯度として使え，`1 + r` のような
+ずれた多項式を Egison が展開せずに済むので，計量を成分で宣言する曲線座標の
+生成物が小さくなります．`sbpLoR` などの sbp 境界の定数もこの原点を含みます．
+
 ## Tensor、form、格子配置
 
 fieldはscalar、vector、rank-1/rank-2 tensor、`k-form`を宣言できます。
@@ -297,7 +311,8 @@ symbolic FEIRを通らないので、そこでは`π`を使わずbackend数値�
 
 - exact rationalを保持するcanonical S-expression
 - closedなnamed mathematical constant
-- stable `AxisId`、`FieldId`、`FunctionId`、`OriginId`
+- stable `AxisId`、`FieldId`、`FunctionId`、`OriginId`（軸のrecordは
+  `origin` 宣言があるときだけ省略可能な `start` fieldを持つ）
 - scalar/tensor normal formとderivative multi-index付き`FieldJet`
 - `GeometryNF`、discretization profile、opaque discrete request
 - registry/primitive-manifest/profile fingerprint

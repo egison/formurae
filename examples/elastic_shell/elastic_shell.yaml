@@ -1,0 +1,7 @@
+length_per_node: [1.03125, 0.9562731935641622, 6.283185307179586]
+grid_per_node: [33, 33, 64]
+grid_per_block: [57, 57, 44]
+temporal_blocking_interval: 4
+mpi_shape: [1, 1, 1]
+boundary: [fixed 0.0, fixed 0.0, periodic]
+reduces: [energy = sum energy, modified = sum modified, pw = sum pw, pr = sum pr, sw = sum sw, sr = sum sr, pfront = max pfront, sfront = max sfront, vmax = absmax v_up3]

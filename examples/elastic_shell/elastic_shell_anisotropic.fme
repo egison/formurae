@@ -1,0 +1,114 @@
+-- The isotropic model of elastic_shell.fme with one term added to the
+-- constitutive function: alpha n^i n^j n^k n^l e_kl stiffens the material
+-- along the physical radial direction n = e_R, whose chart components are
+-- written as a definition (the twisted chart shears the longitude with the
+-- radius, so e_R has a longitude component -twist there).  Nothing else
+-- changes.
+dimension 3
+axes r, θ, φ
+origin r = 1.0
+origin θ = 1.1071487177940906
+metric g
+metric tensor [[1 + (twist * r * sin θ)^2, 0, twist * (r * sin θ)^2], [0, r^2, 0], [twist * (r * sin θ)^2, 0, (r * sin θ)^2]]
+metric volume r^2 * sin θ
+
+boundary r : sbp
+boundary θ : sbp
+
+param λ = 2.0
+param μ = 1.0
+param ρ0 = 1.0
+param dt = 0.05 * dr
+param twist = 0.0
+param alpha = 3.0
+param radius = 0.25
+param x0 = -1.5
+param y0 = 0.0
+param z0 = 0.0
+param cell = dr * dθ * dφ
+param front = 0.0001
+extern exp
+extern sqrt
+
+-- physical position of a cell, and its physical distance from the source
+-- (radius 1.5, colatitude pi/2, longitude pi)
+def longitude unused = φ + twist * (r - 1)
+def distance2 unused = (r * sin θ * cos (longitude 0) - x0)^2 + (r * sin θ * sin (longitude 0) - y0)^2 + (r * cos θ - z0)^2
+-- the exponent is selected first, so that no overflowing value is formed;
+-- the support stops at 0.995 radius (f < 1e-86 there), which keeps the
+-- denominator positive under rounding of the expanded polynomials
+def bump unused = if distance2 0 < 0.99 * radius^2 then 0 - 2 * distance2 0 / (radius^2 - distance2 0) else 0
+def pulse unused = if distance2 0 < 0.99 * radius^2 then exp (bump 0) else 0
+-- the summation-by-parts weight of a node: half on a wall
+def weight unused = (if r < sbpLoR || r > sbpHiR then 0.5 else 1) * (if θ < sbpLoTheta || θ > sbpHiTheta then 0.5 else 1)
+def strain V~a = withSymbols [i, j, k] ((g_i_k . ∂_j V~k + g_j_k . ∂_i V~k + (∂/∂ g_i_j coordinates~k) . V~k) / 2)
+def direction unused = [| 1, 0, 0 - twist |]~i
+def stressRate E_i_j = withSymbols [i, j, k, l] (λ * g~i~j * (g~k~l . E_k_l) + 2 * μ * (g~i~k . g~j~l . E_k_l) + alpha * (direction 0)~i * (direction 0)~j * ((direction 0)~k . (direction 0)~l . E_k_l))
+def stressDiv S~a~b = withSymbols [i, j, k, l] ((g~i~k . ∂_j (volume * (g_k_l . S~l~j))) / volume - (g~i~k . (∂/∂ g_j_l coordinates~k) . S~j~l) / 2)
+-- coordinate-independent diagnostics of a velocity field
+def waveDiv V~a = withSymbols [i] ((∂_i (volume * V~i)) / volume)
+def waveCurl V~a = withSymbols [i, j, k, l] ((epsilon~i~j~k . ∂_j (g_k_l . V~l)) / volume)
+def norm2 W~a = withSymbols [i, j] (g_i_j . W~i . W~j)
+def stressNorm S~a~b = withSymbols [i, j, k, l] (g_i_k . g_j_l . S~i~j . S~k~l)
+def stressTrace S~a~b = withSymbols [i, j] (g_i_j . S~i~j)
+
+field v~i @ collocated
+field σ{~i~j} @ collocated
+field compression : scalar @ collocated
+field shearing : scalar @ collocated
+field energy : scalar @ collocated
+field modified : scalar @ collocated
+field pw : scalar @ collocated
+field pr : scalar @ collocated
+field sw : scalar @ collocated
+field sr : scalar @ collocated
+field pfront : scalar @ collocated
+field sfront : scalar @ collocated
+
+init:
+  v~i := [| 0, 0, pulse 0 / (r * sin θ) |]~i
+  σ~i~j := [| [| 0, 0, 0 |], [| 0, 0, 0 |], [| 0, 0, 0 |] |]~i~j
+  compression := 0
+  shearing := 0
+  energy := 0
+  modified := 0
+  pw := 0
+  pr := 0
+  sw := 0
+  sr := 0
+  pfront := 0
+  sfront := 0
+
+step:
+  -- velocity Verlet: half velocity, full stress, half velocity; the mask
+  -- clamps the velocity on the wall nodes of both bounded axes, which keeps
+  -- the step a symplectic map of the interior state
+  let wall = (if r < sbpLoR || r > sbpHiR then 0 else 1) * (if θ < sbpLoTheta || θ > sbpHiTheta then 0 else 1)
+  let vm~i = [| wall, wall, wall |]~i
+  local force~i @ collocated = stressDiv σ
+  -- the force the step applies: zero on the walls
+  local kick~i @ collocated = vm~i * force~i
+  local half~i @ collocated = vm~i * v~i + (dt / (2 * ρ0)) * kick~i
+  local strainRate{_i_j} @ collocated = strain half
+  local rate{~i~j} @ collocated = stressRate strainRate
+  σ'~i~j = σ~i~j + dt * rate~i~j
+  local nextForce~i @ collocated = stressDiv σ'
+  v'~i = vm~i * (half~i + (dt / (2 * ρ0)) * nextForce~i)
+  -- diagnostics of the state entering the step: P-wave indicator (divergence),
+  -- S-wave indicator (norm of the curl), elastic energy, the energy that the
+  -- Verlet step preserves, the moments of the P and S shells, and the physical
+  -- distance from the source of the farthest point where the dimensionless
+  -- indicator exceeds sqrt(front) (the outer edge of each shell, which
+  -- advances at the wave speed)
+  local far @ collocated = sqrt (distance2 0)
+  compression' = waveDiv v
+  local curlv~i @ collocated = waveCurl v
+  shearing' = sqrt (norm2 curlv)
+  energy' = weight 0 * cell * volume * (ρ0 * norm2 v / 2 + stressNorm σ / (4 * μ) - λ * (stressTrace σ)^2 / (4 * μ * (3 * λ + 2 * μ)))
+  modified' = energy' - weight 0 * cell * volume * dt^2 * norm2 kick / (8 * ρ0)
+  pw' = weight 0 * cell * volume * compression'^2
+  pr' = pw' * far
+  sw' = weight 0 * cell * volume * shearing'^2
+  sr' = sw' * far
+  pfront' = if radius^2 * compression'^2 > front then far else 0
+  sfront' = if radius^2 * shearing'^2 > front then far else 0

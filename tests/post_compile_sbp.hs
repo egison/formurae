@@ -68,7 +68,7 @@ testBoundaryTrace = do
 withPeriodicAxis :: FEProgram -> FEProgram
 withPeriodicAxis program = program
   { feProgramAxes =
-      [AxisDecl (AxisId 1) "x" "x" PeriodicBoundary (OriginId 1)]
+      [AxisDecl (AxisId 1) "x" "x" PeriodicBoundary (OriginId 1) Nothing]
   }
 
 -- The dual-to-primal direction replaces the first and last primal rows
@@ -253,8 +253,8 @@ mixedBoundaryProgram =
   in fixture
        { feProgramDimension = 2
        , feProgramAxes =
-           [ AxisDecl (AxisId 1) "x" "x" SbpBoundary (OriginId 1)
-           , AxisDecl (AxisId 2) "y" "y" PeriodicBoundary (OriginId 1)
+           [ AxisDecl (AxisId 1) "x" "x" SbpBoundary (OriginId 1) Nothing
+           , AxisDecl (AxisId 2) "y" "y" PeriodicBoundary (OriginId 1) Nothing
            ]
        , feProgramFields = [source]
        , feProgramStepActions = [UpdateField equation]
@@ -334,7 +334,7 @@ fixture = FEProgram
   , feProgramDiscretization = setProfileFingerprint
       (DiscretizationProfile (Fingerprint "") [] FixedAxisOrder)
   , feProgramDimension = 1
-  , feProgramAxes = [AxisDecl (AxisId 1) "x" "x" SbpBoundary (OriginId 1)]
+  , feProgramAxes = [AxisDecl (AxisId 1) "x" "x" SbpBoundary (OriginId 1) Nothing]
   , feProgramGeometry = GeometryDecl (GeometryId 1) Nothing Nothing
       EuclideanGeometry
   , feProgramParameters = []

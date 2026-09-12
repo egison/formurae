@@ -110,8 +110,8 @@ validProfile = setProfileFingerprint profile
 
 validAxes :: [AxisDecl]
 validAxes =
-  [ AxisDecl axisX "x" "x" PeriodicBoundary origin1
-  , AxisDecl axisY "y" "y" PeriodicBoundary origin1
+  [ AxisDecl axisX "x" "x" PeriodicBoundary origin1 Nothing
+  , AxisDecl axisY "y" "y" PeriodicBoundary origin1 Nothing
   ]
 
 collocatedDefaultRule :: DerivativeRule
@@ -186,8 +186,8 @@ main = do
 checkHeaderAndIds :: IO ()
 checkHeaderAndIds = do
   let duplicateAxes =
-        [ AxisDecl axisX "x" "x" PeriodicBoundary origin1
-        , AxisDecl axisX "y" "y" PeriodicBoundary origin1
+        [ AxisDecl axisX "x" "x" PeriodicBoundary origin1 Nothing
+        , AxisDecl axisX "y" "y" PeriodicBoundary origin1 Nothing
         ]
   assertIssue "axis IDs are unique" isDuplicateAxis
     validProgram { feProgramAxes = duplicateAxes }
@@ -196,15 +196,15 @@ checkHeaderAndIds = do
   assertValid "declared axis boundaries are accepted"
     validProgram
       { feProgramAxes =
-          [ AxisDecl axisX "x" "x" SbpBoundary origin1
-          , AxisDecl axisY "y" "y" (GhostBoundary "0.0") origin1
+          [ AxisDecl axisX "x" "x" SbpBoundary origin1 Nothing
+          , AxisDecl axisY "y" "y" (GhostBoundary "0.0") origin1 Nothing
           ]
       }
   assertIssue "ghost boundary fill must not be empty" isEmptyGhostFill
     validProgram
       { feProgramAxes =
-          [ AxisDecl axisX "x" "x" (GhostBoundary "") origin1
-          , AxisDecl axisY "y" "y" PeriodicBoundary origin1
+          [ AxisDecl axisX "x" "x" (GhostBoundary "") origin1 Nothing
+          , AxisDecl axisY "y" "y" PeriodicBoundary origin1 Nothing
           ]
       }
   assertIssue "parameter references are declared" isUnknownParameter

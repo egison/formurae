@@ -24,7 +24,21 @@ main = do
   testPlacementMismatch
   testCenteredDerivativeProfiles
   testYeeOrientations
+  testCoordinateOrigin
   putStrLn "post compile tests: ok"
+
+-- An axis with a declared origin lowers its coordinate to the origin plus
+-- the index times the spacing; without one the coordinate stays the
+-- product, as the initializer assertion above checks.
+testCoordinateOrigin :: IO ()
+testCoordinateOrigin = do
+  let program = fixture
+        { feProgramAxes =
+            [AxisDecl (AxisId 1) "x" "x" PeriodicBoundary (OriginId 1) (Just 1.5)]
+        }
+  compiled <- assertRight "compile axis origin" (compileProgram program)
+  rendered <- assertRight "render axis origin" (renderProgram compiled)
+  assertContains "coordinate with origin" "u[i] = exp((3 / 2) + dx * i)" rendered
 
 testPlacementMismatch :: IO ()
 testPlacementMismatch = do
@@ -120,7 +134,7 @@ fixture = FEProgram
   , feProgramPrimitiveManifestId = PrimitiveManifestId "manifest-1"
   , feProgramDiscretization = setProfileFingerprint profile
   , feProgramDimension = 1
-  , feProgramAxes = [AxisDecl (AxisId 1) "x" "x" PeriodicBoundary (OriginId 1)]
+  , feProgramAxes = [AxisDecl (AxisId 1) "x" "x" PeriodicBoundary (OriginId 1) Nothing]
   , feProgramGeometry = GeometryDecl (GeometryId 1) Nothing Nothing EuclideanGeometry
   , feProgramParameters = [ParameterDecl (ParamId 1) "a" "a" "2.0" (OriginId 1)]
   , feProgramFunctions =

@@ -187,6 +187,10 @@ data AxisDecl = AxisDecl
   , axisDeclCanonicalName :: String
   , axisDeclBoundary      :: BoundaryCondition
   , axisDeclOrigin        :: OriginId
+    -- ^ provenance of the axes declaration
+  , axisDeclStart         :: Maybe Rational
+    -- ^ the coordinate of the first grid node (the .fme origin declaration);
+    -- absent, the coordinate of node i is i times the spacing
   } deriving (Eq, Ord, Show)
 
 data ParameterDecl = ParameterDecl

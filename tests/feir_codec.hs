@@ -84,8 +84,8 @@ fixtureProgram =
     , feProgramDiscretization = fixtureProfile
     , feProgramDimension = 2
     , feProgramAxes =
-        [ AxisDecl (AxisId 1) "r" "x" SbpBoundary (OriginId 1)
-        , AxisDecl (AxisId 2) "θ" "y" (GhostBoundary "0.0") (OriginId 1)
+        [ AxisDecl (AxisId 1) "r" "x" SbpBoundary (OriginId 1) (Just 1)
+        , AxisDecl (AxisId 2) "θ" "y" (GhostBoundary "0.0") (OriginId 1) Nothing
         ]
     , feProgramGeometry = fixtureGeometry
     , feProgramParameters =

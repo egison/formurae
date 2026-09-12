@@ -175,6 +175,9 @@ data Model = Model
   , mDim    :: Int
   , mAxes   :: [String]
   , mAxesSourceLine :: Maybe Int
+  , mAxisStarts :: [(String, Rational)]
+    -- ^ origin declarations: the coordinate of the first grid node of an axis
+  , mAxisStartSourceLines :: [Int]
   , mMetricName :: Maybe String
   , mParams :: [(String, String)]
   , mParamSourceLines :: [Int]

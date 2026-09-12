@@ -488,6 +488,7 @@ buildAxes assignments model = do
   Right
     [FEIR.AxisDecl (FEIR.AxisId identifier) sourceName canonicalName
        (declaredBoundary sourceName) origin
+       (lookup sourceName (Surface.mAxisStarts model))
     | (identifier, sourceName, canonicalName) <-
         zip3 [1 ..] (Surface.mAxes model) canonicalAxisNames]
   where

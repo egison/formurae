@@ -186,7 +186,7 @@ fixture = FEProgram
           CenteredTaylor (PositiveEven 2) (OriginId 1)]
         FixedAxisOrder)
   , feProgramDimension = 1
-  , feProgramAxes = [AxisDecl (AxisId 1) "x" "x" PeriodicBoundary (OriginId 1)]
+  , feProgramAxes = [AxisDecl (AxisId 1) "x" "x" PeriodicBoundary (OriginId 1) Nothing]
   , feProgramGeometry = GeometryDecl (GeometryId 1) Nothing Nothing
       EuclideanGeometry
   , feProgramParameters = []
