@@ -8,7 +8,7 @@
 
 | ファイル | 課題 | 規模感 |
 |---|---|---|
-| [nested-stencil-iteration.md](nested-stencil-iteration.md) | 入れ子の反復・任意の最外側 check・全領域集計（設計合意済，Formura 拡張を含む） | 大 |
+| [nested-stencil-iteration.md](nested-stencil-iteration.md) | 入れ子の反復・任意の最外側 check・全領域集計・内外両方の時間ブロッキング（方式検討中，Formura 拡張を含む） | 大 |
 | [sbp-characteristic-generalization.md](sbp-characteristic-generalization.md) | 特性 SAT の一般化(Z・2D 法線・幅整合の外挿) | 中(綴りの決めから) |
 | [boundary-yaml-consistency.md](boundary-yaml-consistency.md) | yaml boundary と宣言の整合検査 | 小(独立チェッカ) |
 | [component-projection-extensions.md](component-projection-extensions.md) | 混合射影・一般式射影・宣言レベル component | 小〜大(3 段階) |
