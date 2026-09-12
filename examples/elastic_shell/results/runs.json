@@ -1,0 +1,314 @@
+{
+  "runs": {
+    "spherical": {
+      "metadata": {
+        "case": "spherical",
+        "source": "elastic_shell.fme",
+        "grid": [
+          97,
+          65,
+          256
+        ],
+        "mpi": [
+          1,
+          5,
+          2
+        ],
+        "blocking": 0,
+        "thickness": 1.0,
+        "fresh": true,
+        "config": [
+          "length_per_node: [1.0104166666666665, 0.18835684115657741, 3.141592653589793]",
+          "grid_per_node: [97, 13, 128]",
+          "mpi_shape: [1, 5, 2]",
+          "boundary: [fixed 0.0, fixed 0.0, periodic]",
+          "reduces: [energy = sum energy, modified = sum modified, pw = sum pw, pr = sum pr, sw = sum sw, sr = sum sr, pfront = max pfront, sfront = max sfront, vmax = absmax v_up3]"
+        ],
+        "parameters": {
+          "\u03bb": "2.0",
+          "\u03bc": "1.0",
+          "\u03c10": "1.0",
+          "dt": "0.05 * dr",
+          "twist": "0.0",
+          "radius": "0.25",
+          "x0": "-1.5",
+          "y0": "0.0",
+          "z0": "0.0",
+          "cell": "dr * d\u03b8 * d\u03c6",
+          "front": "0.0001"
+        },
+        "source_sha256": "9ed088553d63bdaca272a28755fdc691a6f20515ae050c95bf98d691569f91ae",
+        "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+        "steps": 1536,
+        "output_interval": 96,
+        "mpi_environment": {
+          "HWLOC_SYNTHETIC": "node:1 core:10 pu:1",
+          "MPIRUN_ARGS": "--bind-to none"
+        }
+      },
+      "stats_sha256": "16e67715ee69f44e0657406e19e51ab4c1ff451a18dbc238ae9e3aa252350b1b",
+      "p_speed_before_walls": 2.2027430465141866,
+      "s_speed_before_walls": 2.438718116851935,
+      "energy_band": [
+        0.9999929725034551,
+        1.0
+      ],
+      "modified_energy_relative_drift": 1.3089486380327406e-14
+    },
+    "twisted": {
+      "metadata": {
+        "case": "twisted",
+        "source": "elastic_shell.fme",
+        "grid": [
+          97,
+          65,
+          256
+        ],
+        "mpi": [
+          1,
+          5,
+          2
+        ],
+        "blocking": 0,
+        "thickness": 1.0,
+        "fresh": true,
+        "config": [
+          "length_per_node: [1.0104166666666665, 0.18835684115657741, 3.141592653589793]",
+          "grid_per_node: [97, 13, 128]",
+          "mpi_shape: [1, 5, 2]",
+          "boundary: [fixed 0.0, fixed 0.0, periodic]",
+          "reduces: [energy = sum energy, modified = sum modified, pw = sum pw, pr = sum pr, sw = sum sw, sr = sum sr, pfront = max pfront, sfront = max sfront, vmax = absmax v_up3]"
+        ],
+        "parameters": {
+          "\u03bb": "2.0",
+          "\u03bc": "1.0",
+          "\u03c10": "1.0",
+          "dt": "0.05 * dr",
+          "twist": "0.3",
+          "radius": "0.25",
+          "x0": "-1.5",
+          "y0": "0.0",
+          "z0": "0.0",
+          "cell": "dr * d\u03b8 * d\u03c6",
+          "front": "0.0001"
+        },
+        "source_sha256": "dacee75974cbc3bac39ccc8dd151f7ee25144e47e412560b9d43ccb379cd5a45",
+        "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+        "steps": 1536,
+        "output_interval": 96,
+        "mpi_environment": {
+          "HWLOC_SYNTHETIC": "node:1 core:10 pu:1",
+          "MPIRUN_ARGS": "--bind-to none"
+        }
+      },
+      "stats_sha256": "25a2ae27c930cd092393c9248f8cb9b9a768358f0a8fb82e41ad90e79a22ef11",
+      "p_speed_before_walls": 2.221032332318744,
+      "s_speed_before_walls": 2.4476738934670164,
+      "energy_band": [
+        0.9999929779380289,
+        1.0
+      ],
+      "modified_energy_relative_drift": 5.566761671178573e-15
+    },
+    "spherical-anisotropic": {
+      "metadata": {
+        "case": "spherical",
+        "source": "elastic_shell_anisotropic.fme",
+        "grid": [
+          97,
+          65,
+          256
+        ],
+        "mpi": [
+          1,
+          5,
+          2
+        ],
+        "blocking": 0,
+        "thickness": 1.0,
+        "fresh": true,
+        "config": [
+          "length_per_node: [1.0104166666666665, 0.18835684115657741, 3.141592653589793]",
+          "grid_per_node: [97, 13, 128]",
+          "mpi_shape: [1, 5, 2]",
+          "boundary: [fixed 0.0, fixed 0.0, periodic]",
+          "reduces: [energy = sum energy, modified = sum modified, pw = sum pw, pr = sum pr, sw = sum sw, sr = sum sr, pfront = max pfront, sfront = max sfront, vmax = absmax v_up3]"
+        ],
+        "parameters": {
+          "\u03bb": "2.0",
+          "\u03bc": "1.0",
+          "\u03c10": "1.0",
+          "dt": "0.05 * dr",
+          "twist": "0.0",
+          "alpha": "3.0",
+          "radius": "0.25",
+          "x0": "-1.5",
+          "y0": "0.0",
+          "z0": "0.0",
+          "cell": "dr * d\u03b8 * d\u03c6",
+          "front": "0.0001"
+        },
+        "source_sha256": "8d41aa18f3c8ad24bf686eb3f065394a438002b9da6bf877c8d854e27eb3f30e",
+        "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+        "steps": 1536,
+        "output_interval": 96,
+        "mpi_environment": {
+          "HWLOC_SYNTHETIC": "node:1 core:10 pu:1",
+          "MPIRUN_ARGS": "--bind-to none"
+        }
+      },
+      "stats_sha256": "e687f8aff7037ab37472365f0298bd41940ae71ec01c428b7980c66d03d5cf0b"
+    },
+    "twisted-anisotropic": {
+      "metadata": {
+        "case": "twisted",
+        "source": "elastic_shell_anisotropic.fme",
+        "grid": [
+          97,
+          65,
+          256
+        ],
+        "mpi": [
+          1,
+          5,
+          2
+        ],
+        "blocking": 0,
+        "thickness": 1.0,
+        "fresh": true,
+        "config": [
+          "length_per_node: [1.0104166666666665, 0.18835684115657741, 3.141592653589793]",
+          "grid_per_node: [97, 13, 128]",
+          "mpi_shape: [1, 5, 2]",
+          "boundary: [fixed 0.0, fixed 0.0, periodic]",
+          "reduces: [energy = sum energy, modified = sum modified, pw = sum pw, pr = sum pr, sw = sum sw, sr = sum sr, pfront = max pfront, sfront = max sfront, vmax = absmax v_up3]"
+        ],
+        "parameters": {
+          "\u03bb": "2.0",
+          "\u03bc": "1.0",
+          "\u03c10": "1.0",
+          "dt": "0.05 * dr",
+          "twist": "0.3",
+          "alpha": "3.0",
+          "radius": "0.25",
+          "x0": "-1.5",
+          "y0": "0.0",
+          "z0": "0.0",
+          "cell": "dr * d\u03b8 * d\u03c6",
+          "front": "0.0001"
+        },
+        "source_sha256": "7b4c98a9bce7d80236d8bfee12b6d9d4de10e3f3d31b4a6faf0627bb4a5427c9",
+        "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+        "steps": 1536,
+        "output_interval": 96,
+        "mpi_environment": {
+          "HWLOC_SYNTHETIC": "node:1 core:10 pu:1",
+          "MPIRUN_ARGS": "--bind-to none"
+        }
+      },
+      "stats_sha256": "1112b4207ba34129ff0b436a0d12fe1f8e80aa7c45ca0e304859ff6971adc76c"
+    }
+  },
+  "figures": {
+    "en": {
+      "maxima": {
+        "spherical-768": {
+          "p_max": 0.22930158727159342,
+          "s_max": 0.5559313123089712
+        },
+        "spherical-1536": {
+          "p_max": 0.13478392140276974,
+          "s_max": 0.40354962297247077
+        },
+        "spherical-anisotropic-1536": {
+          "p_max": 0.12062978780580533,
+          "s_max": 0.29006447214065684
+        },
+        "twisted-768": {
+          "p_max": 0.23991432156006787,
+          "s_max": 0.5809706696038802
+        },
+        "twisted-1536": {
+          "p_max": 0.13822643118128067,
+          "s_max": 0.409215717546193
+        },
+        "twisted-anisotropic-1536": {
+          "p_max": 0.12309599738305746,
+          "s_max": 0.3068816737368051
+        }
+      },
+      "sha256": "5537308078c5da2e84e1ff8602a90d0a512f733b712b4f4257e6c5fd24600a96"
+    },
+    "ja": {
+      "maxima": {
+        "spherical-768": {
+          "p_max": 0.22930158727159342,
+          "s_max": 0.5559313123089712
+        },
+        "spherical-1536": {
+          "p_max": 0.13478392140276974,
+          "s_max": 0.40354962297247077
+        },
+        "spherical-anisotropic-1536": {
+          "p_max": 0.12062978780580533,
+          "s_max": 0.29006447214065684
+        },
+        "twisted-768": {
+          "p_max": 0.23991432156006787,
+          "s_max": 0.5809706696038802
+        },
+        "twisted-1536": {
+          "p_max": 0.13822643118128067,
+          "s_max": 0.409215717546193
+        },
+        "twisted-anisotropic-1536": {
+          "p_max": 0.12309599738305746,
+          "s_max": 0.3068816737368051
+        }
+      },
+      "sha256": "cad638eed1aff1b129f031c7eed8bf75b260a7372917e7914e9e7d337f3d6744"
+    }
+  },
+  "chart_agreement": {
+    "p_front_max_difference": 0.016874240323095924,
+    "s_front_max_difference": 0.01647313397925354,
+    "p_mean_radius_max_difference": 0.000615059762365533,
+    "s_mean_radius_max_difference": 0.0008552790130575971,
+    "energy_relative": 5.64691530197087e-06,
+    "indicators_on_equatorial_plane": {
+      "t=0.4": {
+        "compression": {
+          "relative_l2": 0.20492395574343814,
+          "max_over_max": 0.39882472494684723
+        },
+        "shearing": {
+          "relative_l2": 0.18031604399596976,
+          "max_over_max": 0.38945804842046367
+        },
+        "speed": {
+          "relative_l2": 0.0676825469415391,
+          "max_over_max": 0.11367835302106295
+        }
+      },
+      "t=0.8": {
+        "compression": {
+          "relative_l2": 0.18133422366424493,
+          "max_over_max": 0.2574934051805028
+        },
+        "shearing": {
+          "relative_l2": 0.279458350044477,
+          "max_over_max": 0.4726921903253466
+        },
+        "speed": {
+          "relative_l2": 0.08823266813549178,
+          "max_over_max": 0.197591945436339
+        }
+      }
+    }
+  },
+  "grid_spacing": {
+    "radial": 0.010416666666666666,
+    "colatitude_at_outer_wall": 0.02897797556255037,
+    "longitude_at_outer_wall": 0.04908738521234052
+  }
+}

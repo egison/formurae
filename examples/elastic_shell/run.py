@@ -37,10 +37,11 @@ REDUCTIONS = ("energy = sum energy, modified = sum modified, pw = sum pw, pr = s
               "sw = sum sw, sr = sum sr, pfront = max pfront, sfront = max sfront, vmax = absmax v_up3")
 
 
-def spacing(grid):
-    """Grid spacings of the three coordinates for nr, nt nodes and np cells."""
+def spacing(grid, thickness=1.0):
+    """Grid spacings of the three coordinates for nr, nt nodes and np cells;
+    the shell reaches from radius 1 to 1 + thickness."""
     nr, nt, np_ = grid
-    return (1.0 / (nr - 1), (math.pi - 2 * math.atan(2)) / (nt - 1), 2 * math.pi / np_)
+    return (thickness / (nr - 1), (math.pi - 2 * math.atan(2)) / (nt - 1), 2 * math.pi / np_)
 
 
 def call(command, directory, name, env=None, stdout=None):
@@ -86,15 +87,20 @@ def parameter_lines(fmr):
     return re.findall(r"^double :: (\S+) = (.*)$", fmr, flags=re.MULTILINE)
 
 
-def instantiate(fmr, parameters):
+def instantiate(fmr, parameters, cached):
     """Rewrite the parameter lines of a generated Formura source, in order.
 
-    The sbp boundary constants (sbpLo*, sbpHi*, sbpHinv*) precede the model
-    parameters in the Formura source and are left as generated."""
+    The model parameters follow the sbp boundary constants (sbpLo*, sbpHi*,
+    sbpHinv*) in the Formura source in the order of the model; a line is
+    rewritten only when the model's value differs from the value the cached
+    source was normalized with, so that values spelled with the model's
+    coordinate names (dθ, dφ) keep their translated form."""
     lines = [(name, value) for name, value in parameter_lines(fmr) if not name.startswith("sbp")]
-    if len(lines) != len(parameters):
-        raise ValueError("parameter count differs between the model and its Formura source")
-    for (name, _), value in zip(lines, parameters.values()):
+    if len(lines) != len(parameters) or list(cached) != list(parameters):
+        raise ValueError("parameter list differs between the model and its Formura source")
+    for (name, _), (surface, value) in zip(lines, parameters.items()):
+        if value == cached[surface]:
+            continue
         fmr, count = re.subn(r"^double :: " + re.escape(name) + r" = .*$",
                              lambda m: "double :: " + name + " = " + value, fmr,
                              count=1, flags=re.MULTILINE)
@@ -105,7 +111,7 @@ def instantiate(fmr, parameters):
 
 def build(directory, case="spherical", grid=(65, 65, 128), mpi=(1, 1, 1), blocking=4,
           overrides=None, source=NAME + ".fme", substitutions=None, extra_fme="",
-          reductions=None, flag="ACCURACY", fresh=False):
+          reductions=None, flag="ACCURACY", fresh=False, thickness=1.0):
     directory = Path(directory).resolve()
     directory.mkdir(parents=True, exist_ok=True)
     text = (HERE / source).read_text()
@@ -133,7 +139,7 @@ def build(directory, case="spherical", grid=(65, 65, 128), mpi=(1, 1, 1), blocki
     if any(n % p for n, p in zip(grid, mpi)):
         raise ValueError("grid must divide evenly among MPI ranks")
     local = [n // p for n, p in zip(grid, mpi)]
-    config = ["length_per_node: " + json.dumps([n * h for n, h in zip(local, spacing(grid))]),
+    config = ["length_per_node: " + json.dumps([n * h for n, h in zip(local, spacing(grid, thickness))]),
               "grid_per_node: " + json.dumps(local),
               "mpi_shape: " + json.dumps(list(mpi)),
               "boundary: [fixed 0.0, fixed 0.0, periodic]"]
@@ -143,10 +149,11 @@ def build(directory, case="spherical", grid=(65, 65, 128), mpi=(1, 1, 1), blocki
     config += ["reduces: [" + REDUCTIONS + (", " + reductions if reductions else "") + "]"]
     (directory / (NAME + ".yaml")).write_text("\n".join(config) + "\n")
     signature = {"source_sha256": hashlib.sha256(text.encode()).hexdigest(), "grid": list(grid),
-                 "mpi": list(mpi), "blocking": blocking, "config": config}
+                 "mpi": list(mpi), "blocking": blocking, "thickness": thickness, "config": config}
     previous = directory / "metadata.json"
     if os.environ.get("ELASTIC_SHELL_REUSE") and previous.exists() and (directory / "check").exists():
         recorded = json.loads(previous.read_text())
+        recorded.setdefault("thickness", 1.0)
         if all(recorded.get(key) == value for key, value in signature.items()):
             print("reuse", directory.name, flush=True)
             return directory
@@ -165,7 +172,8 @@ def build(directory, case="spherical", grid=(65, 65, 128), mpi=(1, 1, 1), blocki
             cache.mkdir(parents=True, exist_ok=True)
             (cache / (NAME + ".fme")).write_text(text)
             normalize(cache / (NAME + ".fme"), cache, env, egison)
-        (directory / (NAME + ".fmr")).write_text(instantiate((cache / (NAME + ".fmr")).read_text(), parameters))
+        cached = dict(re.findall(r"^param (\S+) = (.*)$", (cache / (NAME + ".fme")).read_text(), flags=re.MULTILINE))
+        (directory / (NAME + ".fmr")).write_text(instantiate((cache / (NAME + ".fmr")).read_text(), parameters, cached))
     formura = os.environ.get("FORMURA", str(ROOT / "bin/formura"))
     with (directory / "formura.log").open("w") as log:
         subprocess.run([formura, NAME + ".fmr"], cwd=directory,
@@ -182,7 +190,7 @@ def build(directory, case="spherical", grid=(65, 65, 128), mpi=(1, 1, 1), blocki
           directory / "driver.c", directory / (NAME + ".c"), "-lm", "-o", directory / "check"],
          directory, "cc", env)
     metadata = {"case": case, "source": source, "grid": list(grid), "mpi": list(mpi), "blocking": blocking,
-                "fresh": fresh, "config": config,
+                "thickness": thickness, "fresh": fresh, "config": config,
                 "parameters": parameters, "source_sha256": hashlib.sha256(text.encode()).hexdigest(),
                 "egison_revision": subprocess.check_output(["git", "-C", str(egison), "rev-parse", "HEAD"], text=True).strip()}
     (directory / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")

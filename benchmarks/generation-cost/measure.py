@@ -25,7 +25,7 @@ ROOT = Path(__file__).resolve().parents[2]
 EGISON = Path(os.environ.get('EGISON_DIR', ROOT.parent / 'egison')).resolve()
 WORK = ROOT / '.build/generation-cost'
 EXAMPLES = ['diffusion3d', 'maxwell_dec', 'elastic3d', 'mhd_ot',
-            'transformation_optics', 'elastic_pulse']
+            'transformation_optics', 'elastic_pulse', 'elastic_shell']
 REPS = 3
 LIBS = [ROOT / line for line in
         (ROOT / 'spec/egison-normalization.list').read_text().split()[1:]]

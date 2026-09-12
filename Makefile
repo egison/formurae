@@ -141,8 +141,8 @@ elastic_pulse-verify:
 
 .PHONY: elastic_shell-demo elastic_shell-verify
 elastic_shell-demo:
-	python3 examples/elastic_shell/run.py --case all --fresh --mpi 1 5 2
-	python3 examples/elastic_shell/run.py --case all --fresh --mpi 1 5 2 --source elastic_shell_anisotropic.fme
+	python3 examples/elastic_shell/run.py --case all --fresh --blocking 0 --mpi 1 5 2
+	python3 examples/elastic_shell/run.py --case all --fresh --blocking 0 --mpi 1 5 2 --source elastic_shell_anisotropic.fme
 
 elastic_shell-verify:
 	python3 examples/elastic_shell/verify.py

@@ -75,8 +75,8 @@ def metadata(directory):
 
 
 def time_step(meta):
-    # dt = c * dr with dr = 1 / (nr - 1)
-    return float(meta["parameters"]["dt"].split("*")[0]) / (meta["grid"][0] - 1)
+    # dt = c * dr with dr = thickness / (nr - 1)
+    return float(meta["parameters"]["dt"].split("*")[0]) * meta.get("thickness", 1.0) / (meta["grid"][0] - 1)
 
 
 def source(meta):
@@ -88,11 +88,11 @@ def positions(meta, nr, np_):
     """Physical positions of the nodes (i, k) of the equatorial plane and of
     the cell corners around them: radius 1 + i dr, longitude k dphi + twist i dr."""
     twist = float(meta["parameters"]["twist"])
-    dr, dphi = 1.0 / (nr - 1), 2 * math.pi / np_
+    dr, dphi = meta.get("thickness", 1.0) / (nr - 1), 2 * math.pi / np_
     i, k = np.meshgrid(np.arange(nr), np.arange(np_), indexing="ij")
     r, phi = i * dr, k * dphi + twist * i * dr
     ic, kc = np.meshgrid(np.arange(nr + 1) - 0.5, np.arange(np_ + 1) - 0.5, indexing="ij")
-    rc = np.clip(ic * dr, 0.0, 1.0)          # the wall nodes own half cells
+    rc = np.clip(ic * dr, 0.0, (nr - 1) * dr)  # the wall nodes own half cells
     phic = kc * dphi + twist * rc
     return (INNER + r, phi), (INNER + rc, phic)
 
@@ -128,9 +128,9 @@ def panel(ax, directory, step, radius, circles, grid_every=16):
     mesh.set_facecolor(colors.reshape(-1, 3))
     # grid lines: circles of constant radius and the longitude lines, which
     # wind with the radius in the twisted chart; the walls in black
-    for start in list(range(0, nr, grid_every)):
-        ax.plot(r[start, :].tolist() * 0 + r[start, 0] * np.cos(np.append(phi[start, :], phi[start, 0] + 2 * math.pi)),
-                r[start, 0] * np.sin(np.append(phi[start, :], phi[start, 0] + 2 * math.pi)), color="0.55", lw=0.35)
+    for start in range(0, nr, grid_every):
+        angle = np.append(phi[start, :], phi[start, 0] + 2 * math.pi)
+        ax.plot(r[start, 0] * np.cos(angle), r[start, 0] * np.sin(angle), color="0.55", lw=0.35)
     for start in range(0, np_, grid_every):
         ax.plot(r[:, start] * np.cos(phi[:, start]), r[:, start] * np.sin(phi[:, start]), color="0.55", lw=0.35)
     for wall in (INNER, OUTER):
@@ -204,6 +204,41 @@ def slope(points):
     return float(np.polyfit(t, r, 1)[0])
 
 
+def indicator_agreement(runs, step):
+    """Compare the two charts' wave indicators on the equatorial plane at
+    the same physical points: a cell of the twisted chart sits at the
+    longitude of a spherical-chart cell shifted by twist (r - 1), so the
+    spherical fields are interpolated linearly along the periodic longitude
+    (a display-side comparison of recorded slices, like the slopes)."""
+    spherical = load_slice(runs["spherical"], step)
+    twisted = load_slice(runs["twisted"], step)
+    meta = metadata(runs["twisted"])
+    twist = float(meta["parameters"]["twist"])
+    nr, np_ = spherical["compression"].shape
+    dr, dphi = meta.get("thickness", 1.0) / (nr - 1), 2 * math.pi / np_
+    wavenumbers = np.fft.fftfreq(np_) * np_
+    # the physical speed on the equatorial plane (sin of the colatitude is 1):
+    # g_ij v^i v^j with the metric of each chart
+    r = INNER + np.arange(nr)[:, None] * dr
+    fields = {}
+    for name, data, t in (("spherical", spherical, 0.0), ("twisted", twisted, twist)):
+        v1, v2, v3 = data["v1"], data["v2"], data["v3"]
+        fields[name] = {"compression": data["compression"], "shearing": data["shearing"],
+                        "speed": np.sqrt(np.maximum(0.0, (1 + (t * r) ** 2) * v1 ** 2 + 2 * t * r ** 2 * v1 * v3 + r ** 2 * v3 ** 2 + r ** 2 * v2 ** 2))}
+    result = {}
+    for name in ("compression", "shearing", "speed"):
+        reference = np.empty((nr, np_))
+        for i in range(nr):
+            shift = twist * i * dr / dphi          # in cells, along the longitude
+            # trigonometric interpolation of the periodic row at the shifted cells
+            spectrum = np.fft.fft(fields["spherical"][name][i])
+            reference[i] = np.fft.ifft(spectrum * np.exp(2j * math.pi * wavenumbers * shift / np_)).real
+        difference = np.abs(fields["twisted"][name]) - np.abs(reference)
+        result[name] = {"relative_l2": float(np.sqrt((difference ** 2).sum() / (reference ** 2).sum())),
+                        "max_over_max": float(np.abs(difference).max() / np.abs(reference).max())}
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runs", type=Path, default=ROOT / ".build/elastic_shell/demo")
@@ -218,33 +253,33 @@ def main():
         if "anisotropic" not in name:
             table = radii(directory)
             # speeds: slopes of the outer shell radii (farthest points where the
-            # dimensionless indicators exceed 0.01) over 0.3 <= t <= 0.7
-            entry["p_speed"] = slope([(t, pf) for t, pf, _, _, _, _, _ in table if 0.3 <= t <= 0.7])
-            entry["s_speed"] = slope([(t, sf) for t, _, sf, _, _, _, _ in table if 0.3 <= t <= 0.7])
+            # dimensionless indicators exceed 0.01) before the fronts meet the
+            # walls of this shell of thickness 1 (the P edge a + 2t touches
+            # the spheres at t = 0.125, the S edge a + t at 0.25; verify.py
+            # measures the speeds on a thicker shell)
+            entry["p_speed_before_walls"] = slope([(t, pf) for t, pf, _, _, _, _, _ in table if 0.04 <= t <= 0.13])
+            entry["s_speed_before_walls"] = slope([(t, sf) for t, _, sf, _, _, _, _ in table if 0.04 <= t <= 0.26])
             energies = [e for _, _, _, _, _, e, _ in table]
             modified = [m for _, _, _, _, _, _, m in table]
             entry["energy_band"] = [min(energies) / energies[0], max(energies) / energies[0]]
             entry["modified_energy_relative_drift"] = max(abs(m - modified[0]) for m in modified) / modified[0]
-            with (args.output / f"radii-{name}.dat").open("w") as file:
+            with (args.output / f"demo-radii-{name}.dat").open("w") as file:
                 file.write("t pf sf rp rs energy modified\n")
                 for row in table:
                     file.write(" ".join(repr(v) for v in row) + "\n")
-            if name == "spherical":
-                # guide lines of slopes 2 and 1 through the first sample at t >= 0.3
-                t0, pf0, sf0 = next((t, pf, sf) for t, pf, sf, _, _, _, _ in table if t >= 0.3)
-                with (args.output / "guides.dat").open("w") as file:
-                    file.write("t p s\n")
-                    for t in (t0, 0.8):
-                        file.write(f"{t!r} {pf0 + 2 * (t - t0)!r} {sf0 + (t - t0)!r}\n")
         record["runs"][name] = entry
     # agreement of the two coordinate systems on the same physical shell
     tables = {name: radii(runs[name]) for name in ("spherical", "twisted")}
     record["chart_agreement"] = {
-        key: max(abs(a[column] - b[column]) for a, b in zip(tables["spherical"], tables["twisted"]) if 0.3 <= a[0] <= 0.7)
+        key: max(abs(a[column] - b[column]) for a, b in zip(tables["spherical"], tables["twisted"]) if 0.04 <= a[0] <= 0.8)
         for key, column in (("p_front_max_difference", 1), ("s_front_max_difference", 2),
                             ("p_mean_radius_max_difference", 3), ("s_mean_radius_max_difference", 4))}
     record["chart_agreement"]["energy_relative"] = max(
         abs(a[5] - b[5]) / a[5] for a, b in zip(tables["spherical"], tables["twisted"]))
+    nr = metadata(runs["spherical"])["grid"][0]
+    dt = time_step(metadata(runs["spherical"]))
+    record["chart_agreement"]["indicators_on_equatorial_plane"] = {
+        f"t={step * dt:g}": indicator_agreement(runs, step) for step in (8 * (nr - 1), 16 * (nr - 1))}
     grid = metadata(runs["spherical"])["grid"]
     record["grid_spacing"] = {"radial": 1.0 / (grid[0] - 1), "colatitude_at_outer_wall": OUTER * (math.pi - 2 * math.atan(2)) / (grid[1] - 1),
                               "longitude_at_outer_wall": OUTER * 2 * math.pi / grid[2]}

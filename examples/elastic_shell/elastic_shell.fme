@@ -48,6 +48,9 @@ def distance2 unused = (r * sin θ * cos (longitude 0) - x0)^2 + (r * sin θ * s
 -- denominator positive under rounding of the expanded polynomials
 def bump unused = if distance2 0 < 0.99 * radius^2 then 0 - 2 * distance2 0 / (radius^2 - distance2 0) else 0
 def pulse unused = if distance2 0 < 0.99 * radius^2 then exp (bump 0) else 0
+-- the expanded sums of squares can round to a small negative number, so the
+-- square roots below are guarded
+def distance unused = if distance2 0 < 0 then 0 else sqrt (distance2 0)
 -- the summation-by-parts weight of a node: half on a wall
 def weight unused = (if r < sbpLoR || r > sbpHiR then 0.5 else 1) * (if θ < sbpLoTheta || θ > sbpHiTheta then 0.5 else 1)
 def strain V~a = withSymbols [i, j, k] ((g_i_k . ∂_j V~k + g_j_k . ∂_i V~k + (∂/∂ g_i_j coordinates~k) . V~k) / 2)
@@ -108,10 +111,11 @@ step:
   -- distance from the source of the farthest point where the dimensionless
   -- indicator exceeds sqrt(front) (the outer edge of each shell, which
   -- advances at the wave speed)
-  local far @ collocated = sqrt (distance2 0)
+  local far @ collocated = distance 0
   compression' = waveDiv v
   local curlv~i @ collocated = waveCurl v
-  shearing' = sqrt (norm2 curlv)
+  local curl2 @ collocated = norm2 curlv
+  shearing' = if curl2 < 0 then 0 else sqrt curl2
   energy' = weight 0 * cell * volume * (ρ0 * norm2 v / 2 + stressNorm σ / (4 * μ) - λ * (stressTrace σ)^2 / (4 * μ * (3 * λ + 2 * μ)))
   modified' = energy' - weight 0 * cell * volume * dt^2 * norm2 kick / (8 * ρ0)
   pw' = weight 0 * cell * volume * compression'^2

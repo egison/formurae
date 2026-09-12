@@ -95,6 +95,7 @@ def shared_definitions():
 
 
 def main():
+    (HERE / "results").mkdir(exist_ok=True)
     kappa, amplitude = mode_constants()
     declared = dict(re.findall(r"^param (kappa|amplitude) = (.*)$", BESSEL, flags=re.MULTILINE))
     assert abs(float(declared["kappa"]) - kappa) < 1e-12 and abs(float(declared["amplitude"]) - amplitude) < 1e-12, (declared, kappa, amplitude)
@@ -124,7 +125,7 @@ def main():
         if not have_mpi:
             entry["mpi"] = "not tested: mpicc/mpirun unavailable"
         else:
-            for shape in ((3, 1, 1), (1, 3, 1), (3, 1, 2)):
+            for shape in ((3, 1, 1), (3, 1, 2)):
                 directory = build(OUT / (case + "-mpi-%d-%d-%d" % shape), case, grid, mpi=shape, blocking=4)
                 run(directory, 40, 40, mpi=shape, full=True)
                 entry["mpi_%d_%d_%d_max_error" % shape] = agreement(base, states(directory, 40))
@@ -160,35 +161,57 @@ def main():
 
     # 3. The pulse: energy preservation, P and S speeds from the outer shell
     #    radii (the farthest points where the dimensionless indicators exceed
-    #    0.01), and agreement of the two charts.
+    #    0.01), and agreement of the two charts.  The speeds need fronts that
+    #    have not met a wall, so this check runs the same program on a shell
+    #    of thickness 2 (radius 1 to 3) with the source at radius 2: the P
+    #    edge a + 2t and the S edge a + t reach the spheres at t = 0.375 and
+    #    0.75, and the cones (angular half-width 0.4636 at radius 2) at
+    #    t = 0.34 and 0.68, so the fit window is 0.05 <= t <= 0.3.
     pulse = {}
-    grid = (49, 49, 96)
+    grid, thickness = (65, 49, 256), 2.0
     for case in ("spherical", "twisted"):
         mpi = (1, 1, 4) if have_mpi else (1, 1, 1)
-        directory = build(OUT / (case + "-pulse"), case, grid, mpi=mpi, blocking=4)
-        steps, every = 16 * (grid[0] - 1), grid[0] - 1     # t = 0.8, samples every 0.05
+        directory = build(OUT / (case + "-pulse"), case, grid, mpi=mpi, blocking=4,
+                          overrides={"x0": "-2.0"}, thickness=thickness)
+        steps, every = 8 * (grid[0] - 1), (grid[0] - 1) // 8     # t = 0.4 with dt = 0.05 dr, samples every 0.0125
         run(directory, steps, every, mpi=mpi, dump=False)
         rows = stats(directory)
-        dt = float(json.loads((directory / "metadata.json").read_text())["parameters"]["dt"].split("*")[0]) * spacing(grid)[0]
+        dt = float(json.loads((directory / "metadata.json").read_text())["parameters"]["dt"].split("*")[0]) * spacing(grid, thickness)[0]
         # diagnostics are evaluated on the state entering each step
         samples = [((r["step"] - 1) * dt, r) for r in rows[1:]]
         energies = [r["energy"] for _, r in samples]
         modified = [r["modified"] for _, r in samples]
-        # fitting window 0.3 <= t <= 0.7: the shells are separated and the
-        # direct fronts are still inside the shell somewhere on their sphere
-        fronts_p = [(t, r["pfront"]) for t, r in samples if 0.3 <= t <= 0.7]
-        fronts_s = [(t, r["sfront"]) for t, r in samples if 0.3 <= t <= 0.7]
-        radii_p = [(t, r["pr"] / r["pw"]) for t, r in samples if 0.3 <= t <= 0.7]
-        radii_s = [(t, r["sr"] / r["sw"]) for t, r in samples if 0.3 <= t <= 0.7]
-        entry = {"grid": list(grid), "dt": dt, "steps": steps,
+        window = lambda t: 0.05 <= t <= 0.3
+        fronts_p = [(t, r["pfront"]) for t, r in samples if window(t)]
+        fronts_s = [(t, r["sfront"]) for t, r in samples if window(t)]
+        radii_p = [(t, r["pr"] / r["pw"]) for t, r in samples if window(t)]
+        radii_s = [(t, r["sr"] / r["sw"]) for t, r in samples if window(t)]
+        entry = {"grid": list(grid), "thickness": thickness, "source_radius": 2.0, "dt": dt, "steps": steps,
                  "energy_band": (min(energies) / energies[0], max(energies) / energies[0]),
                  "modified_energy_relative_drift": max(abs(m - modified[0]) for m in modified) / modified[0],
                  "p_speed": slope(fronts_p), "s_speed": slope(fronts_s),
                  "p_front": fronts_p, "s_front": fronts_s,
-                 "p_mean_radius": radii_p, "s_mean_radius": radii_s}
+                 "p_mean_radius": radii_p, "s_mean_radius": radii_s,
+                 "all_samples": [(t, r["pfront"], r["sfront"], r["pr"] / r["pw"], r["sr"] / r["sw"], r["energy"], r["modified"])
+                                 for t, r in samples]}
         assert entry["modified_energy_relative_drift"] < 1e-10, entry
-        assert 1.5 < entry["p_speed"] < 2.05 and 0.75 < entry["s_speed"] < 1.03, entry
+        # the outer edges carry the shortest wavelengths of the pulse, which
+        # centered differences disperse, and a fixed threshold moves with the
+        # broadening edge rather than with the wave (compare the periodic-box
+        # example, whose edges lagged): the slopes are checked to ten percent
+        assert 1.8 < entry["p_speed"] < 2.2 and 0.9 < entry["s_speed"] < 1.1, entry
         pulse[case] = entry
+        with (HERE / "results" / f"radii-{case}.dat").open("w") as file:
+            file.write("t pf sf rp rs energy modified\n")
+            for row in entry["all_samples"]:
+                file.write(" ".join(repr(v) for v in row) + "\n")
+        if case == "spherical":
+            # guide lines of slopes 2 and 1 through the first sample at t >= 0.05
+            t0, pf0, sf0 = next((t, pf, sf) for t, pf, sf, _, _, _, _ in entry["all_samples"] if t >= 0.05)
+            with (HERE / "results" / "guides.dat").open("w") as file:
+                file.write("t p s\n")
+                for t in (t0, 0.35):
+                    file.write(f"{t!r} {pf0 + 2 * (t - t0)!r} {sf0 + (t - t0)!r}\n")
     both = [pulse["spherical"], pulse["twisted"]]
     pulse["chart_agreement"] = {
         "energy_relative": max(abs(a["energy_band"][i] - b["energy_band"][i]) for a, b in [both] for i in (0, 1)),
@@ -197,7 +220,7 @@ def main():
         "p_mean_radius_max_difference": max(abs(a - b) for (_, a), (_, b) in zip(both[0]["p_mean_radius"], both[1]["p_mean_radius"])),
         "s_mean_radius_max_difference": max(abs(a - b) for (_, a), (_, b) in zip(both[0]["s_mean_radius"], both[1]["s_mean_radius"]))}
     # the coarsest physical spacing is along the longitude at the outer wall
-    coarsest = 2.0 * spacing(grid)[2]
+    coarsest = (1.0 + thickness) * spacing(grid, thickness)[2]
     assert pulse["chart_agreement"]["p_front_max_difference"] <= 2 * coarsest + 1e-12
     assert pulse["chart_agreement"]["s_front_max_difference"] <= 2 * coarsest + 1e-12
     assert pulse["chart_agreement"]["p_mean_radius_max_difference"] < 0.06

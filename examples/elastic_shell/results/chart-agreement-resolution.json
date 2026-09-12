@@ -1,0 +1,103 @@
+{
+  "note": "agreement of the two charts' fields on the equatorial plane at two resolutions of the isotropic demonstration (display-side comparison of recorded slices by render.indicator_agreement; the spherical fields are interpolated trigonometrically along the longitude to the twisted cells)",
+  "49x33x128": {
+    "grid": [
+      49,
+      33,
+      128
+    ],
+    "mpi": [
+      1,
+      1,
+      4
+    ],
+    "blocking": 0,
+    "fields": {
+      "t=0.4": {
+        "compression": {
+          "relative_l2": 0.36685167849727085,
+          "max_over_max": 0.4837763209138484
+        },
+        "shearing": {
+          "relative_l2": 0.32909045805473686,
+          "max_over_max": 0.3707933621591311
+        },
+        "speed": {
+          "relative_l2": 0.20413537209540067,
+          "max_over_max": 0.3054764492944524
+        }
+      },
+      "t=0.8": {
+        "compression": {
+          "relative_l2": 0.31374879334357547,
+          "max_over_max": 0.39419920334918457
+        },
+        "shearing": {
+          "relative_l2": 0.4764208463420977,
+          "max_over_max": 0.7174545557829356
+        },
+        "speed": {
+          "relative_l2": 0.2091403010047793,
+          "max_over_max": 0.36892930045705724
+        }
+      }
+    },
+    "radii": {
+      "p_front_max_difference": 0.19215225341150188,
+      "s_front_max_difference": 0.050916080138306175,
+      "p_mean_radius_max_difference": 0.007290894515487589,
+      "s_mean_radius_max_difference": 0.0026760169342635587
+    },
+    "energy_relative": 0.0011225731356187616
+  },
+  "97x65x256": {
+    "grid": [
+      97,
+      65,
+      256
+    ],
+    "mpi": [
+      1,
+      5,
+      2
+    ],
+    "blocking": 0,
+    "fields": {
+      "t=0.4": {
+        "compression": {
+          "relative_l2": 0.20492395574343814,
+          "max_over_max": 0.39882472494684723
+        },
+        "shearing": {
+          "relative_l2": 0.18031604399596976,
+          "max_over_max": 0.38945804842046367
+        },
+        "speed": {
+          "relative_l2": 0.0676825469415391,
+          "max_over_max": 0.11367835302106295
+        }
+      },
+      "t=0.8": {
+        "compression": {
+          "relative_l2": 0.18133422366424493,
+          "max_over_max": 0.2574934051805028
+        },
+        "shearing": {
+          "relative_l2": 0.279458350044477,
+          "max_over_max": 0.4726921903253466
+        },
+        "speed": {
+          "relative_l2": 0.08823266813549178,
+          "max_over_max": 0.197591945436339
+        }
+      }
+    },
+    "radii": {
+      "p_front_max_difference": 0.016874240323095924,
+      "s_front_max_difference": 0.01647313397925354,
+      "p_mean_radius_max_difference": 0.000615059762365533,
+      "s_mean_radius_max_difference": 0.0008552790130575971
+    },
+    "energy_relative": 5.64691530197087e-06
+  }
+}
