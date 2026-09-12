@@ -6,7 +6,7 @@
 set -eu
 cd "$(dirname "$0")"
 ROOT=$(pwd)
-FORMURA_REV=5cd015cf80f5226985d6ae7c1cbcfd96a047e306
+FORMURA_REV=5c162c81b44e69d114c46affc4f764bd67e8d7ff
 
 mkdir -p vendor bin
 
