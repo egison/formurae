@@ -98,7 +98,7 @@ endef
 
 $(foreach e,$(FME_EXAMPLES),$(eval $(call FME_RULE,$(e))))
 
-.PHONY: all setup clean compiler-tests formurae-geometry-tests formurae-tensor-tests formurae-operator-tests \
+.PHONY: all setup clean compiler-tests tb-wall-tests formurae-geometry-tests formurae-tensor-tests formurae-operator-tests \
 	gallery-assets yinyang_diffusion-long $(FME_EXAMPLES)
 
 all: $(FME_EXAMPLES)
@@ -144,6 +144,12 @@ yinyang_diffusion-long: yinyang_diffusion
 
 compiler-tests:
 	sh tests/compiler_suite.sh
+
+# Temporal blocking on every wall-bounded example must reproduce the plain
+# run bit for bit (generic dump of all state variables; no example directory
+# is touched).
+tb-wall-tests:
+	python3 tests/tb_wall_examples.py
 
 formurae-tensor-tests:
 	$(EGISON_STRICT) -t -l $(FETENSOR) $(abspath tests/formurae_tensor_lib.egi)

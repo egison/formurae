@@ -255,17 +255,22 @@ int main(int argc,char **argv) {
   }
   int steps=covariance ? 1 : (accuracy ? (int)ceil(2*M_PI/(wave_number*dt)) : 10000);
   if (argc>2) steps=atoi(argv[2]);
-  for (int t=1;t<=steps;t++) {
+  /* Each Formura_Forward advances temporal_blocking_interval steps; the
+     reference is compared after the first forward, advanced to the same
+     step count by the independent one-step routine. */
+  int first=1;
+  for (int t=0;t<steps;) {
     Formura_Forward(&n);
-    if(n.time_step!=t) { fprintf(stderr,"validation requires temporal_blocking_interval=1\n"); return 2; }
-    if (t==1 || t%50==0 || t==steps) {
+    t=n.time_step;
+    if (first || t%50==0 || t>=steps) {
       capture(state); double e=energy(state),m=modified_energy(state,a);
       if (!isfinite(e) || !isfinite(m)) return 1;
       if(trace) fprintf(trace,"%d %.17g %.17g %.17g\n",t,t*dt,
         (e-e0)/e0,(m-m0)/fabs(m0));
       if(e<emin) emin=e; if(e>emax) emax=e;
       double drift=fabs(m-m0)/fabs(m0); if(drift>mdrift) mdrift=drift;
-      if(t==1) { int worst=0; for(int j=0;j<9*count;j++) { double d=fabs(state[j]-reference[j]); if(d>referr) {referr=d;worst=j;} } if(referr>1e-11) {int q[3]; indices(worst%count,q); fprintf(stderr,"reference mismatch c=%d q=%d,%d,%d generated=%.17g reference=%.17g\n",worst/count,q[0],q[1],q[2],state[worst],reference[worst]);} }
+      if(first) { for(int k=1;k<t;k++) reference_step(reference,a,rate); int worst=0; for(int j=0;j<9*count;j++) { double d=fabs(state[j]-reference[j]); if(d>referr) {referr=d;worst=j;} } if(referr>1e-11) {int q[3]; indices(worst%count,q); fprintf(stderr,"reference mismatch c=%d q=%d,%d,%d generated=%.17g reference=%.17g\n",worst/count,q[0],q[1],q[2],state[worst],reference[worst]);} }
+      first=0;
     }
   }
   if(trace && fclose(trace)) { perror(trace_path); return 2; }

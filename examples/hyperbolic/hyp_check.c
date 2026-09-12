@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <math.h>
 #include "hyperbolic.h"
+/* A periodic axis drifts under temporal blocking: the slot of physical cell c. */
+#define SLOT(a, c) (((c) - n.offset_##a + n.total_grid_##a) % n.total_grid_##a)
 
 /* Heat on the Poincare half-plane (curvature -1), y_phys = 1 + y in
  * [1,2], mirror walls in y, periodic in x.  The hyperbolic Laplacian
@@ -62,7 +64,7 @@ int main(int argc, char **argv) {
   double md = 0;
   for (int i = n.lower_x; i < n.upper_x; i++)
     for (int j = n.lower_y; j < n.upper_y; j++) {
-      double d = fabs(formura_data.u[i][j][1] - ru[i][j]);
+      double d = fabs(formura_data.u[SLOT(x, i)][j][SLOT(z, 1)] - ru[i][j]);
       if (d > md) md = d;
     }
   double hd = fabs(H(n) - H0) / fabs(H0);

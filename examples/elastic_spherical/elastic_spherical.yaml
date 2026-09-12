@@ -2,3 +2,5 @@ length_per_node: [1.03125, 1.2129421944391552, 6.283185307179586]
 grid_per_node: [33, 17, 16]
 mpi_shape: [1,1,1]
 boundary: [fixed 0.0, fixed 0.0, periodic]
+grid_per_block: [15, 29, 14]
+temporal_blocking_interval: 2

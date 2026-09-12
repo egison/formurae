@@ -3,3 +3,5 @@ grid_per_node: [64,8,8]
 mpi_shape: [1,1,1]
 boundary: [fixed 0.0, periodic, periodic]
 reduces: [usum = sum u, umax = absmax u]
+grid_per_block: [34, 12, 12]
+temporal_blocking_interval: 2

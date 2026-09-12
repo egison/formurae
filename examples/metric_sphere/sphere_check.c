@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <math.h>
 #include "metric_sphere.h"
+/* A periodic axis drifts under temporal blocking: the slot of physical cell c. */
+#define SLOT(a, c) (((c) - n.offset_##a + n.total_grid_##a) % n.total_grid_##a)
 
 /* Heat on a band of the unit sphere, colatitude 1+theta, Neumann
  * (mirror) walls in theta, periodic in phi.  Checks: agreement with an
@@ -65,7 +67,7 @@ int main(int argc, char **argv) {
   double md = 0;
   for (int i = n.lower_theta; i < n.upper_theta; i++)
     for (int j = n.lower_phi; j < n.upper_phi; j++) {
-      double d = fabs(formura_data.u[i][j][1] - ru[i][j]);
+      double d = fabs(formura_data.u[i][SLOT(phi, j)][SLOT(z, 1)] - ru[i][j]);
       if (d > md) md = d;
     }
   double hd = fabs(H(n) - H0) / fabs(H0);

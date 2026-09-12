@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <math.h>
 #include "spherical3d.h"
+/* A periodic axis drifts under temporal blocking: the slot of physical cell c. */
+#define SLOT(a, c) (((c) - n.offset_##a + n.total_grid_##a) % n.total_grid_##a)
 
 /* Heat in full 3D spherical coordinates on a shell: r_phys = 1 + r,
  * theta_phys = 1 + theta, mirror walls in r and theta, periodic phi.
@@ -86,7 +88,7 @@ int main(int argc, char **argv) {
   for (int i = n.lower_r; i < n.upper_r; i++)
     for (int j = n.lower_theta; j < n.upper_theta; j++)
       for (int k = n.lower_phi; k < n.upper_phi; k++) {
-        double d = fabs(formura_data.u[i][j][k] - ru[i][j][k]);
+        double d = fabs(formura_data.u[i][j][SLOT(phi, k)] - ru[i][j][k]);
         if (d > md) md = d;
       }
   double hd = fabs(H(n) - H0) / fabs(H0);

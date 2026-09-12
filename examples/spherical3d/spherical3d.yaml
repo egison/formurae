@@ -3,3 +3,5 @@ grid_per_node: [32,32,64]
 mpi_shape: [1,1,1]
 boundary: [mirror, mirror, periodic]
 reduces: [umax = max u, umin = min u]
+grid_per_block: [18, 18, 34]
+temporal_blocking_interval: 2
