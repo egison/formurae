@@ -16,7 +16,7 @@
 | 3 | per-variable cursor の API 整合 | — | **不要になった**: PR2 の症状だった。修正後は全変数一様ドリフトで to_pos_* が正しい |
 | 4 | 境界条件(mirror / fixed) | 中 | **fork にコミット済**(boundary-conditions 58e9a12)・下記に実装記録 |
 | 5 | 大域リダクション | 中 | **fork にコミット済**(global-reductions 851a37e)・下記に実装記録 |
-| 6 | 境界のある領域での temporal blocking(単一ランク) | 中 | **fork にコミット済**(tb-boundaries 54838f6, 9c66835)・下記に実装記録 |
+| 6 | 境界のある領域での temporal blocking と MPI 分割 | 中 | **fork にコミット済**(tb-boundaries 54838f6, 9c66835, 5cd015c)・下記に実装記録 |
 
 前提知識: コンパイルパイプラインは
 `.fmr + .yaml → Parser/Desugar → OMProgram(データフローグラフ、非局所命令は
@@ -153,7 +153,15 @@ TB と非互換。つまり**言語としては周期しか書けない**。
 - 検証: Formura の `test/tb-boundary.sh`(混在境界 2 種×間隔 1〜4×ブロック幅、袖幅 1 と 2、
   混在半径、斜め参照、座標項、非ブロッキングとビット一致)、`test/coordinate-probe.sh`、
   `test/external-call.sh`、spec 9 例。Formurae 側は `make tb-wall-tests`(壁を持つ 13 例)。
-- 残: 非周期境界での多ランク分割(端 rank 判定と両方向の halo 交換)。
+- 多ランク分割(5cd015c): 壁のある軸は各ランクで内部を床の `s*nt` に置き、両側 `s*nt` の halo
+  (nt 段の依存錐)を隣のランクから受け取る(ブロッキングなしは `s`)。通信方向を
+  `{-1,0,1}^dim` に一般化し、周期軸または分割された軸だけを横切る方向を使う。領域の壁の
+  外側の隣は `MPI_PROC_NULL`(送受信は no-op)、`Formura_Navi` の `pos_<axis>` で壁に接する
+  ランクだけがゴーストを境界値で埋める。上位ブロックが上側 halo を必要とするので、壁つきの
+  ブロッキングでは交換完了後にブロックを回す(通信と計算の重ね合わせは今後の最適化)。
+  検証: Formura の `test/mpi-boundary.sh`(1〜3 軸の分割×ブロッキングあり・なし、
+  2〜8 ランク、単一ランクとビット一致)、Formurae の `tests/tb_wall_examples.py` の分割変種。
+- 残: 壁つきブロッキングでの通信と計算の重ね合わせ。
 
 ### これで開くもの
 

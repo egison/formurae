@@ -14,6 +14,8 @@ typedef struct { int done; } MPI_Request;
 #define MPI_COMM_WORLD 0
 #define MPI_BYTE 1
 #define MPI_STATUS_IGNORE ((MPI_Status *)0)
+/* the neighbor across a wall of the domain: sends and receives to it are no-ops */
+#define MPI_PROC_NULL (-2)
 
 #define MPI_STUB_MAXPEND 4096
 
@@ -28,7 +30,8 @@ static int MPI_Comm_size(MPI_Comm c, int *s) { (void)c; *s = 1; return 0; }
 
 static int MPI_Isend(void *buf, int count, MPI_Datatype dt, int dst, int tag,
                      MPI_Comm c, MPI_Request *req) {
-  (void)dt; (void)dst; (void)c;
+  (void)dt; (void)c;
+  if (dst == MPI_PROC_NULL) { req->done = 1; return 0; }
   for (int idx = 0; idx < MPI_STUB_MAXPEND; idx++) {
     if (!mpi_stub_sends[idx].active) {
       mpi_stub_sends[idx].data = malloc((size_t)count);
@@ -47,7 +50,8 @@ static int MPI_Isend(void *buf, int count, MPI_Datatype dt, int dst, int tag,
 
 static int MPI_Irecv(void *buf, int count, MPI_Datatype dt, int src, int tag,
                      MPI_Comm c, MPI_Request *req) {
-  (void)dt; (void)src; (void)c;
+  (void)dt; (void)c;
+  if (src == MPI_PROC_NULL) { req->done = 1; return 0; }
   /* match the OLDEST pending send with this tag (FIFO) */
   int best = -1;
   for (int idx = 0; idx < MPI_STUB_MAXPEND; idx++) {
