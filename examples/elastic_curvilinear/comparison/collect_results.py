@@ -32,7 +32,7 @@ def main():
     reports = {name: json.loads((args.input/(name+'.json')).read_text())
                for name in ['formurae', 'nrpylatex', 'devito', 'opensbli', 'nrpyplus']}
     f = reports['formurae']['results']
-    assert len(f) == 13 and reports['formurae']['all_expected']
+    assert len(f) == 14 and reports['formurae']['all_expected']
     errors = []
     for record in f.values():
         assert record['matches_expectation']

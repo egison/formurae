@@ -1,18 +1,18 @@
 {
-  "egison_revision": "1a0298c67cc487dd4a73d96f526f3042b74d6570",
+  "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
   "all_passed": true,
   "renaming_preserves_generated_formura": true,
   "exterior_definition_shared_between_dimensions": true,
   "source_sha256": {
     "examples/elastic_curvilinear/comparison/expressivity/curl.fme": "4351877fc54051a529184cb30f62e2c00ac1af4a7dc0a78e576d79fe449a5dac",
-    "examples/elastic_curvilinear/comparison/expressivity/exterior_2d.fme": "514d9ae37739d75645998cd30d983229cf5e80da12a1ab326c6e13dd4cc36ac5",
-    "examples/elastic_curvilinear/comparison/expressivity/exterior_3d.fme": "92c3874f3008af35b79c5ff03335169d7e1a6edaa6f35e8fd71a302bb0ed03bb",
+    "examples/elastic_curvilinear/comparison/expressivity/exterior_2d.fme": "ffcef1352c592b7bf855a6ae7829165cdc6637931e2378dddf7f476896f10770",
+    "examples/elastic_curvilinear/comparison/expressivity/exterior_3d.fme": "1d47c7e22ab87b1b3350ce85c018d244458c0269b561123dee8481b87e4a12c2",
     "examples/elastic_curvilinear/comparison/expressivity/indexed_functions.fme": "db3e5669cddbe12fbf20925c8d5c9e5954430c45d02b90bc1510a2f5404a3e9b",
-    "examples/elastic_curvilinear/comparison/expressivity/run_formurae.py": "cc282dd65f38f2f3c8ce48110420dc25025015b6ce6c31e62a8b0ed97c126682",
-    "lib/formurae-operators.egi": "ddcf1c4e67c179d4e477b36f375d42a4ce4354944b7ea867d5475a9fbb75fe10",
+    "examples/elastic_curvilinear/comparison/expressivity/run_formurae.py": "a7398209e5143e40eb999c6b167f809c795bb8f8952ce919e31451854f7481be",
+    "lib/formurae-operators.egi": "d92eb68cd044d9d27f5741ad99a36b7a5ed729c10c5ed56b5aa07225695e20c9",
     "lib/formurae-tensor.egi": "3179f86554732a5b329f94c448935f78f3c643b54df058bd62d8c6bc7764e218",
     "src/Formurae/Post/FMR.hs": "f3df66dfc3eb47a16ca6330037905cb573d44462c4c6a8ceeb32d47eda217e00",
-    "src/Formurae/Pre/EmitEgison.hs": "0b6596d3358122f2b3b7c678a24d1aa131753b2816e600e1793e2329f52a34ba"
+    "src/Formurae/Pre/EmitEgison.hs": "007ea17d8b98c5d69111a668b92df7989f7f793e566840c1fdc05ffb8c902b40"
   },
   "results": {
     "curl": {
@@ -56,7 +56,7 @@
     "exterior_2d": {
       "accepted": true,
       "stage": "Formura source",
-      "input_sha256": "514d9ae37739d75645998cd30d983229cf5e80da12a1ab326c6e13dd4cc36ac5",
+      "input_sha256": "ffcef1352c592b7bf855a6ae7829165cdc6637931e2378dddf7f476896f10770",
       "numerical": {
         "compiled_c_executed": true,
         "sample_indices": [
@@ -67,11 +67,13 @@
           "G_1",
           "G_2",
           "H_1_2",
-          "Z_1_2"
+          "Z_1_2",
+          "Y_1_2"
         ],
         "values": [
           0.5,
           0.5,
+          0,
           0,
           0
         ],
@@ -79,15 +81,17 @@
           0.5,
           0.5,
           0,
+          0,
           0
         ],
-        "max_error": 0.0
+        "max_error": 0.0,
+        "stored_dd_max_abs": 0
       }
     },
     "exterior_3d": {
       "accepted": true,
       "stage": "Formura source",
-      "input_sha256": "92c3874f3008af35b79c5ff03335169d7e1a6edaa6f35e8fd71a302bb0ed03bb",
+      "input_sha256": "1d47c7e22ab87b1b3350ce85c018d244458c0269b561123dee8481b87e4a12c2",
       "numerical": {
         "compiled_c_executed": true,
         "sample_indices": [
@@ -108,7 +112,11 @@
           "Z_2_3",
           "J_1",
           "J_2",
-          "J_3"
+          "J_3",
+          "Y_1_2",
+          "Y_1_3",
+          "Y_2_3",
+          "W_1_2_3"
         ],
         "values": [
           0.25,
@@ -123,7 +131,11 @@
           0,
           0.25,
           0.25,
-          0.25
+          0.25,
+          0,
+          0,
+          0,
+          0
         ],
         "expected": [
           0.25,
@@ -138,9 +150,14 @@
           0,
           0.25,
           0.25,
-          0.25
+          0.25,
+          0,
+          0,
+          0,
+          0
         ],
-        "max_error": 0.0
+        "max_error": 0.0,
+        "stored_dd_max_abs": 0
       }
     },
     "indexed_functions": {

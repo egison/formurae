@@ -6,6 +6,7 @@ field A : 1-form @ primal
 field G : 1-form @ primal
 field H : 2-form @ primal
 field Z : 2-form @ primal
+field Y : 2-form @ primal
 
 def exterior A =
   let degree := dfOrder A + 1
@@ -17,6 +18,7 @@ init:
   G = [| 0, 0 |]
   H = [| 0 |]
   Z = [| 0 |]
+  Y = [| 0 |]
 
 step:
   f' = f
@@ -24,3 +26,4 @@ step:
   G' = exterior f
   H' = exterior A
   Z' = exterior (exterior f)
+  Y' = exterior G'

@@ -133,6 +133,25 @@ def main():
             expression=expression.replace('u[i]','4.0').replace('dx','0.25')
             record['whole_flux_centered_value']=eval(expression,{'__builtins__':{}})
             record['matches_expectation'] &= record['whole_flux_centered_value']==80
+        if name=='flux_cubic' and record['accepted']:
+            # The generated updates of the flux form d(u^3/3)/dx and of the
+            # product-rule form u^2 du/dx, summed over one periodic grid: the
+            # first telescopes to zero, the second does not.
+            output=source.with_suffix('.fmr').read_text()
+            values=[1.0,4.0,9.0,2.0,7.0,3.0,5.0,8.0]
+            record['periodic_sums']={}
+            for target in ("q'","p'"):
+                update=next(line.strip() for line in output.splitlines() if target+'[i] =' in line)
+                expression=update.split(' = ',1)[1]
+                total=0.0
+                for i in range(len(values)):
+                    e=expression.replace('u[i-1]',repr(values[i-1])).replace('u[i+1]',repr(values[(i+1)%len(values)]))
+                    e=e.replace('u[i]',repr(values[i])).replace('dx','0.25')
+                    total+=eval(e,{'__builtins__':{}})
+                record['periodic_sums'][target[0]]={'generated_update':update,'sum':total}
+            record['periodic_sums']['values']=values
+            record['matches_expectation'] &= abs(record['periodic_sums']['q']['sum'])<1e-12
+            record['matches_expectation'] &= abs(record['periodic_sums']['p']['sum'])>1.0
         results[name]=record
         print(name, 'accepted' if record['accepted'] else 'rejected', flush=True)
     report={'system':'Formurae','egison_revision':egison_revision(egison),

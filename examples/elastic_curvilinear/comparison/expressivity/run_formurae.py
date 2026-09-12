@@ -87,13 +87,19 @@ def main():
                 'B_1_2':'(x+0.125)*z', 'B_1_3':'y*(z+0.125)',
                 'B_2_3':'x*(y+0.125)'}
             outputs = ['G_1','G_2','G_3','H_1_2','H_1_3','H_2_3','K_1_2_3',
-                       'Z_1_2','Z_1_3','Z_2_3','J_1','J_2','J_3']
-            expected = [0.25]*3+[-0.625,0.625,-0.625,0.625]+[0]*3+[0.25]*3
+                       'Z_1_2','Z_1_3','Z_2_3','J_1','J_2','J_3',
+                       'Y_1_2','Y_1_3','Y_2_3','W_1_2_3']
+            expected = [0.25]*3+[-0.625,0.625,-0.625,0.625]+[0]*3+[0.25]*3+[0]*4
             record['numerical'] = c_check(source,3,assignments,outputs,expected)
+            # Y = d(G') and W = d(H') differentiate the stored arrays of the
+            # same step: d(d f) and d(d A) through storage, zero to rounding.
+            record['numerical']['stored_dd_max_abs'] = max(
+                abs(v) for v in record['numerical']['values'][-4:])
         elif name == 'exterior_2d':
             assignments = {'f':'x*y','A_1':'(x+0.125)*y','A_2':'x*(y+0.125)'}
             record['numerical'] = c_check(source,2,assignments,
-                ['G_1','G_2','H_1_2','Z_1_2'],[0.5,0.5,0,0])
+                ['G_1','G_2','H_1_2','Z_1_2','Y_1_2'],[0.5,0.5,0,0,0])
+            record['numerical']['stored_dd_max_abs'] = abs(record['numerical']['values'][-1])
         else:
             assignments = {'A_down1':'x*y','A_down2':'y*z','A_down3':'z*x'}
             outputs = ['%s_down%d'%(q,i) for q in ['R','S'] for i in range(1,4)]

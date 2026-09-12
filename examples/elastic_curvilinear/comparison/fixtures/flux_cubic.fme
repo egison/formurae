@@ -1,0 +1,10 @@
+dimension 1
+axes x
+field u : scalar @ collocated
+field q : scalar @ collocated
+field p : scalar @ collocated
+def fluxDerivative f = ∂_x (f * f * f / 3)
+def productRule f = f * f * ∂_x f
+step:
+  q' = fluxDerivative u
+  p' = productRule u

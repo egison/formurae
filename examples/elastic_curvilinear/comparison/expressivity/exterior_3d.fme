@@ -9,6 +9,8 @@ field H : 2-form @ primal
 field K : 3-form @ primal
 field Z : 2-form @ primal
 field J : 1-form @ primal
+field Y : 2-form @ primal
+field W : 3-form @ primal
 
 def exterior A =
   let degree := dfOrder A + 1
@@ -25,6 +27,8 @@ init:
   K = [| 0 |]
   Z = [| 0, 0, 0 |]
   J = [| 0, 0, 0 |]
+  Y = [| 0, 0, 0 |]
+  W = [| 0 |]
 
 step:
   f' = f
@@ -35,3 +39,6 @@ step:
   K' = exterior B
   Z' = exterior (exterior f)
   J' = firstDerivative f
+  -- the same definition applied to the stored, already updated arrays
+  Y' = exterior G'
+  W' = exterior H'

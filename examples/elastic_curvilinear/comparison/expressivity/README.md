@@ -123,8 +123,12 @@ def exterior A =
 | 1形式 | $\partial_i A_j-\partial_j A_i$ | 2次元・3次元の生成Cを実行 |
 | 2形式 | $\partial_i B_{jk}-\partial_j B_{ik}+\partial_k B_{ij}$ | 3次元の生成Cを実行 |
 | `exterior (exterior f)` | 全成分が0へ正規化される | 2次元・3次元で0を出力する生成Cを実行 |
+| `exterior G'`，`exterior H'`（同じステップで格納した $df$，$dA$ の配列に再適用） | 格納した配列の格子微分を反対称化する | 2次元・3次元の生成Cを実行し，全成分が0（2026-09-12 追加） |
 
 入力には座標の多項式を使い，成分ごとの格子位置を考慮した解析値と比較した．
+$d(df)=0$ は記号的な正規化だけでなく，最初の適用の結果を場 `G`，`H` に格納し，
+同じステップの中で `exterior G'`，`exterior H'` として再適用する数値計算でも
+確かめた（`Y`，`W`；`results-formurae.json` の `stored_dd_max_abs`）．
 独立に実装した成分式はC検証側だけにあり，`exterior` の定義にはない．
 
 また，次の回転演算子を通常の関数として定義してCを生成した．

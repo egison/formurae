@@ -1,7 +1,7 @@
 {
   "protocol_date": "2026-09-07",
   "platform": "macOS-26.6.2-arm64-arm-64bit",
-  "formurae_git_head": "ffe778039052020994749bb73343a2fb16343d08",
+  "formurae_git_head": "3217fb404fad46938fe47c1edb0a9a8bac07fc01",
   "formurae_worktree_has_changes": true,
   "source_revisions": {
     "opensbli": "e37dc377fa9b27d6bfa6e9da2968b96bcd736f1d",
@@ -9,10 +9,11 @@
     "kranc": "b4b2b40103a706a29f8f6b3910110a30afff75aa"
   },
   "source_sha256": {
-    "examples/elastic_curvilinear/comparison/collect_results.py": "f8b550ddc36510935da4161e5c52bda4bedaaa99ebaf8b15a781aeb5a8d3ffcd",
+    "examples/elastic_curvilinear/comparison/collect_results.py": "72d76d54547d46e215603f5b2c6e77f1f8af81714b9d7fb166416c7fd886bc11",
     "examples/elastic_curvilinear/comparison/fixtures/anisotropic_bad.fme": "c044418427d592ec41a634b3f42bf21273da9114103f391a3f35c419390c44f1",
     "examples/elastic_curvilinear/comparison/fixtures/anisotropic_good.fme": "c6ca80e769e98c3d622d6d4bee65441f24e07262e0d8696b8e26684119f1d295",
     "examples/elastic_curvilinear/comparison/fixtures/flux_collocated.fme": "d610d7418fe794d17c1033fc3e99f49a84834733ea08676fa1c5a9a70db66640",
+    "examples/elastic_curvilinear/comparison/fixtures/flux_cubic.fme": "b8ba59510cbe56939108c216e864873fed2d953451a3619b864ea9f31fd56ee4",
     "examples/elastic_curvilinear/comparison/fixtures/placement_bad.fme": "f5830f0fb3514d5ecb96c19bb8052c2431be0f2acd53386911e5661d77f0a646",
     "examples/elastic_curvilinear/comparison/fixtures/placement_good.fme": "e5b7c1381728d3a3d628b567fde0d75ff9d2ccb3f772ec2efa39be7ffb8893c6",
     "examples/elastic_curvilinear/comparison/fixtures/rank4_helper.fme": "7def1a3a71bdf1766b2ae1fa8c51b23be53f1f74a2a55cd14b7140a33ef96c8f",
@@ -20,20 +21,19 @@
     "examples/elastic_curvilinear/comparison/fixtures/symmetry_good.fme": "2475db71f6fe3bf8c4fc19babbec9787f9481fda6e5f534480cf30f9b2bffe7c",
     "examples/elastic_curvilinear/comparison/fixtures/variance_bad.fme": "d3d57a7de830e23bb98236bd9cd434eca8fd748a869659de19c1e1ae5b36293a",
     "examples/elastic_curvilinear/comparison/fixtures/variance_good.fme": "cb39002092b936ed23c1aa5bdd1513ee6f0134dd2140c2def7476a09068ab0ce",
-    "examples/elastic_curvilinear/comparison/formurae_probes.py": "7d8a64355f8e0c0ac1f96e50217238498eb942d48d3a1cc8b6d58d3562eb4079",
+    "examples/elastic_curvilinear/comparison/formurae_probes.py": "1e65860721f41a86da9b062c0cbebee882a60b0ea45c5d81f803ebab1132e210",
     "examples/elastic_curvilinear/comparison/python_probes.py": "a356f5bbae6c4a7f8ed4378544496cbb369ce9b5adc8ac2d50597e3ab4bedabc",
     "examples/elastic_curvilinear/comparison/requirements-opensbli.txt": "8f71a403445b045958e090bf709c19f4e684416ae512c07d4eb6d6b418d7d532",
     "examples/elastic_curvilinear/comparison/requirements-python.txt": "cf2e0d4e0bbae6523ef9b280a29611bd2a63ee2c06d1f9f69fea5e88a4f22eae",
-    "examples/elastic_cylindrical/elastic_cylindrical.fme": "30f6772b2774c17bae6901c2f53b5a98507fcd0a948f27029fa080d97ad584e3",
-    "examples/elastic_spherical/elastic_spherical.fme": "9a3ff0b295e27601a9401beb24057f581c2a24ebb8e177ae79777ef3c0429933",
+    "examples/elastic_spherical/elastic_spherical.fme": "6fa2c94f20087aab3b48696f80b5696435b47066d82220c41f3056d1a94ba25e",
     "lib/formurae-tensor.egi": "3179f86554732a5b329f94c448935f78f3c643b54df058bd62d8c6bc7764e218",
     "src/Formurae/Post/Compile.hs": "782244a49f5195da077575d119a0d9d1d284ffdd025fadb06c55f79017427614",
     "src/Formurae/Post/FMR.hs": "f3df66dfc3eb47a16ca6330037905cb573d44462c4c6a8ceeb32d47eda217e00",
     "src/Formurae/Post/Stencil.hs": "93d186477e7e3cf7c1fdc67164cd0df9ad1d2b38e3b8bc750d1037846e6fb9c6",
-    "src/Formurae/Pre/EmitEgison.hs": "0b6596d3358122f2b3b7c678a24d1aa131753b2816e600e1793e2329f52a34ba"
+    "src/Formurae/Pre/EmitEgison.hs": "007ea17d8b98c5d69111a668b92df7989f7f793e566840c1fdc05ffb8c902b40"
   },
   "summary": {
-    "formurae_cases": 15,
+    "formurae_cases": 14,
     "all_observations_verified": true,
     "constitutive_max_error": 3.552713678800501e-15,
     "constitutive_evaluations": 8,
@@ -42,7 +42,7 @@
   "systems": {
     "formurae": {
       "system": "Formurae",
-      "egison_revision": "1a0298c67cc487dd4a73d96f526f3042b74d6570",
+      "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
       "results": {
         "anisotropic_bad": {
           "accepted": false,
@@ -80,6 +80,33 @@
           "matches_expectation": true,
           "generated_update": "q'[i] = ((-1 / 4) * u[i-1]**2 + (1 / 4) * u[i+1]**2) / dx",
           "whole_flux_centered_value": 80.0
+        },
+        "flux_cubic": {
+          "accepted": true,
+          "stage": "Formura source",
+          "source_sha256": "b8ba59510cbe56939108c216e864873fed2d953451a3619b864ea9f31fd56ee4",
+          "source": ".build/related-work/formurae/flux_cubic.fme",
+          "matches_expectation": true,
+          "periodic_sums": {
+            "q": {
+              "generated_update": "q'[i] = ((-1 / 6) * u[i-1]**3 + (1 / 6) * u[i+1]**3) / dx",
+              "sum": 2.842170943040401e-14
+            },
+            "p": {
+              "generated_update": "p'[i] = ((-1 / 2) * u[i-1] + (1 / 2) * u[i+1]) / dx * u[i]**2",
+              "sum": -292.0
+            },
+            "values": [
+              1.0,
+              4.0,
+              9.0,
+              2.0,
+              7.0,
+              3.0,
+              5.0,
+              8.0
+            ]
+          }
         },
         "placement_bad": {
           "accepted": false,
@@ -146,35 +173,19 @@
             "values_in_order_00_11_22_01_02_12": [
               13.977718882563567,
               6.6814553058307204,
-              8.587078692981992,
+              8.587078692981994,
               1.7777777777777777,
               2.9610816635040056,
               2.193393824817782
             ],
-            "max_error": 1.7763568394002505e-15,
+            "max_error": 0.0,
             "compiled_c_executed": true
           }
-        },
-        "elastic_cylindrical_good": {
-          "accepted": true,
-          "stage": "Formura source",
-          "source_sha256": "464893b983e0922c76dc23b6d0b53101aac5f960892f7f9a7e6b2b3989039c24",
-          "source": ".build/related-work/formurae/elastic_cylindrical_good.fme",
-          "matches_expectation": true
-        },
-        "elastic_cylindrical_bad": {
-          "accepted": false,
-          "stage": "egison",
-          "status": 1,
-          "diagnostic": "formurae-pre: error: .build/related-work/formurae/elastic_cylindrical_bad.fme:39:35: Egison normalization failed\n  expanded from stressRate at .build/related-work/formurae/elastic_cylindrical_bad.fme:39:35 (defined at .build/related-work/formurae/elastic_cylindrical_bad.fme:21:24)\nEvaluation error: Assertion failed: \"normalized symmetric tensor layout mismatch\"\n",
-          "source_sha256": "dfa9a4928832285bb13e99d9aa3b62043994f0c732acd7af9839121640921a74",
-          "source": ".build/related-work/formurae/elastic_cylindrical_bad.fme",
-          "matches_expectation": true
         },
         "elastic_spherical_good": {
           "accepted": true,
           "stage": "Formura source",
-          "source_sha256": "43a0fb2eb036d8b3b7f002412b5051696a35956005e235417999afc006e5be5a",
+          "source_sha256": "dce67d2c06755902ddfde5753d0ee43584b50f74aacee4094bfac485dbde1d35",
           "source": ".build/related-work/formurae/elastic_spherical_good.fme",
           "matches_expectation": true
         },
@@ -183,7 +194,7 @@
           "stage": "egison",
           "status": 1,
           "diagnostic": "formurae-pre: error: .build/related-work/formurae/elastic_spherical_bad.fme:39:35: Egison normalization failed\n  expanded from stressRate at .build/related-work/formurae/elastic_spherical_bad.fme:39:35 (defined at .build/related-work/formurae/elastic_spherical_bad.fme:21:24)\nEvaluation error: Assertion failed: \"normalized symmetric tensor layout mismatch\"\n",
-          "source_sha256": "28e8c4d3381ad6b76a858fb14a9b12ee5f8d15cdce2578cbbc4e86aede525f0c",
+          "source_sha256": "991cfc5930fca38064ac01eb82dc925628b6fb64f0b94ff3554c08e80354d4d0",
           "source": ".build/related-work/formurae/elastic_spherical_bad.fme",
           "matches_expectation": true
         }
