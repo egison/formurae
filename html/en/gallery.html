@@ -5140,10 +5140,15 @@ end function</pre></details>
     At Re = Ω<sub>1</sub>R<sub>1</sub>(R<sub>2</sub> − R<sub>1</sub>)/ν = 100 a perturbation of the radial velocity seeded with the first four axial periods grows
     exponentially out of the Couette flow and saturates into two vortex pairs (wavelength 2.0, twice the gap width); on the same grid Re = 60 decays while
     Re = 80 grows, bracketing the known threshold Re<sub>c</sub> ≈ 68 for this radius ratio.</p>
+  <div class="imgs"><video autoplay loop muted controls playsinline preload="metadata" width="1000" height="560"
+    poster="../../examples/taylor_couette/results/taylor-couette-en-poster.png" aria-label="Growth of Taylor vortices from the Couette flow at Re = 100: azimuthal velocity minus the Couette profile (top) and meridional speed with streamlines (bottom), t = 0 to 180">
+    <source src="../../examples/taylor_couette/results/taylor-couette-en.mp4" type="video/mp4">
+    <img src="../../examples/taylor_couette/results/taylor-couette-en-poster.png" alt="Taylor vortices at Re = 100: the azimuthal velocity minus the Couette profile and the meridional speed with streamlines at the final time"></video></div>
   <div class="imgs"><img src="../../examples/taylor_couette/results/taylor-couette-en.png" alt="Taylor vortices at Re = 100: azimuthal velocity minus the Couette profile, meridional streamlines, growth of the perturbation, and the mid-gap radial velocity" width="1485" height="901"></div>
   <div class="cap">The meridional plane (z horizontal, r vertical) on a 65×256 grid (radial faces including both walls, axial cells) at t = 180, computed on
     four MPI ranks along z. Left: the azimuthal velocity minus the Couette profile (red: faster), and the meridional speed with streamlines of
-    (u<sub>z</sub>, u<sub>r</sub>). Right: growth of max|u<sub>r</sub>| with the fitted rate σ = 0.118, and the radial velocity along the mid gap.</div>
+    (u<sub>z</sub>, u<sub>r</sub>). Right: growth of max|u<sub>r</sub>| with the fitted rate σ = 0.118, and the radial velocity along the mid gap. The video shows the same two fields on the color scale of the final state,
+    one frame every 500 steps (1.5 in time). <a href="../../examples/taylor_couette/results/taylor-couette-en.mp4">Video file</a></div>
   <div class="math">∂<sub>t</sub>u<sub>r</sub> + ∇·(u u<sub>r</sub>) − u<sub>θ</sub>²/r = −∂<sub>r</sub>p + ν(∇²u<sub>r</sub> − u<sub>r</sub>/r²),&nbsp;
     ∂<sub>t</sub>u<sub>θ</sub> + ∇·(u u<sub>θ</sub>) + u<sub>r</sub>u<sub>θ</sub>/r = ν(∇²u<sub>θ</sub> − u<sub>θ</sub>/r²),&nbsp;
     ∂<sub>t</sub>u<sub>z</sub> + ∇·(u u<sub>z</sub>) = −∂<sub>z</sub>p + ν∇²u<sub>z</sub>,&nbsp; ∇·u = 0<br>

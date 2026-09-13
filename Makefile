@@ -152,7 +152,7 @@ elastic_shell-verify:
 # that bracket the threshold (Re = 60 decays, Re = 80 grows), then the figures
 .PHONY: taylor_couette-demo taylor_couette-render
 taylor_couette-demo:
-	python3 examples/taylor_couette/run.py --re 100 --grid 65 256 --lz 4 --dt 0.003 --steps 60000 --every 2000 --mpi 1 4
+	python3 examples/taylor_couette/run.py --re 100 --grid 65 256 --lz 4 --dt 0.003 --steps 60000 --every 500 --mpi 1 4
 	python3 examples/taylor_couette/run.py --re 60 --grid 33 128 --lz 4 --dt 0.005 --steps 40000 --every 1000 --output .build/taylor_couette/re60
 	python3 examples/taylor_couette/run.py --re 80 --grid 33 128 --lz 4 --dt 0.005 --steps 40000 --every 1000 --output .build/taylor_couette/re80
 	$(MAKE) taylor_couette-render

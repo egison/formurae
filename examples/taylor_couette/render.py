@@ -12,7 +12,11 @@ import argparse
 import csv
 import json
 import math
+import os
 from pathlib import Path
+import shutil
+import subprocess
+import tempfile
 
 import numpy as np
 import matplotlib
@@ -34,14 +38,16 @@ TEXT = {
            "profile": "radial velocity at mid gap, $u_r(r = 1.5, z)$",
            "time": "time $t$", "z": "$z$", "r": "$r$",
            "fit": "fit $e^{\\sigma t}$, $\\sigma$ = %.4f",
-           "title": "Axisymmetric Taylor-Couette flow at Re = %g: Taylor vortices from the Couette flow (t = %g)"},
+           "title": "Axisymmetric Taylor-Couette flow at Re = %g: Taylor vortices from the Couette flow (t = %g)",
+           "video": "Taylor-Couette flow at Re = %g, $t$ = %5.1f"},
     "ja": {"dev": "周方向速度とクエット解の差 $u_\\theta - (Ar + B/r)$",
            "speed": "子午面の速さ $\\sqrt{u_r^2 + u_z^2}$ と流線",
            "growth": "擾乱の成長：$\\max|u_r|$",
            "profile": "隙間中央の半径方向速度 $u_r(r = 1.5, z)$",
            "time": "時間 $t$", "z": "$z$", "r": "$r$",
            "fit": "当てはめ $e^{\\sigma t}$，$\\sigma$ = %.4f",
-           "title": "軸対称テイラー・クエット流れ，Re = %g：クエット流れから育つテイラー渦（t = %g）"},
+           "title": "軸対称テイラー・クエット流れ，Re = %g：クエット流れから育つテイラー渦（t = %g）",
+           "video": "テイラー・クエット流れ，Re = %g，$t$ = %5.1f"},
 }
 
 
@@ -102,25 +108,24 @@ def exponent(t, amplitude):
     return float(slope)
 
 
-def figure(directory, lang, out):
-    meta = metadata(directory)
-    dt, lz = meta["dt"], meta["lz"]
-    nr, nz = meta["grid"]
-    dr, dz = (R2 - R1) / (nr - 1), lz / nz
-    final = meta["steps"]
-    fields = load(directory, final)
-    text = TEXT[lang]
-    # every label of the Japanese figure uses the Japanese font (registered
-    # once); the English figure uses matplotlib's default
+def fonts(lang):
+    """Every label of the Japanese figure uses the Japanese font (registered
+    once); the English figure uses matplotlib's default."""
     plt.rcdefaults()
     font = None
     if lang == "ja" and JAPANESE.exists():
         font_manager.fontManager.addfont(str(JAPANESE))
         font = FontProperties(fname=str(JAPANESE))
         plt.rcParams["font.family"] = font.get_name()
-    # cell centres (r) x cell centres (z) for the scalars; the faces carry
-    # the velocity components, which are averaged to the cell centres for
-    # display only
+    return font
+
+
+def prepare(meta, fields):
+    """Cell-centred arrays for display: the azimuthal velocity minus the
+    Couette profile, the two meridional components averaged from the faces to
+    the cell centres, and the meridional speed, with the cell coordinates."""
+    nr, nz = meta["grid"]
+    dr, dz = (R2 - R1) / (nr - 1), meta["lz"] / nz
     rc = R1 + (np.arange(nr - 1) + 0.5) * dr
     zc = (np.arange(nz) + 0.5) * dz
     ut = fields["ut"][:-1, :]
@@ -129,7 +134,18 @@ def figure(directory, lang, out):
     ur = 0.5 * (ur_face[:-1, :] + ur_face[1:, :])
     uz = 0.5 * (uz_face + np.roll(uz_face, -1, axis=1))
     dev = ut - couette(rc)[:, None]
-    speed = np.hypot(ur, uz)
+    return rc, zc, dev, ur, uz, np.hypot(ur, uz)
+
+
+def figure(directory, lang, out):
+    meta = metadata(directory)
+    dt, lz = meta["dt"], meta["lz"]
+    nr, nz = meta["grid"]
+    final = meta["steps"]
+    fields = load(directory, final)
+    text = TEXT[lang]
+    font = fonts(lang)
+    rc, zc, dev, ur, uz, speed = prepare(meta, fields)
     rec = stats(directory)
     t = rec["step"] * dt
     sigma, intercept, window = growth_rate(t, rec["ur"])
@@ -177,6 +193,63 @@ def figure(directory, lang, out):
             "final_divergence": float(rec["div"][-1])}
 
 
+def ffmpeg():
+    return os.environ.get("FFMPEG") or shutil.which("ffmpeg")
+
+
+def video(directory, lang, out, poster):
+    """One frame per saved record: the azimuthal velocity minus the Couette
+    profile and the meridional speed with streamlines, both on the color
+    scale of the final state, so that the vortices appear and saturate on a
+    fixed scale.  Returns the number of frames, or 0 without ffmpeg."""
+    if not ffmpeg():
+        print("ffmpeg not found: no video", flush=True)
+        return 0
+    meta = metadata(directory)
+    dt, lz = meta["dt"], meta["lz"]
+    steps = list(range(0, meta["steps"] + 1, meta["output_interval"]))
+    text = TEXT[lang]
+    font = fonts(lang)
+    rc, zc, dev, ur, uz, speed = prepare(meta, load(directory, steps[-1]))
+    limit, top = np.abs(dev).max() or 1.0, speed.max() or 1.0
+    zz, rr = np.meshgrid(zc, rc)
+    extent = [0, lz, R1, R2]
+
+    def draw(step, path):
+        rc_, zc_, dev, ur, uz, speed = prepare(meta, load(directory, step))
+        fig, axes = plt.subplots(2, 1, figsize=(10, 5.6))
+        ax = axes[0]
+        im = ax.imshow(dev, origin="lower", extent=extent, aspect="equal", cmap="RdBu_r",
+                       vmin=-limit, vmax=limit, interpolation="nearest")
+        fig.colorbar(im, ax=ax, fraction=0.025, pad=0.02)
+        ax.set_title(text["dev"], fontproperties=font)
+        ax.set_ylabel(text["r"])
+        ax = axes[1]
+        im = ax.imshow(speed, origin="lower", extent=extent, aspect="equal", cmap="viridis",
+                       vmin=0, vmax=top, interpolation="nearest")
+        fig.colorbar(im, ax=ax, fraction=0.025, pad=0.02)
+        if speed.max() > 1e-3 * top:
+            ax.streamplot(zz, rr, uz, ur, color="white", density=(1.6, 0.6), linewidth=0.7, arrowsize=0.8)
+        ax.set_xlim(0, lz); ax.set_ylim(R1, R2)
+        ax.set_title(text["speed"], fontproperties=font)
+        ax.set_xlabel(text["z"]); ax.set_ylabel(text["r"])
+        fig.suptitle(text["video"] % (meta["re"], step * dt), fontproperties=font)
+        fig.tight_layout()
+        fig.savefig(path, dpi=100)
+        plt.close(fig)
+
+    with tempfile.TemporaryDirectory(prefix="taylor-couette-") as frames:
+        for k, step in enumerate(steps):
+            draw(step, os.path.join(frames, "%04d.png" % k))
+        draw(steps[-1], poster)
+        subprocess.run([ffmpeg(), "-y", "-loglevel", "error", "-framerate", "12",
+                        "-i", os.path.join(frames, "%04d.png"),
+                        "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p",
+                        "-c:v", "libx264", "-crf", "25", "-preset", "medium",
+                        "-movflags", "+faststart", str(out)], check=True)
+    return len(steps)
+
+
 def wavelength(directory):
     """Dominant axial wavelength of the radial velocity at mid gap (display only)."""
     meta = metadata(directory)
@@ -208,6 +281,8 @@ def main():
                                   "final_max_ur": float(rec["ur"][-1]), "final_time": float(t[-1])})
     for lang in ("en", "ja"):
         record.update(figure(args.run, lang, args.results / f"taylor-couette-{lang}.png"))
+        record["video_frames"] = video(args.run, lang, args.results / f"taylor-couette-{lang}.mp4",
+                                       args.results / f"taylor-couette-{lang}-poster.png")
     lam, k = wavelength(args.run)
     record.update(axial_wavelength=lam, axial_pairs=k)
     (args.results / "runs.json").write_text(json.dumps(record, indent=2, ensure_ascii=False) + "\n")

@@ -74,7 +74,8 @@ make taylor_couette-demo
 $\Delta t=0.003$ の構成を生成し，層流クエット解とその遠心力の圧力から出発して，半径方向速度に
 最初の四つの軸方向周期を種にした振幅 $10^{-3}$ の擾乱を加え，$z$ 方向を 4 つの MPI ランクに分けて
 6 万ステップ（$t=180$）進める．続いて閾値を挟む二つの粗い格子（33×128）の実行，Re $=60$ と
-Re $=80$ を行い，`render.py` が図 `results/taylor-couette-{en,ja}.png` と記録 `results/runs.json` を書く．
+Re $=80$ を行い，`render.py` が図 `results/taylor-couette-{en,ja}.png`，動画 `results/taylor-couette-{en,ja}.mp4`
+（500 ステップごとに 1 コマ，最終状態の色尺度，`ffmpeg` が必要）と記録 `results/runs.json` を書く．
 
 ![Re = 100 のテイラー渦](results/taylor-couette-en.png)
 
@@ -85,7 +86,7 @@ Re $=80$ を行い，`render.py` が図 `results/taylor-couette-{en,ja}.png` と
 | 軸方向の波長 | 2.0（隙間幅の 2 倍，渦 2 対） |
 | Re $=60$ の減衰率（33×128） | −0.053 |
 | Re $=80$ の成長率（33×128） | 0.050 |
-| 4 ランクでの実行時間（6 万ステップ） | 448 秒 |
+| 4 ランクでの実行時間（6 万ステップ，500 ステップごとに記録） | 339 秒 |
 
 半径比 $R_1/R_2=1/2$，外筒静止のテイラー・クエット流れの臨界レイノルズ数は約 68 で，
 Re $=60$ の減衰と Re $=80$ の成長がこれを挟む．飽和状態の軸方向波長は隙間幅の 2 倍で，

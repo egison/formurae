@@ -5139,10 +5139,15 @@ end function</pre></details>
     環状の渦の対（テイラー渦）が現れます。Re = Ω<sub>1</sub>R<sub>1</sub>(R<sub>2</sub> − R<sub>1</sub>)/ν = 100 では，最初の四つの軸方向周期を種にした
     半径方向速度の擾乱がクエット流れから指数的に成長し，2 対の渦（波長 2.0，隙間幅の 2 倍）に飽和します。同じ格子で Re = 60 は減衰し Re = 80 は成長し，
     この半径比で知られる閾値 Re<sub>c</sub> ≈ 68 を挟みます。</p>
+  <div class="imgs"><video autoplay loop muted controls playsinline preload="metadata" width="1000" height="560"
+    poster="../../examples/taylor_couette/results/taylor-couette-ja-poster.png" aria-label="Re = 100 でクエット流れから育つテイラー渦：周方向速度とクエット解の差（上）と子午面の速さと流線（下），t = 0 から 180">
+    <source src="../../examples/taylor_couette/results/taylor-couette-ja.mp4" type="video/mp4">
+    <img src="../../examples/taylor_couette/results/taylor-couette-ja-poster.png" alt="Re = 100 のテイラー渦：最終時刻の周方向速度とクエット解の差，および子午面の速さと流線"></video></div>
   <div class="imgs"><img src="../../examples/taylor_couette/results/taylor-couette-ja.png" alt="Re = 100 のテイラー渦：周方向速度とクエット解の差，子午面の流線，擾乱の成長，隙間中央の半径方向速度" width="1485" height="901"></div>
   <div class="cap">65×256 格子（両壁を含む半径方向の面の数と軸方向のセル数）の子午面（横が z，縦が r），t = 180，z 方向を 4 つの MPI ランクに分割して計算。
     左：周方向速度とクエット解の差（赤が速い）と，子午面の速さおよび (u<sub>z</sub>, u<sub>r</sub>) の流線。右：max|u<sub>r</sub>| の成長と当てはめた
-    成長率 σ = 0.118，隙間中央に沿った半径方向速度。</div>
+    成長率 σ = 0.118，隙間中央に沿った半径方向速度。動画は同じ二つの場を最終状態の色尺度で，500 ステップ（時間 1.5）ごとに 1 コマ描いたものです。
+    <a href="../../examples/taylor_couette/results/taylor-couette-ja.mp4">動画ファイル</a></div>
   <div class="math">∂<sub>t</sub>u<sub>r</sub> + ∇·(u u<sub>r</sub>) − u<sub>θ</sub>²/r = −∂<sub>r</sub>p + ν(∇²u<sub>r</sub> − u<sub>r</sub>/r²)，
     ∂<sub>t</sub>u<sub>θ</sub> + ∇·(u u<sub>θ</sub>) + u<sub>r</sub>u<sub>θ</sub>/r = ν(∇²u<sub>θ</sub> − u<sub>θ</sub>/r²)，
     ∂<sub>t</sub>u<sub>z</sub> + ∇·(u u<sub>z</sub>) = −∂<sub>z</sub>p + ν∇²u<sub>z</sub>， ∇·u = 0<br>

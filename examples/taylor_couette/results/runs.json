@@ -48,7 +48,7 @@
     "source_sha256": "75cf72805d1dc3eb42df03e6839c1cd7fedd3c0e25f6220a13e230400f67d817",
     "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
     "steps": 60000,
-    "output_interval": 2000,
+    "output_interval": 500,
     "mpi_environment": {
       "HWLOC_SYNTHETIC": "node:1 core:10 pu:1"
     }
@@ -79,12 +79,13 @@
       "final_time": 200.0
     }
   ],
-  "growth_rate": 0.11757143422606402,
+  "growth_rate": 0.11805956363000922,
   "max_ur": 0.16006680138352064,
   "max_uz": 0.13207615880924714,
   "max_deviation": 0.2613636618759153,
   "final_residual": 3.3011365662751675e-06,
   "final_divergence": 9.903409842193511e-09,
+  "video_frames": 121,
   "axial_wavelength": 2.0,
   "axial_pairs": 2
 }
