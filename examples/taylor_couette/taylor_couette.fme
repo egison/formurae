@@ -48,6 +48,17 @@ param Ω2 = 0.0
 param ν = 0.1
 param dt = 0.002
 param ω = 1.0
+-- initial state: start = 1 begins from the laminar Couette flow with its
+-- centrifugal pressure, start = 0 from rest; seed is the amplitude of an
+-- axial perturbation of the radial velocity (the first four periods of the
+-- axial length Lz, which the yaml must reproduce as the total length in z)
+param Lz = 1.0
+param start = 0.0
+param seed = 0.0
+param A = (Ω2 * R2 * R2 - Ω1 * R1 * R1) / (R2 * R2 - R1 * R1)
+param B = (Ω1 - Ω2) * R1 * R1 * R2 * R2 / (R2 * R2 - R1 * R1)
+param kz = 6.283185307179586 / Lz
+param kr = 3.141592653589793 / (R2 - R1)
 -- grid constants used by the coordinate-only definitions below
 param rlo = R1 + 0.25 * dr
 param rhi = R2 - 0.25 * dr
@@ -81,11 +92,11 @@ macro lapc φ =
   in (∂_r gφ_1) / r + ∂_z gφ_2
 
 init:
-  u_i = [| 0, 0 |]_i
-  ut = 0
-  p = 0
-  res = 0
-  dv = 0
+  u_i := [| seed * sin (kr * (r - R1)) * (sin (kz * z) + sin (2 * kz * z) + sin (3 * kz * z) + sin (4 * kz * z)), 0 |]_i
+  ut := start * (A * r + B / r)
+  p := start * (A * A * r * r / 2 + 2 * A * B * log r - B * B / (2 * r * r))
+  res := 0
+  dv := 0
 
 step:
   -- velocities interpolated to the cell centres and to the cell corners

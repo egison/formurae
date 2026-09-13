@@ -8,6 +8,13 @@ double :: Ω2 = 0.0
 double :: nu = 0.1
 double :: dt = 0.002
 double :: omega = 1.0
+double :: Lz = 1.0
+double :: start = 0.0
+double :: seed = 0.0
+double :: A = (Ω2 * R2 * R2 - Ω1 * R1 * R1) / (R2 * R2 - R1 * R1)
+double :: B = (Ω1 - Ω2) * R1 * R1 * R2 * R2 / (R2 * R2 - R1 * R1)
+double :: kz = 6.283185307179586 / Lz
+double :: kr = 3.141592653589793 / (R2 - R1)
 double :: rlo = R1 + 0.25 * dr
 double :: rhi = R2 - 0.25 * dr
 double :: hdr = 0.5 * dr
@@ -17,12 +24,15 @@ double :: idz2 = 1 / (dz * dz)
 double :: wlo1 = 2 * Ω1 * R1 / dr
 double :: whi1 = 2 * Ω2 * R2 / dr
 
+extern function :: sin
+extern function :: log
+
 begin function (u_down1,u_down2,ut,p,res,dv) = init()
   double [] :: u_down1, u_down2, ut, p, res, dv
-  u_down1[i,j] = 0
+  u_down1[i,j] = seed * sin((-1) * R1 * kr + kr * (1 + dr * i)) * sin(2 * dz * kz * ((1 / 2) + j)) + seed * sin((-1) * R1 * kr + kr * (1 + dr * i)) * sin(3 * dz * kz * ((1 / 2) + j)) + seed * sin((-1) * R1 * kr + kr * (1 + dr * i)) * sin(4 * dz * kz * ((1 / 2) + j)) + seed * sin((-1) * R1 * kr + kr * (1 + dr * i)) * sin(dz * kz * ((1 / 2) + j))
   u_down2[i,j] = 0
-  ut[i,j] = 0
-  p[i,j] = 0
+  ut[i,j] = A * start * (1 + dr * ((1 / 2) + i)) + B * start * (1 + dr * ((1 / 2) + i))**(-1)
+  p[i,j] = (-1 / 2) * start * B**2 * (1 + dr * ((1 / 2) + i))**(-2) + (1 / 2) * start * A**2 * (1 + dr * ((1 / 2) + i))**2 + 2 * A * B * start * log(1 + dr * ((1 / 2) + i))
   res[i,j] = 0
   dv[i,j] = 0
 end function

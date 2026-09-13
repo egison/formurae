@@ -1,0 +1,90 @@
+{
+  "run": "/Users/egisatoshi/PL/formurae/.build/taylor_couette/demo",
+  "metadata": {
+    "re": 100.0,
+    "grid": [
+      65,
+      256
+    ],
+    "lz": 4.0,
+    "dt": 0.003,
+    "seed": 0.001,
+    "mpi": [
+      1,
+      4
+    ],
+    "blocking": 0,
+    "config": [
+      "length_per_node: [1.015625, 1.0]",
+      "grid_per_node: [65, 64]",
+      "mpi_shape: [1, 4]",
+      "boundary: [fixed 0.0, periodic]",
+      "reduces: [res = absmax res, dv = absmax dv, ur = absmax u_down1, uz = absmax u_down2]"
+    ],
+    "parameters": {
+      "R1": "1.0",
+      "R2": "2.0",
+      "Ω1": "1.0",
+      "Ω2": "0.0",
+      "ν": "0.01",
+      "dt": "0.003",
+      "ω": "1.0",
+      "Lz": "4.0",
+      "start": "1.0",
+      "seed": "0.001",
+      "A": "(Ω2 * R2 * R2 - Ω1 * R1 * R1) / (R2 * R2 - R1 * R1)",
+      "B": "(Ω1 - Ω2) * R1 * R1 * R2 * R2 / (R2 * R2 - R1 * R1)",
+      "kz": "6.283185307179586 / Lz",
+      "kr": "3.141592653589793 / (R2 - R1)",
+      "rlo": "R1 + 0.25 * dr",
+      "rhi": "R2 - 0.25 * dr",
+      "hdr": "0.5 * dr",
+      "qdr": "0.75 * dr",
+      "dr2": "dr * dr",
+      "idz2": "1 / (dz * dz)",
+      "wlo1": "2 * Ω1 * R1 / dr",
+      "whi1": "2 * Ω2 * R2 / dr"
+    },
+    "source_sha256": "75cf72805d1dc3eb42df03e6839c1cd7fedd3c0e25f6220a13e230400f67d817",
+    "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+    "steps": 60000,
+    "output_interval": 2000,
+    "mpi_environment": {
+      "HWLOC_SYNTHETIC": "node:1 core:10 pu:1"
+    }
+  },
+  "bracket": [
+    {
+      "run": ".build/taylor_couette/re60",
+      "re": 60.0,
+      "grid": [
+        33,
+        128
+      ],
+      "rate": -0.05252772729893838,
+      "initial_max_ur": 0.0032322468852746156,
+      "final_max_ur": 4.899884243570238e-09,
+      "final_time": 200.0
+    },
+    {
+      "run": ".build/taylor_couette/re80",
+      "re": 80.0,
+      "grid": [
+        33,
+        128
+      ],
+      "rate": 0.04968422173823192,
+      "initial_max_ur": 0.0032322468852746156,
+      "final_max_ur": 0.10223301703837734,
+      "final_time": 200.0
+    }
+  ],
+  "growth_rate": 0.11757143422606402,
+  "max_ur": 0.16006680138352064,
+  "max_uz": 0.13207615880924714,
+  "max_deviation": 0.2613636618759153,
+  "final_residual": 3.3011365662751675e-06,
+  "final_divergence": 9.903409842193511e-09,
+  "axial_wavelength": 2.0,
+  "axial_pairs": 2
+}
