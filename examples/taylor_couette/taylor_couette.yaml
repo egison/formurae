@@ -1,0 +1,5 @@
+length_per_node: [1.03125, 1.0]
+grid_per_node: [33, 32]
+mpi_shape: [1, 1]
+boundary: [fixed 0.0, periodic]
+reduces: [res = absmax res, dv = absmax dv, ur = absmax u_down1, uz = absmax u_down2]

@@ -1,0 +1,128 @@
+-- Axisymmetric Taylor-Couette flow between two concentric cylinders,
+-- advanced by an incremental pressure-correction projection whose Poisson
+-- solve is a FIXED number of weighted Jacobi sweeps unrolled inside the
+-- step: no nested iteration, no global reduction, no change to Formura.
+-- This is stage 0 of TODO/nested-stencil-iteration.md.  It settles the
+-- staggered placement, the wall conditions and the discrete identity
+--   div_h u' = dt * (rhs - L_h phi)
+-- with today's tool chain, and it is the comparison baseline for the
+-- future `iterate` version of the same model.
+--
+-- Unknowns on a MAC (staggered) grid of the meridional plane (r, z):
+--   u_i @ dual : u_1 = radial velocity on the r-faces (integer r, half z)
+--                u_2 = axial velocity on the z-faces (half r, integer z)
+--   ut @ dual  : azimuthal velocity at the cell centres (half r, half z)
+--   p  @ dual  : pressure divided by the density, at the cell centres
+-- The r-faces sit at r = R1 + i dr and the cell centres at
+-- r = R1 + (i + 1/2) dr.  Both walls are stored slots: the inner wall is
+-- the face 0 and the outer wall the face total_grid_r - 1, so
+-- length_per_node = (R2 - R1) * N / (N - 1) for N = grid_per_node in r
+-- (33 slots give dr = 1/32).  The last cell-centred slot lies outside the
+-- outer wall; cmask pins it to zero, so it plays the role of the zero
+-- ghost of the outer wall exactly as the yaml ghosts do for the inner
+-- wall.  (A ghost slot of a walled axis wraps its coordinate around the
+-- grid in the generated code, so the model never relies on a coordinate
+-- read in a ghost slot.)  The inner wall rotates with the angular
+-- velocity Ω1, the outer one with Ω2; z is periodic.  The yaml declares
+-- boundary: [fixed 0.0, periodic], so every ghost value is exactly zero
+-- and the wall conditions live in the update equations:
+--   * the radial velocity is pinned to zero on the two wall faces (fmask);
+--   * the viscous wall fluxes of ut and u_2 use the one-sided difference
+--     against the wall velocity, written with the zero neighbour as
+--     2 * ∂_r u - 2 U_wall / dr on the inner wall (+ on the outer one);
+--   * the pressure-correction flux through the wall faces is masked to
+--     zero, which is the homogeneous Neumann condition of the projection.
+-- Every flux is materialised as a step local at its own placement and
+-- differenced once, so all terms are conservative on the staggered grid
+-- and the radial fluxes carry the cylindrical weight r of their face.
+
+dimension 2
+axes r, z
+
+origin r = 1.0
+
+param R1 = 1.0
+param R2 = 2.0
+param Ω1 = 1.0
+param Ω2 = 0.0
+param ν = 0.1
+param dt = 0.002
+param ω = 1.0
+-- grid constants used by the coordinate-only definitions below
+param rlo = R1 + 0.25 * dr
+param rhi = R2 - 0.25 * dr
+param hdr = 0.5 * dr
+param qdr = 0.75 * dr
+param dr2 = dr * dr
+param idz2 = 1 / (dz * dz)
+param wlo1 = 2 * Ω1 * R1 / dr
+param whi1 = 2 * Ω2 * R2 / dr
+
+field u_i @ dual
+field ut : scalar @ dual
+field p : scalar @ dual
+field res : scalar @ dual
+field dv : scalar @ dual
+
+-- 1 on the interior r-faces, 0 on the two wall faces (face coordinates)
+def fmask unused = if r < rlo || r > rhi then 0 else 1
+-- 1 on the cell centres inside the gap, 0 on the slot beyond the outer wall
+def cmask unused = if r > R2 then 0 else 1
+-- one-sided factor of a viscous flux on a wall face, 1 elsewhere
+def wfac unused = if r < rlo || r > rhi then 2 else 1
+-- wall-velocity part of the one-sided viscous flux of ut
+def wlo unused = if r < rlo then wlo1 else 0
+def whi unused = if r > rhi then whi1 else 0
+-- diagonal coefficient of lapc at a cell centre (cell coordinates)
+def diagc unused = 0 - ((if r - qdr < R1 then 0 else r - hdr) + (if r + qdr > R2 then 0 else r + hdr)) / (r * dr2) - 2 * idz2
+-- cylindrical Laplacian of a cell-centred scalar, zero flux through the walls
+macro lapc φ =
+  local gφ_i @ dual = [| fmask 0 * r * ∂_r φ, ∂_z φ |]_i
+  in (∂_r gφ_1) / r + ∂_z gφ_2
+
+init:
+  u_i = [| 0, 0 |]_i
+  ut = 0
+  p = 0
+  res = 0
+  dv = 0
+
+step:
+  -- velocities interpolated to the cell centres and to the cell corners
+  local urc @ dual = resample(u_1, 1, 1)
+  local uzc @ dual = resample(u_2, 1, 1)
+  local urk @ primal = resample(u_1, 0, 0)
+  local uzk @ primal = resample(u_2, 0, 0)
+  -- azimuthal velocity on the r-faces and on the z-faces
+  local utf_i @ dual = [| resample(ut, 0, 1), resample(ut, 1, 0) |]_i
+  -- momentum fluxes of the radial velocity (r-flux at cell centres,
+  -- z-flux at cell corners) and of the axial velocity (r-flux at corners
+  -- with the one-sided viscous flux on the walls, z-flux at cell centres)
+  local fr1 @ dual = r * urc * urc - ν * r * ∂_r u_1
+  local fz1 @ primal = uzk * urk - ν * ∂_z u_1
+  local fr2 @ primal = r * urk * uzk - ν * wfac 0 * r * ∂_r u_2
+  local fz2 @ dual = uzc * uzc - ν * ∂_z u_2
+  -- fluxes of the azimuthal momentum through the r-faces (one-sided
+  -- viscous flux carrying the wall velocity) and through the z-faces
+  local ft_i @ dual =
+    [| r * u_1 * utf_1 - ν * r * (wfac 0 * ∂_r ut - wlo 0 + whi 0),
+       u_2 * utf_2 - ν * ∂_z ut |]_i
+  -- predicted velocities: fluxes, curvature terms, centrifugal force and
+  -- the current pressure gradient; the radial one vanishes on the walls
+  local us_i @ dual =
+    [| fmask 0 * (u_1 + dt * (0 - ∂_r fr1 / r - ∂_z fz1 - ν * u_1 / (r * r) + utf_1 * utf_1 / r - ∂_r p)),
+       u_2 + dt * (0 - ∂_r fr2 / r - ∂_z fz2 - ∂_z p) |]_i
+  local uts @ dual = ut + dt * (0 - ∂_r ft_1 / r - ∂_z ft_2 - urc * ut / r - ν * ut / (r * r))
+  -- pressure correction L_h φ = rhs: four weighted Jacobi sweeps from 0
+  local rhs @ dual = (∂_r (r * us_1) / r + ∂_z us_2) / dt
+  local φ1 @ dual = ω * rhs / diagc 0
+  local φ2 @ dual = φ1 + ω * (rhs - lapc φ1) / diagc 0
+  local φ3 @ dual = φ2 + ω * (rhs - lapc φ2) / diagc 0
+  local φ4 @ dual = φ3 + ω * (rhs - lapc φ3) / diagc 0
+  -- corrected velocity, updated pressure, and the two diagnostics
+  local un_i @ dual = [| fmask 0 * (us_1 - dt * ∂_r φ4), cmask 0 * (us_2 - dt * ∂_z φ4) |]_i
+  u'_i = un_i
+  ut' = cmask 0 * uts
+  p' = cmask 0 * (p + φ4)
+  res' = cmask 0 * (rhs - lapc φ4)
+  dv' = cmask 0 * (∂_r (r * un_1) / r + ∂_z un_2)

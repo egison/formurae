@@ -1,0 +1,68 @@
+dimension :: 2
+axes :: r,z
+
+double :: R1 = 1.0
+double :: R2 = 2.0
+double :: Ω1 = 1.0
+double :: Ω2 = 0.0
+double :: nu = 0.1
+double :: dt = 0.002
+double :: omega = 1.0
+double :: rlo = R1 + 0.25 * dr
+double :: rhi = R2 - 0.25 * dr
+double :: hdr = 0.5 * dr
+double :: qdr = 0.75 * dr
+double :: dr2 = dr * dr
+double :: idz2 = 1 / (dz * dz)
+double :: wlo1 = 2 * Ω1 * R1 / dr
+double :: whi1 = 2 * Ω2 * R2 / dr
+
+begin function (u_down1,u_down2,ut,p,res,dv) = init()
+  double [] :: u_down1, u_down2, ut, p, res, dv
+  u_down1[i,j] = 0
+  u_down2[i,j] = 0
+  ut[i,j] = 0
+  p[i,j] = 0
+  res[i,j] = 0
+  dv[i,j] = 0
+end function
+
+begin function (u_down1',u_down2',ut',p',res',dv') = step(u_down1,u_down2,ut,p,res,dv)
+  double [] :: u_down1', u_down2', ut', p', res', dv'
+  urc[i,j] = (1 / 2) * u_down1[i,j] + (1 / 2) * u_down1[i+1,j]
+  uzc[i,j] = (1 / 2) * u_down2[i,j] + (1 / 2) * u_down2[i,j+1]
+  urk[i,j] = (1 / 2) * u_down1[i,j-1] + (1 / 2) * u_down1[i,j]
+  uzk[i,j] = (1 / 2) * u_down2[i-1,j] + (1 / 2) * u_down2[i,j]
+  utf_down1[i,j] = (1 / 2) * ut[i-1,j] + (1 / 2) * ut[i,j]
+  utf_down2[i,j] = (1 / 2) * ut[i,j-1] + (1 / 2) * ut[i,j]
+  fr1[i,j] = (-1) * nu * (1 + dr * ((1 / 2) + i)) * (u_down1[i+1,j] + (-1) * u_down1[i,j]) / dr + (1 + dr * ((1 / 2) + i)) * urc[i,j]**2
+  fz1[i,j] = (-1) * nu * (u_down1[i,j] + (-1) * u_down1[i,j-1]) / dz + urk[i,j] * uzk[i,j]
+  fr2[i,j] = (-1) * nu * (1 + dr * i) * (u_down2[i,j] + (-1) * u_down2[i-1,j]) / dr * (if (1 + dr * i < rlo) + (1 + dr * i > rhi) > 0 then 2 else 1) + urk[i,j] * uzk[i,j] * (1 + dr * i)
+  fz2[i,j] = (-1) * nu * (u_down2[i,j+1] + (-1) * u_down2[i,j]) / dz + uzc[i,j]**2
+  ft_down1[i,j] = (-1) * nu * (1 + dr * i) * (ut[i,j] + (-1) * ut[i-1,j]) / dr * (if (1 + dr * i < rlo) + (1 + dr * i > rhi) > 0 then 2 else 1) + (-1) * nu * (1 + dr * i) * (if 1 + dr * i > rhi then whi1 else 0) + nu * (1 + dr * i) * (if 1 + dr * i < rlo then wlo1 else 0) + u_down1[i,j] * utf_down1[i,j] * (1 + dr * i)
+  ft_down2[i,j] = (-1) * nu * (ut[i,j] + (-1) * ut[i,j-1]) / dz + u_down2[i,j] * utf_down2[i,j]
+  us_down1[i,j] = (-1) * dt * nu * u_down1[i,j] * (1 + dr * i)**(-2) * (if (1 + dr * i < rlo) + (1 + dr * i > rhi) > 0 then 0 else 1) + (-1) * dt * (fr1[i,j] + (-1) * fr1[i-1,j]) / dr * (1 + dr * i)**(-1) * (if (1 + dr * i < rlo) + (1 + dr * i > rhi) > 0 then 0 else 1) + (-1) * dt * (fz1[i,j+1] + (-1) * fz1[i,j]) / dz * (if (1 + dr * i < rlo) + (1 + dr * i > rhi) > 0 then 0 else 1) + (-1) * dt * (p[i,j] + (-1) * p[i-1,j]) / dr * (if (1 + dr * i < rlo) + (1 + dr * i > rhi) > 0 then 0 else 1) + dt * utf_down1[i,j]**2 * (1 + dr * i)**(-1) * (if (1 + dr * i < rlo) + (1 + dr * i > rhi) > 0 then 0 else 1) + u_down1[i,j] * (if (1 + dr * i < rlo) + (1 + dr * i > rhi) > 0 then 0 else 1)
+  us_down2[i,j] = u_down2[i,j] + (-1) * dt * (fr2[i+1,j] + (-1) * fr2[i,j]) / dr * (1 + dr * ((1 / 2) + i))**(-1) + (-1) * dt * (fz2[i,j] + (-1) * fz2[i,j-1]) / dz + (-1) * dt * (p[i,j] + (-1) * p[i,j-1]) / dz
+  uts[i,j] = ut[i,j] + (-1) * dt * nu * ut[i,j] * (1 + dr * ((1 / 2) + i))**(-2) + (-1) * dt * urc[i,j] * ut[i,j] * (1 + dr * ((1 / 2) + i))**(-1) + (-1) * dt * (ft_down1[i+1,j] + (-1) * ft_down1[i,j]) / dr * (1 + dr * ((1 / 2) + i))**(-1) + (-1) * dt * (ft_down2[i,j+1] + (-1) * ft_down2[i,j]) / dz
+  rhs[i,j] = (us_down2[i,j+1] + (-1) * us_down2[i,j]) / dz * dt**(-1) + ((-1) * us_down1[i,j] * (1 + dr * i) + us_down1[i+1,j] * (1 + dr * (1 + i))) / dr * dt**(-1) * (1 + dr * ((1 / 2) + i))**(-1)
+  phi1[i,j] = omega * rhs[i,j] / ((-2) * idz2 + (-1) * dr2**(-1) * (1 + dr * ((1 / 2) + i))**(-1) * (if 1 + (-1) * qdr + dr * ((1 / 2) + i) < R1 then 0 else 1 + (-1) * hdr + dr * ((1 / 2) + i)) + (-1) * dr2**(-1) * (1 + dr * ((1 / 2) + i))**(-1) * (if 1 + qdr + dr * ((1 / 2) + i) > R2 then 0 else 1 + hdr + dr * ((1 / 2) + i)))
+  gphi_down1[i,j] = (1 + dr * i) * (phi1[i,j] + (-1) * phi1[i-1,j]) / dr * (if (1 + dr * i < rlo) + (1 + dr * i > rhi) > 0 then 0 else 1)
+  gphi_down2[i,j] = (phi1[i,j] + (-1) * phi1[i,j-1]) / dz
+  phi2[i,j] = ((-2) * idz2 * phi1[i,j] + (-1) * omega * (gphi_down1[i+1,j] + (-1) * gphi_down1[i,j]) / dr * (1 + dr * ((1 / 2) + i))**(-1) + (-1) * omega * (gphi_down2[i,j+1] + (-1) * gphi_down2[i,j]) / dz + (-1) * phi1[i,j] * dr2**(-1) * (1 + dr * ((1 / 2) + i))**(-1) * (if 1 + (-1) * qdr + dr * ((1 / 2) + i) < R1 then 0 else 1 + (-1) * hdr + dr * ((1 / 2) + i)) + (-1) * phi1[i,j] * dr2**(-1) * (1 + dr * ((1 / 2) + i))**(-1) * (if 1 + qdr + dr * ((1 / 2) + i) > R2 then 0 else 1 + hdr + dr * ((1 / 2) + i)) + omega * rhs[i,j]) / ((-2) * idz2 + (-1) * dr2**(-1) * (1 + dr * ((1 / 2) + i))**(-1) * (if 1 + (-1) * qdr + dr * ((1 / 2) + i) < R1 then 0 else 1 + (-1) * hdr + dr * ((1 / 2) + i)) + (-1) * dr2**(-1) * (1 + dr * ((1 / 2) + i))**(-1) * (if 1 + qdr + dr * ((1 / 2) + i) > R2 then 0 else 1 + hdr + dr * ((1 / 2) + i)))
+  gphi2_down1[i,j] = (1 + dr * i) * (phi2[i,j] + (-1) * phi2[i-1,j]) / dr * (if (1 + dr * i < rlo) + (1 + dr * i > rhi) > 0 then 0 else 1)
+  gphi2_down2[i,j] = (phi2[i,j] + (-1) * phi2[i,j-1]) / dz
+  phi3[i,j] = ((-2) * idz2 * phi2[i,j] + (-1) * omega * (gphi2_down1[i+1,j] + (-1) * gphi2_down1[i,j]) / dr * (1 + dr * ((1 / 2) + i))**(-1) + (-1) * omega * (gphi2_down2[i,j+1] + (-1) * gphi2_down2[i,j]) / dz + (-1) * phi2[i,j] * dr2**(-1) * (1 + dr * ((1 / 2) + i))**(-1) * (if 1 + (-1) * qdr + dr * ((1 / 2) + i) < R1 then 0 else 1 + (-1) * hdr + dr * ((1 / 2) + i)) + (-1) * phi2[i,j] * dr2**(-1) * (1 + dr * ((1 / 2) + i))**(-1) * (if 1 + qdr + dr * ((1 / 2) + i) > R2 then 0 else 1 + hdr + dr * ((1 / 2) + i)) + omega * rhs[i,j]) / ((-2) * idz2 + (-1) * dr2**(-1) * (1 + dr * ((1 / 2) + i))**(-1) * (if 1 + (-1) * qdr + dr * ((1 / 2) + i) < R1 then 0 else 1 + (-1) * hdr + dr * ((1 / 2) + i)) + (-1) * dr2**(-1) * (1 + dr * ((1 / 2) + i))**(-1) * (if 1 + qdr + dr * ((1 / 2) + i) > R2 then 0 else 1 + hdr + dr * ((1 / 2) + i)))
+  gphi3_down1[i,j] = (1 + dr * i) * (phi3[i,j] + (-1) * phi3[i-1,j]) / dr * (if (1 + dr * i < rlo) + (1 + dr * i > rhi) > 0 then 0 else 1)
+  gphi3_down2[i,j] = (phi3[i,j] + (-1) * phi3[i,j-1]) / dz
+  phi4[i,j] = ((-2) * idz2 * phi3[i,j] + (-1) * omega * (gphi3_down1[i+1,j] + (-1) * gphi3_down1[i,j]) / dr * (1 + dr * ((1 / 2) + i))**(-1) + (-1) * omega * (gphi3_down2[i,j+1] + (-1) * gphi3_down2[i,j]) / dz + (-1) * phi3[i,j] * dr2**(-1) * (1 + dr * ((1 / 2) + i))**(-1) * (if 1 + (-1) * qdr + dr * ((1 / 2) + i) < R1 then 0 else 1 + (-1) * hdr + dr * ((1 / 2) + i)) + (-1) * phi3[i,j] * dr2**(-1) * (1 + dr * ((1 / 2) + i))**(-1) * (if 1 + qdr + dr * ((1 / 2) + i) > R2 then 0 else 1 + hdr + dr * ((1 / 2) + i)) + omega * rhs[i,j]) / ((-2) * idz2 + (-1) * dr2**(-1) * (1 + dr * ((1 / 2) + i))**(-1) * (if 1 + (-1) * qdr + dr * ((1 / 2) + i) < R1 then 0 else 1 + (-1) * hdr + dr * ((1 / 2) + i)) + (-1) * dr2**(-1) * (1 + dr * ((1 / 2) + i))**(-1) * (if 1 + qdr + dr * ((1 / 2) + i) > R2 then 0 else 1 + hdr + dr * ((1 / 2) + i)))
+  un_down1[i,j] = (-1) * dt * (phi4[i,j] + (-1) * phi4[i-1,j]) / dr * (if (1 + dr * i < rlo) + (1 + dr * i > rhi) > 0 then 0 else 1) + us_down1[i,j] * (if (1 + dr * i < rlo) + (1 + dr * i > rhi) > 0 then 0 else 1)
+  un_down2[i,j] = (-1) * dt * (phi4[i,j] + (-1) * phi4[i,j-1]) / dz * (if 1 + dr * ((1 / 2) + i) > R2 then 0 else 1) + us_down2[i,j] * (if 1 + dr * ((1 / 2) + i) > R2 then 0 else 1)
+  u_down1'[i,j] = un_down1[i,j]
+  u_down2'[i,j] = un_down2[i,j]
+  ut'[i,j] = uts[i,j] * (if 1 + dr * ((1 / 2) + i) > R2 then 0 else 1)
+  p'[i,j] = p[i,j] * (if 1 + dr * ((1 / 2) + i) > R2 then 0 else 1) + phi4[i,j] * (if 1 + dr * ((1 / 2) + i) > R2 then 0 else 1)
+  gphi4_down1[i,j] = (1 + dr * i) * (phi4[i,j] + (-1) * phi4[i-1,j]) / dr * (if (1 + dr * i < rlo) + (1 + dr * i > rhi) > 0 then 0 else 1)
+  gphi4_down2[i,j] = (phi4[i,j] + (-1) * phi4[i,j-1]) / dz
+  res'[i,j] = (-1) * (gphi4_down1[i+1,j] + (-1) * gphi4_down1[i,j]) / dr * (1 + dr * ((1 / 2) + i))**(-1) * (if 1 + dr * ((1 / 2) + i) > R2 then 0 else 1) + (-1) * (gphi4_down2[i,j+1] + (-1) * gphi4_down2[i,j]) / dz * (if 1 + dr * ((1 / 2) + i) > R2 then 0 else 1) + rhs[i,j] * (if 1 + dr * ((1 / 2) + i) > R2 then 0 else 1)
+  dv'[i,j] = (un_down2[i,j+1] + (-1) * un_down2[i,j]) / dz * (if 1 + dr * ((1 / 2) + i) > R2 then 0 else 1) + ((-1) * un_down1[i,j] * (1 + dr * i) + un_down1[i+1,j] * (1 + dr * (1 + i))) / dr * (1 + dr * ((1 / 2) + i))**(-1) * (if 1 + dr * ((1 / 2) + i) > R2 then 0 else 1)
+end function
