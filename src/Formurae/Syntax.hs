@@ -185,6 +185,8 @@ data Model = Model
   , mHelpKinds :: [HelperKind]
   , mHelpSourceLines :: [Int]
   , mFieldDecls :: [FieldDecl]
+  , mStaticFields :: [String]
+    -- ^ Read-only state, initialized by its declaration rather than init.
   , mInits  :: [Init]
   , mInitSourceTexts :: [SourceText]
   , mSteps  :: [Step]

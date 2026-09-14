@@ -1,0 +1,21 @@
+dimension 2
+axes θ, φ
+metric g
+metric scale [2, 3 + cos θ]
+param scale = 2.0
+
+def weight = scale * volume
+field u : scalar @ collocated
+static field J : scalar @ collocated := weight
+static field doubled : scalar @ collocated := 2 * J
+static field G{_i_j} @ collocated := g_i_j
+static field v_i @ primal :=
+  [| sin θ, cos φ |]_i
+static field T~i_j @ dual := [| [| 1, 2 |], [| 3, 4 |] |]~i_j
+static field W[_i_j] @ collocated := [| [| 0, 1 |], [| -1, 0 |] |]_i_j
+
+init:
+  u := 0
+
+step:
+  u' = u + doubled + G_1_1 + T~1_2 + W_1_2

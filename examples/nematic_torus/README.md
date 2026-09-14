@@ -30,7 +30,10 @@
 \Gamma^i_{jk} = \tfrac12 g^{il}\left(\partial_j g_{lk} + \partial_k g_{lj} - \partial_l g_{jk}\right)
 \]
 
-である．Γ は Egison が計量の記号微分から導き，init で係数場に凍結する．
+である．Γ は Egison が計量の記号微分から導く．
+`static field G1{_j_k} @ collocated := gammaTheta` のように宣言することで，
+初期化時に係数を格子上に保存し，以後は自動で保持する．
+計量・逆計量・体積要素なども同様で，`G1' = G1` のような更新式は書かない．
 テンソルの共変ラプラシアンは，各成分の Laplace–Beltrami 作用素と接続項に分けて書く．
 
 ```

@@ -549,10 +549,12 @@ decodeLayout expression = codecError "layout"
 
 encodeLifetime :: Lifetime -> SExpr
 encodeLifetime UserStateLifetime = Atom "user-state"
+encodeLifetime StaticStateLifetime = Atom "static-state"
 encodeLifetime StepLocalLifetime = Atom "step-local"
 
 decodeLifetime :: SExpr -> Either CodecError Lifetime
 decodeLifetime (Atom "user-state") = Right UserStateLifetime
+decodeLifetime (Atom "static-state") = Right StaticStateLifetime
 decodeLifetime (Atom "step-local") = Right StepLocalLifetime
 decodeLifetime expression = codecError "lifetime"
   ("unknown lifetime: " ++ renderSExpr expression)

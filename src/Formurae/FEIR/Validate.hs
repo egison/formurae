@@ -113,6 +113,9 @@ data ValidationIssue
   | InvalidTargetTime TimeSlot TimeSlot
   | ComponentUpdateTargetNotAllowed FieldId Basis
   | InvalidFieldLifetime FieldId Lifetime Lifetime
+  | StaticFieldInitializerCount FieldId Int
+  | StaticFieldRequiresAnalyticInitializer FieldId
+  | StaticFieldDependencyUnavailable FieldId
   | TensorTypeMismatch TensorType TensorType
   | InvalidDerivativeRuleOrder Int
   | InvalidFormalAccuracy Int
@@ -156,6 +159,7 @@ data Environment = Environment
 data ValueContext
   = StaticValueContext
   | InitializerValueContext
+  | StaticInitializerValueContext [FieldId]
   | StepValueContext [NodeId] [FieldId] [FieldId]
 
 data TargetStage = InitializerStage | UpdateStage
@@ -513,23 +517,50 @@ validateEquationAndNodeIdentities environment = concat
     nodeNumber (NodeId value) = value
 
 validateInitializers :: Environment -> [ValidationError]
-validateInitializers environment = concat
+validateInitializers environment = staticCoverage ++ concat
   [ validateInitializer index initializer
   | (index, initializer) <- zip [0 ..]
       (feProgramInitializers (environmentProgram environment))
   ]
   where
+    initializers = feProgramInitializers (environmentProgram environment)
+    initializerField initializer = targetFieldId $ case initializer of
+      AnalyticInitializer equation -> feEquationTarget equation
+      RawInitializer target _ _ -> target
+    isStatic fieldId = case lookupField environment fieldId of
+      Just field -> logicalFieldLifetime field == StaticStateLifetime
+      Nothing -> False
+    staticCoverage =
+      [ validationError [ProgramPath, FieldPath fieldId]
+          (StaticFieldInitializerCount fieldId count)
+      | field <- environmentFieldDecls environment
+      , logicalFieldLifetime field == StaticStateLifetime
+      , let fieldId = logicalFieldId field
+            count = length (filter ((== fieldId) . initializerField) initializers)
+      , count /= 1
+      ]
     validateInitializer index initializer =
       case initializer of
         AnalyticInitializer equation ->
-          validateEquation environment InitializerValueContext
+          validateEquation environment context
             InitializerStage path equation
         RawInitializer target _ origin -> concat
           [ validateTarget environment InitializerStage path target
           , validateOriginReference environment path origin
+          , [validationError path
+               (StaticFieldRequiresAnalyticInitializer (targetFieldId target))
+            | isStatic (targetFieldId target)]
           ]
       where
         path = [ProgramPath, InitializerPath index]
+        context
+          | isStatic (initializerField initializer) =
+              StaticInitializerValueContext
+                [ initializerField earlier
+                | earlier <- take index initializers
+                , isStatic (initializerField earlier)
+                ]
+          | otherwise = InitializerValueContext
 
 validateActions :: Environment -> [ValidationError]
 validateActions environment = go 0 [] [] [] actions
@@ -664,7 +695,7 @@ validateTarget environment stage path target =
         | actualTime /= expectedTime]
       , [validationError path
            (InvalidFieldLifetime fieldId expectedLifetime actualLifetime)
-        | actualLifetime /= expectedLifetime]
+        | not validLifetime]
       , case target of
           WholeFieldTarget _ _ -> []
           FieldComponentTarget _ _ basis ->
@@ -676,6 +707,10 @@ validateTarget environment stage path target =
       where
         actualLifetime = logicalFieldLifetime field
         expectedLifetime = UserStateLifetime
+        validLifetime = actualLifetime == UserStateLifetime
+          || case stage of
+               InitializerStage -> actualLifetime == StaticStateLifetime
+               UpdateStage -> False
   where
     fieldId = targetFieldId target
     actualTime = targetTimeSlot target
@@ -1086,11 +1121,17 @@ validateFieldAvailability path context field timeSlot =
   case context of
     StaticValueContext -> unavailable
     InitializerValueContext ->
-      if lifetime == UserStateLifetime && timeSlot == CurrentTime
+      if lifetime /= StepLocalLifetime && timeSlot == CurrentTime
         then [] else unavailable
+    StaticInitializerValueContext available ->
+      if lifetime == StaticStateLifetime && timeSlot == CurrentTime
+         && fieldId `elem` available
+        then []
+        else [validationError path (StaticFieldDependencyUnavailable fieldId)]
     StepValueContext _ availableLocals availableNext ->
       case (lifetime, timeSlot) of
         (UserStateLifetime, CurrentTime) -> []
+        (StaticStateLifetime, CurrentTime) -> []
         (UserStateLifetime, NextTime)
           | fieldId `elem` availableNext -> []
         (StepLocalLifetime, CurrentTime)

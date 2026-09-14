@@ -586,6 +586,14 @@ validationIssueMessage issue =
     ComponentUpdateTargetNotAllowed fieldId basis ->
       "field update " ++ show fieldId
       ++ " must use a whole-field target, got component " ++ show basis
+    StaticFieldInitializerCount fieldId count ->
+      "static field " ++ show fieldId
+      ++ " requires exactly one initializer, got " ++ show count
+    StaticFieldRequiresAnalyticInitializer fieldId ->
+      "static field " ++ show fieldId ++ " requires an analytic initializer (:=)"
+    StaticFieldDependencyUnavailable fieldId ->
+      "static field initializer cannot depend on " ++ show fieldId
+      ++ "; only previously initialized static fields may be referenced"
     InvalidFieldLifetime fieldId expected actual ->
       "field " ++ show fieldId ++ " lifetime mismatch: expected "
       ++ show expected ++ ", got " ++ show actual

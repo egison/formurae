@@ -596,6 +596,7 @@ baseModel = Model
   , mHelpKinds = []
   , mHelpSourceLines = []
   , mFieldDecls = [FieldDecl "u" Nothing Collocated Scalar 1]
+  , mStaticFields = []
   , mInits = []
   , mInitSourceTexts = []
   , mSteps = []

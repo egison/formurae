@@ -91,13 +91,13 @@ field B_i @ primal
 field H_i @ primal
 field Ev_i @ dual
 field Bv_i @ primal
-field Mrot{~i~j} @ collocated
-field Mcloak{~i~j} @ collocated
-field epsz : scalar @ collocated
+static field Mrot{~i~j} @ collocated := rotatorMaterial
+static field Mcloak{~i~j} @ collocated := cloakMaterial
+static field epsz : scalar @ collocated := permittivity
 -- 1/eps_z sampled where E_z lives (the third component of a dual vector), so the
 -- conductor mask stays sharp instead of being interpolated from the nodes
-field ie_i @ dual
-field outside : scalar @ collocated
+static field ie_i @ dual := [| 0, 0, inversePermittivity |]_i
+static field outside : scalar @ collocated := if rr > R2 + 0.5 then cell else 0
 field scatter : scalar @ collocated
 field incident : scalar @ collocated
 field energy : scalar @ collocated
@@ -108,11 +108,6 @@ init:
   H_i := [| 0, 0 - masked, 0 |]_i
   Ev_i := [| 0, 0, pulse |]_i
   Bv_i := [| 0, 0 - pulse, 0 |]_i
-  Mrot~i~j := rotatorMaterial
-  Mcloak~i~j := cloakMaterial
-  epsz := permittivity
-  ie_i := [| 0, 0, inversePermittivity |]_i
-  outside := if rr > R2 + 0.5 then cell else 0
   scatter := 0
   incident := 0
   energy := 0
@@ -124,11 +119,6 @@ step:
   H'_i = [| hx (resample(Minv, 1, 0, 0)) (resample(B', 1, 0, 0)), hy (resample(Minv, 0, 1, 0)) (resample(B', 0, 1, 0)), 0 |]_i
   Ev' = Ev + dt * curl Bv
   Bv' = Bv - dt * curl Ev'
-  Mrot' = Mrot
-  Mcloak' = Mcloak
-  epsz' = epsz
-  ie' = ie
-  outside' = outside
   -- the difference is formed before squaring, so that the vacuum case measures the
   -- actual departure from the reference copy rather than cancellation error
   local diff @ collocated = ez (resample(E', 0, 0, 0)) - ez (resample(Ev', 0, 0, 0))

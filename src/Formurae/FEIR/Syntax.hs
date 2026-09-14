@@ -145,6 +145,8 @@ data Layout
 
 data Lifetime
   = UserStateLifetime
+  -- Initialized exactly once; only CurrentTime reads, never UpdateField.
+  | StaticStateLifetime
   | StepLocalLifetime
   deriving (Eq, Ord, Show)
 

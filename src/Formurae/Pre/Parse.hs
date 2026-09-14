@@ -297,6 +297,9 @@ validateIndexedStepTargets model = mapM_ validateStep (mSteps model)
       case sk step of
         KEq ->
           case fieldDeclOf model targetName of
+            Just _ | targetName `elem` mStaticFields model ->
+              fatal ("static field '" ++ targetName
+                     ++ "' cannot be updated (line " ++ show line ++ ")")
             Nothing -> fatal ("unknown step target '" ++ targetName
                               ++ "' (line " ++ show line ++ ")")
             Just field ->
@@ -844,6 +847,7 @@ parseModel sourceFile name txt = do
       , mHelpKinds = []
       , mHelpSourceLines = []
       , mFieldDecls = []
+      , mStaticFields = []
       , mInits = []
       , mInitSourceTexts = []
       , mSteps = []
@@ -952,6 +956,14 @@ parseModel sourceFile name txt = do
           _ -> do
             let sec' = if take 1 code /= " " then STop else sec
             case sec' of
+              STop
+                | Just declaration <- stripPrefix "static field " s ->
+                    let (more, moreSourceLines, rest') =
+                          if stepNeedsContinuation s then grab (bal s) rest
+                          else ("", [], rest)
+                    in staticField ((ln, originalCode) : moreSourceLines)
+                         (declaration ++ " " ++ more) m
+                         >>= \m' -> go STop ms m' rest'
               STop
                 | Just macroHead <- stripPrefix "macro " s ->
                     if definitionNeedsContinuation macroHead
@@ -1214,6 +1226,32 @@ parseModel sourceFile name txt = do
                     else return m { mDim = n }
               | otherwise = fatal ("bad dimension (line " ++ show ln ++ ")")
 
+    staticField sourceLines@((ln, _):_) declaration m =
+      case break (== '=') declaration of
+        (prefix, '=' : body)
+          | ':' : reversedHeader <- reverse (rstrip prefix)
+          , let header = reverse reversedHeader
+          , not (null (strip body)) -> do
+              field <- parseFieldDecl ln (strip header)
+              let fieldName = fdName field
+                  indices = maybe [] id (fieldIndexParts field)
+                  expression = strip body
+                  initializer = if null indices then ICas fieldName expression
+                                else ICasIndex fieldName indices expression
+              when (kindOf m fieldName /= Nothing) (fatal
+                ("field '" ++ fieldName ++ "' is declared more than once (line "
+                 ++ show ln ++ ")"))
+              source <- sourceTextForRhsLines sourceLines expression
+              return m
+                { mFieldDecls = field : mFieldDecls m
+                , mStaticFields = fieldName : mStaticFields m
+                , mInits = initializer : mInits m
+                , mInitSourceTexts = source : mInitSourceTexts m
+                }
+        _ -> fatal ("static field requires ':=' and an initializer (line "
+                    ++ show ln ++ ")")
+    staticField [] _ _ = fatal "internal error: static field has no source"
+
     addDefinition ln sourceBuilder source m
       | not (null (snd (parseIndexedIdent (definitionHeadToken source)))) =
           fatal ("result indices are not allowed in user definition heads; "
@@ -1446,6 +1484,10 @@ parseModel sourceFile name txt = do
         closeVec d acc ('[':'|':rest) =
           closeVec (d + 1) ('|' : '[' : acc) rest
         closeVec d acc (c:rest) = closeVec d (c : acc) rest
+        validateInitTarget nm _ | nm `elem` mStaticFields m =
+          fatal ("static field '" ++ nm
+                 ++ "' is already initialized by its declaration (line "
+                 ++ show ln ++ ")")
         validateInitTarget nm ix =
           case fieldDeclOf m nm of
             Just fd

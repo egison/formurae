@@ -30,8 +30,8 @@ def fluxPsi K~a~b P_c = withSymbols [j] (K~2~j . P_j)
 
 field u : scalar @ primal
 field v : scalar @ primal
-field A{~i~j} @ collocated
-field J : scalar @ primal
+static field A{~i~j} @ collocated := volume * diffusivity (angle + twist * sin θ)
+static field J : scalar @ primal := volume
 field mass : scalar @ primal
 field square : scalar @ primal
 field active : scalar @ primal
@@ -39,8 +39,6 @@ field active : scalar @ primal
 init:
   u := if stimulus > 0 then (if sin (ψ + θ) > 0 && cos (ψ + θ) > 0.95 && cos θ > 0 then 2 else -beta) else (if stimulus < 0 then -beta else (1 + sin θ * cos (ψ + θ)))
   v := if stimulus > 0 then (if sin (ψ + θ) < 0 && cos (ψ + θ) > 0.8 && cos θ > 0 then 2 else -3 * beta + beta^3) else (if stimulus < 0 then -3 * beta + beta^3 else 0)
-  A~i~j := volume * diffusivity (angle + twist * sin θ)
-  J := volume
   mass := cell * volume * (if stimulus > 0 then (if sin (ψ + θ) > 0 && cos (ψ + θ) > 0.95 && cos θ > 0 then 2 else -beta) else (if stimulus < 0 then -beta else (1 + sin θ * cos (ψ + θ))))
   square := cell * volume * (if stimulus > 0 then (if sin (ψ + θ) > 0 && cos (ψ + θ) > 0.95 && cos θ > 0 then 2 else -beta) else (if stimulus < 0 then -beta else (1 + sin θ * cos (ψ + θ))))^2
   active := if stimulus == 0 then (if 1 + sin θ * cos (ψ + θ) > 0 then cell * volume else 0) else (if stimulus > 0 && sin (ψ + θ) > 0 && cos (ψ + θ) > 0.95 && cos θ > 0 then cell * volume else 0)
@@ -50,8 +48,6 @@ step:
   local q~i @ primal = [| fluxTheta (resample(A, 1, 0)) (resample(p, 1, 0)), fluxPsi (resample(A, 0, 1)) (resample(p, 0, 1)) |]~i
   u' = u + dt * ((∂_i q~i) / J + reaction * (3 * u - u^3 - v))
   v' = v + dt * reaction * eps * (u + beta)
-  A' = A
-  J' = J
   mass' = cell * J * u'
   square' = cell * J * u'^2
   active' = if u' > 0 then cell * J else 0

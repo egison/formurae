@@ -11,15 +11,13 @@ def analyticTheta = withSymbols [i, j, l] (∂/∂ smooth~i~j θ + gamma~i_1_l .
 def analyticPhi = withSymbols [i, j, l] (∂/∂ smooth~i~j φ + gamma~i_2_l . smooth~l~j + gamma~j_2_l . smooth~i~l)
 def analyticLaplacian = withSymbols [i, j, m] (g~1~1 * (∂/∂ analyticTheta~i~j θ + gamma~i_1_m . analyticTheta~m~j + gamma~j_1_m . analyticTheta~i~m - gamma~1_1_1 * analyticTheta~i~j - gamma~2_1_1 * analyticPhi~i~j) + g~2~2 * (∂/∂ analyticPhi~i~j φ + gamma~i_2_m . analyticPhi~m~j + gamma~j_2_m . analyticPhi~i~m - gamma~1_2_2 * analyticTheta~i~j - gamma~2_2_2 * analyticPhi~i~j))
 def weightedNorm2 T~a~b = withSymbols [i, j, k, l] (GD_i_k . GD_j_l . T~i~j . T~k~l)
-field exact~i~j @ collocated
+static field exact~i~j @ collocated := analyticLaplacian
 field error : scalar @ collocated
 field reference : scalar @ collocated
 ---
-  exact~i~j := analyticLaplacian
   error := 0
   reference := 0
 ---
-  exact' = exact
   local rate~i~j @ collocated = (Q'~i~j - Q~i~j) / (dt * L) - exact~i~j
   error' = cell * J * weightedNorm2 rate
   reference' = cell * J * weightedNorm2 exact

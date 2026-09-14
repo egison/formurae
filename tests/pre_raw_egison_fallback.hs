@@ -126,6 +126,7 @@ baseModel definitions = Model
   , mHelpKinds = []
   , mHelpSourceLines = []
   , mFieldDecls = [FieldDecl "u" Nothing Collocated Scalar 4]
+  , mStaticFields = []
   , mInits = []
   , mInitSourceTexts = []
   , mSteps = []

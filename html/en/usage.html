@@ -110,6 +110,7 @@ step:
 <tr><td><code>raw NAME = ...</code></td><td>verbatim Formura helper</td></tr>
 <tr><td><code>Δ u</code></td><td>Canonical Laplacian of a collocated scalar</td></tr>
 <tr><td><code>field u : scalar</code></td><td>scalar state field</td></tr>
+<tr><td><code>static field J : scalar := volume</code></td><td>A field initialized once and automatically retained</td></tr>
 <tr><td><code>field E_i @ primal</code></td><td>Rank-1 field with variance</td></tr>
 <tr><td><code>field σ{~i~j} @ primal</code></td><td>symmetric rank-2 field</td></tr>
 <tr><td><code>field B : 2-form</code></td><td>Differential form. The default policy is Primal</td></tr>
@@ -117,6 +118,13 @@ step:
 <tr><td><code>local q_i @ primal = ...</code></td><td>Step-local grid field with a type, variance, and policy</td></tr>
 <tr><td><code>u' = ...</code></td><td>next-time field update</td></tr>
 </table>
+
+<p>A <code>static field</code> may vary with position but remains constant in time.
+It uses the same type, index, and grid placement declarations as an ordinary <code>field</code>.
+Its initializer may use coordinates, parameters, the metric, and previously declared static fields.
+Dependencies on ordinary fields, itself, later static fields, or next-time values are errors,
+including dependencies through <code>def</code>.
+No assignment in <code>init</code> or <code>J' = J</code> is needed; reinitialization and updates are rejected.</p>
 
 <p>Contraction is written explicitly with <code>contractWith</code> or <code>.</code>. The mere appearance
 of matching upper and lower indices with the same letter does not trigger implicit summation on the surface.

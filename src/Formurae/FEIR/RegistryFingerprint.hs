@@ -39,13 +39,13 @@ registryFingerprintPayload program = List
     -- Step locals are materialization targets of the runtime equations,
     -- which are deliberately outside this identity: their declarations
     -- follow the step stream (and, for deferred locals, the normalized
-    -- value), so only user-state storage participates.  Schema 2 records
-    -- this narrowing.
+    -- value), so only persistent storage (mutable or static) participates.
+    -- Schema 2 records the exclusion of step locals.
     encoded = encodeFEProgram program
       { feProgramFields =
           [ field
           | field <- feProgramFields program
-          , logicalFieldLifetime field == UserStateLifetime
+          , logicalFieldLifetime field /= StepLocalLifetime
           ]
       }
     programField name =

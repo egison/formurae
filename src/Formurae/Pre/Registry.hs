@@ -582,7 +582,8 @@ buildFields assignments model = do
     buildUserField (identifier, field) = do
       origin <- originFor assignments (FieldOrigin identifier)
       Right (logicalFieldFromSurface model (FEIR.FieldId identifier) origin
-        FEIR.UserStateLifetime field)
+        (if Surface.fdName field `elem` Surface.mStaticFields model
+           then FEIR.StaticStateLifetime else FEIR.UserStateLifetime) field)
     buildLocalField (localIndex, (stepIndex, step)) = do
       origin <- originFor assignments (StepOrigin stepIndex)
       let identifier = length (Surface.mFieldDecls model) + localIndex

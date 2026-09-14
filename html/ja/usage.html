@@ -108,6 +108,7 @@ step:
 <tr><td><code>raw NAME = ...</code></td><td>verbatim Formura helper</td></tr>
 <tr><td><code>Δ u</code></td><td>collocated scalarのcanonical Laplacian</td></tr>
 <tr><td><code>field u : scalar</code></td><td>scalar state field</td></tr>
+<tr><td><code>static field J : scalar := volume</code></td><td>初期化時に一度計算し、自動で保持する場</td></tr>
 <tr><td><code>field E_i @ primal</code></td><td>variance付きrank-1 field</td></tr>
 <tr><td><code>field σ{~i~j} @ primal</code></td><td>symmetric rank-2 field</td></tr>
 <tr><td><code>field B : 2-form</code></td><td>differential form。既定policyはPrimal</td></tr>
@@ -115,6 +116,13 @@ step:
 <tr><td><code>local q_i @ primal = ...</code></td><td>型・variance・policyを持つstep-local grid field</td></tr>
 <tr><td><code>u' = ...</code></td><td>next-time field update</td></tr>
 </table>
+
+<p><code>static field</code> は位置ごとに異なっても時間では変化しない場です。
+型・添字・格子配置は通常の <code>field</code> と同じように指定します。
+右辺には座標・パラメータ・計量・先に宣言した固定場を使えます。
+通常の場への依存、自己参照、前方参照、次時刻の値への依存はエラーです。
+<code>def</code> を経由した依存も検査します。
+<code>init</code> への代入や <code>J' = J</code> は不要で、再初期化・更新は禁止します。</p>
 
 <p>縮約は<code>contractWith</code>または<code>.</code>で明示します。同じ文字の上下添字が現れただけでは
 surfaceで暗黙総和しません。唯一の例外は記号添字つき<code>∂</code>で、<b>微分が導入した添字</b>をoperandが

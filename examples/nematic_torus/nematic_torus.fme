@@ -21,7 +21,7 @@ param htheta = dtheta
 param hphi = dphi
 extern sqrt
 
--- Christoffel symbols of the metric, frozen into coefficient fields at init
+-- Christoffel symbols of the metric, stored in static fields at initialization
 def gamma = withSymbols [i, j, k, l] ((g~i~l . (∂/∂ g_l_k coordinates~j + ∂/∂ g_l_j coordinates~k - ∂/∂ g_j_k coordinates~l)) / 2)
 def gammaTheta = withSymbols [j, k] (gamma~1_j_k)
 def gammaPhi = withSymbols [j, k] (gamma~2_j_k)
@@ -32,9 +32,8 @@ def covPhi Q~a~b = withSymbols [i, j, l] (∂_φ Q~i~j + christoffel~i_2_l . Q~l
 -- Laplace--Beltrami of one component, and the connection terms that complete
 -- the covariant Laplacian g^{kl} ∇_k ∇_l Q^{ij} of the tensor.  Every
 -- coefficient that depends on the position (metric, inverse metric, the
--- derivatives of volume * g^{kk}) is frozen into a field at init: the step
--- itself contains no position-dependent arithmetic, which temporal blocking
--- requires.
+-- derivatives of volume * g^{kk}) is stored in a static field at initialization
+-- and automatically retained in subsequent steps.
 def lb F = w1 * ∂^2_θ F + w2 * ∂^2_φ F + c1 * ∂_θ F + c2 * ∂_φ F
 def connection Q~a~b D1~c~d D2~e~f = withSymbols [i, j, m, n] (w1 * (∂_θ (christoffel~i_1_m . Q~m~j + christoffel~j_1_m . Q~i~m) - christoffel~m_1_1 . (christoffel~i_m_n . Q~n~j + christoffel~j_m_n . Q~i~n) + christoffel~i_1_m . D1~m~j + christoffel~j_1_m . D1~i~m) + w2 * (∂_φ (christoffel~i_2_m . Q~m~j + christoffel~j_2_m . Q~i~m) - christoffel~m_2_2 . (christoffel~i_m_n . Q~n~j + christoffel~j_m_n . Q~i~n) + christoffel~i_2_m . D2~m~j + christoffel~j_2_m . D2~i~m))
 def norm2 Q~a~b = withSymbols [i, j, k, l] (GD_i_k . GD_j_l . Q~i~j . Q~k~l)
@@ -57,16 +56,16 @@ def shiftPhi c q = q + c * hphi * ∂_φ q + hphi^2 * ∂^2_φ q / 2
 def crossing ax ay bx by = if ay >= 0 && by < 0 && ax * by - bx * ay > 0 then 1 else (if ay < 0 && by >= 0 && ax * by - bx * ay < 0 then -1 else 0)
 
 field Q~i~j @ collocated
-field G1{_j_k} @ collocated
-field G2{_j_k} @ collocated
-field GD{_i_j} @ collocated
-field GU{~i~j} @ collocated
-field J : scalar @ collocated
-field w1 : scalar @ collocated
-field w2 : scalar @ collocated
-field c1 : scalar @ collocated
-field c2 : scalar @ collocated
-field outer : scalar @ collocated
+static field G1{_j_k} @ collocated := gammaTheta
+static field G2{_j_k} @ collocated := gammaPhi
+static field GD{_i_j} @ collocated := g_i_j
+static field GU{~i~j} @ collocated := g~i~j
+static field J : scalar @ collocated := volume
+static field w1 : scalar @ collocated := inverseMetric~1~1
+static field w2 : scalar @ collocated := inverseMetric~2~2
+static field c1 : scalar @ collocated := (∂/∂ (volume * inverseMetric~1~1) θ) / volume
+static field c2 : scalar @ collocated := (∂/∂ (volume * inverseMetric~2~2) φ) / volume
+static field outer : scalar @ collocated := if cos θ > 0 then 1 else 0
 field order : scalar @ collocated
 field energy : scalar @ collocated
 field winding : scalar @ collocated
@@ -79,16 +78,6 @@ field asym : scalar @ collocated
 
 init:
   Q~i~j := initial
-  G1_j_k := gammaTheta
-  G2_j_k := gammaPhi
-  GD_i_j := g_i_j
-  GU~i~j := g~i~j
-  J := volume
-  w1 := inverseMetric~1~1
-  w2 := inverseMetric~2~2
-  c1 := (∂/∂ (volume * inverseMetric~1~1) θ) / volume
-  c2 := (∂/∂ (volume * inverseMetric~2~2) φ) / volume
-  outer := if cos θ > 0 then 1 else 0
   order := 0
   energy := 0
   winding := 0
@@ -105,16 +94,6 @@ step:
   local Lw~i~j @ collocated = connection Q D1 D2
   local Qn~i~j @ collocated = Q~i~j + dt * (L * (Lw~i~j + [| [| lb Q~1~1, lb Q~1~2 |], [| lb Q~2~1, lb Q~2~2 |] |]~i~j) + (a - c * norm2 Q) * Q~i~j)
   Q'~i~j = traceless Qn
-  G1' = G1
-  G2' = G2
-  GD' = GD
-  GU' = GU
-  J' = J
-  w1' = w1
-  w2' = w2
-  c1' = c1
-  c2' = c2
-  outer' = outer
   order' = norm2 Q'
   tr' = GD_1_1 * Q'~1~1 + GD_2_2 * Q'~2~2
   asym' = Q'~1~2 - Q'~2~1

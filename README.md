@@ -173,6 +173,24 @@ discretization collocated derivative 2 centered accuracy 4
 Egisonはgeometryのない`Δ u`を二階のFieldJetへ正規化し、formurae-postが4次精度を満たす最小半径2の
 compact 5点stencilをexact rational coefficientで導出します。一階wide stencilを二重適用しません。
 
+## 時間変化しない場
+
+位置ごとに異なっても時間では変化しない係数は、`static field` で宣言します。
+
+```formurae
+static field G1{_j_k} @ collocated := gammaTheta
+static field J : scalar @ collocated := volume
+static field twiceJ : scalar @ collocated := 2 * J
+```
+
+右辺は初期化時に宣言された格子配置で一度だけ評価され、以後は値が保持されます。
+`init` への代入や `G1' = G1` のような更新式は不要です。
+型・添字・格子配置の指定は通常の `field` と共通です。
+右辺には座標、パラメータ、計量、および先に宣言した `static field` を使えます。
+通常の `field`、後に宣言した固定場、自分自身、次の時刻の値には依存できません。
+これらの依存は `def` の評価後にも検査します。`init` での再初期化と `step` での更新もエラーです。
+`def` は式の値を定義し、`static field` はその値を格子上に保存する点が異なります。
+
 ## 微分の意味
 
 添字つきの `∂` は，式全体を格子上で評価してから差分する微分です．

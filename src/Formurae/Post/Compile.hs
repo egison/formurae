@@ -132,6 +132,9 @@ compileProgram program = do
   mapBackendPlanError (Backend.planBackendEffects program)
   let initialEnvironment = CompileEnvironment program []
   userStateStorage <- concatMapM (fieldStorage program) stateFields
+  staticCarries <- concatMapM (compileStaticCarry initialEnvironment)
+    [field | field <- stateFields,
+             logicalFieldLifetime field == StaticStateLifetime]
   initializerAssignments <- concatMapM (compileInitializer initialEnvironment)
     (feProgramInitializers program)
   (bindings, frozenInitializers, stepAssignments, frozenStateNames) <-
@@ -153,7 +156,7 @@ compileProgram program = do
       usedFunctionIds = uniqueValues (programFunctionIds program)
       rawHelpers = map rawHelperText (feProgramRawHelpers program)
       allInitializers = initializerAssignments ++ frozenInitializers
-      allStepAssignments = stepAssignments
+      allStepAssignments = staticCarries ++ stepAssignments
   ensureUniqueTargets (allInitializers ++ allStepAssignments)
   Right FProgram
     { fProgramDimension = feProgramDimension program
@@ -168,8 +171,22 @@ compileProgram program = do
     stateFields =
       [ field
       | field <- feProgramFields program
-      , logicalFieldLifetime field == UserStateLifetime
+      , logicalFieldLifetime field /= StepLocalLifetime
       ]
+
+-- Static fields use the backend's ordinary persistent arrays.  The surface
+-- never needs an update equation for these read-only coefficients.
+compileStaticCarry :: CompileEnvironment -> LogicalFieldDecl
+                   -> Either PostError [FAssignment]
+compileStaticCarry environment field = withPostOrigin (logicalFieldOrigin field) $ do
+  bases <- mapFMRError (independentBases (programDimension environment) field)
+  mapM carry bases
+  where
+    carry basis = do
+      name <- mapFMRError (storageName field basis)
+      reference <- gridReference environment name
+        (replicate (programDimension environment) 0)
+      Right (FAssignment (StepUpdateTarget name) reference)
 
 compileActions
     :: CompileEnvironment

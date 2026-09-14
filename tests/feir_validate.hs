@@ -177,6 +177,7 @@ main = do
   checkNormalForms
   checkFieldJet
   checkReferencesAndActions
+  checkStaticFields
   checkProfile
   checkOpaque
   checkOriginsAndProvenance
@@ -379,6 +380,62 @@ checkReferencesAndActions = do
     isLifetime _ = False
     isUnavailable (FieldValueNotAvailable fid NextTime) = fid == userField
     isUnavailable _ = False
+
+checkStaticFields :: IO ()
+checkStaticFields = do
+  let static = validProgram
+        { feProgramFields =
+            [validUserField { logicalFieldLifetime = StaticStateLifetime }]
+        , feProgramStepActions = []
+        , feProgramProvenance = ProvenanceTable []
+        }
+      readField fid = FieldJet (validJet fid CurrentTime [])
+      addSecond rhs = static
+        { feProgramFields = feProgramFields static ++
+            [scalarField localField "coefficient" StaticStateLifetime]
+        , feProgramInitializers = feProgramInitializers static ++
+            [AnalyticInitializer (FEEquation (EquationId 2)
+              (WholeFieldTarget localField CurrentTime)
+              (scalarTensor rhs) origin1)]
+        }
+  assertValid "static geometry initializer" static
+  assertValid "a static initializer may read an earlier static field"
+    (addSecond (readField userField))
+  case decodeFEProgram (encodeFEProgram static) of
+    Right decoded | decoded == static -> pure ()
+    result -> fail ("static field codec round trip: " ++ show result)
+  assertIssue "static fields require an initializer" isCount
+    static { feProgramInitializers = [] }
+  assertIssue "static initializers must be analyzable" isRaw
+    static { feProgramInitializers =
+      [RawInitializer (WholeFieldTarget userField CurrentTime) "1" origin1] }
+  assertIssue "a static field cannot initialize itself" isDependency
+    (mapInitializerScalar (const (readField userField)) static)
+  assertIssue "static fields cannot depend on dynamic state" isDependency
+    (addSecond (readField userField))
+      { feProgramFields = [validUserField,
+          scalarField localField "coefficient" StaticStateLifetime] }
+  assertIssue "a cyclic static dependency is rejected" isDependency
+    (addSecond (readField userField))
+      { feProgramInitializers =
+          [AnalyticInitializer (FEEquation (EquationId 1)
+            (WholeFieldTarget userField CurrentTime)
+            (scalarTensor (readField localField)) origin1)]
+          ++ drop 1 (feProgramInitializers (addSecond (readField userField))) }
+  assertIssue "FEIR updates cannot modify static fields" isLifetime
+    static { feProgramStepActions =
+      [UpdateField (FEEquation (EquationId 2)
+        (WholeFieldTarget userField NextTime)
+        (scalarTensor (Exact 0 1)) origin1)] }
+  where
+    isCount (StaticFieldInitializerCount _ _) = True
+    isCount _ = False
+    isRaw (StaticFieldRequiresAnalyticInitializer _) = True
+    isRaw _ = False
+    isDependency (StaticFieldDependencyUnavailable _) = True
+    isDependency _ = False
+    isLifetime (InvalidFieldLifetime _ _ StaticStateLifetime) = True
+    isLifetime _ = False
 
 checkProfile :: IO ()
 checkProfile = do

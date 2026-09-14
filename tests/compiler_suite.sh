@@ -88,6 +88,7 @@ sh tests/pre_egison_diagnostic.sh
 sh tests/pre_tensor_metadata.sh
 sh tests/pre_static_diagnostic_cli.sh
 sh tests/pre_user_definitions.sh
+sh tests/pre_static_fields.sh
 sh tests/pre_macro_expansion.sh
 sh tests/pre_deferred_local.sh
 sh tests/pre_generic_codiff.sh

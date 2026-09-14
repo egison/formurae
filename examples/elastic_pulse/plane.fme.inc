@@ -19,18 +19,14 @@ def epsP tau = kappa * amplitude * cos (kappa * (physical - cp * tau))
 def epsS tau = kappa * amplitude * cos (kappa * (physical - cs * tau))
 def planeV tau = [| isP * (0 - cp * epsP tau) + isS * tilt * cs * epsS tau, isS * (0 - cs * epsS tau), 0 |]~i
 def planeS tau = [| [| isP * (λ + 2 * μ + λ * tilt^2) * epsP tau - isS * 2 * μ * tilt * epsS tau, isS * μ * epsS tau - isP * λ * tilt * epsP tau, 0 |], [| isS * μ * epsS tau - isP * λ * tilt * epsP tau, isP * λ * epsP tau, 0 |], [| 0, 0, isP * λ * epsP tau |] |]~i~j
-field exactV~i @ collocated
-field exactS{~i~j} @ collocated
+static field exactV~i @ collocated := planeV T
+static field exactS{~i~j} @ collocated := planeS T
 field err : scalar @ collocated
 field ref : scalar @ collocated
 ---
-  exactV~i := planeV T
-  exactS~i~j := planeS T
   err := 0
   ref := 0
 ---
-  exactV' = exactV
-  exactS' = exactS
   local dv~i @ collocated = v'~i - exactV~i
   local ds~i~j @ collocated = σ'~i~j - exactS~i~j
   err' = cell * volume * (norm2 dv + stressNorm ds)

@@ -28,12 +28,12 @@ field plusCos : scalar @ primal
 field plusSin : scalar @ primal
 field minusCos : scalar @ primal
 field minusSin : scalar @ primal
-field ricciScalar : scalar @ primal
-field ricciSlope : scalar @ primal
-field cosT : scalar @ primal
-field sinT : scalar @ primal
+static field ricciScalar : scalar @ primal := ricci
+static field ricciSlope : scalar @ primal := ∂/∂ ricci θ
+static field cosT : scalar @ primal := cos θ
+static field sinT : scalar @ primal := sin θ
 -- the same curvature in closed form, 2K = 2 cos θ / (r (R + r cos θ)); the run reports the largest difference
-field ricciCheck : scalar @ primal
+static field ricciCheck : scalar @ primal := ricci - 2 * cos θ / (r * (R + r * cos θ))
 ---
   winding := 0
   tipPlus := 0
@@ -42,11 +42,6 @@ field ricciCheck : scalar @ primal
   plusSin := 0
   minusCos := 0
   minusSin := 0
-  ricciScalar := ricci
-  ricciSlope := ∂/∂ ricci θ
-  cosT := cos θ
-  sinT := sin θ
-  ricciCheck := ricci - 2 * cos θ / (r * (R + r * cos θ))
 ---
   local ax = u - ustar
   local ay = v - vstar
@@ -65,8 +60,3 @@ field ricciCheck : scalar @ primal
   plusSin' = if winding' > 0 then winding' * sinT else 0
   minusCos' = if winding' < 0 then 0 - winding' * cosT else 0
   minusSin' = if winding' < 0 then 0 - winding' * sinT else 0
-  ricciScalar' = ricciScalar
-  ricciSlope' = ricciSlope
-  cosT' = cosT
-  sinT' = sinT
-  ricciCheck' = ricciCheck

@@ -25,18 +25,14 @@ def modeShear tau = (profileDerivative - profile / r) * angular * sin (kappa * t
 def modeTilt tau = 0 - 10 * profile * cos θ * sin θ * sin (kappa * tau) / (kappa * r^3)
 def modeV tau = [| 0, 0, profile * angular * cos (kappa * tau) / r |]~i
 def modeS tau = [| [| 0, 0, modeShear tau |], [| 0, 0, modeTilt tau |], [| modeShear tau, modeTilt tau, 0 - 2 * twist * modeShear tau |] |]~i~j
-field exactV~i @ collocated
-field exactS{~i~j} @ collocated
+static field exactV~i @ collocated := modeV T
+static field exactS{~i~j} @ collocated := modeS T
 field err : scalar @ collocated
 field ref : scalar @ collocated
 ---
-  exactV~i := modeV T
-  exactS~i~j := modeS T
   err := 0
   ref := 0
 ---
-  exactV' = exactV
-  exactS' = exactS
   local dv~i @ collocated = v'~i - exactV~i
   local ds~i~j @ collocated = σ'~i~j - exactS~i~j
   err' = weight * cell * volume * (norm2 dv + stressNorm ds)

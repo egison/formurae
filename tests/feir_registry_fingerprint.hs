@@ -30,6 +30,14 @@ main = do
     registryId (computeRegistryId operationalChange)
   assert "logical field declarations are inside registry identity"
     (registryId /= computeRegistryId renamedField)
+  let staticProgram = program { feProgramFields =
+        [field { logicalFieldLifetime = StaticStateLifetime }
+        | field <- feProgramFields program] }
+  assert "static lifetime participates in registry identity"
+    (registryId /= computeRegistryId staticProgram)
+  assert "static storage remains part of registry identity"
+    (computeRegistryId staticProgram /= computeRegistryId
+      staticProgram { feProgramFields = [] })
   assert "stored ID verifies" (registryIdMatches program
     { feProgramRegistryId = registryId })
   putStrLn "FEIR registry fingerprint tests: ok"
