@@ -59,6 +59,21 @@ main = do
     "FEIR.atom \"expansion-frame\"" unit
   assertContains "generated FEIR wire carries the nested definition name"
     "FEIR.string \"outer\"" unit
+  valueModel <- parseModel "value-trace.fme" "value-trace" $ unlines
+    [ "dimension 1"
+    , "axes x"
+    , "field q : scalar"
+    , "def inner = x + 1"
+    , "def outer = inner"
+    , "step:"
+    , "  q' = outer"
+    ]
+  valueRegistry <- requireRight "value registry" (buildRegistry valueModel)
+  let [valueStepId] = preRegistryStepOrigins valueRegistry
+  assertTrace "bare value references retain nested definition locations"
+    [ ("outer", (5, 5, 13, 17), (7, 7, 8, 12))
+    , ("inner", (4, 4, 13, 17), (5, 5, 13, 17))
+    ] (sourceOriginTrace (originFor valueRegistry valueStepId))
   putStrLn "formurae-pre provenance tests: ok"
 
 source :: String

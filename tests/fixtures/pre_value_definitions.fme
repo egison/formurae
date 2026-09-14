@@ -1,0 +1,28 @@
+dimension 2
+axes r, theta
+param cx = 1
+field q : scalar
+field V_i
+
+-- Values may refer to earlier definitions, including quoted expressions.
+def shifted = `(r - cx)
+def square = shifted^2
+def scalar =
+  let value := square
+   in value + 1
+def vector = [| scalar, theta |]
+-- A value can itself be a function; ordinary formals still shadow values.
+def twice = \value -> 2 * value
+def increment value = value + scalar
+def shadow scalar = scalar + 1
+-- A stored definition must retain the discrete operation it contains.
+def derivative = ∂'_r q
+def derivativeAlias = derivative
+def identity value = value
+
+init:
+  q := scalar
+  V_i := vector
+step:
+  q' = shadow (increment (twice q)) + identity derivativeAlias
+  V'_i = vector_i

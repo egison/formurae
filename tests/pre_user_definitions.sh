@@ -38,6 +38,19 @@ expect_normalization_failure() {
 
 cd "$ROOT"
 
+# Value definitions cross the same normalization boundary as functions:
+# quoted coordinates, multiline bodies, tensors, lambdas and discrete
+# derivatives must all reach their usual Formura expressions.
+compile_pipeline tests/fixtures/pre_value_definitions.fme value-definitions
+grep -F 'q[i,j] = 1 + ((-1) * cx + dr * i)**2' \
+  "$WORK/value-definitions.fmr" >/dev/null
+grep -F "V_down1'[i,j] = 1 + ((-1) * cx + dr * i)**2" \
+  "$WORK/value-definitions.fmr" >/dev/null
+grep -F "V_down2'[i,j] = dtheta * j" \
+  "$WORK/value-definitions.fmr" >/dev/null
+grep -F "q'[i,j] = 2 + 2 * q[i,j] + ((-2 / 3) * q[i-1,j] + (-1 / 12) * q[i+2,j] + (1 / 12) * q[i-2,j] + (2 / 3) * q[i+1,j]) / dr + ((-1) * cx + dr * i)**2" \
+  "$WORK/value-definitions.fmr" >/dev/null
+
 compile_pipeline tests/fixtures/pre_user_definitions.fme user-definitions
 # `materialize` below is deliberately a normal user-defined function after
 # removal of the former primitive surface; it must not regain storage meaning.

@@ -469,7 +469,7 @@ localForm line source =
         expression = strip expressionSource
     _ -> fatal ("bad local declaration (line " ++ show line ++ ")")
 
--- def NAME PARAM... = BODY
+-- def NAME [PARAM...] = BODY
 -- def (.) A B = BODY
 --
 -- Formurae deliberately has no result-index syntax on a user definition
@@ -482,7 +482,7 @@ defForm r = do
            '=':body0 -> Just (strip body0)
            _ -> Nothing
   params <- parseParams (words lhs)
-  if null rhs || null params
+  if null rhs
     then Nothing
     else Just (Def nm params rhs Nothing)
   where

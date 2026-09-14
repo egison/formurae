@@ -708,10 +708,38 @@ latentFunctionEffect environment expression =
     TEIdent name _
       | name `elem` environmentFirstOrderBindings environment ->
           pure PureFunction
+      | name `notElem` environmentBoundNames environment
+      , name `elem` map fst (environmentAvailableDefinitions environment)
+      , Just definition <- find ((== name) . defName)
+          (mDefs (environmentModel environment))
+      , null (defParams definition) ->
+          -- A parameterless definition may hold either a computed value or
+          -- a function. Inspect its body only for the higher-order guard;
+          -- ordinary expression analysis still retains its discrete effect.
+          -- Resolve aliases in the definition's own scope, without caller
+          -- formals or step-local bindings.
+          case parseTensorExprEither (defBody definition) of
+            Right body -> latentFunctionEffect
+              (definitionEnvironment name) body
+            -- Raw Egison definitions are already required to be pure.
+            Left _ -> pure PureFunction
       | otherwise -> applicationHeadEffect environment expression PureFunction
     TEGroup body -> latentFunctionEffect environment body
     TEIf _ yes no -> mergeMany <$> mapM (latentFunctionEffect environment) [yes, no]
     _ -> pure PureFunction
+  where
+    definitionEnvironment name = environment
+      { environmentAvailableDefinitions =
+          [ (defName definition, effect)
+          | definition <- takeWhile ((/= name) . defName)
+              (mDefs (environmentModel environment))
+          , Just effect <-
+              [lookup (defName definition)
+                (environmentAvailableDefinitions environment)]
+          ]
+      , environmentFirstOrderBindings = []
+      , environmentBoundNames = []
+      }
 
 directHead :: TensorExpr -> Maybe (String, [IxPart])
 directHead expression =

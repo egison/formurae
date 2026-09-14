@@ -32,6 +32,56 @@ main = do
     ]
     (effectSummaryDefinitions summary)
 
+  valueSummary <- either (fail . show) pure
+    (inferModelEffects manifest baseModel
+      { mDefs =
+          [ definition "value" [] "pd1r1_x u"
+          , definition "alias" [] "value"
+          ]
+      , mSteps = [step "u" "alias"]
+      })
+  assertEqual "bare value references propagate discrete operations"
+    [ ("value", DiscreteFunction [OpId "derivative.grid-whole"])
+    , ("alias", DiscreteFunction [OpId "derivative.grid-whole"])
+    ]
+    (effectSummaryDefinitions valueSummary)
+  assertLeft "value aliases cannot hide a nested discrete derivative"
+    isGridDerivativeBarrier
+    (inferModelEffects manifest baseModel
+      { mDefs =
+          [ definition "value" [] "pd1r1_x u"
+          , definition "alias" [] "value"
+          ]
+      , mSteps = [step "u" "pd1r1_x alias"]
+      })
+  assertLeft "value definitions cannot refer forward"
+    isForwardUse
+    (inferModelEffects manifest baseModel
+      { mDefs = [definition "first" [] "second", definition "second" [] "1"]
+      })
+  assertLeft "value definitions cannot refer to themselves"
+    isForwardUse
+    (inferModelEffects manifest baseModel
+      { mDefs = [definition "second" [] "second + 1"]
+      })
+  assertRight "a computed discrete value is an ordinary function argument"
+    (inferModelEffects manifest baseModel
+      { mDefs =
+          [ definition "value" [] "pd1r1_x u"
+          , definition "alias" [] "value"
+          ]
+      , mSteps = [step "u" "sin alias"]
+      })
+  assertLeft "parameterless function aliases retain the higher-order guard"
+    isHigherOrderError
+    (inferModelEffects manifest baseModel
+      { mDefs =
+          [ definition "weighted" ["q"] "pd1r1_x q"
+          , definition "alias" [] "weighted"
+          ]
+      , mSteps = [step "u" "apply alias u"]
+      })
+
   assertEqual "constant-geometry scalar Delta remains continuum-pure"
     (Right PureFunction)
     (expressionEffect manifest baseModel (EffectSummary [])

@@ -52,6 +52,20 @@ Egisonと同じ`(gradLike u)_i`という綴りも同じ意味で使えます。�
 `(gamma 0)~i_k_l . Q~l~j`のように`.`による縮約とも組み合わせられます
 (defの結果は`(christoffel 0)~i_1_l`のように数値添字で成分を取り出せます)。
 
+`def` は引数を省略すると値を定義します。先に定義した値を名前だけで参照でき，
+使わない仮引数や呼び出し時の `0` は不要です。例えば，座標 `x, y` とパラメータ `cx, cy` に対して，
+次のように書けます。
+
+```formurae
+def u = `(x - cx)
+def v = `(y - cy)
+def rr = sqrt (u^2 + v^2)
+```
+
+スカラーだけでなくテンソルや関数も値として定義できます。引数を持つ定義と同様に，
+自分自身や後に現れる定義への参照はエラーになります。バッククォートは，くくった式を
+記号計算中に展開せずひとまとまりとして扱う指示です。
+
 pure user operatorの本体は1行に限定されません。`=`の次をindentすると、Egisonの`let`、lambda、
 `match`、`withSymbols`、`generateTensor`を含む式blockをそのままnormalizationへ渡せます。
 1行の本体とこのようなrich bodyは、どちらもEgisonが通常の式として評価します。Formuraeはuser

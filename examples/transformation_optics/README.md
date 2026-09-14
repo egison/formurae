@@ -36,10 +36,10 @@ H_i = (\mu^{-1})_{ij} B_j
 である．本例では写像そのものだけを書き，物質テンソルは Egison が導く．
 
 ```
-def rotated unused = [| cx + u 0 * cos (angle 0) - v 0 * sin (angle 0), cy + u 0 * sin (angle 0) + v 0 * cos (angle 0), z |]
-def rotatedJacobian unused = withSymbols [k, i] (∂/∂ (rotated 0)~k coordinates~i)
-def rotatedMetric unused = withSymbols [i, j, k] ((rotatedJacobian 0)~k_i . (rotatedJacobian 0)_k_j)
-def rotatorMaterial unused = withSymbols [i, j] (shell 0 * (rotatedMetric 0)~i~j + (1 - shell 0) * g~i~j)
+def rotated = [| cx + u * cos angle - v * sin angle, cy + u * sin angle + v * cos angle, z |]
+def rotatedJacobian = withSymbols [k, i] (∂/∂ rotated~k coordinates~i)
+def rotatedMetric = withSymbols [i, j, k] (rotatedJacobian~k_i . rotatedJacobian_k_j)
+def rotatorMaterial = withSymbols [i, j] (shell * rotatedMetric~i~j + (1 - shell) * g~i~j)
 ```
 
 回転子は物理平面の点を，中心のまわりに角 twist (R2 − r)/(R2 − R1) だけ回した点へ送る写像，
