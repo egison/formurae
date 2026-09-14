@@ -38,43 +38,45 @@ RECORD = np.dtype([("i", "=i4"), ("j", "=i4"), ("ut", "=f8"), ("ur", "=f8"),
 JAPANESE = Path("/usr/local/texlive/2025/texmf-dist/fonts/opentype/public/haranoaji/HaranoAjiMincho-Regular.otf")
 TEXT = {
     "en": {"dev": "azimuthal velocity minus the Couette profile, $u_\\theta - (Ar + B/r)$",
-           "speed": "meridional speed $\\sqrt{u_r^2 + u_z^2}$ and streamlines",
+           "speed": "speed in the longitudinal slice $\\sqrt{u_r^2 + u_z^2}$ and streamlines",
            "growth": "growth of the perturbation: $\\max|u_r|$",
            "profile": "radial velocity at mid gap, $u_r(r = 1.5, z)$",
            "time": "time $t$", "z": "$z$", "r": "$r$",
            "fit": "fit $e^{\\sigma t}$, $\\sigma$ = %.4f",
            "title": "Axisymmetric Taylor-Couette flow at Re = %g: Taylor vortices from the Couette flow (t = %g)",
-           "views": "Rotation and Taylor vortices: a cutaway cylinder, an axial view, and longitudinal slices",
-           "cutaway": "Upright cylinders, viewed from above and outside",
-           "cutaway_note": "Gray frame: stationary outer wall at r = 2.\nOrange outline: a cylindrical section of the fluid at r = %.2f.\nRed: upward; blue: downward; white arrows: velocity along the section.",
-           "fluid_section": "Orange circle: the fluid section in the 3-D view, r = %.2f",
-           "surface_speed": "Near-wall axial velocity $u_z$",
+           "views": "Flow inside the cylinders: a 3-D view, an axial view, and longitudinal slices",
+           "cutaway": "Flow inside the outer wall, seen from above at an angle",
+           "cutaway_note": "Gray dashed frame: stationary outer wall at r = 2.\nOrange outline: the fluid cut along a cylinder at r = %.2f.\nWhite arrows on this surface: azimuthal and axial velocity $(u_\\theta,u_z)$.\nCut-face colors and streamlines: as in the lower right panel.",
+           "fluid_section": "Orange circle: the cylindrical section at left, r = %.2f",
+           "surface_speed": "Fluid axial velocity $u_z$ at $r = %.2f$",
+           "up": "Upward", "down": "Downward",
            "endview": "View from $+z$ (section at $z$ = %g)",
-           "inner": "Inner cylinder\nrotating CCW\n$\\Omega_1 = 1$",
-           "outer": "Outer cylinder: stationary",
+           "inner": "Inner cylinder\ncounterclockwise\n$\\Omega_1 = 1$",
+           "outer": "Outer wall $r=2$: stationary",
            "azimuthal": "azimuthal velocity $u_\\theta$",
            "section": "axial-view section",
-           "glyphs": "Moving arrows in the gap and axial view indicate rotation at fixed radii and heights: $d\\theta/dt = u_\\theta/r$ (not particle trajectories).",
+           "glyphs": "Moving arrows in the gap and center panel show rotation at fixed radius and height: $d\\theta/dt = u_\\theta/r$ (not particle trajectories).",
            "sampling": "%g times simulation speed  |  %d fps  |  saved velocities interpolated for display",
            "video": "Taylor-Couette flow at Re = %g, $t$ = %5.1f"},
     "ja": {"dev": "周方向速度とクエット解の差 $u_\\theta - (Ar + B/r)$",
-           "speed": "子午面の速さ $\\sqrt{u_r^2 + u_z^2}$ と流線",
+           "speed": "縦断面内の速さ $\\sqrt{u_r^2 + u_z^2}$ と流線",
            "growth": "擾乱の成長：$\\max|u_r|$",
            "profile": "隙間中央の半径方向速度 $u_r(r = 1.5, z)$",
            "time": "時間 $t$", "z": "$z$", "r": "$r$",
            "fit": "当てはめ $e^{\\sigma t}$，$\\sigma$ = %.4f",
            "title": "軸対称テイラー・クエット流れ，Re = %g：クエット流れから育つテイラー渦（t = %g）",
-           "views": "切り開いた円筒・軸方向からの図・縦断面で，回転とテイラー渦を表示",
-           "cutaway": "円筒を立て，外側の斜め上から見る",
-           "cutaway_note": "灰色の枠：静止した外壁 r = 2\n橙の縁：流体の円筒断面 r = %.2f\n赤は上昇・青は下降／白矢印は断面に沿う速度",
-           "fluid_section": "橙の円：立体図の流体断面 r = %.2f",
-           "surface_speed": "壁の内側の軸方向速度 $u_z$",
+           "views": "円筒内の流れを，立体図・軸方向からの図・縦断面で表示",
+           "cutaway": "外壁の内側の流れ（斜め上から）",
+           "cutaway_note": "灰色の破線：静止した外壁 r = 2\n橙の縁：流体を切った円筒面 r = %.2f\n円筒面の白矢印：周方向・軸方向の速度 $(u_\\theta,u_z)$\n切り口の色と流線：右下の縦断面と共通",
+           "fluid_section": "橙の円：左図の円筒面 r = %.2f",
+           "surface_speed": "$r = %.2f$ の流体の軸方向速度 $u_z$",
+           "up": "上昇", "down": "下降",
            "endview": "円筒を $+z$ 側から見る（$z$ = %g）",
            "inner": "内筒\n反時計回り\n$\\Omega_1 = 1$",
-           "outer": "外筒：静止",
+           "outer": "外壁 $r=2$：静止",
            "azimuthal": "周方向速度 $u_\\theta$",
            "section": "中央図の断面",
-           "glyphs": "隙間・中央図の動く矢印は固定した半径・高さでの回転速度 $d\\theta/dt = u_\\theta/r$ を表示（流体粒子の軌跡ではありません）",
+           "glyphs": "隙間・中央図の動く矢印：固定した半径と高さでの回転 $d\\theta/dt = u_\\theta/r$ を表示（流体粒子の軌跡ではありません）",
            "sampling": "計算時間の %g 倍速  |  %d fps  |  保存した速度を描画用に補間",
            "video": "テイラー・クエット流れ，Re = %g，$t$ = %5.1f"},
 }
@@ -337,12 +339,16 @@ class CutawayView:
         ax.set_axis_off()
         ax.text2D(.5, 1.04, text['cutaway'], ha='center', va='top',
                   transform=ax.transAxes, fontsize=17, fontproperties=font)
-        ax.text2D(.5, -.035, text['cutaway_note'] % SURFACE_RADIUS, ha='center', va='bottom',
+        ax.text2D(.5, -.05, text['cutaway_note'] % SURFACE_RADIUS, ha='center', va='bottom',
                   transform=ax.transAxes, fontsize=11.5, fontproperties=font, color='#475569')
         color_axis = ax.figure.add_axes([.027, .34, .009, .29])
         cb = ax.figure.colorbar(matplotlib.cm.ScalarMappable(norm=self.surface_norm, cmap='RdBu_r'),
                                  cax=color_axis, ticks=[-surface_limit, 0, surface_limit], format='%.3f')
-        cb.set_label(text['surface_speed'], fontproperties=font, fontsize=11)
+        cb.set_label(text['surface_speed'] % SURFACE_RADIUS, fontproperties=font, fontsize=11)
+        cb.ax.text(.5, 1.045, text['up'], transform=cb.ax.transAxes, ha='center', va='bottom',
+                   fontsize=10, fontproperties=font, color='#b91c1c')
+        cb.ax.text(.5, -.045, text['down'], transform=cb.ax.transAxes, ha='center', va='top',
+                   fontsize=10, fontproperties=font, color='#1d4ed8')
         cb.ax.yaxis.set_label_position('left')
         cb.ax.tick_params(labelsize=10)
         # Height labels sit just outside the right-hand cut edge.
