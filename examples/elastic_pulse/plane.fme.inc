@@ -10,15 +10,15 @@ param wave = 1.0
 param kappa = 3.141592653589793
 param amplitude = 0.01
 param T = 1.0
-def cp unused = sqrt ((λ + 2 * μ) / ρ0)
-def cs unused = sqrt (μ / ρ0)
-def tilt unused = shear * wavenumber * cos (wavenumber * y)
-def isP unused = if wave < 1.5 then 1 else 0
-def isS unused = if wave < 1.5 then 0 else 1
-def epsP tau = kappa * amplitude * cos (kappa * (physical 0 - cp 0 * tau))
-def epsS tau = kappa * amplitude * cos (kappa * (physical 0 - cs 0 * tau))
-def planeV tau = [| isP 0 * (0 - cp 0 * epsP tau) + isS 0 * tilt 0 * cs 0 * epsS tau, isS 0 * (0 - cs 0 * epsS tau), 0 |]~i
-def planeS tau = [| [| isP 0 * (λ + 2 * μ + λ * (tilt 0)^2) * epsP tau - isS 0 * 2 * μ * tilt 0 * epsS tau, isS 0 * μ * epsS tau - isP 0 * λ * tilt 0 * epsP tau, 0 |], [| isS 0 * μ * epsS tau - isP 0 * λ * tilt 0 * epsP tau, isP 0 * λ * epsP tau, 0 |], [| 0, 0, isP 0 * λ * epsP tau |] |]~i~j
+def cp = sqrt ((λ + 2 * μ) / ρ0)
+def cs = sqrt (μ / ρ0)
+def tilt = shear * wavenumber * cos (wavenumber * y)
+def isP = if wave < 1.5 then 1 else 0
+def isS = if wave < 1.5 then 0 else 1
+def epsP tau = kappa * amplitude * cos (kappa * (physical - cp * tau))
+def epsS tau = kappa * amplitude * cos (kappa * (physical - cs * tau))
+def planeV tau = [| isP * (0 - cp * epsP tau) + isS * tilt * cs * epsS tau, isS * (0 - cs * epsS tau), 0 |]~i
+def planeS tau = [| [| isP * (λ + 2 * μ + λ * tilt^2) * epsP tau - isS * 2 * μ * tilt * epsS tau, isS * μ * epsS tau - isP * λ * tilt * epsP tau, 0 |], [| isS * μ * epsS tau - isP * λ * tilt * epsP tau, isP * λ * epsP tau, 0 |], [| 0, 0, isP * λ * epsP tau |] |]~i~j
 field exactV~i @ collocated
 field exactS{~i~j} @ collocated
 field err : scalar @ collocated

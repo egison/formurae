@@ -202,7 +202,7 @@ R と ∂R/∂θ は同じ計量から Egison が記号的に導き（Christoffe
 各実行の出力に保存する（`results/spiral.json`）．導いた R はトーラスの閉じた式 2 cos θ / (r (R + r cos θ)) と
 全格子点で比較し，差の最大値を `reduces` で集計する（1e-14 以下）．
 `withSymbols [i, j, k, l, m]` の結果の添字は列挙した順 i, j, k, l に並ぶので，Ricci テンソル R_ij = R^m_imj は
-第 1 添字と第 3 添字を縮約する（`contractWith (+) (riemann 0)~m_i_m_j`）．
+第 1 添字と第 3 添字を縮約する（`contractWith (+) riemann~m_i_m_j`）．
 
 結果（t = 0 → 600，96×192 格子，t ≥ 100 で直線＋回転成分をあてはめ；`results/spiral.json`，`results/spiral.png`）：
 対の先端は θ = ±(1.2〜1.5) rad のまわりを周期約 60 で回りながら，

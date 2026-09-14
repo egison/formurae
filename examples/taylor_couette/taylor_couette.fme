@@ -26,7 +26,7 @@
 -- velocity Ω1, the outer one with Ω2; z is periodic.  The yaml declares
 -- boundary: [fixed 0.0, periodic], so every ghost value is exactly zero
 -- and the wall conditions live in the update equations:
---   * the radial velocity is pinned to zero on the two wall faces (fmask);
+--   * the radial velocity is pinned to zero on the two wall faces fmask;
 --   * the viscous wall fluxes of ut and u_2 use the one-sided difference
 --     against the wall velocity, written with the zero neighbour as
 --     2 * ∂_r u - 2 U_wall / dr on the inner wall (+ on the outer one);
@@ -76,19 +76,19 @@ field res : scalar @ dual
 field dv : scalar @ dual
 
 -- 1 on the interior r-faces, 0 on the two wall faces (face coordinates)
-def fmask unused = if r < rlo || r > rhi then 0 else 1
+def fmask = if r < rlo || r > rhi then 0 else 1
 -- 1 on the cell centres inside the gap, 0 on the slot beyond the outer wall
-def cmask unused = if r > R2 then 0 else 1
+def cmask = if r > R2 then 0 else 1
 -- one-sided factor of a viscous flux on a wall face, 1 elsewhere
-def wfac unused = if r < rlo || r > rhi then 2 else 1
+def wfac = if r < rlo || r > rhi then 2 else 1
 -- wall-velocity part of the one-sided viscous flux of ut
-def wlo unused = if r < rlo then wlo1 else 0
-def whi unused = if r > rhi then whi1 else 0
+def wlo = if r < rlo then wlo1 else 0
+def whi = if r > rhi then whi1 else 0
 -- diagonal coefficient of lapc at a cell centre (cell coordinates)
-def diagc unused = 0 - ((if r - qdr < R1 then 0 else r - hdr) + (if r + qdr > R2 then 0 else r + hdr)) / (r * dr2) - 2 * idz2
+def diagc = 0 - ((if r - qdr < R1 then 0 else r - hdr) + (if r + qdr > R2 then 0 else r + hdr)) / (r * dr2) - 2 * idz2
 -- cylindrical Laplacian of a cell-centred scalar, zero flux through the walls
 macro lapc φ =
-  local gφ_i @ dual = [| fmask 0 * r * ∂_r φ, ∂_z φ |]_i
+  local gφ_i @ dual = [| fmask * r * ∂_r φ, ∂_z φ |]_i
   in (∂_r gφ_1) / r + ∂_z gφ_2
 
 init:
@@ -111,29 +111,29 @@ step:
   -- with the one-sided viscous flux on the walls, z-flux at cell centres)
   local fr1 @ dual = r * urc * urc - ν * r * ∂_r u_1
   local fz1 @ primal = uzk * urk - ν * ∂_z u_1
-  local fr2 @ primal = r * urk * uzk - ν * wfac 0 * r * ∂_r u_2
+  local fr2 @ primal = r * urk * uzk - ν * wfac * r * ∂_r u_2
   local fz2 @ dual = uzc * uzc - ν * ∂_z u_2
   -- fluxes of the azimuthal momentum through the r-faces (one-sided
   -- viscous flux carrying the wall velocity) and through the z-faces
   local ft_i @ dual =
-    [| r * u_1 * utf_1 - ν * r * (wfac 0 * ∂_r ut - wlo 0 + whi 0),
+    [| r * u_1 * utf_1 - ν * r * (wfac * ∂_r ut - wlo + whi),
        u_2 * utf_2 - ν * ∂_z ut |]_i
   -- predicted velocities: fluxes, curvature terms, centrifugal force and
   -- the current pressure gradient; the radial one vanishes on the walls
   local us_i @ dual =
-    [| fmask 0 * (u_1 + dt * (0 - ∂_r fr1 / r - ∂_z fz1 - ν * u_1 / (r * r) + utf_1 * utf_1 / r - ∂_r p)),
+    [| fmask * (u_1 + dt * (0 - ∂_r fr1 / r - ∂_z fz1 - ν * u_1 / (r * r) + utf_1 * utf_1 / r - ∂_r p)),
        u_2 + dt * (0 - ∂_r fr2 / r - ∂_z fz2 - ∂_z p) |]_i
   local uts @ dual = ut + dt * (0 - ∂_r ft_1 / r - ∂_z ft_2 - urc * ut / r - ν * ut / (r * r))
   -- pressure correction L_h φ = rhs: four weighted Jacobi sweeps from 0
   local rhs @ dual = (∂_r (r * us_1) / r + ∂_z us_2) / dt
-  local φ1 @ dual = ω * rhs / diagc 0
-  local φ2 @ dual = φ1 + ω * (rhs - lapc φ1) / diagc 0
-  local φ3 @ dual = φ2 + ω * (rhs - lapc φ2) / diagc 0
-  local φ4 @ dual = φ3 + ω * (rhs - lapc φ3) / diagc 0
+  local φ1 @ dual = ω * rhs / diagc
+  local φ2 @ dual = φ1 + ω * (rhs - lapc φ1) / diagc
+  local φ3 @ dual = φ2 + ω * (rhs - lapc φ2) / diagc
+  local φ4 @ dual = φ3 + ω * (rhs - lapc φ3) / diagc
   -- corrected velocity, updated pressure, and the two diagnostics
-  local un_i @ dual = [| fmask 0 * (us_1 - dt * ∂_r φ4), cmask 0 * (us_2 - dt * ∂_z φ4) |]_i
+  local un_i @ dual = [| fmask * (us_1 - dt * ∂_r φ4), cmask * (us_2 - dt * ∂_z φ4) |]_i
   u'_i = un_i
-  ut' = cmask 0 * uts
-  p' = cmask 0 * (p + φ4)
-  res' = cmask 0 * (rhs - lapc φ4)
-  dv' = cmask 0 * (∂_r (r * un_1) / r + ∂_z un_2)
+  ut' = cmask * uts
+  p' = cmask * (p + φ4)
+  res' = cmask * (rhs - lapc φ4)
+  dv' = cmask * (∂_r (r * un_1) / r + ∂_z un_2)

@@ -4,7 +4,7 @@ metric g
 
 field u : scalar
 
-def badMetric unused = g
+def badMetric = g
 
 step:
-  u' = badMetric 0
+  u' = badMetric

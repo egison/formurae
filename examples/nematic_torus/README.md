@@ -34,12 +34,12 @@
 テンソルの共変ラプラシアンは，各成分の Laplace–Beltrami 作用素と接続項に分けて書く．
 
 ```
-def gamma unused = withSymbols [i, j, k, l] ((g~i~l . (∂/∂ g_l_k coordinates~j + ∂/∂ g_l_j coordinates~k - ∂/∂ g_j_k coordinates~l)) / 2)
-def covTheta Q~a~b = withSymbols [i, j, l] (∂_θ Q~i~j + (christoffel 0)~i_1_l . Q~l~j + (christoffel 0)~j_1_l . Q~i~l)
+def gamma = withSymbols [i, j, k, l] ((g~i~l . (∂/∂ g_l_k coordinates~j + ∂/∂ g_l_j coordinates~k - ∂/∂ g_j_k coordinates~l)) / 2)
+def covTheta Q~a~b = withSymbols [i, j, l] (∂_θ Q~i~j + christoffel~i_1_l . Q~l~j + christoffel~j_1_l . Q~i~l)
 ```
 
-`(christoffel 0)~i_1_l` のように，式の結果へ添字を適用する Egison の記法をそのまま使う
-（この記法は今回 Formurae の構造化された式文法にも取り込んだ）．
+`christoffel` は引数なしで定義したテンソル値であり，`christoffel~i_1_l` のように
+添字を付けて成分を取り出し，`Q` との縮約に使う．
 更新後に Q からトレース部分 g^{ij} g_kl Q^{kl}/2 を引き，トレース 0 を保つ．
 
 初期条件は三種類である．

@@ -14,13 +14,13 @@ def shift c q = q + c * htheta * ∂_θ q + htheta^2 * ∂^2_θ q / 2
 def shiftPhi c q = q + c * hphi * ∂_φ q + hphi^2 * ∂^2_φ q / 2
 def crossing ax ay bx by = if ay >= 0 && by < 0 && ax * by - bx * ay > 0 then 1 else (if ay < 0 && by >= 0 && ax * by - bx * ay < 0 then -1 else 0)
 -- the Ricci scalar of the torus metric (twice the Gaussian curvature) and its theta-derivative, from the same metric
-def christoffel unused = withSymbols [i, j, k, l] ((g~i~l . (∂/∂ g_l_k coordinates~j + ∂/∂ g_l_j coordinates~k - ∂/∂ g_j_k coordinates~l)) / 2)
-def riemann unused = withSymbols [i, j, k, l, m] (∂/∂ (christoffel 0)~i_j_l coordinates~k - ∂/∂ (christoffel 0)~i_j_k coordinates~l + (christoffel 0)~m_j_l . (christoffel 0)~i_m_k - (christoffel 0)~m_j_k . (christoffel 0)~i_m_l)
+def christoffel = withSymbols [i, j, k, l] ((g~i~l . (∂/∂ g_l_k coordinates~j + ∂/∂ g_l_j coordinates~k - ∂/∂ g_j_k coordinates~l)) / 2)
+def riemann = withSymbols [i, j, k, l, m] (∂/∂ christoffel~i_j_l coordinates~k - ∂/∂ christoffel~i_j_k coordinates~l + christoffel~m_j_l . christoffel~i_m_k - christoffel~m_j_k . christoffel~i_m_l)
 -- withSymbols orders the indices of its result as the symbols are listed, so riemann
 -- carries its indices in the order i, j, k, l and the Ricci tensor R_ij = R^m_imj
 -- contracts the first index with the third.
-def ricciTensor unused = withSymbols [i, j, m] (contractWith (+) (riemann 0)~m_i_m_j)
-def ricci unused = withSymbols [i, j] (g~i~j . (ricciTensor 0)_i_j)
+def ricciTensor = withSymbols [i, j, m] (contractWith (+) riemann~m_i_m_j)
+def ricci = withSymbols [i, j] (g~i~j . ricciTensor_i_j)
 field winding : scalar @ primal
 field tipPlus : scalar @ primal
 field tipMinus : scalar @ primal
@@ -42,11 +42,11 @@ field ricciCheck : scalar @ primal
   plusSin := 0
   minusCos := 0
   minusSin := 0
-  ricciScalar := ricci 0
-  ricciSlope := ∂/∂ (ricci 0) θ
+  ricciScalar := ricci
+  ricciSlope := ∂/∂ ricci θ
   cosT := cos θ
   sinT := sin θ
-  ricciCheck := ricci 0 - 2 * cos θ / (r * (R + r * cos θ))
+  ricciCheck := ricci - 2 * cos θ / (r * (R + r * cos θ))
 ---
   local ax = u - ustar
   local ay = v - vstar

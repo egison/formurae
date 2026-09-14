@@ -19,7 +19,7 @@ from run import HERE, ROOT, NAME, build, run, parameter_lines, spacing
 
 OUT = ROOT / ".build/elastic_shell/verification"
 BESSEL = (HERE / "bessel.fme.inc").read_text()
-PULSE_INIT = {"  v~i := [| 0, 0, pulse 0 / (r * sin θ) |]~i\n": "  v~i := modeV 0\n",
+PULSE_INIT = {"  v~i := [| 0, 0, pulse / (r * sin θ) |]~i\n": "  v~i := modeV 0\n",
               "  σ~i~j := [| [| 0, 0, 0 |], [| 0, 0, 0 |], [| 0, 0, 0 |] |]~i~j\n": "  σ~i~j := modeS 0\n"}
 
 

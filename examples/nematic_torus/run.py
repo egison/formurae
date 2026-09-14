@@ -98,7 +98,7 @@ def build(directory, case="random", grid=(96, 192), mpi=(1, 1), blocking=4,
         source += updates
         # The accuracy check starts from the smooth defect-free tensor field
         # and evaluates the relaxation without the bulk term (a = c = 0).
-        source = source.replace("  Q~i~j := initial 0\n", "  Q~i~j := smooth 0\n")
+        source = source.replace("  Q~i~j := initial\n", "  Q~i~j := smooth\n")
     changes = CASES[case] | (overrides or {})
     for key, value in changes.items():
         source, count = re.subn(r"^param " + re.escape(key) + r" = .*$",

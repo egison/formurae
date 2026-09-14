@@ -19,7 +19,7 @@ from run import HERE, ROOT, NAME, build, run, parameter_lines
 
 OUT = ROOT / ".build/elastic_pulse/verification"
 PLANE = (HERE / "plane.fme.inc").read_text()
-PULSE_INIT = {"  v~i := [| pulse 0, 0, 0 |]~i\n": "  v~i := planeV 0\n",
+PULSE_INIT = {"  v~i := [| pulse, 0, 0 |]~i\n": "  v~i := planeV 0\n",
               "  σ~i~j := [| [| 0, 0, 0 |], [| 0, 0, 0 |], [| 0, 0, 0 |] |]~i~j\n": "  σ~i~j := planeS 0\n"}
 LENGTH = 4.0
 

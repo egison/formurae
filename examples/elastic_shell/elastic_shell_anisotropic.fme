@@ -32,21 +32,21 @@ extern sqrt
 
 -- physical position of a cell, and its physical distance from the source
 -- (radius 1.5, colatitude pi/2, longitude pi)
-def longitude unused = φ + twist * (r - 1)
-def distance2 unused = (r * sin θ * cos (longitude 0) - x0)^2 + (r * sin θ * sin (longitude 0) - y0)^2 + (r * cos θ - z0)^2
+def longitude = φ + twist * (r - 1)
+def distance2 = (r * sin θ * cos longitude - x0)^2 + (r * sin θ * sin longitude - y0)^2 + (r * cos θ - z0)^2
 -- the exponent is selected first, so that no overflowing value is formed;
 -- the support stops at 0.995 radius (f < 1e-86 there), which keeps the
 -- denominator positive under rounding of the expanded polynomials
-def bump unused = if distance2 0 < 0.99 * radius^2 then 0 - 2 * distance2 0 / (radius^2 - distance2 0) else 0
-def pulse unused = if distance2 0 < 0.99 * radius^2 then exp (bump 0) else 0
+def bump = if distance2 < 0.99 * radius^2 then 0 - 2 * distance2 / (radius^2 - distance2) else 0
+def pulse = if distance2 < 0.99 * radius^2 then exp bump else 0
 -- the expanded sums of squares can round to a small negative number, so the
 -- square roots below are guarded
-def distance unused = if distance2 0 < 0 then 0 else sqrt (distance2 0)
+def distance = if distance2 < 0 then 0 else sqrt distance2
 -- the summation-by-parts weight of a node: half on a wall
-def weight unused = (if r < sbpLoR || r > sbpHiR then 0.5 else 1) * (if θ < sbpLoTheta || θ > sbpHiTheta then 0.5 else 1)
+def weight = (if r < sbpLoR || r > sbpHiR then 0.5 else 1) * (if θ < sbpLoTheta || θ > sbpHiTheta then 0.5 else 1)
 def strain V~a = withSymbols [i, j, k] ((g_i_k . ∂_j V~k + g_j_k . ∂_i V~k + (∂/∂ g_i_j coordinates~k) . V~k) / 2)
-def direction unused = [| 1, 0, 0 - twist |]~i
-def stressRate E_i_j = withSymbols [i, j, k, l] (λ * g~i~j * (g~k~l . E_k_l) + 2 * μ * (g~i~k . g~j~l . E_k_l) + alpha * (direction 0)~i * (direction 0)~j * ((direction 0)~k . (direction 0)~l . E_k_l))
+def direction = [| 1, 0, 0 - twist |]~i
+def stressRate E_i_j = withSymbols [i, j, k, l] (λ * g~i~j * (g~k~l . E_k_l) + 2 * μ * (g~i~k . g~j~l . E_k_l) + alpha * direction~i * direction~j * (direction~k . direction~l . E_k_l))
 def stressDiv S~a~b = withSymbols [i, j, k, l] ((g~i~k . ∂_j (volume * (g_k_l . S~l~j))) / volume - (g~i~k . (∂/∂ g_j_l coordinates~k) . S~j~l) / 2)
 -- coordinate-independent diagnostics of a velocity field
 def waveDiv V~a = withSymbols [i] ((∂_i (volume * V~i)) / volume)
@@ -69,7 +69,7 @@ field pfront : scalar @ collocated
 field sfront : scalar @ collocated
 
 init:
-  v~i := [| 0, 0, pulse 0 / (r * sin θ) |]~i
+  v~i := [| 0, 0, pulse / (r * sin θ) |]~i
   σ~i~j := [| [| 0, 0, 0 |], [| 0, 0, 0 |], [| 0, 0, 0 |] |]~i~j
   compression := 0
   shearing := 0
@@ -103,16 +103,16 @@ step:
   -- distance from the source of the farthest point where the dimensionless
   -- indicator exceeds sqrt(front) (the outer edge of each shell, which
   -- advances at the wave speed)
-  local far @ collocated = distance 0
+  local far @ collocated = distance
   compression' = waveDiv v
   local curlv~i @ collocated = waveCurl v
   local curl2 @ collocated = norm2 curlv
   shearing' = if curl2 < 0 then 0 else sqrt curl2
-  energy' = weight 0 * cell * volume * (ρ0 * norm2 v / 2 + stressNorm σ / (4 * μ) - λ * (stressTrace σ)^2 / (4 * μ * (3 * λ + 2 * μ)))
-  modified' = energy' - weight 0 * cell * volume * dt^2 * norm2 kick / (8 * ρ0)
-  pw' = weight 0 * cell * volume * compression'^2
+  energy' = weight * cell * volume * (ρ0 * norm2 v / 2 + stressNorm σ / (4 * μ) - λ * (stressTrace σ)^2 / (4 * μ * (3 * λ + 2 * μ)))
+  modified' = energy' - weight * cell * volume * dt^2 * norm2 kick / (8 * ρ0)
+  pw' = weight * cell * volume * compression'^2
   pr' = pw' * far
-  sw' = weight 0 * cell * volume * shearing'^2
+  sw' = weight * cell * volume * shearing'^2
   sr' = sw' * far
   pfront' = if radius^2 * compression'^2 > front then far else 0
   sfront' = if radius^2 * shearing'^2 > front then far else 0

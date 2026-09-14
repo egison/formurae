@@ -22,13 +22,13 @@ param hphi = dphi
 extern sqrt
 
 -- Christoffel symbols of the metric, frozen into coefficient fields at init
-def gamma unused = withSymbols [i, j, k, l] ((g~i~l . (∂/∂ g_l_k coordinates~j + ∂/∂ g_l_j coordinates~k - ∂/∂ g_j_k coordinates~l)) / 2)
-def gammaTheta unused = withSymbols [j, k] ((gamma 0)~1_j_k)
-def gammaPhi unused = withSymbols [j, k] ((gamma 0)~2_j_k)
-def christoffel unused = [| G1_j_k, G2_j_k |]~i_j_k
+def gamma = withSymbols [i, j, k, l] ((g~i~l . (∂/∂ g_l_k coordinates~j + ∂/∂ g_l_j coordinates~k - ∂/∂ g_j_k coordinates~l)) / 2)
+def gammaTheta = withSymbols [j, k] (gamma~1_j_k)
+def gammaPhi = withSymbols [j, k] (gamma~2_j_k)
+def christoffel = [| G1_j_k, G2_j_k |]~i_j_k
 -- covariant derivative components of a rank-2 contravariant tensor
-def covTheta Q~a~b = withSymbols [i, j, l] (∂_θ Q~i~j + (christoffel 0)~i_1_l . Q~l~j + (christoffel 0)~j_1_l . Q~i~l)
-def covPhi Q~a~b = withSymbols [i, j, l] (∂_φ Q~i~j + (christoffel 0)~i_2_l . Q~l~j + (christoffel 0)~j_2_l . Q~i~l)
+def covTheta Q~a~b = withSymbols [i, j, l] (∂_θ Q~i~j + christoffel~i_1_l . Q~l~j + christoffel~j_1_l . Q~i~l)
+def covPhi Q~a~b = withSymbols [i, j, l] (∂_φ Q~i~j + christoffel~i_2_l . Q~l~j + christoffel~j_2_l . Q~i~l)
 -- Laplace--Beltrami of one component, and the connection terms that complete
 -- the covariant Laplacian g^{kl} ∇_k ∇_l Q^{ij} of the tensor.  Every
 -- coefficient that depends on the position (metric, inverse metric, the
@@ -36,17 +36,17 @@ def covPhi Q~a~b = withSymbols [i, j, l] (∂_φ Q~i~j + (christoffel 0)~i_2_l .
 -- itself contains no position-dependent arithmetic, which temporal blocking
 -- requires.
 def lb F = w1 * ∂^2_θ F + w2 * ∂^2_φ F + c1 * ∂_θ F + c2 * ∂_φ F
-def connection Q~a~b D1~c~d D2~e~f = withSymbols [i, j, m, n] (w1 * (∂_θ ((christoffel 0)~i_1_m . Q~m~j + (christoffel 0)~j_1_m . Q~i~m) - (christoffel 0)~m_1_1 . ((christoffel 0)~i_m_n . Q~n~j + (christoffel 0)~j_m_n . Q~i~n) + (christoffel 0)~i_1_m . D1~m~j + (christoffel 0)~j_1_m . D1~i~m) + w2 * (∂_φ ((christoffel 0)~i_2_m . Q~m~j + (christoffel 0)~j_2_m . Q~i~m) - (christoffel 0)~m_2_2 . ((christoffel 0)~i_m_n . Q~n~j + (christoffel 0)~j_m_n . Q~i~n) + (christoffel 0)~i_2_m . D2~m~j + (christoffel 0)~j_2_m . D2~i~m))
+def connection Q~a~b D1~c~d D2~e~f = withSymbols [i, j, m, n] (w1 * (∂_θ (christoffel~i_1_m . Q~m~j + christoffel~j_1_m . Q~i~m) - christoffel~m_1_1 . (christoffel~i_m_n . Q~n~j + christoffel~j_m_n . Q~i~n) + christoffel~i_1_m . D1~m~j + christoffel~j_1_m . D1~i~m) + w2 * (∂_φ (christoffel~i_2_m . Q~m~j + christoffel~j_2_m . Q~i~m) - christoffel~m_2_2 . (christoffel~i_m_n . Q~n~j + christoffel~j_m_n . Q~i~n) + christoffel~i_2_m . D2~m~j + christoffel~j_2_m . D2~i~m))
 def norm2 Q~a~b = withSymbols [i, j, k, l] (GD_i_k . GD_j_l . Q~i~j . Q~k~l)
 def gradient2 D1~a~b D2~c~d = w1 * norm2 D1 + w2 * norm2 D2
 def traceless T~a~b = withSymbols [i, j, k, l] (T~i~j - GU~i~j * (GD_k_l . T~k~l) / 2)
 -- initial doubled director (mx, my) = S (cos 2α, sin 2α) in the orthonormal frame:
 -- seed = 1 takes a smooth pseudo-random vector field whose zeros are the defects;
 -- seed = 0 places four defects, +1/2 on the outer side (arrangement = 1) or inner side (-1)
-def doubledX unused = seed * (sin (3 * θ + 1) * cos (2 * φ) + cos (5 * φ + 2 * θ + 0.5)) + (1 - seed) * cos φ
-def doubledY unused = seed * (sin (θ - 4 * φ + 2) + cos (3 * θ + 7 * φ - 1) * sin (2 * θ)) + (1 - seed) * arrangement * sin θ * sin φ
-def doubledNorm unused = sqrt ((doubledX 0)^2 + (doubledY 0)^2 + 0.01)
-def initial unused = withSymbols [i, j] ([| [| doubledX 0 / (2 * g_1_1), doubledY 0 / (2 * volume) |], [| doubledY 0 / (2 * volume), 0 - doubledX 0 / (2 * g_2_2) |] |]~i~j / doubledNorm 0)
+def doubledX = seed * (sin (3 * θ + 1) * cos (2 * φ) + cos (5 * φ + 2 * θ + 0.5)) + (1 - seed) * cos φ
+def doubledY = seed * (sin (θ - 4 * φ + 2) + cos (3 * θ + 7 * φ - 1) * sin (2 * θ)) + (1 - seed) * arrangement * sin θ * sin φ
+def doubledNorm = sqrt (doubledX^2 + doubledY^2 + 0.01)
+def initial = withSymbols [i, j] ([| [| doubledX / (2 * g_1_1), doubledY / (2 * volume) |], [| doubledY / (2 * volume), 0 - doubledX / (2 * g_2_2) |] |]~i~j / doubledNorm)
 -- exact one-cell shifts from compact differences (the LBM pull identity),
 -- and branch-cut crossings of the doubled director along an edge.  The
 -- winding number is counted on the two triangles that meet at a grid point,
@@ -78,9 +78,9 @@ field tr : scalar @ collocated
 field asym : scalar @ collocated
 
 init:
-  Q~i~j := initial 0
-  G1_j_k := gammaTheta 0
-  G2_j_k := gammaPhi 0
+  Q~i~j := initial
+  G1_j_k := gammaTheta
+  G2_j_k := gammaPhi
   GD_i_j := g_i_j
   GU~i~j := g~i~j
   J := volume

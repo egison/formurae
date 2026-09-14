@@ -9,7 +9,7 @@ field B~i
 field G_i_j
 field H~i~j
 
-def covariantMetric unused = g_#_#
+def covariantMetric = g_#_#
 
 init:
   A_j = [| 1, 2 |]_j
@@ -19,5 +19,5 @@ init:
 
 step:
   B'~i = withSymbols [j] (g~i~j . A_j)
-  G'_i_j = covariantMetric 0
+  G'_i_j = covariantMetric
   H'~i~j = g~i~j

@@ -18,12 +18,12 @@ def besselJ2 x = (3 / x^2 - 1) * sin x / x - 3 * cos x / x^2
 def besselY2 x = 0 - (3 / x^2 - 1) * cos x / x - 3 * sin x / x^2
 def besselJ3 x = (15 / x^3 - 6 / x) * sin x / x - (15 / x^2 - 1) * cos x / x
 def besselY3 x = 0 - (15 / x^3 - 6 / x) * cos x / x - (15 / x^2 - 1) * sin x / x
-def profile unused = (besselJ3 (kappa * r) * besselY3 kappa - besselY3 (kappa * r) * besselJ3 kappa) / amplitude
-def profileDerivative unused = kappa * ((besselJ2 (kappa * r) - 4 * besselJ3 (kappa * r) / (kappa * r)) * besselY3 kappa - (besselY2 (kappa * r) - 4 * besselY3 (kappa * r) / (kappa * r)) * besselJ3 kappa) / amplitude
-def angular unused = 5 * (cos θ)^2 - 1
-def modeShear tau = (profileDerivative 0 - profile 0 / r) * angular 0 * sin (kappa * tau) / (kappa * r)
-def modeTilt tau = 0 - 10 * profile 0 * cos θ * sin θ * sin (kappa * tau) / (kappa * r^3)
-def modeV tau = [| 0, 0, profile 0 * angular 0 * cos (kappa * tau) / r |]~i
+def profile = (besselJ3 (kappa * r) * besselY3 kappa - besselY3 (kappa * r) * besselJ3 kappa) / amplitude
+def profileDerivative = kappa * ((besselJ2 (kappa * r) - 4 * besselJ3 (kappa * r) / (kappa * r)) * besselY3 kappa - (besselY2 (kappa * r) - 4 * besselY3 (kappa * r) / (kappa * r)) * besselJ3 kappa) / amplitude
+def angular = 5 * (cos θ)^2 - 1
+def modeShear tau = (profileDerivative - profile / r) * angular * sin (kappa * tau) / (kappa * r)
+def modeTilt tau = 0 - 10 * profile * cos θ * sin θ * sin (kappa * tau) / (kappa * r^3)
+def modeV tau = [| 0, 0, profile * angular * cos (kappa * tau) / r |]~i
 def modeS tau = [| [| 0, 0, modeShear tau |], [| 0, 0, modeTilt tau |], [| modeShear tau, modeTilt tau, 0 - 2 * twist * modeShear tau |] |]~i~j
 field exactV~i @ collocated
 field exactS{~i~j} @ collocated
@@ -39,5 +39,5 @@ field ref : scalar @ collocated
   exactS' = exactS
   local dv~i @ collocated = v'~i - exactV~i
   local ds~i~j @ collocated = σ'~i~j - exactS~i~j
-  err' = weight 0 * cell * volume * (norm2 dv + stressNorm ds)
-  ref' = weight 0 * cell * volume * (norm2 exactV + stressNorm exactS)
+  err' = weight * cell * volume * (norm2 dv + stressNorm ds)
+  ref' = weight * cell * volume * (norm2 exactV + stressNorm exactS)
