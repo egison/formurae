@@ -85,7 +85,10 @@
   "max_deviation": 0.2613636618759153,
   "final_residual": 3.3011365662751675e-06,
   "final_divergence": 9.903409842193511e-09,
-  "video_frames": 121,
+  "video_frames": 901,
+  "video_fps": 30,
+  "video_time_scale": 6.0,
+  "video_section_z": 0.5,
   "axial_wavelength": 2.0,
   "axial_pairs": 2
 }
