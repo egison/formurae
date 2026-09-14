@@ -5145,7 +5145,7 @@ end function</pre></details>
     <source src="../../examples/taylor_couette/results/taylor-couette-en.mp4" type="video/mp4">
     <img src="../../examples/taylor_couette/results/taylor-couette-en-poster.png" alt="Taylor vortices at Re = 100: inner and outer fluid cylinders colored on a shared axial-velocity scale, with local flow directions on each face and axial and longitudinal views"></video></div>
   <div class="cap">The left panel shows upright cylinders viewed obliquely from above, with the front quarter cut away.
-    White arrows show the local velocity direction along each visible face. Their length does not encode speed, and components normal to the face are omitted.
+    White arrows show the local velocity direction along each visible face. Their displayed length, width, and arrowhead shape are identical across the 3-D view, center panel, streamlines, and separate figure below. Size does not encode speed, and components normal to the face are omitted. In narrow areas, arrows are shown only where they fit at that same size.
     The front face is a fluid cylinder at its actual radius r = 1.10, colored by axial velocity there. The solid inner cylinder remains distinct, shown by its gray top section at r = 1 with rotating marks.
     The two rectangular cuts (1.10 ≤ r ≤ 1.90) show radial and axial components (u<sub>r</sub>, u<sub>z</sub>).
     The top annular section shows radial and azimuthal components (u<sub>r</sub>, u<sub>θ</sub>) at z = 4; its color shows azimuthal velocity on the center panel's scale. This is a fluid section through the periodic domain.
@@ -5156,7 +5156,7 @@ end function</pre></details>
     The right panels show azimuthal velocity minus the Couette profile (top) and speed with streamlines in the longitudinal slice (bottom). Dashed lines locate the cross-section shown in the center; the cut faces share the lower right panel's color scale.
     Velocities saved every 500 steps (1.5 time units) are interpolated for display at six times simulation speed and 30 fps.
     <a href="../../examples/taylor_couette/results/taylor-couette-en.mp4">Video file</a></div>
-  <div class="imgs"><img src="../../examples/taylor_couette/results/taylor-couette-en.png" alt="Taylor vortices at Re = 100: azimuthal velocity minus the Couette profile, meridional streamlines, growth of the perturbation, and the mid-gap radial velocity" width="1485" height="901"></div>
+  <div class="imgs"><img src="../../examples/taylor_couette/results/taylor-couette-en.png" alt="Taylor vortices at Re = 100: azimuthal velocity minus the Couette profile, meridional streamlines, growth of the perturbation, and the mid-gap radial velocity" width="1920" height="1166"></div>
   <div class="cap">The meridional plane (z horizontal, r vertical) on a 65×256 grid (radial faces including both walls, axial cells) at t = 180, computed on
     four MPI ranks along z. Left: the azimuthal velocity minus the Couette profile (red: faster), and the meridional speed with streamlines of
     (u<sub>z</sub>, u<sub>r</sub>). Right: growth of max|u<sub>r</sub>| with the fitted rate σ = 0.118, and the radial velocity along the mid gap.</div>

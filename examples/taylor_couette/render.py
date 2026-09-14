@@ -23,9 +23,12 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib import font_manager
 from matplotlib.font_manager import FontProperties
+from matplotlib.artist import Artist
 from matplotlib.collections import LineCollection
 from matplotlib.patches import Circle
+from matplotlib.transforms import IdentityTransform
 from matplotlib import patheffects as path_effects
+from mpl_toolkits.mplot3d import proj3d
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection, Line3DCollection
 
 HERE = Path(__file__).resolve().parent
@@ -36,6 +39,13 @@ INNER_SURFACE_RADIUS = R1 + 0.10 * (R2 - R1)
 OUTER_SURFACE_RADIUS = R2 - 0.10 * (R2 - R1)
 SURFACE_RADII = (INNER_SURFACE_RADIUS, OUTER_SURFACE_RADIUS)
 SECTION_COLOR = "#b45309"
+OUTPUT_WIDTH = 1920
+# Output pixels, shared by every panel and the separate diagnostic figures.
+ARROW_LENGTH = 16.0
+ARROW_HEAD_LENGTH = 5.0
+ARROW_HEAD_WIDTH = 6.0
+ARROW_LINE_WIDTH = 1.4
+ARROW_OUTLINE_WIDTH = 2.8
 RECORD = np.dtype([("i", "=i4"), ("j", "=i4"), ("ut", "=f8"), ("ur", "=f8"),
                    ("uz", "=f8"), ("p", "=f8")])
 JAPANESE = Path("/usr/local/texlive/2025/texmf-dist/fonts/opentype/public/haranoaji/HaranoAjiMincho-Regular.otf")
@@ -49,10 +59,11 @@ TEXT = {
            "title": "Axisymmetric Taylor-Couette flow at Re = %g: Taylor vortices from the Couette flow (t = %g)",
            "views": "Flow inside the cylinders: a 3-D view, an axial view, and longitudinal slices",
            "cutaway": "Flow inside the outer wall, seen from above at an angle",
-           "cutaway_note": "White arrows: flow direction along each face; length does not encode speed.\nCylinders: $(u_\\theta,u_z)$ / vertical cuts: $(u_r,u_z)$ / top: $(u_r,u_\\theta)$.\nTop fan: fluid section at z = %(height)g; color scale shared with the center panel.\nVertical-cut colors: lower right scale / cylindrical-section colors: left scale.\nGray dashes: wall r = 2 / orange: fluid sections r = %(inner).2f, %(outer).2f.",
+           "cutaway_note": "White arrows: flow direction; the same display size in every panel.\nCylinders: $(u_\\theta,u_z)$ / vertical cuts: $(u_r,u_z)$ / top: $(u_r,u_\\theta)$.\nTop fan: fluid section at z = %(height)g; color scale shared with the center panel.\nVertical-cut colors: lower right scale / cylindrical-section colors: left scale.\nGray dashes: wall r = 2 / orange: fluid sections r = %(inner).2f, %(outer).2f.",
            "fluid_section": "Orange: fluid sections at r = %.2f and %.2f",
            "surface_speed": "Fluid axial velocity $u_z$ ($r = %.2f, %.2f$)",
            "up": "Upward", "down": "Downward",
+           "arrow_size": "Arrows show direction at the same display size in every figure; their size does not encode speed.",
            "endview": "View from $+z$ (section at $z$ = %g)",
            "inner": "Inner cylinder\ncounterclockwise\n$\\Omega_1 = 1$",
            "inner_top": "Inner cylinder $r=1$",
@@ -71,10 +82,11 @@ TEXT = {
            "title": "軸対称テイラー・クエット流れ，Re = %g：クエット流れから育つテイラー渦（t = %g）",
            "views": "円筒内の流れを，立体図・軸方向からの図・縦断面で表示",
            "cutaway": "外壁の内側の流れ（斜め上から）",
-           "cutaway_note": "白矢印：その面に沿う流れの向き（長さは速さを表しません）\n円筒面 $(u_\\theta,u_z)$ ／ 縦の切り口 $(u_r,u_z)$ ／ 上面 $(u_r,u_\\theta)$\n上の扇形：z = %(height)g の流体断面（色尺度は中央図と共通）\n縦の切り口の色：右下の目盛り／円筒面の色：左の目盛り\n灰破線：外壁 r = 2 ／ 橙：流体断面 r = %(inner).2f，%(outer).2f",
+           "cutaway_note": "白矢印：面に沿う流れの向き（大きさは全図で共通）\n円筒面 $(u_\\theta,u_z)$ ／ 縦の切り口 $(u_r,u_z)$ ／ 上面 $(u_r,u_\\theta)$\n上の扇形：z = %(height)g の流体断面（色尺度は中央図と共通）\n縦の切り口の色：右下の目盛り／円筒面の色：左の目盛り\n灰破線：外壁 r = 2 ／ 橙：流体断面 r = %(inner).2f，%(outer).2f",
            "fluid_section": "橙の円：左図の流体断面 r = %.2f，%.2f",
            "surface_speed": "流体の軸方向速度 $u_z$（$r = %.2f, %.2f$）",
            "up": "上昇", "down": "下降",
+           "arrow_size": "矢印は全図で同じ大きさで向きを示し，速さを表しません。",
            "endview": "円筒を $+z$ 側から見る（$z$ = %g）",
            "inner": "内筒\n反時計回り\n$\\Omega_1 = 1$",
            "inner_top": "内筒 $r=1$",
@@ -173,6 +185,96 @@ def prepare(meta, fields):
     return rc, zc, dev, ur, uz, np.hypot(ur, uz)
 
 
+class DirectionArrows(Artist):
+    """Project positions/directions first, then draw identical pixel-sized arrows.
+
+    This also runs at savefig's output DPI, after layout has set the axes size.
+    The optional surface check omits arrows that would leave their visible
+    face; it never clips or shrinks an arrow to make it fit.
+    """
+
+    def __init__(self, ax, project=None, contains=None, spacing=0, zorder=5):
+        super().__init__()
+        self.ax = ax
+        self.project = project or ax.transData.transform
+        self.contains = contains
+        self.spacing = spacing
+        self.positions, self.vectors = [], []
+        self.set_zorder(zorder)
+        self.set_in_layout(False)
+        ax.add_artist(self)
+        self.outline = LineCollection([], colors='#334155', transform=IdentityTransform(),
+                                      capstyle='round', joinstyle='round')
+        self.lines = LineCollection([], colors='white', transform=IdentityTransform(),
+                                    capstyle='round', joinstyle='round')
+        for collection in (self.outline, self.lines):
+            collection.set_figure(ax.figure)
+
+    def set_data(self, positions, vectors):
+        self.positions = np.asarray(positions, dtype=float)
+        self.vectors = np.asarray(vectors, dtype=float)
+        self.stale = True
+
+    def draw(self, renderer):
+        if not self.get_visible() or len(self.positions) == 0:
+            return
+        centers = self.project(self.positions)
+        directions = self.project(self.positions+self.vectors)-centers
+        lengths = np.linalg.norm(directions, axis=1)
+        unit = directions/np.maximum(lengths[:, None], 1e-12)
+        side = np.c_[-unit[:, 1], unit[:, 0]]
+        tail = centers-ARROW_LENGTH/2*unit
+        tip = centers+ARROW_LENGTH/2*unit
+        left = tip-ARROW_HEAD_LENGTH*unit+ARROW_HEAD_WIDTH/2*side
+        right = tip-ARROW_HEAD_LENGTH*unit-ARROW_HEAD_WIDTH/2*side
+        vertices = np.concatenate([
+            tail[:, None, :]+np.linspace(0, 1, 9)[None, :, None]*(tip-tail)[:, None, :],
+            left[:, None, :]+np.linspace(0, 1, 5)[None, :, None]*(tip-left)[:, None, :],
+            right[:, None, :]+np.linspace(0, 1, 5)[None, :, None]*(tip-right)[:, None, :],
+        ], axis=1)
+        # Include the stroke when checking whether the complete arrow fits.
+        angles = np.arange(8)*np.pi/4
+        offsets = (ARROW_OUTLINE_WIDTH/2+.5)*np.c_[np.cos(angles), np.sin(angles)]
+        footprint = (vertices[:, :, None, :]+offsets).reshape(len(centers), -1, 2)
+        keep = lengths > 1e-8
+        if self.contains is not None:
+            keep &= self.contains(footprint)
+        else:
+            x0, y0, x1, y1 = self.ax.bbox.extents
+            keep &= ((footprint[..., 0] >= x0) & (footprint[..., 0] <= x1)
+                     & (footprint[..., 1] >= y0) & (footprint[..., 1] <= y1)).all(axis=1)
+        segments, placed = [], []
+        for i in np.flatnonzero(keep):
+            if self.spacing and any(np.linalg.norm(centers[i]-p) < self.spacing for p in placed):
+                continue
+            segments.extend([np.array([tail[i], tip[i]]), np.array([left[i], tip[i], right[i]])])
+            placed.append(centers[i])
+        pixels_per_point = renderer.points_to_pixels(1)
+        for collection, width in ((self.outline, ARROW_OUTLINE_WIDTH), (self.lines, ARROW_LINE_WIDTH)):
+            collection.set_segments(segments)
+            collection.set_linewidth(width/pixels_per_point)
+            collection.draw(renderer)
+        self.stale = False
+
+
+def streamlines(ax, zz, rr, uz, ur, density):
+    """Streamlines with the same direction arrows as the 3-D and axial views."""
+    before = set(ax.patches)
+    stream = ax.streamplot(zz, rr, uz, ur, color='white', density=density, linewidth=.65)
+    # Replace streamplot's independently sized arrowheads, retaining its paths.
+    for patch in set(ax.patches)-before:
+        patch.remove()
+    positions, directions = [], []
+    for path in stream.lines.get_segments():
+        if len(path) > 2:
+            mid = len(path)//2
+            positions.append(path[mid])
+            directions.append(path[mid+1]-path[mid-1])
+    arrows = DirectionArrows(ax, spacing=ARROW_LENGTH+4)
+    arrows.set_data(positions, directions)
+    return stream.lines, arrows
+
+
 def figure(directory, lang, out):
     meta = metadata(directory)
     dt, lz = meta["dt"], meta["lz"]
@@ -200,7 +302,7 @@ def figure(directory, lang, out):
                    interpolation="nearest")
     fig.colorbar(im, ax=ax, fraction=0.025, pad=0.02)
     zz, rr = np.meshgrid(zc, rc)
-    ax.streamplot(zz, rr, uz, ur, color="white", density=(1.6, 0.6), linewidth=0.7, arrowsize=0.8)
+    streamlines(ax, zz, rr, uz, ur, density=(1.6, 0.6))
     ax.set_xlim(0, lz); ax.set_ylim(R1, R2)
     ax.set_title(text["speed"], fontproperties=font)
     ax.set_xlabel(text["z"]); ax.set_ylabel(text["r"])
@@ -221,8 +323,9 @@ def figure(directory, lang, out):
     ax.set_title(text["profile"], fontproperties=font)
     ax.set_xlabel(text["z"]); ax.set_xlim(0, lz); ax.grid(alpha=0.3)
     fig.suptitle(text["title"] % (meta["re"], final * dt), fontproperties=font)
-    fig.tight_layout()
-    fig.savefig(out, dpi=110)
+    fig.text(.5, .018, text['arrow_size'], ha='center', fontsize=10, fontproperties=font, color='#475569')
+    fig.tight_layout(rect=[0, .04, 1, 1])
+    fig.savefig(out, dpi=OUTPUT_WIDTH/fig.get_figwidth())
     plt.close(fig)
     return {"growth_rate": sigma, "max_ur": float(rec["ur"][-1]), "max_uz": float(rec["uz"][-1]),
             "max_deviation": float(limit), "final_residual": float(rec["res"][-1]),
@@ -377,32 +480,31 @@ class CutawayView:
                                               linestyles='dashed', zorder=3), autolim=False)
         ax.add_collection3d(Line3DCollection(section_edges, colors=SECTION_COLOR,
                                               linewidths=1.0, zorder=3), autolim=False)
-        self.arrow_outline = Line3DCollection([], colors='#334155', linewidths=3.1, zorder=4)
-        self.arrows = Line3DCollection([], colors='white', linewidths=1.6, zorder=5)
-        ax.add_collection3d(self.arrow_outline, autolim=False)
-        ax.add_collection3d(self.arrows, autolim=False)
+        self.arrows = DirectionArrows(ax, project=self.project, contains=self.contains_arrows,
+                                      spacing=ARROW_LENGTH+1)
+        self.ax = ax
         # Each arrow is sampled and drawn on the same face. Values normal to
         # that face are omitted. Arrow length expresses direction only.
         self.arrow_groups = []
-        def add_arrows(kind, radius, theta, height, length):
+        def add_arrows(kind, radius, theta, height):
             r, a, z = np.broadcast_arrays(radius, theta, height)
-            self.arrow_groups.append((kind, r.ravel(), a.ravel(), z.ravel(), length))
+            self.arrow_groups.append((kind, r.ravel(), a.ravel(), z.ravel()))
         # From azimuth -55 degrees, all rays from these inner/cut faces
         # pass through the opening. Outer-face arrows stay within the front
         # hemisphere. The top faces point upward. Thus none of these arrows
         # can be hidden behind another face or drawn over a different one.
         heights = np.linspace(.22, lz-.22, 9)[None, :]
-        add_arrows('cylinder', INNER_SURFACE_RADIUS, np.deg2rad([-82, -55, -28])[:, None], heights, .28)
+        add_arrows('cylinder', INNER_SURFACE_RADIUS, np.deg2rad([-82, -55, -28])[:, None], heights)
         add_arrows('cylinder', OUTER_SURFACE_RADIUS,
-                   np.deg2rad([-133, -115, 5, 23])[:, None], heights, .28)
+                   np.deg2rad([-133, -115, 5, 23])[:, None], heights)
         for theta in self.front:
-            add_arrows('cut', np.linspace(INNER_SURFACE_RADIUS+.12, OUTER_SURFACE_RADIUS-.12, 4)[:, None],
-                       theta, np.linspace(.18, lz-.18, 15)[None, :], .18)
+            add_arrows('cut', np.linspace(INNER_SURFACE_RADIUS+.12, OUTER_SURFACE_RADIUS-.12, 3)[:, None],
+                       theta, np.linspace(.18, lz-.18, 15)[None, :])
         add_arrows('top', np.linspace(INNER_SURFACE_RADIUS+.14, OUTER_SURFACE_RADIUS-.14, 3)[:, None],
                    np.linspace(self.front[1]+.13, self.front[0]+2*np.pi-.13, 14)[None, :],
-                   lz, .20)
+                   lz)
         add_arrows('top', (R1+INNER_SURFACE_RADIUS)/2,
-                   np.linspace(0, 2*np.pi, 16, endpoint=False), lz, .08)
+                   np.linspace(0, 2*np.pi, 16, endpoint=False), lz)
         # The solid's motion is marked on its gray top section, not on fluid.
         self.rotor = Line3DCollection([], colors='#64748b', linewidths=2.4, zorder=4)
         ax.add_collection3d(self.rotor, autolim=False)
@@ -454,8 +556,8 @@ class CutawayView:
             self.colors[part] = plt.get_cmap('cividis')(
                 self.rotation_norm(sample(radii, self.lz)[:, 0]))
 
-        segments = []
-        for kind, radii, angles, heights, length in self.arrow_groups:
+        positions, vectors, faces, sampled_radii, sampled_angles = [], [], [], [], []
+        for kind, radii, angles, heights in self.arrow_groups:
             velocity = sample(radii, heights)
             components = {'cylinder': (0, 2), 'cut': (1, 2), 'top': (1, 0)}[kind]
             tangent = velocity[:, components]
@@ -464,31 +566,79 @@ class CutawayView:
             for r, a, z, v, norm in zip(radii, angles, heights, tangent, magnitude):
                 if norm <= threshold:
                     continue
-                segments.extend(self.arrow_segments(kind, r, a, z, v/norm, length))
+                if kind == 'cylinder':
+                    vector = [-v[0]*np.sin(a), v[0]*np.cos(a), v[1]]
+                elif kind == 'cut':
+                    vector = [v[0]*np.cos(a), v[0]*np.sin(a), v[1]]
+                else:
+                    vector = [v[0]*np.cos(a)-v[1]*np.sin(a),
+                              v[0]*np.sin(a)+v[1]*np.cos(a), 0]
+                positions.append([r*np.cos(a), r*np.sin(a), z])
+                vectors.append(vector)
+                faces.append(kind)
+                sampled_radii.append(r)
+                sampled_angles.append(a)
+        self.arrow_faces = np.array(faces)
+        self.arrow_radii = np.array(sampled_radii)
+        self.arrow_angles = np.array(sampled_angles)
         self.surfaces.set_facecolors(self.colors)
-        self.arrow_outline.set_segments(segments)
-        self.arrows.set_segments(segments)
+        self.arrows.set_data(positions, vectors)
 
-    @staticmethod
-    def arrow_segments(kind, radius, theta, height, direction, length):
-        """Map a direction arrow onto its actual surface, without normal offsets.
+    def project(self, points):
+        """World positions to output pixels, using the current 3-D axes layout."""
+        x, y, _ = proj3d.proj_transform(*np.asarray(points).T, self.ax.get_proj())
+        return self.ax.transData.transform(np.c_[x, y])
 
-        Local coordinates: cylinder (arc length, z), cut (r, z), top (r, arc
-        length). Curved shafts remain on the cylinder or horizontal section.
+    def contains_arrows(self, pixels):
+        """Keep complete arrows on their sampled visible faces.
+
+        Cast parallel viewing rays through each screen-space arrow's outline.
+        Intersections with its cylinder or plane must stay inside that face.
+        Arrows near silhouettes, cut edges, or the narrow top band are omitted
+        if they cannot fit at the common size.
         """
-        shaft = np.linspace(-.5, .5, 9)[:, None]*direction
-        side = .20*np.array([-direction[1], direction[0]])
-        head = np.array([.12*direction+side, .5*direction, .12*direction-side])
-        segments = []
-        for points in (length*shaft, length*head):
+        origin = self.project(np.zeros((1, 3)))[0]
+        matrix = (self.project(np.eye(3))-origin).T
+        starts = (pixels-origin) @ np.linalg.pinv(matrix).T
+        ray = np.cross(matrix[0], matrix[1])
+        ray /= np.linalg.norm(ray)
+        if ray[2] < 0:  # the fixed camera is above the cylinder
+            ray = -ray
+        keep = np.zeros(len(pixels), dtype=bool)
+        for kind in ('cylinder', 'cut', 'top'):
+            indices = np.flatnonzero(self.arrow_faces == kind)
+            o = starts[indices]
+            if not len(indices):
+                continue
             if kind == 'cylinder':
-                r, a, z = radius, theta+points[:, 0]/radius, height+points[:, 1]
+                radii = self.arrow_radii[indices, None]
+                aa = ray[0]**2+ray[1]**2
+                bb = o[..., 0]*ray[0]+o[..., 1]*ray[1]
+                cc = o[..., 0]**2+o[..., 1]**2-radii**2
+                discriminant = bb**2-aa*cc
+                # The nearer intersection is the outward-facing surface.
+                distance = (-bb+np.sqrt(np.maximum(discriminant, 0)))/aa
+                p = o+distance[..., None]*ray
+                theta = np.arctan2(p[..., 1], p[..., 0])
+                opening = (theta >= self.front[0]) & (theta <= self.front[1])
+                visible = np.where(radii == INNER_SURFACE_RADIUS, opening, ~opening)
+                valid = (discriminant >= 0) & visible & (p[..., 2] >= 0) & (p[..., 2] <= self.lz)
             elif kind == 'cut':
-                r, a, z = radius+points[:, 0], theta, height+points[:, 1]
+                theta = self.arrow_angles[indices]
+                normal = np.c_[-np.sin(theta), np.cos(theta), np.zeros(len(theta))]
+                distance = -np.einsum('nki,ni->nk', o, normal)/(normal @ ray)[:, None]
+                p = o+distance[..., None]*ray
+                r = p[..., 0]*np.cos(theta[:, None])+p[..., 1]*np.sin(theta[:, None])
+                valid = ((r >= INNER_SURFACE_RADIUS) & (r <= OUTER_SURFACE_RADIUS)
+                         & (p[..., 2] >= 0) & (p[..., 2] <= self.lz))
             else:
-                r, a, z = radius+points[:, 0], theta+points[:, 1]/radius, height
-            segments.append(np.stack(np.broadcast_arrays(r*np.cos(a), r*np.sin(a), z), axis=-1))
-        return segments
+                p = o+((self.lz-o[..., 2])/ray[2])[..., None]*ray
+                r = np.hypot(p[..., 0], p[..., 1])
+                theta = np.arctan2(p[..., 1], p[..., 0])
+                opening = (theta >= self.front[0]) & (theta <= self.front[1])
+                valid = (r >= R1) & (r <= OUTER_SURFACE_RADIUS) & ((r <= INNER_SURFACE_RADIUS) | ~opening)
+            keep[indices] = valid.all(axis=1)
+        return keep
 
 
 def video(directory, lang, out, poster, fps=30, time_scale=6.0, poster_only=False):
@@ -550,7 +700,7 @@ def video(directory, lang, out, poster, fps=30, time_scale=6.0, poster_only=Fals
     rotation_norm = matplotlib.colors.Normalize(
         min(0.0, float(profiles.min())), max(abs(W1*R1), float(profiles.max())))
 
-    fig = plt.figure(figsize=(19.2, 9.6), dpi=100)
+    fig = plt.figure(figsize=(OUTPUT_WIDTH/100, 9.6), dpi=100)
     cutaway = CutawayView(fig.add_axes([0, .16, .40, .70], projection='3d', computed_zorder=False),
                           rc, zc, lz, top, surface_limit, rotation_norm, text, font)
     end = fig.add_axes([.41, .22, .225, .58])
@@ -593,12 +743,7 @@ def video(directory, lang, out, poster, fps=30, time_scale=6.0, poster_only=Fals
              fontproperties=font, fontsize=10, color=SECTION_COLOR)
     cb = fig.colorbar(rotation, ax=end, orientation="horizontal", fraction=0.046, pad=0.085)
     cb.set_label(text["azimuthal"], fontproperties=font)
-    tails = LineCollection([], colors="white", linewidths=1.4, zorder=7)
-    end.add_collection(tails)
-    arrows = end.quiver(np.zeros(15), np.zeros(15), np.zeros(15), np.zeros(15),
-                        color="white", angles="xy", scale_units="xy", scale=1,
-                        width=0.007, headwidth=3.6, headlength=4.2, pivot="tip", zorder=8)
-    arrows.set_path_effects([path_effects.withStroke(linewidth=1.0, foreground="#334155")])
+    arrows = DirectionArrows(end, zorder=8)
 
     extent = [0, lz, R1, R2]
     deviation = upper.imshow(saved[0][2], origin="lower", extent=extent, aspect="equal",
@@ -641,10 +786,8 @@ def video(directory, lang, out, poster, fps=30, time_scale=6.0, poster_only=Fals
                 artist.remove()
             stream_artists = []
             if saved[record][5].max() > 1e-3 * top:
-                before = set(lower.get_children())
-                lower.streamplot(zz, rr, saved[record][4], saved[record][3],
-                                 color="white", density=(1.4, 0.6), linewidth=0.65, arrowsize=0.8)
-                stream_artists = [artist for artist in lower.get_children() if artist not in before]
+                stream_artists = streamlines(lower, zz, rr, saved[record][4], saved[record][3],
+                                             density=(1.4, 0.6))
             last_record = record
         cutaway.draw(t, dev+couette(rc)[:, None], ur, uz)
         profile = (1 - weight) * profiles[index] + weight * profiles[index + 1]
@@ -655,10 +798,8 @@ def video(directory, lang, out, poster, fps=30, time_scale=6.0, poster_only=Fals
         angles = (phase[:, None] + np.arange(3)[None, :] * 2 * np.pi / 3).ravel()
         rad = np.repeat(rings, 3)
         direction = np.repeat(np.sign(omega), 3)
-        arrows.set_offsets(np.c_[rad * np.cos(angles), rad * np.sin(angles)])
-        arrows.set_UVC(-0.22 * np.sin(angles) * direction, 0.22 * np.cos(angles) * direction)
-        trail = angles[:, None] - direction[:, None] * np.linspace(0.30, 0, 18)[None, :]
-        tails.set_segments(np.stack([rad[:, None] * np.cos(trail), rad[:, None] * np.sin(trail)], axis=-1))
+        arrows.set_data(np.c_[rad*np.cos(angles), rad*np.sin(angles)],
+                        np.c_[-np.sin(angles)*direction, np.cos(angles)*direction])
         spokes = W1 * t + np.arange(4) * np.pi / 2
         sx = np.c_[0.73 * np.cos(spokes), 0.95 * np.cos(spokes), np.full(4, np.nan)].ravel()
         sy = np.c_[0.73 * np.sin(spokes), 0.95 * np.sin(spokes), np.full(4, np.nan)].ravel()
@@ -728,7 +869,7 @@ def main():
                                        fps=args.fps, time_scale=args.time_scale)
     record.update(video_fps=args.fps, video_time_scale=args.time_scale,
                   video_section_z=record["metadata"]["lz"] / 8,
-                  video_size=[1920, 960], video_cutaway_degrees=90,
+                  video_size=[OUTPUT_WIDTH, 960], video_cutaway_degrees=90,
                   video_surface_radii=list(SURFACE_RADII))
     lam, k = wavelength(args.run)
     record.update(axial_wavelength=lam, axial_pairs=k)

@@ -5144,7 +5144,7 @@ end function</pre></details>
     <source src="../../examples/taylor_couette/results/taylor-couette-ja.mp4" type="video/mp4">
     <img src="../../examples/taylor_couette/results/taylor-couette-ja-poster.png" alt="Re = 100 のテイラー渦：内外の流体の円筒面を共通の軸方向速度の尺度で色付けし，各面に沿う流れの向きと，軸方向・縦断面の図を併記"></video></div>
   <div class="cap">動画の左は，立てた円筒の手前の 1/4 を切り開き，外側の斜め上から見る立体図です。
-    白い矢印は，見えている各面の位置での，その面に沿う流れの向きです。矢印の長さは速さを表さず，面に垂直な成分は含めません。
+    白い矢印は，見えている各面の位置での，その面に沿う流れの向きです。立体図・中央図・流線の図・下の静止図を通じて，矢印の長さ・幅・先端の形を画像上で揃えています。大きさは速さを表さず，面に垂直な成分は含めません。狭い部分では矢印を小さくせず，収まる位置だけに表示します。
     正面には内筒から少し離れた r = 1.10 の流体の円筒面を置き，その位置の軸方向速度を色で表示します。内筒そのものは r = 1 の灰色の上部断面と回転する印で区別します。
     二つの長方形の切り口（1.10 ≤ r ≤ 1.90）では半径・軸方向の成分 (u<sub>r</sub>, u<sub>z</sub>) を表示します。
     上の扇形には z = 4 での半径・周方向の成分 (u<sub>r</sub>, u<sub>θ</sub>) を表示し，色は周方向速度で中央図と同じ尺度です。これは周期的な計算領域を切った流体の断面です。
@@ -5155,7 +5155,7 @@ end function</pre></details>
     右は縦断面の周方向速度とクエット解の差（上），および速さと流線（下）で，破線が中央図の断面位置です。立体図の切り口の色尺度は右下と共通です。
     500 ステップ（時間 1.5）ごとに保存した速度を描画用に補間し，計算時間の 6 倍速・30 fps で表示します。
     <a href="../../examples/taylor_couette/results/taylor-couette-ja.mp4">動画ファイル</a></div>
-  <div class="imgs"><img src="../../examples/taylor_couette/results/taylor-couette-ja.png" alt="Re = 100 のテイラー渦：周方向速度とクエット解の差，子午面の流線，擾乱の成長，隙間中央の半径方向速度" width="1485" height="901"></div>
+  <div class="imgs"><img src="../../examples/taylor_couette/results/taylor-couette-ja.png" alt="Re = 100 のテイラー渦：周方向速度とクエット解の差，子午面の流線，擾乱の成長，隙間中央の半径方向速度" width="1920" height="1166"></div>
   <div class="cap">65×256 格子（両壁を含む半径方向の面の数と軸方向のセル数）の子午面（横が z，縦が r），t = 180，z 方向を 4 つの MPI ランクに分割して計算。
     左：周方向速度とクエット解の差（赤が速い）と，子午面の速さおよび (u<sub>z</sub>, u<sub>r</sub>) の流線。右：max|u<sub>r</sub>| の成長と当てはめた
     成長率 σ = 0.118，隙間中央に沿った半径方向速度。</div>
