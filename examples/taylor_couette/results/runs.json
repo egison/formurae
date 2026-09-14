@@ -94,7 +94,10 @@
     960
   ],
   "video_cutaway_degrees": 90,
-  "video_surface_radius": 1.9,
+  "video_surface_radii": [
+    1.1,
+    1.9
+  ],
   "axial_wavelength": 2.0,
   "axial_pairs": 2
 }

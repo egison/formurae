@@ -31,7 +31,10 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection, Line3DCollection
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 R1, R2, W1, W2 = 1.0, 2.0, 1.0, 0.0
-SURFACE_RADIUS = R2 - 0.10 * (R2 - R1)  # actual radius of the displayed fluid section
+# Both colored cylinders sit at the actual radii sampled from the fluid.
+INNER_SURFACE_RADIUS = R1 + 0.10 * (R2 - R1)
+OUTER_SURFACE_RADIUS = R2 - 0.10 * (R2 - R1)
+SURFACE_RADII = (INNER_SURFACE_RADIUS, OUTER_SURFACE_RADIUS)
 SECTION_COLOR = "#b45309"
 RECORD = np.dtype([("i", "=i4"), ("j", "=i4"), ("ut", "=f8"), ("ur", "=f8"),
                    ("uz", "=f8"), ("p", "=f8")])
@@ -46,12 +49,13 @@ TEXT = {
            "title": "Axisymmetric Taylor-Couette flow at Re = %g: Taylor vortices from the Couette flow (t = %g)",
            "views": "Flow inside the cylinders: a 3-D view, an axial view, and longitudinal slices",
            "cutaway": "Flow inside the outer wall, seen from above at an angle",
-           "cutaway_note": "White arrows: flow direction along each face; length does not encode speed.\nCylinders: $(u_\\theta,u_z)$ / vertical cuts: $(u_r,u_z)$ / top: $(u_r,u_\\theta)$.\nTop fan: fluid section at z = %(height)g; color scale shared with the center panel.\nVertical-cut colors: lower right scale / cylindrical-section colors: left scale.\nGray dashes: stationary wall r = 2 / orange: fluid section r = %(radius).2f.",
-           "fluid_section": "Orange circle: the cylindrical section at left, r = %.2f",
-           "surface_speed": "Fluid axial velocity $u_z$ at $r = %.2f$",
+           "cutaway_note": "White arrows: flow direction along each face; length does not encode speed.\nCylinders: $(u_\\theta,u_z)$ / vertical cuts: $(u_r,u_z)$ / top: $(u_r,u_\\theta)$.\nTop fan: fluid section at z = %(height)g; color scale shared with the center panel.\nVertical-cut colors: lower right scale / cylindrical-section colors: left scale.\nGray dashes: wall r = 2 / orange: fluid sections r = %(inner).2f, %(outer).2f.",
+           "fluid_section": "Orange: fluid sections at r = %.2f and %.2f",
+           "surface_speed": "Fluid axial velocity $u_z$ ($r = %.2f, %.2f$)",
            "up": "Upward", "down": "Downward",
            "endview": "View from $+z$ (section at $z$ = %g)",
            "inner": "Inner cylinder\ncounterclockwise\n$\\Omega_1 = 1$",
+           "inner_top": "Inner cylinder $r=1$",
            "outer": "Outer wall $r=2$: stationary",
            "azimuthal": "azimuthal velocity $u_\\theta$",
            "section": "axial-view section",
@@ -67,12 +71,13 @@ TEXT = {
            "title": "軸対称テイラー・クエット流れ，Re = %g：クエット流れから育つテイラー渦（t = %g）",
            "views": "円筒内の流れを，立体図・軸方向からの図・縦断面で表示",
            "cutaway": "外壁の内側の流れ（斜め上から）",
-           "cutaway_note": "白矢印：その面に沿う流れの向き（長さは速さを表しません）\n円筒面 $(u_\\theta,u_z)$ ／ 縦の切り口 $(u_r,u_z)$ ／ 上面 $(u_r,u_\\theta)$\n上の扇形：z = %(height)g の流体断面（色尺度は中央図と共通）\n縦の切り口の色：右下の目盛り／円筒面の色：左の目盛り\n灰破線：静止外壁 r = 2 ／ 橙：流体断面 r = %(radius).2f",
-           "fluid_section": "橙の円：左図の円筒面 r = %.2f",
-           "surface_speed": "$r = %.2f$ の流体の軸方向速度 $u_z$",
+           "cutaway_note": "白矢印：その面に沿う流れの向き（長さは速さを表しません）\n円筒面 $(u_\\theta,u_z)$ ／ 縦の切り口 $(u_r,u_z)$ ／ 上面 $(u_r,u_\\theta)$\n上の扇形：z = %(height)g の流体断面（色尺度は中央図と共通）\n縦の切り口の色：右下の目盛り／円筒面の色：左の目盛り\n灰破線：外壁 r = 2 ／ 橙：流体断面 r = %(inner).2f，%(outer).2f",
+           "fluid_section": "橙の円：左図の流体断面 r = %.2f，%.2f",
+           "surface_speed": "流体の軸方向速度 $u_z$（$r = %.2f, %.2f$）",
            "up": "上昇", "down": "下降",
            "endview": "円筒を $+z$ 側から見る（$z$ = %g）",
            "inner": "内筒\n反時計回り\n$\\Omega_1 = 1$",
+           "inner_top": "内筒 $r=1$",
            "outer": "外壁 $r=2$：静止",
            "azimuthal": "周方向速度 $u_\\theta$",
            "section": "中央図の断面",
@@ -232,8 +237,8 @@ def sample_velocity(rc, zc, lz, ut, ur, uz, r, z):
     """Bilinear display interpolation, including no-slip walls and periodic z.
 
     The returned components are (azimuthal, radial, axial). In particular,
-    the top display section at z=lz samples across the periodic seam, and
-    arrows on the inner cylinder use the wall velocity, not a nearby cell.
+    the top display section at z=lz samples across the periodic seam. The
+    prescribed wall velocities bound the interpolation inside the fluid.
     """
     r, z = np.broadcast_arrays(r, np.mod(z, lz))
     radial = np.r_[R1, rc, R2]
@@ -279,38 +284,50 @@ class CutawayView:
         # the same radius used to sample velocities. The wall is only a frame.
         theta = np.linspace(self.front[1], self.front[0] + 2*np.pi, 73)
         heights = np.linspace(0, lz, 97)
-        section = quads(SURFACE_RADIUS*np.cos(theta[:, None]),
-                        SURFACE_RADIUS*np.sin(theta[:, None]), heights[None, :])
+        section = quads(OUTER_SURFACE_RADIUS*np.cos(theta[:, None]),
+                        OUTER_SURFACE_RADIUS*np.sin(theta[:, None]), heights[None, :])
         self.section_slice = slice(0, len(section))
         self.section_z = np.tile((heights[:-1]+heights[1:])/2, len(theta)-1)
         self.faces.extend(section)
         self.colors.extend(np.ones((len(section), 4)))
 
-        # Full inner cylinder, with animated stripes in its surface colors.
-        heights = np.linspace(0, lz, 33)
-        nz = len(heights)-1
-        theta = np.linspace(0, 2*np.pi, 129)
-        inner = quads(R1*np.cos(theta[:, None]), R1*np.sin(theta[:, None]), heights[None, :])
+        # The front face is fluid at r=1.10, not color painted onto the wall.
+        heights = np.linspace(0, lz, 97)
+        theta = np.linspace(self.front[0], self.front[1], 33)
+        inner = quads(INNER_SURFACE_RADIUS*np.cos(theta[:, None]),
+                      INNER_SURFACE_RADIUS*np.sin(theta[:, None]), heights[None, :])
         self.inner_slice = slice(len(self.faces), len(self.faces)+len(inner))
         self.faces.extend(inner)
         self.colors.extend(np.ones((len(inner), 4)))
-        self.inner_theta = np.repeat((theta[:-1] + theta[1:])/2, nz)
+        self.inner_z = np.tile((heights[:-1]+heights[1:])/2, len(theta)-1)
 
         # The inner solid is capped; the surrounding fan is a fluid section.
+        theta = np.linspace(0, 2*np.pi, 129)
         disk = np.array([[[0, 0, lz], [R1*np.cos(a), R1*np.sin(a), lz],
                           [R1*np.cos(b), R1*np.sin(b), lz]]
                          for a, b in zip(theta[:-1], theta[1:])])
         self.faces.extend(disk)
         self.colors.extend(np.tile(matplotlib.colors.to_rgba('#cbd5e1'), (len(disk), 1)))
-        re = np.linspace(R1, SURFACE_RADIUS, 25)
+        re = np.linspace(R1, OUTER_SURFACE_RADIUS, 25)
         theta = np.linspace(self.front[1], self.front[0]+2*np.pi, 97)
         fan = quads(re[:, None]*np.cos(theta), re[:, None]*np.sin(theta), lz)
-        self.fan_slice = slice(len(self.faces), len(self.faces)+len(fan))
-        self.fan_r = np.repeat((re[:-1]+re[1:])/2, len(theta)-1)
+        self.fan_sections = [(slice(len(self.faces), len(self.faces)+len(fan)),
+                              np.repeat((re[:-1]+re[1:])/2, len(theta)-1))]
         self.faces.extend(fan)
         self.colors.extend(np.ones((len(fan), 4)))
 
+        # The narrow fluid band between the solid r=1 and the r=1.10 section
+        # remains in the opening, including its horizontal top face.
+        re = np.linspace(R1, INNER_SURFACE_RADIUS, 5)
+        theta = np.linspace(self.front[0], self.front[1], 33)
+        collar = quads(re[:, None]*np.cos(theta), re[:, None]*np.sin(theta), lz)
+        self.fan_sections.append((slice(len(self.faces), len(self.faces)+len(collar)),
+                                  np.repeat((re[:-1]+re[1:])/2, len(theta)-1)))
+        self.faces.extend(collar)
+        self.colors.extend(np.ones((len(collar), 4)))
+
         # Downsampling only affects the resolution of the displayed surfaces.
+        re = np.linspace(INNER_SURFACE_RADIUS, OUTER_SURFACE_RADIUS, 25)
         ze = np.linspace(0, lz, 97)
         self.sample_r = (re[:-1] + re[1:])/2
         self.sample_z = (ze[:-1] + ze[1:])/2
@@ -327,25 +344,31 @@ class CutawayView:
         # Top rims and exposed sections; hidden back edges at the bottom
         # are omitted rather than drawn through the opaque cylinder surfaces.
         kept = np.linspace(self.front[1], self.front[0]+2*np.pi, 150)
-        outlines = [np.c_[R1*np.cos(kept), R1*np.sin(kept), np.full_like(kept, lz)]]
+        full = np.linspace(0, 2*np.pi, 160)
+        outlines = [np.c_[R1*np.cos(full), R1*np.sin(full), np.full_like(full, lz)]]
         for theta in self.front:
-            outlines.append(np.array([[R1*np.cos(theta), R1*np.sin(theta), 0],
-                                      [SURFACE_RADIUS*np.cos(theta), SURFACE_RADIUS*np.sin(theta), 0],
-                                      [SURFACE_RADIUS*np.cos(theta), SURFACE_RADIUS*np.sin(theta), lz],
-                                      [R1*np.cos(theta), R1*np.sin(theta), lz]]))
+            outlines.append(np.array([[INNER_SURFACE_RADIUS*np.cos(theta), INNER_SURFACE_RADIUS*np.sin(theta), 0],
+                                      [OUTER_SURFACE_RADIUS*np.cos(theta), OUTER_SURFACE_RADIUS*np.sin(theta), 0],
+                                      [OUTER_SURFACE_RADIUS*np.cos(theta), OUTER_SURFACE_RADIUS*np.sin(theta), lz],
+                                      [INNER_SURFACE_RADIUS*np.cos(theta), INNER_SURFACE_RADIUS*np.sin(theta), lz]]))
         ax.add_collection3d(Line3DCollection(outlines, colors='#475569', linewidths=.8, zorder=3), autolim=False)
         # Distinct outlines locate the real wall and the interior fluid section.
         # At lower heights only front-facing wall edges are shown, so hidden
         # edges do not appear through the opaque fluid surface.
         wall = [np.c_[R2*np.cos(kept), R2*np.sin(kept), np.full_like(kept, lz)]]
-        section_edges = [np.c_[SURFACE_RADIUS*np.cos(kept), SURFACE_RADIUS*np.sin(kept),
-                               np.full_like(kept, lz)]]
+        section_edges = [np.c_[OUTER_SURFACE_RADIUS*np.cos(kept), OUTER_SURFACE_RADIUS*np.sin(kept),
+                               np.full_like(kept, lz)],
+                         np.c_[INNER_SURFACE_RADIUS*np.cos(full), INNER_SURFACE_RADIUS*np.sin(full),
+                               np.full_like(full, lz)]]
+        opening = np.linspace(self.front[0], self.front[1], 50)
+        section_edges.append(np.c_[INNER_SURFACE_RADIUS*np.cos(opening),
+                                    INNER_SURFACE_RADIUS*np.sin(opening), np.zeros_like(opening)])
         for theta in np.deg2rad([-140, -100, -10, 30]):
             wall.append(np.array([[R2*np.cos(theta), R2*np.sin(theta), 0],
                                   [R2*np.cos(theta), R2*np.sin(theta), lz]]))
         for theta in self.front:
-            section_edges.append(np.array([[SURFACE_RADIUS*np.cos(theta), SURFACE_RADIUS*np.sin(theta), 0],
-                                           [SURFACE_RADIUS*np.cos(theta), SURFACE_RADIUS*np.sin(theta), lz]]))
+            section_edges.append(np.array([[OUTER_SURFACE_RADIUS*np.cos(theta), OUTER_SURFACE_RADIUS*np.sin(theta), 0],
+                                           [OUTER_SURFACE_RADIUS*np.cos(theta), OUTER_SURFACE_RADIUS*np.sin(theta), lz]]))
         for lo, hi in ((-145, -100), (-10, 35)):
             a = np.deg2rad(np.linspace(lo, hi, 40))
             for z in (0, lz/2):
@@ -369,15 +392,22 @@ class CutawayView:
         # hemisphere. The top faces point upward. Thus none of these arrows
         # can be hidden behind another face or drawn over a different one.
         heights = np.linspace(.22, lz-.22, 9)[None, :]
-        add_arrows('cylinder', R1, np.deg2rad([-82, -55, -28])[:, None], heights, .28)
-        add_arrows('cylinder', SURFACE_RADIUS,
+        add_arrows('cylinder', INNER_SURFACE_RADIUS, np.deg2rad([-82, -55, -28])[:, None], heights, .28)
+        add_arrows('cylinder', OUTER_SURFACE_RADIUS,
                    np.deg2rad([-133, -115, 5, 23])[:, None], heights, .28)
         for theta in self.front:
-            add_arrows('cut', np.linspace(R1+.12, SURFACE_RADIUS-.12, 4)[:, None],
+            add_arrows('cut', np.linspace(INNER_SURFACE_RADIUS+.12, OUTER_SURFACE_RADIUS-.12, 4)[:, None],
                        theta, np.linspace(.18, lz-.18, 15)[None, :], .18)
-        add_arrows('top', np.linspace(R1+.14, SURFACE_RADIUS-.14, 3)[:, None],
+        add_arrows('top', np.linspace(INNER_SURFACE_RADIUS+.14, OUTER_SURFACE_RADIUS-.14, 3)[:, None],
                    np.linspace(self.front[1]+.13, self.front[0]+2*np.pi-.13, 14)[None, :],
                    lz, .20)
+        add_arrows('top', (R1+INNER_SURFACE_RADIUS)/2,
+                   np.linspace(0, 2*np.pi, 16, endpoint=False), lz, .08)
+        # The solid's motion is marked on its gray top section, not on fluid.
+        self.rotor = Line3DCollection([], colors='#64748b', linewidths=2.4, zorder=4)
+        ax.add_collection3d(self.rotor, autolim=False)
+        ax.text(0, 0, lz, text['inner_top'], ha='center', va='center',
+                fontsize=10, fontproperties=font, color='#334155', zorder=6)
         ax.view_init(elev=27, azim=-55)
         ax.set_proj_type('ortho')
         ax.set_box_aspect((4, 4, lz), zoom=1.15)
@@ -385,12 +415,14 @@ class CutawayView:
         ax.set_axis_off()
         ax.text2D(.5, 1.04, text['cutaway'], ha='center', va='top',
                   transform=ax.transAxes, fontsize=17, fontproperties=font)
-        ax.text2D(.5, -.07, text['cutaway_note'] % {'height': lz, 'radius': SURFACE_RADIUS}, ha='center', va='bottom',
+        note = text['cutaway_note'] % {'height': lz, 'inner': INNER_SURFACE_RADIUS,
+                                      'outer': OUTER_SURFACE_RADIUS}
+        ax.text2D(.5, -.07, note, ha='center', va='bottom',
                   transform=ax.transAxes, fontsize=10.5, fontproperties=font, color='#475569')
         color_axis = ax.figure.add_axes([.027, .34, .009, .29])
         cb = ax.figure.colorbar(matplotlib.cm.ScalarMappable(norm=self.surface_norm, cmap='RdBu_r'),
                                  cax=color_axis, ticks=[-surface_limit, 0, surface_limit], format='%.3f')
-        cb.set_label(text['surface_speed'] % SURFACE_RADIUS, fontproperties=font, fontsize=11)
+        cb.set_label(text['surface_speed'] % SURFACE_RADII, fontproperties=font, fontsize=11)
         cb.ax.text(.5, 1.045, text['up'], transform=cb.ax.transAxes, ha='center', va='bottom',
                    fontsize=10, fontproperties=font, color='#b91c1c')
         cb.ax.text(.5, -.045, text['down'], transform=cb.ax.transAxes, ha='center', va='top',
@@ -403,13 +435,10 @@ class CutawayView:
             ax.text(2.18*np.cos(theta), 2.18*np.sin(theta), z, '$z=%g$' % z, fontsize=11)
 
     def draw(self, t, ut, ur, uz):
-        # Four stripes rotate at the prescribed inner-cylinder angular speed.
-        distance = np.abs(np.angle(np.exp(4j*(self.inner_theta-W1*t))))/4
-        stripe = np.exp(-(distance/.055)**4)
-        shade = .85 + .08*np.cos(self.inner_theta-np.deg2rad(-55))
-        base = np.c_[shade*.95, shade*.98, shade, np.ones_like(shade)]
-        base[:, :3] = (1-stripe[:, None])*base[:, :3] + stripe[:, None]*np.array([.25, .32, .41])
-        self.colors[self.inner_slice] = base
+        angles = W1*t+np.arange(4)*np.pi/2
+        self.rotor.set_segments([np.c_[np.array([.73, .94])*np.cos(a),
+                                        np.array([.73, .94])*np.sin(a), [self.lz, self.lz]]
+                                 for a in angles])
         def sample(r, z):
             return sample_velocity(self.rc, self.zc, self.lz, ut, ur, uz, r, z)
         velocity = sample(self.sample_r[:, None], self.sample_z[None, :])
@@ -418,9 +447,12 @@ class CutawayView:
         for part in self.cut_slices:
             self.colors[part] = rgba
         self.colors[self.section_slice] = plt.get_cmap('RdBu_r')(
-            self.surface_norm(sample(SURFACE_RADIUS, self.section_z)[:, 2]))
-        self.colors[self.fan_slice] = plt.get_cmap('cividis')(
-            self.rotation_norm(sample(self.fan_r, self.lz)[:, 0]))
+            self.surface_norm(sample(OUTER_SURFACE_RADIUS, self.section_z)[:, 2]))
+        self.colors[self.inner_slice] = plt.get_cmap('RdBu_r')(
+            self.surface_norm(sample(INNER_SURFACE_RADIUS, self.inner_z)[:, 2]))
+        for part, radii in self.fan_sections:
+            self.colors[part] = plt.get_cmap('cividis')(
+                self.rotation_norm(sample(radii, self.lz)[:, 0]))
 
         segments = []
         for kind, radii, angles, heights, length in self.arrow_groups:
@@ -511,8 +543,9 @@ def video(directory, lang, out, poster, fps=30, time_scale=6.0, poster_only=Fals
     if max_rotation * (frame_times[1] - frame_times[0]) > np.pi / 8:
         raise ValueError("rotation is undersampled; increase fps or reduce time_scale")
 
-    surface_uz = np.array([[np.interp(SURFACE_RADIUS, rc, col)
-                            for col in fields[4].T] for fields in saved])
+    # One fixed color scale for both fluid cylinders over the whole video.
+    surface_uz = np.array([[[np.interp(r, rc, col) for col in fields[4].T]
+                            for r in SURFACE_RADII] for fields in saved])
     surface_limit = float(np.abs(surface_uz).max()) or 1.0
     rotation_norm = matplotlib.colors.Normalize(
         min(0.0, float(profiles.min())), max(abs(W1*R1), float(profiles.max())))
@@ -542,8 +575,8 @@ def video(directory, lang, out, poster, fps=30, time_scale=6.0, poster_only=Fals
                           cmap="cividis", norm=rotation_norm, interpolation="bilinear")
     for ring in rings:
         end.add_patch(Circle((0, 0), ring, fill=False, edgecolor="white", lw=0.7, alpha=0.25))
-    end.add_patch(Circle((0, 0), SURFACE_RADIUS, fill=False, edgecolor=SECTION_COLOR,
-                         lw=1.8, zorder=3))
+    for r in SURFACE_RADII:
+        end.add_patch(Circle((0, 0), r, fill=False, edgecolor=SECTION_COLOR, lw=1.8, zorder=3))
     end.add_patch(Circle((0, 0), R1, facecolor="#e2e8f0", edgecolor="#334155", lw=2, zorder=4))
     end.add_patch(Circle((0, 0), R2, fill=False, edgecolor="#334155", lw=2))
     ticks = np.arange(12) * 2 * np.pi / 12
@@ -556,7 +589,7 @@ def video(directory, lang, out, poster, fps=30, time_scale=6.0, poster_only=Fals
              fontsize=13, color="#1e293b", zorder=6)
     end.text(0, -2.29, text["outer"], ha="center", va="center", fontproperties=font,
              color="#334155", fontsize=12)
-    end.text(0, -2.58, text["fluid_section"] % SURFACE_RADIUS, ha="center", va="center",
+    end.text(0, -2.58, text["fluid_section"] % SURFACE_RADII, ha="center", va="center",
              fontproperties=font, fontsize=10, color=SECTION_COLOR)
     cb = fig.colorbar(rotation, ax=end, orientation="horizontal", fraction=0.046, pad=0.085)
     cb.set_label(text["azimuthal"], fontproperties=font)
@@ -696,7 +729,7 @@ def main():
     record.update(video_fps=args.fps, video_time_scale=args.time_scale,
                   video_section_z=record["metadata"]["lz"] / 8,
                   video_size=[1920, 960], video_cutaway_degrees=90,
-                  video_surface_radius=SURFACE_RADIUS)
+                  video_surface_radii=list(SURFACE_RADII))
     lam, k = wavelength(args.run)
     record.update(axial_wavelength=lam, axial_pairs=k)
     (args.results / "runs.json").write_text(json.dumps(record, indent=2, ensure_ascii=False) + "\n")
