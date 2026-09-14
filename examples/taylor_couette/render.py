@@ -46,7 +46,7 @@ TEXT = {
            "title": "Axisymmetric Taylor-Couette flow at Re = %g: Taylor vortices from the Couette flow (t = %g)",
            "views": "Flow inside the cylinders: a 3-D view, an axial view, and longitudinal slices",
            "cutaway": "Flow inside the outer wall, seen from above at an angle",
-           "cutaway_note": "Gray dashed frame: stationary outer wall at r = 2.\nOrange outline: the fluid cut along a cylinder at r = %.2f.\nWhite arrows on this surface: azimuthal and axial velocity $(u_\\theta,u_z)$.\nCut-face colors and streamlines: as in the lower right panel.",
+           "cutaway_note": "White arrows: flow direction along each face; length does not encode speed.\nCylinders: $(u_\\theta,u_z)$ / vertical cuts: $(u_r,u_z)$ / top: $(u_r,u_\\theta)$.\nTop fan: fluid section at z = %(height)g; color scale shared with the center panel.\nVertical-cut colors: lower right scale / cylindrical-section colors: left scale.\nGray dashes: stationary wall r = 2 / orange: fluid section r = %(radius).2f.",
            "fluid_section": "Orange circle: the cylindrical section at left, r = %.2f",
            "surface_speed": "Fluid axial velocity $u_z$ at $r = %.2f$",
            "up": "Upward", "down": "Downward",
@@ -55,7 +55,7 @@ TEXT = {
            "outer": "Outer wall $r=2$: stationary",
            "azimuthal": "azimuthal velocity $u_\\theta$",
            "section": "axial-view section",
-           "glyphs": "Moving arrows in the gap and center panel show rotation at fixed radius and height: $d\\theta/dt = u_\\theta/r$ (not particle trajectories).",
+           "glyphs": "Moving arrows in the center panel show rotation at fixed radius and height: $d\\theta/dt = u_\\theta/r$ (not particle trajectories).",
            "sampling": "%g times simulation speed  |  %d fps  |  saved velocities interpolated for display",
            "video": "Taylor-Couette flow at Re = %g, $t$ = %5.1f"},
     "ja": {"dev": "周方向速度とクエット解の差 $u_\\theta - (Ar + B/r)$",
@@ -67,7 +67,7 @@ TEXT = {
            "title": "軸対称テイラー・クエット流れ，Re = %g：クエット流れから育つテイラー渦（t = %g）",
            "views": "円筒内の流れを，立体図・軸方向からの図・縦断面で表示",
            "cutaway": "外壁の内側の流れ（斜め上から）",
-           "cutaway_note": "灰色の破線：静止した外壁 r = 2\n橙の縁：流体を切った円筒面 r = %.2f\n円筒面の白矢印：周方向・軸方向の速度 $(u_\\theta,u_z)$\n切り口の色と流線：右下の縦断面と共通",
+           "cutaway_note": "白矢印：その面に沿う流れの向き（長さは速さを表しません）\n円筒面 $(u_\\theta,u_z)$ ／ 縦の切り口 $(u_r,u_z)$ ／ 上面 $(u_r,u_\\theta)$\n上の扇形：z = %(height)g の流体断面（色尺度は中央図と共通）\n縦の切り口の色：右下の目盛り／円筒面の色：左の目盛り\n灰破線：静止外壁 r = 2 ／ 橙：流体断面 r = %(radius).2f",
            "fluid_section": "橙の円：左図の円筒面 r = %.2f",
            "surface_speed": "$r = %.2f$ の流体の軸方向速度 $u_z$",
            "up": "上昇", "down": "下降",
@@ -76,7 +76,7 @@ TEXT = {
            "outer": "外壁 $r=2$：静止",
            "azimuthal": "周方向速度 $u_\\theta$",
            "section": "中央図の断面",
-           "glyphs": "隙間・中央図の動く矢印：固定した半径と高さでの回転 $d\\theta/dt = u_\\theta/r$ を表示（流体粒子の軌跡ではありません）",
+           "glyphs": "中央図の動く矢印：固定した半径と高さでの回転 $d\\theta/dt = u_\\theta/r$ を表示（流体粒子の軌跡ではありません）",
            "sampling": "計算時間の %g 倍速  |  %d fps  |  保存した速度を描画用に補間",
            "video": "テイラー・クエット流れ，Re = %g，$t$ = %5.1f"},
 }
@@ -228,20 +228,44 @@ def ffmpeg():
     return os.environ.get("FFMPEG") or shutil.which("ffmpeg")
 
 
+def sample_velocity(rc, zc, lz, ut, ur, uz, r, z):
+    """Bilinear display interpolation, including no-slip walls and periodic z.
+
+    The returned components are (azimuthal, radial, axial). In particular,
+    the top display section at z=lz samples across the periodic seam, and
+    arrows on the inner cylinder use the wall velocity, not a nearby cell.
+    """
+    r, z = np.broadcast_arrays(r, np.mod(z, lz))
+    radial = np.r_[R1, rc, R2]
+    axial = np.r_[zc[-1]-lz, zc, zc[0]+lz]
+    i = np.clip(np.searchsorted(radial, r)-1, 0, len(radial)-2)
+    j = np.clip(np.searchsorted(axial, z)-1, 0, len(axial)-2)
+    a = (r-radial[i])/(radial[i+1]-radial[i])
+    b = (z-axial[j])/(axial[j+1]-axial[j])
+    sampled = []
+    for field, inner, outer in ((ut, W1*R1, W2*R2), (ur, 0, 0), (uz, 0, 0)):
+        data = np.vstack([np.full(len(zc), inner), field, np.full(len(zc), outer)])
+        data = np.c_[data[:, -1], data, data[:, 0]]
+        sampled.append((1-a)*((1-b)*data[i, j]+b*data[i, j+1])
+                       + a*((1-b)*data[i+1, j]+b*data[i+1, j+1]))
+    return np.stack(sampled, axis=-1)
+
+
 class CutawayView:
     """A display-only reconstruction of the axisymmetric field in 3-D.
 
     The front quarter is omitted to expose two meridional sections. Fluid
     data is displayed at its actual sampling radius, inside a wire outline
-    of the stationary wall. Opaque surfaces share one depth-sorted collection.
-    The periodic z limits are open, without end caps.
+    of the stationary wall. Arrow anchors lie only on faces visible from the
+    fixed camera, with margins keeping the complete arrows on those faces.
+    The top annular section cuts fluid at the periodic display limit, not a lid.
     """
 
-    def __init__(self, ax, rc, zc, lz, top, surface_limit, surface_scale, text, font):
-        self.rc, self.zc = rc, zc
+    def __init__(self, ax, rc, zc, lz, top, surface_limit, rotation_norm, text, font):
+        self.rc, self.zc, self.lz = rc, zc, lz
         self.top = top
         self.surface_norm = matplotlib.colors.Normalize(-surface_limit, surface_limit)
-        self.surface_scale = surface_scale
+        self.rotation_norm = rotation_norm
         self.front = np.deg2rad([-100, -10])
         self.faces, self.colors = [], []
         self.cut_slices = []
@@ -272,8 +296,21 @@ class CutawayView:
         self.colors.extend(np.ones((len(inner), 4)))
         self.inner_theta = np.repeat((theta[:-1] + theta[1:])/2, nz)
 
+        # The inner solid is capped; the surrounding fan is a fluid section.
+        disk = np.array([[[0, 0, lz], [R1*np.cos(a), R1*np.sin(a), lz],
+                          [R1*np.cos(b), R1*np.sin(b), lz]]
+                         for a, b in zip(theta[:-1], theta[1:])])
+        self.faces.extend(disk)
+        self.colors.extend(np.tile(matplotlib.colors.to_rgba('#cbd5e1'), (len(disk), 1)))
+        re = np.linspace(R1, SURFACE_RADIUS, 25)
+        theta = np.linspace(self.front[1], self.front[0]+2*np.pi, 97)
+        fan = quads(re[:, None]*np.cos(theta), re[:, None]*np.sin(theta), lz)
+        self.fan_slice = slice(len(self.faces), len(self.faces)+len(fan))
+        self.fan_r = np.repeat((re[:-1]+re[1:])/2, len(theta)-1)
+        self.faces.extend(fan)
+        self.colors.extend(np.ones((len(fan), 4)))
+
         # Downsampling only affects the resolution of the displayed surfaces.
-        re = np.linspace(R1, R2, 25)
         ze = np.linspace(0, lz, 97)
         self.sample_r = (re[:-1] + re[1:])/2
         self.sample_z = (ze[:-1] + ze[1:])/2
@@ -293,8 +330,8 @@ class CutawayView:
         outlines = [np.c_[R1*np.cos(kept), R1*np.sin(kept), np.full_like(kept, lz)]]
         for theta in self.front:
             outlines.append(np.array([[R1*np.cos(theta), R1*np.sin(theta), 0],
-                                      [R2*np.cos(theta), R2*np.sin(theta), 0],
-                                      [R2*np.cos(theta), R2*np.sin(theta), lz],
+                                      [SURFACE_RADIUS*np.cos(theta), SURFACE_RADIUS*np.sin(theta), 0],
+                                      [SURFACE_RADIUS*np.cos(theta), SURFACE_RADIUS*np.sin(theta), lz],
                                       [R1*np.cos(theta), R1*np.sin(theta), lz]]))
         ax.add_collection3d(Line3DCollection(outlines, colors='#475569', linewidths=.8, zorder=3), autolim=False)
         # Distinct outlines locate the real wall and the interior fluid section.
@@ -317,21 +354,30 @@ class CutawayView:
                                               linestyles='dashed', zorder=3), autolim=False)
         ax.add_collection3d(Line3DCollection(section_edges, colors=SECTION_COLOR,
                                               linewidths=1.0, zorder=3), autolim=False)
-        self.streams = Line3DCollection([], colors='white', linewidths=.7, zorder=4)
-        ax.add_collection3d(self.streams, autolim=False)
-        self.rotation_outline = Line3DCollection([], colors='#334155', linewidths=3.2, zorder=5)
-        self.rotation = Line3DCollection([], colors='white', linewidths=1.8, zorder=6)
-        ax.add_collection3d(self.rotation_outline, autolim=False)
-        ax.add_collection3d(self.rotation, autolim=False)
-        self.surface_outline = Line3DCollection([], colors='#334155', linewidths=2.8, zorder=7)
-        self.surface_arrows = Line3DCollection([], colors='white', linewidths=1.5, zorder=8)
-        ax.add_collection3d(self.surface_outline, autolim=False)
-        ax.add_collection3d(self.surface_arrows, autolim=False)
-        # Only the outward-facing portions of the fluid section are visible.
-        # Keeping arrows here avoids drawing hidden back-side vectors through
-        # the cylinder; each arrow also stays clear of the cut edges.
-        self.surface_theta = np.deg2rad(-55 + np.array([-78, -60, 60, 78]))
-        self.surface_z = np.linspace(.2, lz-.2, 11)
+        self.arrow_outline = Line3DCollection([], colors='#334155', linewidths=3.1, zorder=4)
+        self.arrows = Line3DCollection([], colors='white', linewidths=1.6, zorder=5)
+        ax.add_collection3d(self.arrow_outline, autolim=False)
+        ax.add_collection3d(self.arrows, autolim=False)
+        # Each arrow is sampled and drawn on the same face. Values normal to
+        # that face are omitted. Arrow length expresses direction only.
+        self.arrow_groups = []
+        def add_arrows(kind, radius, theta, height, length):
+            r, a, z = np.broadcast_arrays(radius, theta, height)
+            self.arrow_groups.append((kind, r.ravel(), a.ravel(), z.ravel(), length))
+        # From azimuth -55 degrees, all rays from these inner/cut faces
+        # pass through the opening. Outer-face arrows stay within the front
+        # hemisphere. The top faces point upward. Thus none of these arrows
+        # can be hidden behind another face or drawn over a different one.
+        heights = np.linspace(.22, lz-.22, 9)[None, :]
+        add_arrows('cylinder', R1, np.deg2rad([-82, -55, -28])[:, None], heights, .28)
+        add_arrows('cylinder', SURFACE_RADIUS,
+                   np.deg2rad([-133, -115, 5, 23])[:, None], heights, .28)
+        for theta in self.front:
+            add_arrows('cut', np.linspace(R1+.12, SURFACE_RADIUS-.12, 4)[:, None],
+                       theta, np.linspace(.18, lz-.18, 15)[None, :], .18)
+        add_arrows('top', np.linspace(R1+.14, SURFACE_RADIUS-.14, 3)[:, None],
+                   np.linspace(self.front[1]+.13, self.front[0]+2*np.pi-.13, 14)[None, :],
+                   lz, .20)
         ax.view_init(elev=27, azim=-55)
         ax.set_proj_type('ortho')
         ax.set_box_aspect((4, 4, lz), zoom=1.15)
@@ -339,8 +385,8 @@ class CutawayView:
         ax.set_axis_off()
         ax.text2D(.5, 1.04, text['cutaway'], ha='center', va='top',
                   transform=ax.transAxes, fontsize=17, fontproperties=font)
-        ax.text2D(.5, -.05, text['cutaway_note'] % SURFACE_RADIUS, ha='center', va='bottom',
-                  transform=ax.transAxes, fontsize=11.5, fontproperties=font, color='#475569')
+        ax.text2D(.5, -.07, text['cutaway_note'] % {'height': lz, 'radius': SURFACE_RADIUS}, ha='center', va='bottom',
+                  transform=ax.transAxes, fontsize=10.5, fontproperties=font, color='#475569')
         color_axis = ax.figure.add_axes([.027, .34, .009, .29])
         cb = ax.figure.colorbar(matplotlib.cm.ScalarMappable(norm=self.surface_norm, cmap='RdBu_r'),
                                  cax=color_axis, ticks=[-surface_limit, 0, surface_limit], format='%.3f')
@@ -356,7 +402,7 @@ class CutawayView:
         for z in (0, lz):
             ax.text(2.18*np.cos(theta), 2.18*np.sin(theta), z, '$z=%g$' % z, fontsize=11)
 
-    def draw(self, t, speed, paths, surface_ut, surface_uz):
+    def draw(self, t, ut, ur, uz):
         # Four stripes rotate at the prescribed inner-cylinder angular speed.
         distance = np.abs(np.angle(np.exp(4j*(self.inner_theta-W1*t))))/4
         stripe = np.exp(-(distance/.055)**4)
@@ -364,86 +410,61 @@ class CutawayView:
         base = np.c_[shade*.95, shade*.98, shade, np.ones_like(shade)]
         base[:, :3] = (1-stripe[:, None])*base[:, :3] + stripe[:, None]*np.array([.25, .32, .41])
         self.colors[self.inner_slice] = base
-        # Interpolate the recorded meridional speed onto the display mesh.
-        along_z = np.array([np.interp(self.sample_z, self.zc, row) for row in speed])
-        sample = np.array([np.interp(self.sample_r, self.rc, column) for column in along_z.T]).T
-        rgba = plt.get_cmap('viridis')(np.clip(sample/self.top, 0, 1)).reshape(-1, 4)
+        def sample(r, z):
+            return sample_velocity(self.rc, self.zc, self.lz, ut, ur, uz, r, z)
+        velocity = sample(self.sample_r[:, None], self.sample_z[None, :])
+        speed = np.hypot(velocity[..., 1], velocity[..., 2])
+        rgba = plt.get_cmap('viridis')(np.clip(speed/self.top, 0, 1)).reshape(-1, 4)
         for part in self.cut_slices:
             self.colors[part] = rgba
         self.colors[self.section_slice] = plt.get_cmap('RdBu_r')(
-            self.surface_norm(np.interp(self.section_z, self.zc, surface_uz)))
+            self.surface_norm(sample(SURFACE_RADIUS, self.section_z)[:, 2]))
+        self.colors[self.fan_slice] = plt.get_cmap('cividis')(
+            self.rotation_norm(sample(self.fan_r, self.lz)[:, 0]))
+
+        segments = []
+        for kind, radii, angles, heights, length in self.arrow_groups:
+            velocity = sample(radii, heights)
+            components = {'cylinder': (0, 2), 'cut': (1, 2), 'top': (1, 0)}[kind]
+            tangent = velocity[:, components]
+            magnitude = np.linalg.norm(tangent, axis=1)
+            threshold = 1e-3*self.top if kind == 'cut' else 1e-6
+            for r, a, z, v, norm in zip(radii, angles, heights, tangent, magnitude):
+                if norm <= threshold:
+                    continue
+                segments.extend(self.arrow_segments(kind, r, a, z, v/norm, length))
         self.surfaces.set_facecolors(self.colors)
-        self.draw_surface_velocity(surface_ut, surface_uz)
-        if paths is not None:
-            segments = []
-            for theta in self.front:
-                for path in paths:
-                    # streamplot paths contain (z,r) coordinates in flow order.
-                    z, r = path[:, 0], path[:, 1]
-                    segments.append(np.c_[r*np.cos(theta), r*np.sin(theta), z])
-                    if len(path) > 4:
-                        mid = len(path)//2
-                        tangent = path[mid+1]-path[mid-1]
-                        length = np.linalg.norm(tangent)
-                        if length > 0:
-                            tangent = .055*tangent/length
-                            side = .45*np.array([-tangent[1], tangent[0]])
-                            head = np.array([path[mid]-tangent+side, path[mid], path[mid]-tangent-side])
-                            segments.append(np.c_[head[:, 1]*np.cos(theta), head[:, 1]*np.sin(theta), head[:, 0]])
-            self.streams.set_segments(segments)
+        self.arrow_outline.set_segments(segments)
+        self.arrows.set_segments(segments)
 
-    def draw_surface_velocity(self, ut, uz):
-        """Fixed-position arrows show the (azimuthal, axial) velocity components.
+    @staticmethod
+    def arrow_segments(kind, radius, theta, height, direction, length):
+        """Map a direction arrow onto its actual surface, without normal offsets.
 
-        Arrow lengths use one scale for every frame. Their geometry follows
-        the fluid section; these vectors contain no radial velocity component.
-        These vectors do not advance any particle or simulation state.
+        Local coordinates: cylinder (arc length, z), cut (r, z), top (r, arc
+        length). Curved shafts remain on the cylinder or horizontal section.
         """
+        shaft = np.linspace(-.5, .5, 9)[:, None]*direction
+        side = .20*np.array([-direction[1], direction[0]])
+        head = np.array([.12*direction+side, .5*direction, .12*direction-side])
         segments = []
-        radius = SURFACE_RADIUS
-        for z in self.surface_z:
-            v = self.surface_scale*np.array([np.interp(z, self.zc, ut), np.interp(z, self.zc, uz)])
-            if np.linalg.norm(v) < 1e-8:
-                continue
-            # Local coordinates are circumferential arc length and height.
-            shaft = np.linspace(-.5, .5, 9)[:, None]*v
-            side = .13*np.array([-v[1], v[0]])
-            head = np.array([.15*v+side, .5*v, .15*v-side])
-            for theta in self.surface_theta:
-                for points in (shaft, head):
-                    a = theta + points[:, 0]/radius
-                    segments.append(np.c_[radius*np.cos(a), radius*np.sin(a), z+points[:, 1]])
-        self.surface_outline.set_segments(segments)
-        self.surface_arrows.set_segments(segments)
-
-    def draw_rotation(self, phases, angular, radii, heights):
-        segments = []
-        for phase, omega, radius, z in zip(phases, angular, radii, heights):
-            direction = np.sign(omega)
-            for offset in (0, 2*np.pi/3, 4*np.pi/3):
-                angle = (phase+offset+np.pi) % (2*np.pi)-np.pi
-                # Only the front opening exposes these rotation indicators.
-                trail = angle - direction*np.linspace(.28, 0, 18)
-                visible = (trail > self.front[0]+.05) & (trail < self.front[1]-.05)
-                if visible.sum() > 1:
-                    a = trail[visible]
-                    segments.append(np.c_[radius*np.cos(a), radius*np.sin(a), np.full_like(a, z)])
-                if visible[-1]:
-                    tip = np.array([radius*np.cos(angle), radius*np.sin(angle), z])
-                    tangent = direction*np.array([-np.sin(angle), np.cos(angle), 0])
-                    radial = np.array([np.cos(angle), np.sin(angle), 0])
-                    segments.append(np.array([tip-.13*tangent+.05*radial, tip,
-                                              tip-.13*tangent-.05*radial]))
-        self.rotation_outline.set_segments(segments)
-        self.rotation.set_segments(segments)
+        for points in (length*shaft, length*head):
+            if kind == 'cylinder':
+                r, a, z = radius, theta+points[:, 0]/radius, height+points[:, 1]
+            elif kind == 'cut':
+                r, a, z = radius+points[:, 0], theta, height+points[:, 1]
+            else:
+                r, a, z = radius+points[:, 0], theta+points[:, 1]/radius, height
+            segments.append(np.stack(np.broadcast_arrays(r*np.cos(a), r*np.sin(a), z), axis=-1))
+        return segments
 
 
 def video(directory, lang, out, poster, fps=30, time_scale=6.0, poster_only=False):
     """Show circumferential motion alongside the meridional fields.
 
-    Moving glyphs in the gap and axial view stay at fixed (r,z); only their
-    display angle advances with sampled u_theta/r. Surface arrows instead
-    stay at fixed positions and show the local tangential velocity vector.
+    Moving glyphs in the axial view stay at fixed (r,z); only their display
+    angle advances with sampled u_theta/r. Arrows on every cutaway face stay
+    at fixed positions and show the local velocity direction along that face.
     Neither display depicts fluid trajectories.
     Saved velocities are linearly interpolated in time and in the displayed
     cross-section. No tracer, flow state, or solver input is evolved here.
@@ -484,35 +505,21 @@ def video(directory, lang, out, poster, fps=30, time_scale=6.0, poster_only=Fals
         np.diff(times)[:, None] * (angular[:-1] + angular[1:]) / 2, axis=0)
     frame_count = int(math.ceil(times[-1] / time_scale * fps)) + 1
     frame_times = np.linspace(0, times[-1], frame_count)
-    # Reconstruct the same axisymmetric data at several display heights.
-    glyph_r = np.tile([1.28, 1.70], 4)
-    glyph_z = np.repeat(lz*np.array([.125, .375, .625, .875]), 2)
-    glyph_angular = np.array([
-        [np.interp(r, rc, [np.interp(z, zc, row) for row in fields[2]+couette(rc)[:, None]])/r
-         for r, z in zip(glyph_r, glyph_z)] for fields in saved
-    ])
-    glyph_phases = np.zeros_like(glyph_angular)
-    glyph_phases[0] = np.linspace(-1.4, -.3, len(glyph_r))
-    glyph_phases[1:] = glyph_phases[0] + np.cumsum(
-        np.diff(times)[:, None]*(glyph_angular[:-1]+glyph_angular[1:])/2, axis=0)
-
-    max_rotation = max(abs(W1), abs(W2), float(np.abs(angular).max()),
-                       float(np.abs(glyph_angular).max()))
+    max_rotation = max(abs(W1), abs(W2), float(np.abs(angular).max()))
     # Four marks on the inner cylinder repeat every pi/2. Stay well below
     # half that interval per frame, so apparent reverse rotation is avoided.
     if max_rotation * (frame_times[1] - frame_times[0]) > np.pi / 8:
         raise ValueError("rotation is undersampled; increase fps or reduce time_scale")
 
-    surface_ut = np.array([[np.interp(SURFACE_RADIUS, rc, col)
-                            for col in (fields[2]+couette(rc)[:, None]).T] for fields in saved])
     surface_uz = np.array([[np.interp(SURFACE_RADIUS, rc, col)
                             for col in fields[4].T] for fields in saved])
     surface_limit = float(np.abs(surface_uz).max()) or 1.0
-    surface_scale = .32/(float(np.hypot(surface_ut, surface_uz).max()) or 1.0)
+    rotation_norm = matplotlib.colors.Normalize(
+        min(0.0, float(profiles.min())), max(abs(W1*R1), float(profiles.max())))
 
     fig = plt.figure(figsize=(19.2, 9.6), dpi=100)
     cutaway = CutawayView(fig.add_axes([0, .16, .40, .70], projection='3d', computed_zorder=False),
-                          rc, zc, lz, top, surface_limit, surface_scale, text, font)
+                          rc, zc, lz, top, surface_limit, rotation_norm, text, font)
     end = fig.add_axes([.41, .22, .225, .58])
     upper = fig.add_axes([.69, .61, .285, .22])
     lower = fig.add_axes([.69, .24, .285, .22])
@@ -532,8 +539,7 @@ def video(directory, lang, out, poster, fps=30, time_scale=6.0, poster_only=Fals
     def annulus(profile):
         return np.ma.array(np.interp(radial, radius, profile), mask=outside)
     rotation = end.imshow(annulus(profiles[0]), extent=[-R2, R2, -R2, R2], origin="lower",
-                          cmap="cividis", vmin=min(0.0, profiles.min()),
-                          vmax=max(abs(W1 * R1), float(profiles.max())), interpolation="bilinear")
+                          cmap="cividis", norm=rotation_norm, interpolation="bilinear")
     for ring in rings:
         end.add_patch(Circle((0, 0), ring, fill=False, edgecolor="white", lw=0.7, alpha=0.25))
     end.add_patch(Circle((0, 0), SURFACE_RADIUS, fill=False, edgecolor=SECTION_COLOR,
@@ -597,26 +603,17 @@ def video(directory, lang, out, poster, fps=30, time_scale=6.0, poster_only=Fals
         # Streamline geometry updates at saved-record intervals; the color
         # maps and circumferential motion are smooth at every video frame.
         record = index if weight < 0.5 else index + 1
-        cut_paths = None
         if record != last_record:
             for artist in stream_artists:
                 artist.remove()
             stream_artists = []
-            cut_paths = []
             if saved[record][5].max() > 1e-3 * top:
                 before = set(lower.get_children())
-                stream = lower.streamplot(zz, rr, saved[record][4], saved[record][3],
+                lower.streamplot(zz, rr, saved[record][4], saved[record][3],
                                  color="white", density=(1.4, 0.6), linewidth=0.65, arrowsize=0.8)
                 stream_artists = [artist for artist in lower.get_children() if artist not in before]
-                cut_paths = stream.lines.get_segments()
             last_record = record
-        cutaway.draw(t, np.hypot(ur, uz), cut_paths,
-                     (1-weight)*surface_ut[index]+weight*surface_ut[index+1],
-                     (1-weight)*surface_uz[index]+weight*surface_uz[index+1])
-        glyph_phase = glyph_phases[index] + glyph_angular[index]*offset + (
-            glyph_angular[index+1]-glyph_angular[index])*offset**2/(2*interval)
-        glyph_omega = (1-weight)*glyph_angular[index] + weight*glyph_angular[index+1]
-        cutaway.draw_rotation(glyph_phase, glyph_omega, glyph_r, glyph_z)
+        cutaway.draw(t, dev+couette(rc)[:, None], ur, uz)
         profile = (1 - weight) * profiles[index] + weight * profiles[index + 1]
         rotation.set_data(annulus(profile))
         phase = phases[index] + angular[index] * offset + (

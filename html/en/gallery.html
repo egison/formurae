@@ -5141,16 +5141,19 @@ end function</pre></details>
     exponentially out of the Couette flow and saturates into two vortex pairs (wavelength 2.0, twice the gap width); on the same grid Re = 60 decays while
     Re = 80 grows, bracketing the known threshold Re<sub>c</sub> ≈ 68 for this radius ratio.</p>
   <div class="imgs"><video autoplay loop muted controls playsinline preload="metadata" width="1920" height="960"
-    poster="../../examples/taylor_couette/results/taylor-couette-en-poster.png" aria-label="Growth of Taylor vortices at Re = 100: a gray outer-wall frame and a cylindrical fluid section inside it (left, red upward and blue downward), an axial view with the same section outlined in orange (center), and meridional velocity with streamlines (right), t = 0 to 180">
+    poster="../../examples/taylor_couette/results/taylor-couette-en-poster.png" aria-label="Growth of Taylor vortices at Re = 100: flow directions on the inner cylinder, outer fluid section, vertical cuts, and top annular section (left), an axial view with the same section outlined in orange (center), and longitudinal slices with streamlines (right), t = 0 to 180">
     <source src="../../examples/taylor_couette/results/taylor-couette-en.mp4" type="video/mp4">
-    <img src="../../examples/taylor_couette/results/taylor-couette-en-poster.png" alt="Taylor vortices at Re = 100: velocity at its actual position on a cylindrical fluid section inside a stationary outer-wall frame, alongside axial and longitudinal views"></video></div>
+    <img src="../../examples/taylor_couette/results/taylor-couette-en-poster.png" alt="Taylor vortices at Re = 100: local flow directions along every visible face in the left 3-D panel, alongside axial and longitudinal views"></video></div>
   <div class="cap">The left panel shows upright cylinders viewed obliquely from above, with the front quarter cut away.
-    The two cut faces show speed and streamlines in the meridional plane, a longitudinal slice containing the cylinder axis; vertical marks rotate on the inner cylinder. The top and bottom are display limits of the periodic domain, without lids.
+    White arrows show the local velocity direction along each visible face. Their length does not encode speed, and components normal to the face are omitted.
+    On the inner cylinder at r = 1, the fluid matches the rotating wall's azimuthal velocity and has zero axial velocity; vertical marks rotate with the cylinder.
+    The two rectangular cuts (1 ≤ r ≤ 1.90) show radial and axial components (u<sub>r</sub>, u<sub>z</sub>).
+    The top annular section shows radial and azimuthal components (u<sub>r</sub>, u<sub>θ</sub>) at z = 4; its color shows azimuthal velocity on the center panel's scale. This is a fluid section through the periodic domain.
     A gray frame marks the stationary outer wall at r = 2; the cylindrical fluid section sits inside it at its actual radius r = 1.90. Its orange outline matches the orange circle in the center panel. Velocity at the wall itself is zero.
-    Section color shows axial velocity u<sub>z</sub> at that position (red upward, blue downward, using the far-left color scale); white arrows on the same section show the direction and magnitude of its tangential components (u<sub>θ</sub>, u<sub>z</sub>).
+    Section color shows axial velocity u<sub>z</sub> at that position (red upward, blue downward, using the far-left color scale); white arrows on the same cylindrical section show the direction of its azimuthal and axial components (u<sub>θ</sub>, u<sub>z</sub>).
     The center panel looks at the z = 0.5 cross-section from +z. Marks on the inner cylinder rotate counterclockwise; those on the outer cylinder stay fixed.
-    Fluid in the center panel is colored by azimuthal velocity u<sub>θ</sub>; moving white arrows in the gap and center panel indicate angular velocity u<sub>θ</sub>/r at fixed radii and heights (they are not particle trajectories).
-    The right panels show azimuthal velocity minus the Couette profile (top) and meridional speed with streamlines (bottom). Dashed lines locate the cross-section shown in the center; the cut faces share the lower right panel's color scale.
+    Fluid in the center panel is colored by azimuthal velocity u<sub>θ</sub>; moving white arrows in the center panel indicate angular velocity u<sub>θ</sub>/r at fixed radii and heights (they are not particle trajectories).
+    The right panels show azimuthal velocity minus the Couette profile (top) and speed with streamlines in the longitudinal slice (bottom). Dashed lines locate the cross-section shown in the center; the cut faces share the lower right panel's color scale.
     Velocities saved every 500 steps (1.5 time units) are interpolated for display at six times simulation speed and 30 fps.
     <a href="../../examples/taylor_couette/results/taylor-couette-en.mp4">Video file</a></div>
   <div class="imgs"><img src="../../examples/taylor_couette/results/taylor-couette-en.png" alt="Taylor vortices at Re = 100: azimuthal velocity minus the Couette profile, meridional streamlines, growth of the perturbation, and the mid-gap radial velocity" width="1485" height="901"></div>
