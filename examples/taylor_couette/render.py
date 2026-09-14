@@ -3,8 +3,8 @@
 
 Requires numpy and matplotlib.  The records (meridional plane per rank,
 reductions per interval) are written by the generated solver through run.py;
-this script merges the ranks, draws the meridional velocity and animated
-circumferential speed indicators, fits the growth of the perturbation, and
+this script merges the ranks, draws cutaway cylinders, meridional velocity,
+and animated circumferential speed indicators, fits the perturbation growth, and
 writes figures, videos, and a record of the run. Nothing here feeds back into
 a simulation.
 """
@@ -26,6 +26,7 @@ from matplotlib.font_manager import FontProperties
 from matplotlib.collections import LineCollection
 from matplotlib.patches import Circle
 from matplotlib import patheffects as path_effects
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection, Line3DCollection
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
@@ -41,13 +42,15 @@ TEXT = {
            "time": "time $t$", "z": "$z$", "r": "$r$",
            "fit": "fit $e^{\\sigma t}$, $\\sigma$ = %.4f",
            "title": "Axisymmetric Taylor-Couette flow at Re = %g: Taylor vortices from the Couette flow (t = %g)",
-           "views": "Rotation around the cylinders and circulation in the longitudinal slice",
+           "views": "Rotation and Taylor vortices: a cutaway cylinder, an axial view, and longitudinal slices",
+           "cutaway": "Upright cylinders, viewed from above and outside",
+           "cutaway_note": "Front quarter removed; cut faces show meridional speed and streamlines.\nThe top and bottom are periodic, open display limits.",
            "endview": "View from $+z$ (section at $z$ = %g)",
            "inner": "Inner cylinder\nrotating CCW\n$\\Omega_1 = 1$",
            "outer": "Outer cylinder: stationary",
            "azimuthal": "azimuthal velocity $u_\\theta$",
-           "section": "section at left",
-           "glyphs": "Moving arrows indicate rotation at fixed radii: $d\\theta/dt = u_\\theta/r$ (not particle trajectories).",
+           "section": "axial-view section",
+           "glyphs": "Moving arrows indicate rotation at fixed radii and heights: $d\\theta/dt = u_\\theta/r$ (not particle trajectories).",
            "sampling": "%g times simulation speed  |  %d fps  |  saved velocities interpolated for display",
            "video": "Taylor-Couette flow at Re = %g, $t$ = %5.1f"},
     "ja": {"dev": "周方向速度とクエット解の差 $u_\\theta - (Ar + B/r)$",
@@ -57,13 +60,15 @@ TEXT = {
            "time": "時間 $t$", "z": "$z$", "r": "$r$",
            "fit": "当てはめ $e^{\\sigma t}$，$\\sigma$ = %.4f",
            "title": "軸対称テイラー・クエット流れ，Re = %g：クエット流れから育つテイラー渦（t = %g）",
-           "views": "円筒を回る周方向の運動と，縦断面内の循環を同時に表示",
+           "views": "切り開いた円筒・軸方向からの図・縦断面で，回転とテイラー渦を表示",
+           "cutaway": "円筒を立て，外側の斜め上から見る",
+           "cutaway_note": "手前の1/4を開き，切り口に縦断面の速さと流線を表示\n上下は周期境界で，蓋のない表示範囲の端です",
            "endview": "円筒を $+z$ 側から見る（$z$ = %g）",
            "inner": "内筒\n反時計回り\n$\\Omega_1 = 1$",
            "outer": "外筒：静止",
            "azimuthal": "周方向速度 $u_\\theta$",
-           "section": "左図の断面",
-           "glyphs": "動く矢印は固定半径での回転速度 $d\\theta/dt = u_\\theta/r$ を表示（流体粒子の軌跡ではありません）",
+           "section": "中央図の断面",
+           "glyphs": "動く矢印は固定した半径・高さでの回転速度 $d\\theta/dt = u_\\theta/r$ を表示（流体粒子の軌跡ではありません）",
            "sampling": "計算時間の %g 倍速  |  %d fps  |  保存した速度を描画用に補間",
            "video": "テイラー・クエット流れ，Re = %g，$t$ = %5.1f"},
 }
@@ -215,6 +220,145 @@ def ffmpeg():
     return os.environ.get("FFMPEG") or shutil.which("ffmpeg")
 
 
+class CutawayView:
+    """A display-only reconstruction of the axisymmetric field in 3-D.
+
+    The front quarter is omitted to expose two meridional sections. All solid
+    faces share one collection so their depth ordering also hides rotor marks
+    behind the outer wall. The periodic z limits are open, without end caps.
+    """
+
+    def __init__(self, ax, rc, zc, lz, top, text, font):
+        self.rc, self.zc = rc, zc
+        self.top = top
+        self.front = np.deg2rad([-100, -10])
+        self.faces, self.colors = [], []
+        self.cut_slices = []
+        # Each face is ordered counterclockwise in its own parameter plane.
+        def quads(x, y, z):
+            xyz = np.stack(np.broadcast_arrays(x, y, z), axis=-1)
+            return np.stack([xyz[:-1, :-1], xyz[1:, :-1],
+                             xyz[1:, 1:], xyz[:-1, 1:]], axis=2).reshape(-1, 4, 3)
+
+        # The stationary shell spans 270 degrees. Its shading is fixed.
+        theta = np.linspace(self.front[1], self.front[0] + 2*np.pi, 73)
+        heights = np.linspace(0, lz, 33)
+        nz = len(heights)-1
+        outer = quads(R2*np.cos(theta[:, None]), R2*np.sin(theta[:, None]), heights[None, :])
+        self.faces.extend(outer)
+        shade = np.repeat(.68 + .16*np.cos((theta[:-1]+theta[1:])/2 - np.deg2rad(-55)), nz)
+        self.colors.extend(np.c_[shade*.92, shade*.96, shade, np.ones_like(shade)])
+
+        # Full inner cylinder, with animated stripes in its surface colors.
+        theta = np.linspace(0, 2*np.pi, 129)
+        inner = quads(R1*np.cos(theta[:, None]), R1*np.sin(theta[:, None]), heights[None, :])
+        self.inner_slice = slice(len(self.faces), len(self.faces)+len(inner))
+        self.faces.extend(inner)
+        self.colors.extend(np.ones((len(inner), 4)))
+        self.inner_theta = np.repeat((theta[:-1] + theta[1:])/2, nz)
+
+        # Downsampling only affects the resolution of the displayed surfaces.
+        re = np.linspace(R1, R2, 25)
+        ze = np.linspace(0, lz, 97)
+        self.sample_r = (re[:-1] + re[1:])/2
+        self.sample_z = (ze[:-1] + ze[1:])/2
+        for theta in self.front:
+            face = quads(re[:, None]*np.cos(theta), re[:, None]*np.sin(theta), ze[None, :])
+            self.cut_slices.append(slice(len(self.faces), len(self.faces)+len(face)))
+            self.faces.extend(face)
+            self.colors.extend(np.ones((len(face), 4)))
+        self.colors = np.array(self.colors)
+        self.surfaces = Poly3DCollection(self.faces, facecolors=self.colors, edgecolors='none',
+                                         antialiaseds=False, zsort='average', zorder=2)
+        ax.add_collection3d(self.surfaces, autolim=False)
+
+        # Top rims and exposed sections; hidden back edges at the bottom
+        # are omitted rather than drawn through the opaque cylinder surfaces.
+        outlines = []
+        kept = np.linspace(self.front[1], self.front[0]+2*np.pi, 150)
+        for radius in (R1, R2):
+            outlines.append(np.c_[radius*np.cos(kept), radius*np.sin(kept), np.full_like(kept, lz)])
+        for theta in self.front:
+            outlines.append(np.array([[R1*np.cos(theta), R1*np.sin(theta), 0],
+                                      [R2*np.cos(theta), R2*np.sin(theta), 0],
+                                      [R2*np.cos(theta), R2*np.sin(theta), lz],
+                                      [R1*np.cos(theta), R1*np.sin(theta), lz]]))
+        ax.add_collection3d(Line3DCollection(outlines, colors='#475569', linewidths=.8, zorder=3), autolim=False)
+        self.streams = Line3DCollection([], colors='white', linewidths=.7, zorder=4)
+        ax.add_collection3d(self.streams, autolim=False)
+        self.rotation_outline = Line3DCollection([], colors='#334155', linewidths=3.2, zorder=5)
+        self.rotation = Line3DCollection([], colors='white', linewidths=1.8, zorder=6)
+        ax.add_collection3d(self.rotation_outline, autolim=False)
+        ax.add_collection3d(self.rotation, autolim=False)
+        ax.view_init(elev=27, azim=-55)
+        ax.set_proj_type('ortho')
+        ax.set_box_aspect((4, 4, lz), zoom=1.15)
+        ax.set_xlim(-2.1, 2.1); ax.set_ylim(-2.1, 2.1); ax.set_zlim(0, lz)
+        ax.set_axis_off()
+        ax.text2D(.5, 1.04, text['cutaway'], ha='center', va='top',
+                  transform=ax.transAxes, fontsize=17, fontproperties=font)
+        ax.text2D(.5, .02, text['cutaway_note'], ha='center', va='bottom',
+                  transform=ax.transAxes, fontsize=12, fontproperties=font, color='#475569')
+        # Height labels sit just outside the right-hand cut edge.
+        theta = self.front[1]
+        for z in (0, lz):
+            ax.text(2.18*np.cos(theta), 2.18*np.sin(theta), z, '$z=%g$' % z, fontsize=11)
+
+    def draw(self, t, speed, paths):
+        # Four stripes rotate at the prescribed inner-cylinder angular speed.
+        distance = np.abs(np.angle(np.exp(4j*(self.inner_theta-W1*t))))/4
+        stripe = np.exp(-(distance/.055)**4)
+        shade = .85 + .08*np.cos(self.inner_theta-np.deg2rad(-55))
+        base = np.c_[shade*.95, shade*.98, shade, np.ones_like(shade)]
+        base[:, :3] = (1-stripe[:, None])*base[:, :3] + stripe[:, None]*np.array([.25, .32, .41])
+        self.colors[self.inner_slice] = base
+        # Interpolate the recorded meridional speed onto the display mesh.
+        along_z = np.array([np.interp(self.sample_z, self.zc, row) for row in speed])
+        sample = np.array([np.interp(self.sample_r, self.rc, column) for column in along_z.T]).T
+        rgba = plt.get_cmap('viridis')(np.clip(sample/self.top, 0, 1)).reshape(-1, 4)
+        for part in self.cut_slices:
+            self.colors[part] = rgba
+        self.surfaces.set_facecolors(self.colors)
+        if paths is not None:
+            segments = []
+            for theta in self.front:
+                for path in paths:
+                    # streamplot paths contain (z,r) coordinates in flow order.
+                    z, r = path[:, 0], path[:, 1]
+                    segments.append(np.c_[r*np.cos(theta), r*np.sin(theta), z])
+                    if len(path) > 4:
+                        mid = len(path)//2
+                        tangent = path[mid+1]-path[mid-1]
+                        length = np.linalg.norm(tangent)
+                        if length > 0:
+                            tangent = .055*tangent/length
+                            side = .45*np.array([-tangent[1], tangent[0]])
+                            head = np.array([path[mid]-tangent+side, path[mid], path[mid]-tangent-side])
+                            segments.append(np.c_[head[:, 1]*np.cos(theta), head[:, 1]*np.sin(theta), head[:, 0]])
+            self.streams.set_segments(segments)
+
+    def draw_rotation(self, phases, angular, radii, heights):
+        segments = []
+        for phase, omega, radius, z in zip(phases, angular, radii, heights):
+            direction = np.sign(omega)
+            for offset in (0, 2*np.pi/3, 4*np.pi/3):
+                angle = (phase+offset+np.pi) % (2*np.pi)-np.pi
+                # Only the exposed front sector is visible through the shell.
+                trail = angle - direction*np.linspace(.28, 0, 18)
+                visible = (trail > self.front[0]+.05) & (trail < self.front[1]-.05)
+                if visible.sum() > 1:
+                    a = trail[visible]
+                    segments.append(np.c_[radius*np.cos(a), radius*np.sin(a), np.full_like(a, z)])
+                if visible[-1]:
+                    tip = np.array([radius*np.cos(angle), radius*np.sin(angle), z])
+                    tangent = direction*np.array([-np.sin(angle), np.cos(angle), 0])
+                    radial = np.array([np.cos(angle), np.sin(angle), 0])
+                    segments.append(np.array([tip-.13*tangent+.05*radial, tip,
+                                              tip-.13*tangent-.05*radial]))
+        self.rotation_outline.set_segments(segments)
+        self.rotation.set_segments(segments)
+
+
 def video(directory, lang, out, poster, fps=30, time_scale=6.0, poster_only=False):
     """Show circumferential motion alongside the meridional fields.
 
@@ -259,18 +403,31 @@ def video(directory, lang, out, poster, fps=30, time_scale=6.0, poster_only=Fals
         np.diff(times)[:, None] * (angular[:-1] + angular[1:]) / 2, axis=0)
     frame_count = int(math.ceil(times[-1] / time_scale * fps)) + 1
     frame_times = np.linspace(0, times[-1], frame_count)
-    max_rotation = max(abs(W1), abs(W2), float(np.abs(angular).max()))
+    # Reconstruct the same axisymmetric data at several display heights.
+    glyph_r = np.tile([1.28, 1.70], 4)
+    glyph_z = np.repeat(lz*np.array([.125, .375, .625, .875]), 2)
+    glyph_angular = np.array([
+        [np.interp(r, rc, [np.interp(z, zc, row) for row in fields[2]+couette(rc)[:, None]])/r
+         for r, z in zip(glyph_r, glyph_z)] for fields in saved
+    ])
+    glyph_phases = np.zeros_like(glyph_angular)
+    glyph_phases[0] = np.linspace(-1.4, -.3, len(glyph_r))
+    glyph_phases[1:] = glyph_phases[0] + np.cumsum(
+        np.diff(times)[:, None]*(glyph_angular[:-1]+glyph_angular[1:])/2, axis=0)
+
+    max_rotation = max(abs(W1), abs(W2), float(np.abs(angular).max()),
+                       float(np.abs(glyph_angular).max()))
     # Four marks on the inner cylinder repeat every pi/2. Stay well below
     # half that interval per frame, so apparent reverse rotation is avoided.
     if max_rotation * (frame_times[1] - frame_times[0]) > np.pi / 8:
         raise ValueError("rotation is undersampled; increase fps or reduce time_scale")
 
-    fig = plt.figure(figsize=(14.4, 8.0), dpi=100)
-    grid = fig.add_gridspec(2, 2, left=0.035, right=0.95, bottom=0.18, top=0.82,
-                            width_ratios=[1.05, 1.6], wspace=0.24, hspace=0.50)
-    end = fig.add_subplot(grid[:, 0])
-    upper = fig.add_subplot(grid[0, 1])
-    lower = fig.add_subplot(grid[1, 1])
+    fig = plt.figure(figsize=(19.2, 9.6), dpi=100)
+    cutaway = CutawayView(fig.add_axes([0, .16, .40, .70], projection='3d', computed_zorder=False),
+                          rc, zc, lz, top, text, font)
+    end = fig.add_axes([.41, .22, .225, .58])
+    upper = fig.add_axes([.69, .61, .285, .22])
+    lower = fig.add_axes([.69, .24, .285, .22])
     title = fig.suptitle("", y=0.97, fontsize=18, fontproperties=font)
     fig.text(0.5, 0.917, text["views"], ha="center", color="#475569", fontsize=13, fontproperties=font)
     fig.text(0.5, 0.055, text["glyphs"], ha="center", fontsize=11, color="#475569", fontproperties=font)
@@ -319,8 +476,8 @@ def video(directory, lang, out, poster, fps=30, time_scale=6.0, poster_only=Fals
                               cmap="viridis", vmin=0, vmax=top, interpolation="nearest")
     fig.colorbar(deviation, ax=upper, fraction=0.028, pad=0.025)
     fig.colorbar(meridional, ax=lower, fraction=0.028, pad=0.025)
-    upper.set_title(text["dev"], fontproperties=font, fontsize=14)
-    lower.set_title(text["speed"], fontproperties=font, fontsize=14)
+    upper.set_title(text["dev"].replace(" $", "\n$", 1), fontproperties=font, fontsize=14)
+    lower.set_title(text["speed"].replace(" $", "\n$", 1), fontproperties=font, fontsize=14)
     for ax in (upper, lower):
         ax.set_xlim(0, lz); ax.set_ylim(R1, R2)
         ax.set_xlabel(text["z"]); ax.set_ylabel(text["r"])
@@ -348,16 +505,24 @@ def video(directory, lang, out, poster, fps=30, time_scale=6.0, poster_only=Fals
         # Streamline geometry updates at saved-record intervals; the color
         # maps and circumferential motion are smooth at every video frame.
         record = index if weight < 0.5 else index + 1
+        cut_paths = None
         if record != last_record:
             for artist in stream_artists:
                 artist.remove()
             stream_artists = []
+            cut_paths = []
             if saved[record][5].max() > 1e-3 * top:
                 before = set(lower.get_children())
-                lower.streamplot(zz, rr, saved[record][4], saved[record][3],
+                stream = lower.streamplot(zz, rr, saved[record][4], saved[record][3],
                                  color="white", density=(1.4, 0.6), linewidth=0.65, arrowsize=0.8)
                 stream_artists = [artist for artist in lower.get_children() if artist not in before]
+                cut_paths = stream.lines.get_segments()
             last_record = record
+        cutaway.draw(t, np.hypot(ur, uz), cut_paths)
+        glyph_phase = glyph_phases[index] + glyph_angular[index]*offset + (
+            glyph_angular[index+1]-glyph_angular[index])*offset**2/(2*interval)
+        glyph_omega = (1-weight)*glyph_angular[index] + weight*glyph_angular[index+1]
+        cutaway.draw_rotation(glyph_phase, glyph_omega, glyph_r, glyph_z)
         profile = (1 - weight) * profiles[index] + weight * profiles[index + 1]
         rotation.set_data(annulus(profile))
         phase = phases[index] + angular[index] * offset + (
@@ -438,7 +603,8 @@ def main():
                                        args.results / f"taylor-couette-{lang}-poster.png",
                                        fps=args.fps, time_scale=args.time_scale)
     record.update(video_fps=args.fps, video_time_scale=args.time_scale,
-                  video_section_z=record["metadata"]["lz"] / 8)
+                  video_section_z=record["metadata"]["lz"] / 8,
+                  video_size=[1920, 960], video_cutaway_degrees=90)
     lam, k = wavelength(args.run)
     record.update(axial_wavelength=lam, axial_pairs=k)
     (args.results / "runs.json").write_text(json.dumps(record, indent=2, ensure_ascii=False) + "\n")

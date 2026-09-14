@@ -89,6 +89,11 @@
   "video_fps": 30,
   "video_time_scale": 6.0,
   "video_section_z": 0.5,
+  "video_size": [
+    1920,
+    960
+  ],
+  "video_cutaway_degrees": 90,
   "axial_wavelength": 2.0,
   "axial_pairs": 2
 }

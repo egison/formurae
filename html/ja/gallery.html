@@ -5139,13 +5139,15 @@ end function</pre></details>
     環状の渦の対（テイラー渦）が現れます。Re = Ω<sub>1</sub>R<sub>1</sub>(R<sub>2</sub> − R<sub>1</sub>)/ν = 100 では，最初の四つの軸方向周期を種にした
     半径方向速度の擾乱がクエット流れから指数的に成長し，2 対の渦（波長 2.0，隙間幅の 2 倍）に飽和します。同じ格子で Re = 60 は減衰し Re = 80 は成長し，
     この半径比で知られる閾値 Re<sub>c</sub> ≈ 68 を挟みます。</p>
-  <div class="imgs"><video autoplay loop muted controls playsinline preload="metadata" width="1440" height="800"
-    poster="../../examples/taylor_couette/results/taylor-couette-ja-poster.png" aria-label="Re = 100 で育つテイラー渦：軸方向から見た反時計回りの回転（左），縦断面の周方向速度とクエット解の差（右上），速さと流線（右下），t = 0 から 180">
+  <div class="imgs"><video autoplay loop muted controls playsinline preload="metadata" width="1920" height="960"
+    poster="../../examples/taylor_couette/results/taylor-couette-ja-poster.png" aria-label="Re = 100 で育つテイラー渦：切り開いて立てた円筒を斜め上から見る立体図（左），軸方向から見た反時計回りの回転（中央），縦断面の周方向速度とクエット解の差（右上），速さと流線（右下），t = 0 から 180">
     <source src="../../examples/taylor_couette/results/taylor-couette-ja.mp4" type="video/mp4">
-    <img src="../../examples/taylor_couette/results/taylor-couette-ja-poster.png" alt="Re = 100 のテイラー渦：円筒を軸方向から見た周方向速度と回転を示す矢印，縦断面の速度と流線"></video></div>
-  <div class="cap">動画の左は z = 0.5 の断面を +z 側から見た図です。内筒の印は反時計回りに回転し，外筒の印は静止します。
-    流体部分の色は周方向速度 u<sub>θ</sub>，動く白い矢印は固定した半径での角速度 u<sub>θ</sub>/r を示します（流体粒子の軌跡ではありません）。
-    右は子午面（円筒の軸を含む縦断面）の周方向速度とクエット解の差（上），および速さと流線（下）で，破線が左図の断面位置です。
+    <img src="../../examples/taylor_couette/results/taylor-couette-ja-poster.png" alt="Re = 100 のテイラー渦：手前の1/4を切り開いた立体図，軸方向から見た周方向速度と回転を示す矢印，縦断面の速度と流線"></video></div>
+  <div class="cap">動画の左は，立てた円筒の手前の 1/4 を切り開き，外側の斜め上から見る立体図です。
+    二つの切り口には子午面（円筒の軸を含む縦断面）の速さと流線を，内筒には回転する縦の印を表示します。上下は周期的な計算領域の表示範囲で，蓋はありません。
+    中央は z = 0.5 の断面を +z 側から見た図です。内筒の印は反時計回りに回転し，外筒の印は静止します。
+    中央の流体部分の色は周方向速度 u<sub>θ</sub>，左と中央の動く白い矢印は固定した半径・高さでの角速度 u<sub>θ</sub>/r を示します（流体粒子の軌跡ではありません）。
+    右は縦断面の周方向速度とクエット解の差（上），および速さと流線（下）で，破線が中央図の断面位置です。立体図の切り口の色尺度は右下と共通です。
     500 ステップ（時間 1.5）ごとに保存した速度を描画用に補間し，計算時間の 6 倍速・30 fps で表示します。
     <a href="../../examples/taylor_couette/results/taylor-couette-ja.mp4">動画ファイル</a></div>
   <div class="imgs"><img src="../../examples/taylor_couette/results/taylor-couette-ja.png" alt="Re = 100 のテイラー渦：周方向速度とクエット解の差，子午面の流線，擾乱の成長，隙間中央の半径方向速度" width="1485" height="901"></div>
