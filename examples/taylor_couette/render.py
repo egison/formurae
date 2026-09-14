@@ -31,7 +31,8 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection, Line3DCollection
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 R1, R2, W1, W2 = 1.0, 2.0, 1.0, 0.0
-SURFACE_RADIUS = R2 - 0.10 * (R2 - R1)  # near-wall flow projected onto the outer shell
+SURFACE_RADIUS = R2 - 0.10 * (R2 - R1)  # actual radius of the displayed fluid section
+SECTION_COLOR = "#b45309"
 RECORD = np.dtype([("i", "=i4"), ("j", "=i4"), ("ut", "=f8"), ("ur", "=f8"),
                    ("uz", "=f8"), ("p", "=f8")])
 JAPANESE = Path("/usr/local/texlive/2025/texmf-dist/fonts/opentype/public/haranoaji/HaranoAjiMincho-Regular.otf")
@@ -45,7 +46,8 @@ TEXT = {
            "title": "Axisymmetric Taylor-Couette flow at Re = %g: Taylor vortices from the Couette flow (t = %g)",
            "views": "Rotation and Taylor vortices: a cutaway cylinder, an axial view, and longitudinal slices",
            "cutaway": "Upright cylinders, viewed from above and outside",
-           "cutaway_note": "Outer face: flow at r = %.2f (the wall at r = 2 is stationary).\nRed: upward; blue: downward; white arrows: tangential velocity.\nCut faces: meridional speed and streamlines; z is periodic.",
+           "cutaway_note": "Gray frame: stationary outer wall at r = 2.\nOrange outline: a cylindrical section of the fluid at r = %.2f.\nRed: upward; blue: downward; white arrows: velocity along the section.",
+           "fluid_section": "Orange circle: the fluid section in the 3-D view, r = %.2f",
            "surface_speed": "Near-wall axial velocity $u_z$",
            "endview": "View from $+z$ (section at $z$ = %g)",
            "inner": "Inner cylinder\nrotating CCW\n$\\Omega_1 = 1$",
@@ -64,7 +66,8 @@ TEXT = {
            "title": "軸対称テイラー・クエット流れ，Re = %g：クエット流れから育つテイラー渦（t = %g）",
            "views": "切り開いた円筒・軸方向からの図・縦断面で，回転とテイラー渦を表示",
            "cutaway": "円筒を立て，外側の斜め上から見る",
-           "cutaway_note": "外側の面：r = %.2f の流れを表示（壁 r = 2 は静止）\n赤は上昇・青は下降，白矢印は曲面に沿う速度\n切り口：縦断面の速さと流線／上下：周期境界",
+           "cutaway_note": "灰色の枠：静止した外壁 r = 2\n橙の縁：流体の円筒断面 r = %.2f\n赤は上昇・青は下降／白矢印は断面に沿う速度",
+           "fluid_section": "橙の円：立体図の流体断面 r = %.2f",
            "surface_speed": "壁の内側の軸方向速度 $u_z$",
            "endview": "円筒を $+z$ 側から見る（$z$ = %g）",
            "inner": "内筒\n反時計回り\n$\\Omega_1 = 1$",
@@ -226,9 +229,10 @@ def ffmpeg():
 class CutawayView:
     """A display-only reconstruction of the axisymmetric field in 3-D.
 
-    The front quarter is omitted to expose two meridional sections. All solid
-    faces share one collection so their depth ordering also hides rotor marks
-    behind the outer wall. The periodic z limits are open, without end caps.
+    The front quarter is omitted to expose two meridional sections. Fluid
+    data is displayed at its actual sampling radius, inside a wire outline
+    of the stationary wall. Opaque surfaces share one depth-sorted collection.
+    The periodic z limits are open, without end caps.
     """
 
     def __init__(self, ax, rc, zc, lz, top, surface_limit, surface_scale, text, font):
@@ -245,15 +249,16 @@ class CutawayView:
             return np.stack([xyz[:-1, :-1], xyz[1:, :-1],
                              xyz[1:, 1:], xyz[:-1, 1:]], axis=2).reshape(-1, 4, 3)
 
-        # Show near-wall fluid velocities on the 270-degree outer shell.
-        # The displayed sampling radius is inside the stationary no-slip wall.
+        # The colored surface is a cylindrical section of the fluid, at
+        # the same radius used to sample velocities. The wall is only a frame.
         theta = np.linspace(self.front[1], self.front[0] + 2*np.pi, 73)
         heights = np.linspace(0, lz, 97)
-        outer = quads(R2*np.cos(theta[:, None]), R2*np.sin(theta[:, None]), heights[None, :])
-        self.outer_slice = slice(0, len(outer))
-        self.outer_z = np.tile((heights[:-1]+heights[1:])/2, len(theta)-1)
-        self.faces.extend(outer)
-        self.colors.extend(np.ones((len(outer), 4)))
+        section = quads(SURFACE_RADIUS*np.cos(theta[:, None]),
+                        SURFACE_RADIUS*np.sin(theta[:, None]), heights[None, :])
+        self.section_slice = slice(0, len(section))
+        self.section_z = np.tile((heights[:-1]+heights[1:])/2, len(theta)-1)
+        self.faces.extend(section)
+        self.colors.extend(np.ones((len(section), 4)))
 
         # Full inner cylinder, with animated stripes in its surface colors.
         heights = np.linspace(0, lz, 33)
@@ -282,16 +287,34 @@ class CutawayView:
 
         # Top rims and exposed sections; hidden back edges at the bottom
         # are omitted rather than drawn through the opaque cylinder surfaces.
-        outlines = []
         kept = np.linspace(self.front[1], self.front[0]+2*np.pi, 150)
-        for radius in (R1, R2):
-            outlines.append(np.c_[radius*np.cos(kept), radius*np.sin(kept), np.full_like(kept, lz)])
+        outlines = [np.c_[R1*np.cos(kept), R1*np.sin(kept), np.full_like(kept, lz)]]
         for theta in self.front:
             outlines.append(np.array([[R1*np.cos(theta), R1*np.sin(theta), 0],
                                       [R2*np.cos(theta), R2*np.sin(theta), 0],
                                       [R2*np.cos(theta), R2*np.sin(theta), lz],
                                       [R1*np.cos(theta), R1*np.sin(theta), lz]]))
         ax.add_collection3d(Line3DCollection(outlines, colors='#475569', linewidths=.8, zorder=3), autolim=False)
+        # Distinct outlines locate the real wall and the interior fluid section.
+        # At lower heights only front-facing wall edges are shown, so hidden
+        # edges do not appear through the opaque fluid surface.
+        wall = [np.c_[R2*np.cos(kept), R2*np.sin(kept), np.full_like(kept, lz)]]
+        section_edges = [np.c_[SURFACE_RADIUS*np.cos(kept), SURFACE_RADIUS*np.sin(kept),
+                               np.full_like(kept, lz)]]
+        for theta in np.deg2rad([-140, -100, -10, 30]):
+            wall.append(np.array([[R2*np.cos(theta), R2*np.sin(theta), 0],
+                                  [R2*np.cos(theta), R2*np.sin(theta), lz]]))
+        for theta in self.front:
+            section_edges.append(np.array([[SURFACE_RADIUS*np.cos(theta), SURFACE_RADIUS*np.sin(theta), 0],
+                                           [SURFACE_RADIUS*np.cos(theta), SURFACE_RADIUS*np.sin(theta), lz]]))
+        for lo, hi in ((-145, -100), (-10, 35)):
+            a = np.deg2rad(np.linspace(lo, hi, 40))
+            for z in (0, lz/2):
+                wall.append(np.c_[R2*np.cos(a), R2*np.sin(a), np.full_like(a, z)])
+        ax.add_collection3d(Line3DCollection(wall, colors='#64748b', linewidths=1.0,
+                                              linestyles='dashed', zorder=3), autolim=False)
+        ax.add_collection3d(Line3DCollection(section_edges, colors=SECTION_COLOR,
+                                              linewidths=1.0, zorder=3), autolim=False)
         self.streams = Line3DCollection([], colors='white', linewidths=.7, zorder=4)
         ax.add_collection3d(self.streams, autolim=False)
         self.rotation_outline = Line3DCollection([], colors='#334155', linewidths=3.2, zorder=5)
@@ -302,7 +325,7 @@ class CutawayView:
         self.surface_arrows = Line3DCollection([], colors='white', linewidths=1.5, zorder=8)
         ax.add_collection3d(self.surface_outline, autolim=False)
         ax.add_collection3d(self.surface_arrows, autolim=False)
-        # Only the outward-facing portions of the retained shell are visible.
+        # Only the outward-facing portions of the fluid section are visible.
         # Keeping arrows here avoids drawing hidden back-side vectors through
         # the cylinder; each arrow also stays clear of the cut edges.
         self.surface_theta = np.deg2rad(-55 + np.array([-78, -60, 60, 78]))
@@ -341,8 +364,8 @@ class CutawayView:
         rgba = plt.get_cmap('viridis')(np.clip(sample/self.top, 0, 1)).reshape(-1, 4)
         for part in self.cut_slices:
             self.colors[part] = rgba
-        self.colors[self.outer_slice] = plt.get_cmap('RdBu_r')(
-            self.surface_norm(np.interp(self.outer_z, self.zc, surface_uz)))
+        self.colors[self.section_slice] = plt.get_cmap('RdBu_r')(
+            self.surface_norm(np.interp(self.section_z, self.zc, surface_uz)))
         self.surfaces.set_facecolors(self.colors)
         self.draw_surface_velocity(surface_ut, surface_uz)
         if paths is not None:
@@ -367,11 +390,11 @@ class CutawayView:
         """Fixed-position arrows show the (azimuthal, axial) velocity components.
 
         Arrow lengths use one scale for every frame. Their geometry follows
-        the cylinder surface; radial velocity is not part of this projection.
+        the fluid section; these vectors contain no radial velocity component.
         These vectors do not advance any particle or simulation state.
         """
         segments = []
-        radius = R2 + .005  # avoid overlap with the colored surface
+        radius = SURFACE_RADIUS
         for z in self.surface_z:
             v = self.surface_scale*np.array([np.interp(z, self.zc, ut), np.interp(z, self.zc, uz)])
             if np.linalg.norm(v) < 1e-8:
@@ -393,7 +416,7 @@ class CutawayView:
             direction = np.sign(omega)
             for offset in (0, 2*np.pi/3, 4*np.pi/3):
                 angle = (phase+offset+np.pi) % (2*np.pi)-np.pi
-                # Only the exposed front sector is visible through the shell.
+                # Only the front opening exposes these rotation indicators.
                 trail = angle - direction*np.linspace(.28, 0, 18)
                 visible = (trail > self.front[0]+.05) & (trail < self.front[1]-.05)
                 if visible.sum() > 1:
@@ -507,6 +530,8 @@ def video(directory, lang, out, poster, fps=30, time_scale=6.0, poster_only=Fals
                           vmax=max(abs(W1 * R1), float(profiles.max())), interpolation="bilinear")
     for ring in rings:
         end.add_patch(Circle((0, 0), ring, fill=False, edgecolor="white", lw=0.7, alpha=0.25))
+    end.add_patch(Circle((0, 0), SURFACE_RADIUS, fill=False, edgecolor=SECTION_COLOR,
+                         lw=1.8, zorder=3))
     end.add_patch(Circle((0, 0), R1, facecolor="#e2e8f0", edgecolor="#334155", lw=2, zorder=4))
     end.add_patch(Circle((0, 0), R2, fill=False, edgecolor="#334155", lw=2))
     ticks = np.arange(12) * 2 * np.pi / 12
@@ -519,6 +544,8 @@ def video(directory, lang, out, poster, fps=30, time_scale=6.0, poster_only=Fals
              fontsize=13, color="#1e293b", zorder=6)
     end.text(0, -2.29, text["outer"], ha="center", va="center", fontproperties=font,
              color="#334155", fontsize=12)
+    end.text(0, -2.58, text["fluid_section"] % SURFACE_RADIUS, ha="center", va="center",
+             fontproperties=font, fontsize=10, color=SECTION_COLOR)
     cb = fig.colorbar(rotation, ax=end, orientation="horizontal", fraction=0.046, pad=0.085)
     cb.set_label(text["azimuthal"], fontproperties=font)
     tails = LineCollection([], colors="white", linewidths=1.4, zorder=7)
