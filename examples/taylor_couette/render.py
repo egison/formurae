@@ -50,8 +50,10 @@ RECORD = np.dtype([("i", "=i4"), ("j", "=i4"), ("ut", "=f8"), ("ur", "=f8"),
                    ("uz", "=f8"), ("p", "=f8")])
 JAPANESE = Path("/usr/local/texlive/2025/texmf-dist/fonts/opentype/public/haranoaji/HaranoAjiMincho-Regular.otf")
 TEXT = {
-    "en": {"dev": "azimuthal velocity minus the Couette profile, $u_\\theta - (Ar + B/r)$",
+    "en": {"dev": "azimuthal velocity change from the reference $u_\\theta - (Ar + B/r)$",
+           "dev_colors": "Red: faster / white: unchanged / blue: slower than reference\nReference: Couette flow without vortices.\nBlue means a decrease, not reverse rotation.",
            "speed": "speed in the longitudinal slice $\\sqrt{u_r^2 + u_z^2}$ and streamlines",
+           "speed_colors": "Purple: slow (near zero) → green → yellow: fast\nColor shows radial and axial speed; rotation is excluded.",
            "growth": "growth of the perturbation: $\\max|u_r|$",
            "profile": "radial velocity at mid gap, $u_r(r = 1.5, z)$",
            "time": "time $t$", "z": "$z$", "r": "$r$",
@@ -73,8 +75,10 @@ TEXT = {
            "glyphs": "Moving arrows in the center panel show rotation at fixed radius and height: $d\\theta/dt = u_\\theta/r$ (not particle trajectories).",
            "sampling": "%g times simulation speed  |  %d fps  |  saved velocities interpolated for display",
            "video": "Taylor-Couette flow at Re = %g, $t$ = %5.1f"},
-    "ja": {"dev": "周方向速度とクエット解の差 $u_\\theta - (Ar + B/r)$",
+    "ja": {"dev": "基準からの周方向速度の増減 $u_\\theta - (Ar + B/r)$",
+           "dev_colors": "赤：基準より速い ／ 白：同じ ／ 青：基準より遅い\n基準：渦のないクエット流れ\n青は逆回転を意味しません。",
            "speed": "縦断面内の速さ $\\sqrt{u_r^2 + u_z^2}$ と流線",
+           "speed_colors": "紫：遅い（0 に近い）→ 緑 → 黄：速い\n色は半径方向・軸方向の速さ（周方向は含みません）",
            "growth": "擾乱の成長：$\\max|u_r|$",
            "profile": "隙間中央の半径方向速度 $u_r(r = 1.5, z)$",
            "time": "時間 $t$", "z": "$z$", "r": "$r$",
@@ -275,6 +279,14 @@ def streamlines(ax, zz, rr, uz, ur, density):
     return stream.lines, arrows
 
 
+def color_note(ax, label, font):
+    """Keep the color meaning beside its panel, below the axis labels."""
+    return ax.annotate(label, xy=(.5, 0), xycoords='axes fraction',
+                       xytext=(0, -46), textcoords='offset points',
+                       ha='center', va='top', fontsize=10, linespacing=1.5,
+                       fontproperties=font, color='#334155', annotation_clip=False)
+
+
 def figure(directory, lang, out):
     meta = metadata(directory)
     dt, lz = meta["dt"], meta["lz"]
@@ -297,6 +309,7 @@ def figure(directory, lang, out):
     fig.colorbar(im, ax=ax, fraction=0.025, pad=0.02)
     ax.set_title(text["dev"], fontproperties=font)
     ax.set_xlabel(text["z"]); ax.set_ylabel(text["r"])
+    color_note(ax, text["dev_colors"], font)
     ax = axes[1, 0]
     im = ax.imshow(speed, origin="lower", extent=extent, aspect="equal", cmap="viridis",
                    interpolation="nearest")
@@ -306,6 +319,7 @@ def figure(directory, lang, out):
     ax.set_xlim(0, lz); ax.set_ylim(R1, R2)
     ax.set_title(text["speed"], fontproperties=font)
     ax.set_xlabel(text["z"]); ax.set_ylabel(text["r"])
+    color_note(ax, text["speed_colors"], font)
     ax = axes[0, 1]
     ax.semilogy(t, rec["ur"], "k.-", ms=3, lw=0.8)
     if math.isfinite(sigma):
@@ -754,6 +768,8 @@ def video(directory, lang, out, poster, fps=30, time_scale=6.0, poster_only=Fals
     fig.colorbar(meridional, ax=lower, fraction=0.028, pad=0.025)
     upper.set_title(text["dev"].replace(" $", "\n$", 1), fontproperties=font, fontsize=14)
     lower.set_title(text["speed"].replace(" $", "\n$", 1), fontproperties=font, fontsize=14)
+    color_note(upper, text["dev_colors"], font)
+    color_note(lower, text["speed_colors"], font)
     for ax in (upper, lower):
         ax.set_xlim(0, lz); ax.set_ylim(R1, R2)
         ax.set_xlabel(text["z"]); ax.set_ylabel(text["r"])
