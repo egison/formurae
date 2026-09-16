@@ -102,4 +102,3 @@ examples/composite_ultrasound/composite_ultrasound.c
 examples/composite_ultrasound/composite_ultrasound.h
 examples/breaking_wave/__pycache__/
 examples/breaking_wave3d/__pycache__/
-examples/wave_train/__pycache__/

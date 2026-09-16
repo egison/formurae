@@ -236,19 +236,3 @@ breaking-wave3d-demo:
 
 breaking-wave3d-verify:
 	python3 examples/breaking_wave3d/verify.py --require-overhang --reference-cases
-
-# Three initial crests, through collapse and beach run-up.
-.PHONY: wave-train-demo wave-train-verify
-wave-train-demo:
-	python3 examples/wave_train/run.py
-	python3 examples/wave_train/verify.py
-	python3 examples/wave_train/render.py --snapshot-step 1800 --sequence-steps 0 1200 1800 2400 3200 4200
-	cp .build/wave_train/demo/stats.csv .build/wave_train/demo/metadata.json .build/wave_train/demo/verification.json examples/wave_train/results/
-
-wave-train-verify:
-	python3 examples/wave_train/verify.py --reference-cases
-	mkdir -p examples/wave_train/results
-	cp .build/wave_train/demo/verification.json examples/wave_train/results/
-	mkdir -p examples/wave_train/results/still examples/wave_train/results/single
-	cp .build/wave_train/still/stats.csv .build/wave_train/still/metadata.json examples/wave_train/results/still/
-	cp .build/wave_train/single/stats.csv .build/wave_train/single/metadata.json examples/wave_train/results/single/
