@@ -72,7 +72,7 @@
 <main>
 
 <!-- application-demos:begin -->
-<section id="application-demos"><h2>材料則と座標変換を変更する応用デモ</h2><p>利用者が関数として定義した演算子を，材料や装置の比較に使う三つの例です．初期条件・境界処理・時間発展・物理量の測定を Formurae に記述し，同じコード生成経路で実行しています．</p><div class="grid">
+<section id="application-demos"><h2>材料則と座標変換を変更する応用デモ</h2><p>利用者が関数として定義した演算子を，材料や装置の比較に使う三つの例です．初期条件・境界処理・時間発展・物理量の測定を Formurae に記述し，同じコード生成経路で実行しています．各カードの研究課題は，今後モデルや実験条件を拡張して検証するものです．</p><div class="grid">
 <article class="card featured" id="composite-ultrasound">
 <h3>複合材の超音波：繊維方向と柔らかい領域</h3>
 <p class="description">向きによって硬さが違う材料を考えます．繊維方向を 0° と 45° に変え，健全な材料と，一か所の剛性が低下した材料を比較します．ひずみから応力を返す <code>stressRate</code> の定義を共通の更新式に組み込み，波面と受信波形への影響を調べます．</p>
@@ -85,6 +85,7 @@ def stressRate E_i_j = withSymbols [i, j, k, l] (stiffness * (lambda * g~i~j * (
 <p class="cap">上段は繊維方向 0°，下段は 45°．左は健全，右は破線の円の付近が柔らかい材料．＋は波源，三角は受信点．無次元の材料内部の波動で，亀裂や自由表面は含みません．</p>
 <div class="imgs"><img src="../../examples/application_demos/results/composite_ultrasound/measurements.png" alt="複合材の超音波：繊維方向と柔らかい領域: 測定値の比較" loading="lazy"></div>
 <p class="facts">256×192 点，t=2.4 まで．修正エネルギーの相対変動は最大 3.0e-14．平面波の最大誤差は格子の細分化で 0.00122 から 0.000305 へ減少．<br><a href="../../examples/composite_ultrasound/README.md">モデルと再現手順</a> · <a href="../../examples/application_demos/results/verification.json">検証結果</a> · <a href="../../examples/application_demos/results/composite_ultrasound/runs.json">実行条件</a></p>
+<p class="description research-outlook"><strong>今後の研究課題</strong><br>繊維方向のばらつきと局所的な剛性低下を，受信波形から区別できる周波数・観測方向を調べます．三次元の波動を細かい格子で解き，多数の材料・送受信条件を比較する段階で，大規模並列計算が役立ちます．</p>
 <details class="codebox" data-fme="composite_ultrasound/composite_ultrasound.fme"><summary>ソース全文: composite_ultrasound.fme</summary><pre>-- Two-dimensional plane-strain bulk ultrasound in an idealized composite.
 -- A Gaussian initial strain launches a pulse. Compare a healthy
 -- medium with a smooth, softer inclusion and rotate the reinforcing direction.
@@ -661,6 +662,7 @@ def rotatedMetric = withSymbols [i, j, k] (rotatedJacobian~k_i . rotatedJacobian
 <p class="cap">左上から 0°，22.5°，45°，厚い層の 45°．厚い層では外半径 2 を保ち，内半径を 1 から 0.5 に縮めます．全条件の散乱は同じ外側領域 r&gt;2.5 で測定します．</p>
 <div class="imgs"><img src="../../examples/application_demos/results/optics_design/measurements.png" alt="電磁波を回転させる材料：角度と層の厚さ: 測定値の比較" loading="lazy"></div>
 <p class="facts">240×180 点，t=10 の散乱指標：0° 7.24e-33，22.5° 0.00157，45° 0.0158，厚い層 0.00363．<a href="#transformation-optics">元のモデルと生成ソース全文</a>も参照できます．<br><a href="../../examples/application_demos/README.md">モデルと再現手順</a> · <a href="../../examples/application_demos/results/verification.json">検証結果</a> · <a href="../../examples/application_demos/results/optics_design/runs.json">実行条件</a></p>
+<p class="description research-outlook"><strong>今後の研究課題</strong><br>同じ回転角と内外半径で，少ない材料層での近似や材料定数のずれに強い座標変換を調べます．大規模計算で薄い層を細かく解像し，多数の設計候補を比較します．性能評価には，格子の粗さと初期条件による散乱の影響を分離する必要があります．</p>
 
 </article>
 <article class="card featured" id="battery-cooling">
@@ -674,6 +676,7 @@ def heatFlux U = withSymbols [i, j] (conductivity~i~j . ∂_j U)</pre></div>
 <p class="cap">水色の辺が冷却面．上段：等方／側面冷却，異方／側面冷却．下段：異方／端面冷却，異方／両方冷却．初期温度と冷却媒体は 25 °C．内半径 2 mm，外半径 9 mm，長さ 65 mm．</p>
 <div class="imgs"><img src="../../examples/application_demos/results/battery_cooling/measurements.png" alt="円筒型電池：熱伝導の方向依存性と冷却面: 測定値の比較" loading="lazy"></div>
 <p class="facts">400 秒後の最高温度は順に 62.87 °C，48.08 °C，64.61 °C，46.66 °C．熱収支の相対誤差は最大 4.3e-13．65×193 点に細分化したときの両面冷却の最高温度差は 0.000379 K．<br><a href="../../examples/battery_cooling/README.md">モデルと再現手順</a> · <a href="../../examples/application_demos/results/verification.json">検証結果</a> · <a href="../../examples/application_demos/results/battery_cooling/runs.json">実行条件</a></p>
+<p class="description research-outlook"><strong>今後の研究課題</strong><br>冷却面積×熱伝達率の合計を揃え，発熱位置・継続時間や熱伝導率によって，有利な冷却配分が切り替わる条件を調べます．最高温度と内部の温度差を評価します．現在の軸対称モデルはPCで実行でき，三次元の不均一な条件や多数のケースへ展開する段階で，大規模計算が役立ちます．</p>
 <details class="codebox" data-fme="battery_cooling/battery_cooling.fme"><summary>ソース全文: battery_cooling.fme</summary><pre>-- Axisymmetric heat conduction in the wound annulus of a cylindrical cell.
 -- r = 2..9 mm, z = 0..65 mm. T is the rise above a 25 degree C coolant.
 -- Positive flux below means K grad(T); physical heat flux has the opposite sign.

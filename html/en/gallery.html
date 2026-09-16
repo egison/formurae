@@ -72,7 +72,7 @@
 <main>
 
 <!-- application-demos:begin -->
-<section id="application-demos"><h2>Applications with user-defined material laws and coordinate maps</h2><p>Three comparisons put user-defined operators to work. Initial conditions, boundary treatment, time evolution and physical diagnostics are all written in Formurae and run through the same code-generation pipeline.</p><div class="grid">
+<section id="application-demos"><h2>Applications with user-defined material laws and coordinate maps</h2><p>Three comparisons put user-defined operators to work. Initial conditions, boundary treatment, time evolution and physical diagnostics are all written in Formurae and run through the same code-generation pipeline. Each card also proposes future research questions requiring extensions to the model or experimental conditions.</p><div class="grid">
 <article class="card featured" id="composite-ultrasound">
 <h3>Composite ultrasound: fiber direction and a soft inclusion</h3>
 <p class="description">Compare a healthy medium and a locally softer region at fiber angles of 0 and 45 degrees. The material tensor in <code>stressRate</code>, a function mapping strain to stress, changes while the time-stepping equations stay the same. Observe both wavefronts and the receiver signal.</p>
@@ -85,6 +85,7 @@ def stressRate E_i_j = withSymbols [i, j, k, l] (stiffness * (lambda * g~i~j * (
 <p class="cap">Top: fibers at 0 degrees. Bottom: 45 degrees. Left: healthy. Right: a soft region near the dashed circle. + marks the source and the triangle the receiver. Dimensionless bulk-wave model; no cracks or traction-free surfaces.</p>
 <div class="imgs"><img src="../../examples/application_demos/results/composite_ultrasound/measurements.png" alt="Composite ultrasound: fiber direction and a soft inclusion: measured comparison" loading="lazy"></div>
 <p class="facts">256×192 points, through t=2.4. Maximum relative drift of the modified energy: 3.0e-14. Plane-wave maximum errors decrease from 0.00122 to 0.000305 under refinement.<br><a href="../../examples/composite_ultrasound/README.md">Model and reproduction</a> · <a href="../../examples/application_demos/results/verification.json">Verification results</a> · <a href="../../examples/application_demos/results/composite_ultrasound/runs.json">Run settings</a></p>
+<p class="description research-outlook"><strong>Future research questions</strong><br>Identify frequencies and observation directions that distinguish fiber-orientation variability from a local stiffness reduction in receiver signals. Large-scale parallel computing becomes useful when resolving three-dimensional waves on fine grids across many material and transmitter/receiver configurations.</p>
 <details class="codebox" data-fme="composite_ultrasound/composite_ultrasound.fme"><summary>Full model source: composite_ultrasound.fme</summary><pre>-- Two-dimensional plane-strain bulk ultrasound in an idealized composite.
 -- A Gaussian initial strain launches a pulse. Compare a healthy
 -- medium with a smooth, softer inclusion and rotate the reinforcing direction.
@@ -661,6 +662,7 @@ def rotatedMetric = withSymbols [i, j, k] (rotatedJacobian~k_i . rotatedJacobian
 <p class="cap">Reading order: 0, 22.5, 45 degrees, then 45 degrees with a thicker layer. The thicker layer keeps the outer radius at 2 and reduces the inner radius from 1 to 0.5. Scattering is measured in the same region r&gt;2.5 in every case.</p>
 <div class="imgs"><img src="../../examples/application_demos/results/optics_design/measurements.png" alt="Electromagnetic field rotator: angle and layer thickness: measured comparison" loading="lazy"></div>
 <p class="facts">240×180 points. Scattering indicator at t=10: 0°: 7.24e-33, 22.5°: 0.00157, 45°: 0.0158, thicker layer: 0.00363. See the <a href="#transformation-optics">original model and full generated sources</a>.<br><a href="../../examples/application_demos/README.md">Model and reproduction</a> · <a href="../../examples/application_demos/results/verification.json">Verification results</a> · <a href="../../examples/application_demos/results/optics_design/runs.json">Run settings</a></p>
+<p class="description research-outlook"><strong>Future research questions</strong><br>At fixed rotation angle and inner/outer radii, compare coordinate maps that tolerate approximation by a small number of material layers and deviations in material properties. Large-scale computing can resolve thin layers and compare many designs. Performance assessment must separate scattering caused by grid resolution and initial conditions.</p>
 
 </article>
 <article class="card featured" id="battery-cooling">
@@ -674,6 +676,7 @@ def heatFlux U = withSymbols [i, j] (conductivity~i~j . ∂_j U)</pre></div>
 <p class="cap">Cyan edges are cooled. Top: isotropic/side cooling, anisotropic/side cooling. Bottom: anisotropic/end cooling, anisotropic/both. Initial and coolant temperatures: 25 °C. Inner radius 2 mm, outer radius 9 mm, length 65 mm.</p>
 <div class="imgs"><img src="../../examples/application_demos/results/battery_cooling/measurements.png" alt="Cylindrical cell: directional conduction and cooling surfaces: measured comparison" loading="lazy"></div>
 <p class="facts">Maximum temperatures at 400 s, in panel order: 62.87 °C, 48.08 °C, 64.61 °C, 46.66 °C. Maximum relative heat-balance error: 4.3e-13. Refining to 65×193 points changes the maximum temperature with both cooling surfaces by 0.000379 K.<br><a href="../../examples/battery_cooling/README.md">Model and reproduction</a> · <a href="../../examples/application_demos/results/verification.json">Verification results</a> · <a href="../../examples/application_demos/results/battery_cooling/runs.json">Run settings</a></p>
+<p class="description research-outlook"><strong>Future research questions</strong><br>Keep the sum of cooling area times heat-transfer coefficient fixed, and identify when the preferred cooling allocation changes with heating location, duration and thermal conductivity. Evaluate both peak temperature and internal temperature differences. The current axisymmetric model runs on a PC; large-scale computing becomes useful for three-dimensional nonuniform conditions or many cases.</p>
 <details class="codebox" data-fme="battery_cooling/battery_cooling.fme"><summary>Full model source: battery_cooling.fme</summary><pre>-- Axisymmetric heat conduction in the wound annulus of a cylindrical cell.
 -- r = 2..9 mm, z = 0..65 mm. T is the rise above a 25 degree C coolant.
 -- Positive flux below means K grad(T); physical heat flux has the opposite sign.

@@ -8,6 +8,18 @@ ROOT=Path(__file__).resolve().parents[2]
 RESULT=ROOT/'examples/application_demos/results'
 BEGIN='<!-- application-demos:begin -->'
 END='<!-- application-demos:end -->'
+RESEARCH_OUTLOOK = {
+    'ja': {
+        'composite_ultrasound': '繊維方向のばらつきと局所的な剛性低下を，受信波形から区別できる周波数・観測方向を調べます．三次元の波動を細かい格子で解き，多数の材料・送受信条件を比較する段階で，大規模並列計算が役立ちます．',
+        'optics_design': '同じ回転角と内外半径で，少ない材料層での近似や材料定数のずれに強い座標変換を調べます．大規模計算で薄い層を細かく解像し，多数の設計候補を比較します．性能評価には，格子の粗さと初期条件による散乱の影響を分離する必要があります．',
+        'battery_cooling': '冷却面積×熱伝達率の合計を揃え，発熱位置・継続時間や熱伝導率によって，有利な冷却配分が切り替わる条件を調べます．最高温度と内部の温度差を評価します．現在の軸対称モデルはPCで実行でき，三次元の不均一な条件や多数のケースへ展開する段階で，大規模計算が役立ちます．',
+    },
+    'en': {
+        'composite_ultrasound': 'Identify frequencies and observation directions that distinguish fiber-orientation variability from a local stiffness reduction in receiver signals. Large-scale parallel computing becomes useful when resolving three-dimensional waves on fine grids across many material and transmitter/receiver configurations.',
+        'optics_design': 'At fixed rotation angle and inner/outer radii, compare coordinate maps that tolerate approximation by a small number of material layers and deviations in material properties. Large-scale computing can resolve thin layers and compare many designs. Performance assessment must separate scattering caused by grid resolution and initial conditions.',
+        'battery_cooling': 'Keep the sum of cooling area times heat-transfer coefficient fixed, and identify when the preferred cooling allocation changes with heating location, duration and thermal conductivity. Evaluate both peak temperature and internal temperature differences. The current axisymmetric model runs on a PC; large-scale computing becomes useful for three-dimensional nonuniform conditions or many cases.',
+    },
+}
 
 def source_block(name, suffix, lang):
     rel=f'{name}/{name}.{suffix}'
@@ -29,6 +41,7 @@ def card(key,title,description,equation,code,caption,facts,lang,model=None):
     checks='検証結果' if lang=='ja' else 'Verification results'
     code_label='変更する演算子（実際のソースから抜粋）' if lang=='ja' else 'Operators being changed (excerpt from the actual source)'
     video_fallback='動画を再生できません．' if lang=='ja' else 'Video playback is unavailable.'
+    research_label='今後の研究課題' if lang=='ja' else 'Future research questions'
     return f'''<article class="card featured" id="{key.replace('_','-')}">
 <h3>{title}</h3>
 <p class="description">{description}</p>
@@ -38,6 +51,7 @@ def card(key,title,description,equation,code,caption,facts,lang,model=None):
 <p class="cap">{caption}</p>
 <div class="imgs"><img src="{base}/measurements.png" alt="{html.escape(title)}: {'測定値の比較' if lang=='ja' else 'measured comparison'}" loading="lazy"></div>
 <p class="facts">{facts}<br><a href="{readme}">{more}</a> · <a href="../../examples/application_demos/results/verification.json">{checks}</a> · <a href="{base}/runs.json">{'実行条件' if lang=='ja' else 'Run settings'}</a></p>
+<p class="description research-outlook"><strong>{research_label}</strong><br>{RESEARCH_OUTLOOK[lang][key]}</p>
 {source}
 </article>'''
 
@@ -46,7 +60,7 @@ def generate(lang,report):
     hv=heat['comparisons']; wv=waves['comparisons']; ov=light['comparisons']
     if lang=='ja':
         title='材料則と座標変換を変更する応用デモ'
-        intro='利用者が関数として定義した演算子を，材料や装置の比較に使う三つの例です．初期条件・境界処理・時間発展・物理量の測定を Formurae に記述し，同じコード生成経路で実行しています．'
+        intro='利用者が関数として定義した演算子を，材料や装置の比較に使う三つの例です．初期条件・境界処理・時間発展・物理量の測定を Formurae に記述し，同じコード生成経路で実行しています．各カードの研究課題は，今後モデルや実験条件を拡張して検証するものです．'
         a=card('composite_ultrasound','複合材の超音波：繊維方向と柔らかい領域',
             '向きによって硬さが違う材料を考えます．繊維方向を 0° と 45° に変え，健全な材料と，一か所の剛性が低下した材料を比較します．ひずみから応力を返す <code>stressRate</code> の定義を共通の更新式に組み込み，波面と受信波形への影響を調べます．',
             'C(E)<sup>ij</sup> = s(x,y)[λg<sup>ij</sup>g<sup>kl</sup>E<sub>kl</sub> + 2μg<sup>ik</sup>g<sup>jl</sup>E<sub>kl</sub> + αn<sup>i</sup>n<sup>j</sup>n<sup>k</sup>n<sup>l</sup>E<sub>kl</sub>]',
@@ -67,7 +81,7 @@ def generate(lang,report):
             '400 秒後の最高温度は順に '+ '，'.join(f'{hv[k]["maximum_temperature_C"]:.2f} °C' for k in ['side-isotropic','side-anisotropic','ends-anisotropic','both-anisotropic'])+f'．熱収支の相対誤差は最大 {max(v["relative_heat_balance_error"] for v in hv.values()):.1e}．65×193 点に細分化したときの両面冷却の最高温度差は {heat["refinement_difference_K"]:.3g} K．',lang,'battery_cooling')
     else:
         title='Applications with user-defined material laws and coordinate maps'
-        intro='Three comparisons put user-defined operators to work. Initial conditions, boundary treatment, time evolution and physical diagnostics are all written in Formurae and run through the same code-generation pipeline.'
+        intro='Three comparisons put user-defined operators to work. Initial conditions, boundary treatment, time evolution and physical diagnostics are all written in Formurae and run through the same code-generation pipeline. Each card also proposes future research questions requiring extensions to the model or experimental conditions.'
         a=card('composite_ultrasound','Composite ultrasound: fiber direction and a soft inclusion',
             'Compare a healthy medium and a locally softer region at fiber angles of 0 and 45 degrees. The material tensor in <code>stressRate</code>, a function mapping strain to stress, changes while the time-stepping equations stay the same. Observe both wavefronts and the receiver signal.',
             'C(E)<sup>ij</sup> = s(x,y)[λg<sup>ij</sup>g<sup>kl</sup>E<sub>kl</sub> + 2μg<sup>ik</sup>g<sup>jl</sup>E<sub>kl</sub> + αn<sup>i</sup>n<sup>j</sup>n<sup>k</sup>n<sup>l</sup>E<sub>kl</sub>]',
