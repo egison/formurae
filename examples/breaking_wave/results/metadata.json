@@ -22,5 +22,7 @@
   "source_sha256": "6aeb8267d0c1058b8c11eb36c7d015e8a529332c1defca0e2382053365716648",
   "normalization_cache": "49435f3f44419ab79401",
   "steps": 3000,
-  "every": 30
+  "every": 30,
+  "equivalent_indexed_source_sha256": "7ac8cd16b5fb4540512c0c52949c463c4e23e427590ea0420cf89bf83e718e1e",
+  "index_migration_verification": "index-migration.json"
 }

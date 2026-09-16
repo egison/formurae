@@ -4994,11 +4994,12 @@ step:
 <article class="card featured" id="breaking-wave">
 <h3>巻き込む波 — 北斎の波頭を目標にした2次元水槽</h3>
 <p class="description">北斎の『神奈川沖浪裏』のように，波頭が前へせり出して下へ曲がる形を調べる試作です。水の占有率（各格子点を水が占める割合）を追跡するため，同じ水平位置で水面が上下に重なる形も表せます。二次元・九速度の格子ボルツマン法 D2Q9 を使い，初期条件，壁，重力，水面の移動と水量の受け渡しをすべて Formurae に記述しています。</p>
+<p class="description"><code>dimension 2</code> と <code>index a : 9</code> で空間の次元と分布の成分数を別々に指定します。分布は <code>field f_a</code>，衝突後と移動後の分布は <code>savedG_a</code>・<code>savedS_a</code> にまとめました。流速 <code>u_i</code> は2成分で，密度と流速は縮約（同じ上下の添字について成分の和を取る演算）で求めます。</p>
 <div class="imgs"><video controls loop muted playsinline preload="none" poster="../../examples/breaking_wave/results/wave.png" aria-label="波頭が前にせり出し，下へ巻き込む計算結果"><source src="../../examples/breaking_wave/results/breaking-wave.mp4" type="video/mp4">動画を再生できません。</video></div>
 <p class="cap">512×192点，3,000ステップの実計算。白線は計算された水面で，描画で巻き込みや飛沫を付け加えていません。</p>
 <p class="facts"><b>水量の最大相対変化：</b>1.33×10⁻¹⁴。1点あたりの未配分質量は最大2.89×10⁻¹³。覆いかぶさる水面の指標は最大32点，静水の試験では0点でした。<br>細かな白波・飛沫，空気の流れ・気泡・表面張力は含みません。水量保存と動作を検査した試作であり，実験との比較や格子を細かくしたときの誤差評価は今後の課題です。</p>
-<p class="description"><a href="../../examples/breaking_wave/README.md">モデルと再現手順</a> · <a href="../../examples/breaking_wave/results/sequence.png">時間変化の一覧</a> · <a href="../../examples/breaking_wave/results/verification.json">検証値</a> · <a href="../../examples/breaking_wave/results/metadata.json">実行条件</a><br><code>make breaking-wave-demo</code> で動画を再生成できます。</p>
-<details class="codebox" data-fme="breaking_wave/breaking_wave.fme" open><summary>Formurae ソース全文(breaking_wave.fme・367 行)</summary>
+<p class="description"><a href="../../examples/breaking_wave/README.md">モデルと再現手順</a> · <a href="../../examples/breaking_wave/results/sequence.png">時間変化の一覧</a> · <a href="../../examples/breaking_wave/results/verification.json">検証値</a> · <a href="../../examples/breaking_wave/results/metadata.json">実行条件</a> · <a href="../../examples/breaking_wave/results/index-migration.json">添字宣言への移行検証</a><br><code>make breaking-wave-demo</code> で動画を再生成できます。</p>
+<details class="codebox" data-fme="breaking_wave/breaking_wave.fme" open><summary>Formurae ソース全文(breaking_wave.fme・335 行)</summary>
 <pre><span class="c">-- Two-dimensional free-surface lattice Boltzmann water tank (D2Q9).</span>
 <span class="c">-- All initial conditions, collision, streaming, surface conversion, mass</span>
 <span class="c">-- redistribution, wall handling and diagnostic fields are evaluated here.</span>
@@ -5008,6 +5009,7 @@ step:
 <span class="c">-- See README.md for the algorithm, units and validation limits.</span>
 dimension 2
 axes x, y
+index a : 9
 param nx = 512
 param ny = 192
 param depth = 72
@@ -5022,6 +5024,10 @@ param launch = 2.5
 param threshold = 0.001
 param hx = dx
 param hy = dy
+
+<span class="c">-- The population index has nine components; spatial indices have two.</span>
+def ones = [| 1,1,1,1,1,1,1,1,1 |]
+def directions = [| [| 0,0 |], [| 1,0 |], [| -1,0 |], [| 0,1 |], [| 0,-1 |], [| 1,1 |], [| -1,-1 |], [| 1,-1 |], [| -1,1 |] |]
 
 <span class="c">-- Exact one-cell shifts from the existing centered differences, as in lbm_d3q19.</span>
 def sx c q = q + c*hx*∂_x q + hx^2*∂^2_x q/2
@@ -5059,38 +5065,13 @@ field density : scalar
 field overhang : scalar
 field bad : scalar
 
-field f0 : scalar
-field f1 : scalar
-field f2 : scalar
-field f3 : scalar
-field f4 : scalar
-field f5 : scalar
-field f6 : scalar
-field f7 : scalar
-field f8 : scalar
+field f_a
 
 field savedRho : scalar
-field savedUx : scalar
-field savedUy : scalar
+field savedU_i
 field savedEps : scalar
-field savedG0 : scalar
-field savedG1 : scalar
-field savedG2 : scalar
-field savedG3 : scalar
-field savedG4 : scalar
-field savedG5 : scalar
-field savedG6 : scalar
-field savedG7 : scalar
-field savedG8 : scalar
-field savedS0 : scalar
-field savedS1 : scalar
-field savedS2 : scalar
-field savedS3 : scalar
-field savedS4 : scalar
-field savedS5 : scalar
-field savedS6 : scalar
-field savedS7 : scalar
-field savedS8 : scalar
+field savedG_a
+field savedS_a
 field savedNr : scalar
 field savedTransported : scalar
 field savedProposal : scalar
@@ -5098,8 +5079,7 @@ field savedNextKind : scalar
 field savedBaseMass : scalar
 field savedExcess : scalar
 field savedAverageRho : scalar
-field savedAverageX : scalar
-field savedAverageY : scalar
+field savedAverage_i
 field stage : scalar
 
 init:
@@ -5112,38 +5092,22 @@ init:
   speed := initialU
   overhang := 0
   bad := 0
-  f0 := equilibrium (4/9) (0) (0) initialDensity initialU 0
-  f1 := equilibrium (1/9) (1) (0) initialDensity initialU 0
-  f2 := equilibrium (1/9) (-1) (0) initialDensity initialU 0
-  f3 := equilibrium (1/9) (0) (1) initialDensity initialU 0
-  f4 := equilibrium (1/9) (0) (-1) initialDensity initialU 0
-  f5 := equilibrium (1/36) (1) (1) initialDensity initialU 0
-  f6 := equilibrium (1/36) (-1) (-1) initialDensity initialU 0
-  f7 := equilibrium (1/36) (1) (-1) initialDensity initialU 0
-  f8 := equilibrium (1/36) (-1) (1) initialDensity initialU 0
+  f_a := [|
+    equilibrium (4/9) (0) (0) initialDensity initialU 0,
+    equilibrium (1/9) (1) (0) initialDensity initialU 0,
+    equilibrium (1/9) (-1) (0) initialDensity initialU 0,
+    equilibrium (1/9) (0) (1) initialDensity initialU 0,
+    equilibrium (1/9) (0) (-1) initialDensity initialU 0,
+    equilibrium (1/36) (1) (1) initialDensity initialU 0,
+    equilibrium (1/36) (-1) (-1) initialDensity initialU 0,
+    equilibrium (1/36) (1) (-1) initialDensity initialU 0,
+    equilibrium (1/36) (-1) (1) initialDensity initialU 0 |]_a
 
   savedRho := 1
-  savedUx := 0
-  savedUy := 0
+  savedU_i := [| 0,0 |]_i
   savedEps := 0
-  savedG0 := 0
-  savedG1 := 0
-  savedG2 := 0
-  savedG3 := 0
-  savedG4 := 0
-  savedG5 := 0
-  savedG6 := 0
-  savedG7 := 0
-  savedG8 := 0
-  savedS0 := 0
-  savedS1 := 0
-  savedS2 := 0
-  savedS3 := 0
-  savedS4 := 0
-  savedS5 := 0
-  savedS6 := 0
-  savedS7 := 0
-  savedS8 := 0
+  savedG_a := 0*ones_a
+  savedS_a := 0*ones_a
   savedNr := 1
   savedTransported := 0
   savedProposal := 0
@@ -5151,96 +5115,99 @@ init:
   savedBaseMass := 0
   savedExcess := 0
   savedAverageRho := 1
-  savedAverageX := 0
-  savedAverageY := 0
+  savedAverage_i := [| 0,0 |]_i
   stage := 0
 
 step:
 
   -- Stage 0: collision and body force.
-  local rho = f0 + f1 + f2 + f3 + f4 + f5 + f6 + f7 + f8
-  local ux = (f1 - f2 + f5 - f6 + f7 - f8)/rho
-  local uy = (f3 - f4 + f5 - f6 - f7 + f8)/rho - gravity/2
+  local rho = ones~a . f_a
+  local u_i = (directions~a_i . f_a)/rho - [| 0,gravity/2 |]_i
   local eps = bounded (mass/rho)
-  local g0 = f0 + (equilibrium (4/9) (0) (0) rho ux uy - f0)/tau + forcing (4/9) (0) (0) rho ux uy
-  local g1 = f1 + (equilibrium (1/9) (1) (0) rho ux uy - f1)/tau + forcing (1/9) (1) (0) rho ux uy
-  local g2 = f2 + (equilibrium (1/9) (-1) (0) rho ux uy - f2)/tau + forcing (1/9) (-1) (0) rho ux uy
-  local g3 = f3 + (equilibrium (1/9) (0) (1) rho ux uy - f3)/tau + forcing (1/9) (0) (1) rho ux uy
-  local g4 = f4 + (equilibrium (1/9) (0) (-1) rho ux uy - f4)/tau + forcing (1/9) (0) (-1) rho ux uy
-  local g5 = f5 + (equilibrium (1/36) (1) (1) rho ux uy - f5)/tau + forcing (1/36) (1) (1) rho ux uy
-  local g6 = f6 + (equilibrium (1/36) (-1) (-1) rho ux uy - f6)/tau + forcing (1/36) (-1) (-1) rho ux uy
-  local g7 = f7 + (equilibrium (1/36) (1) (-1) rho ux uy - f7)/tau + forcing (1/36) (1) (-1) rho ux uy
-  local g8 = f8 + (equilibrium (1/36) (-1) (1) rho ux uy - f8)/tau + forcing (1/36) (-1) (1) rho ux uy
+  local g_a = [|
+    f_1 + (equilibrium (4/9) (0) (0) rho u_1 u_2 - f_1)/tau + forcing (4/9) (0) (0) rho u_1 u_2,
+    f_2 + (equilibrium (1/9) (1) (0) rho u_1 u_2 - f_2)/tau + forcing (1/9) (1) (0) rho u_1 u_2,
+    f_3 + (equilibrium (1/9) (-1) (0) rho u_1 u_2 - f_3)/tau + forcing (1/9) (-1) (0) rho u_1 u_2,
+    f_4 + (equilibrium (1/9) (0) (1) rho u_1 u_2 - f_4)/tau + forcing (1/9) (0) (1) rho u_1 u_2,
+    f_5 + (equilibrium (1/9) (0) (-1) rho u_1 u_2 - f_5)/tau + forcing (1/9) (0) (-1) rho u_1 u_2,
+    f_6 + (equilibrium (1/36) (1) (1) rho u_1 u_2 - f_6)/tau + forcing (1/36) (1) (1) rho u_1 u_2,
+    f_7 + (equilibrium (1/36) (-1) (-1) rho u_1 u_2 - f_7)/tau + forcing (1/36) (-1) (-1) rho u_1 u_2,
+    f_8 + (equilibrium (1/36) (1) (-1) rho u_1 u_2 - f_8)/tau + forcing (1/36) (1) (-1) rho u_1 u_2,
+    f_9 + (equilibrium (1/36) (-1) (1) rho u_1 u_2 - f_9)/tau + forcing (1/36) (-1) (1) rho u_1 u_2 |]_a
   savedRho' = if stage &lt; 0.5 &amp;&amp; stage &gt; -0.5 then rho else savedRho
-  savedUx' = if stage &lt; 0.5 &amp;&amp; stage &gt; -0.5 then ux else savedUx
-  savedUy' = if stage &lt; 0.5 &amp;&amp; stage &gt; -0.5 then uy else savedUy
+  savedU'_i = [|
+    if stage &lt; 0.5 &amp;&amp; stage &gt; -0.5 then u_1 else savedU_1,
+    if stage &lt; 0.5 &amp;&amp; stage &gt; -0.5 then u_2 else savedU_2 |]_i
   savedEps' = if stage &lt; 0.5 &amp;&amp; stage &gt; -0.5 then eps else savedEps
-  savedG0' = if stage &lt; 0.5 &amp;&amp; stage &gt; -0.5 then g0 else savedG0
-  savedG1' = if stage &lt; 0.5 &amp;&amp; stage &gt; -0.5 then g1 else savedG1
-  savedG2' = if stage &lt; 0.5 &amp;&amp; stage &gt; -0.5 then g2 else savedG2
-  savedG3' = if stage &lt; 0.5 &amp;&amp; stage &gt; -0.5 then g3 else savedG3
-  savedG4' = if stage &lt; 0.5 &amp;&amp; stage &gt; -0.5 then g4 else savedG4
-  savedG5' = if stage &lt; 0.5 &amp;&amp; stage &gt; -0.5 then g5 else savedG5
-  savedG6' = if stage &lt; 0.5 &amp;&amp; stage &gt; -0.5 then g6 else savedG6
-  savedG7' = if stage &lt; 0.5 &amp;&amp; stage &gt; -0.5 then g7 else savedG7
-  savedG8' = if stage &lt; 0.5 &amp;&amp; stage &gt; -0.5 then g8 else savedG8
+  savedG'_a = [|
+    if stage &lt; 0.5 &amp;&amp; stage &gt; -0.5 then g_1 else savedG_1,
+    if stage &lt; 0.5 &amp;&amp; stage &gt; -0.5 then g_2 else savedG_2,
+    if stage &lt; 0.5 &amp;&amp; stage &gt; -0.5 then g_3 else savedG_3,
+    if stage &lt; 0.5 &amp;&amp; stage &gt; -0.5 then g_4 else savedG_4,
+    if stage &lt; 0.5 &amp;&amp; stage &gt; -0.5 then g_5 else savedG_5,
+    if stage &lt; 0.5 &amp;&amp; stage &gt; -0.5 then g_6 else savedG_6,
+    if stage &lt; 0.5 &amp;&amp; stage &gt; -0.5 then g_7 else savedG_7,
+    if stage &lt; 0.5 &amp;&amp; stage &gt; -0.5 then g_8 else savedG_8,
+    if stage &lt; 0.5 &amp;&amp; stage &gt; -0.5 then g_9 else savedG_9 |]_a
 
   -- Stage 1: streaming, mass flux and proposed cell types.
   local k1 = sx (-1) kind
   local e1 = sx (-1) savedEps
-  local incoming1 = sx (-1) savedG1
+  local incoming1 = sx (-1) savedG_2
   local k2 = sx (1) kind
   local e2 = sx (1) savedEps
-  local incoming2 = sx (1) savedG2
+  local incoming2 = sx (1) savedG_3
   local k3 = sy (-1) kind
   local e3 = sy (-1) savedEps
-  local incoming3 = sy (-1) savedG3
+  local incoming3 = sy (-1) savedG_4
   local k4 = sy (1) kind
   local e4 = sy (1) savedEps
-  local incoming4 = sy (1) savedG4
+  local incoming4 = sy (1) savedG_5
   local k5 = diagonal (-1) (-1) kind
   local e5 = diagonal (-1) (-1) savedEps
-  local incoming5 = diagonal (-1) (-1) savedG5
+  local incoming5 = diagonal (-1) (-1) savedG_6
   local k6 = diagonal (1) (1) kind
   local e6 = diagonal (1) (1) savedEps
-  local incoming6 = diagonal (1) (1) savedG6
+  local incoming6 = diagonal (1) (1) savedG_7
   local k7 = diagonal (-1) (1) kind
   local e7 = diagonal (-1) (1) savedEps
-  local incoming7 = diagonal (-1) (1) savedG7
+  local incoming7 = diagonal (-1) (1) savedG_8
   local k8 = diagonal (1) (-1) kind
   local e8 = diagonal (1) (-1) savedEps
-  local incoming8 = diagonal (1) (-1) savedG8
-  local s0 = savedG0
-  local s1 = if k1 &gt; 2.5 then savedG2 else if k1 &lt; 0.5 then equilibrium (1/9) (1) (0) 1 savedUx savedUy + equilibrium (1/9) (-1) (0) 1 savedUx savedUy - savedG2 else incoming1
-  local dm1 = if active kind &lt; 0.5 || active k1 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid k1 &gt; 0.5 then incoming1 - savedG2 else (savedEps + e1)*(incoming1 - savedG2)/2
-  local s2 = if k2 &gt; 2.5 then savedG1 else if k2 &lt; 0.5 then equilibrium (1/9) (-1) (0) 1 savedUx savedUy + equilibrium (1/9) (1) (0) 1 savedUx savedUy - savedG1 else incoming2
-  local dm2 = if active kind &lt; 0.5 || active k2 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid k2 &gt; 0.5 then incoming2 - savedG1 else (savedEps + e2)*(incoming2 - savedG1)/2
-  local s3 = if k3 &gt; 2.5 then savedG4 else if k3 &lt; 0.5 then equilibrium (1/9) (0) (1) 1 savedUx savedUy + equilibrium (1/9) (0) (-1) 1 savedUx savedUy - savedG4 else incoming3
-  local dm3 = if active kind &lt; 0.5 || active k3 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid k3 &gt; 0.5 then incoming3 - savedG4 else (savedEps + e3)*(incoming3 - savedG4)/2
-  local s4 = if k4 &gt; 2.5 then savedG3 else if k4 &lt; 0.5 then equilibrium (1/9) (0) (-1) 1 savedUx savedUy + equilibrium (1/9) (0) (1) 1 savedUx savedUy - savedG3 else incoming4
-  local dm4 = if active kind &lt; 0.5 || active k4 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid k4 &gt; 0.5 then incoming4 - savedG3 else (savedEps + e4)*(incoming4 - savedG3)/2
-  local s5 = if k5 &gt; 2.5 then savedG6 else if k5 &lt; 0.5 then equilibrium (1/36) (1) (1) 1 savedUx savedUy + equilibrium (1/36) (-1) (-1) 1 savedUx savedUy - savedG6 else incoming5
-  local dm5 = if active kind &lt; 0.5 || active k5 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid k5 &gt; 0.5 then incoming5 - savedG6 else (savedEps + e5)*(incoming5 - savedG6)/2
-  local s6 = if k6 &gt; 2.5 then savedG5 else if k6 &lt; 0.5 then equilibrium (1/36) (-1) (-1) 1 savedUx savedUy + equilibrium (1/36) (1) (1) 1 savedUx savedUy - savedG5 else incoming6
-  local dm6 = if active kind &lt; 0.5 || active k6 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid k6 &gt; 0.5 then incoming6 - savedG5 else (savedEps + e6)*(incoming6 - savedG5)/2
-  local s7 = if k7 &gt; 2.5 then savedG8 else if k7 &lt; 0.5 then equilibrium (1/36) (1) (-1) 1 savedUx savedUy + equilibrium (1/36) (-1) (1) 1 savedUx savedUy - savedG8 else incoming7
-  local dm7 = if active kind &lt; 0.5 || active k7 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid k7 &gt; 0.5 then incoming7 - savedG8 else (savedEps + e7)*(incoming7 - savedG8)/2
-  local s8 = if k8 &gt; 2.5 then savedG7 else if k8 &lt; 0.5 then equilibrium (1/36) (-1) (1) 1 savedUx savedUy + equilibrium (1/36) (1) (-1) 1 savedUx savedUy - savedG7 else incoming8
-  local dm8 = if active kind &lt; 0.5 || active k8 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid k8 &gt; 0.5 then incoming8 - savedG7 else (savedEps + e8)*(incoming8 - savedG7)/2
-  local nr = s0 + s1 + s2 + s3 + s4 + s5 + s6 + s7 + s8
+  local incoming8 = diagonal (1) (-1) savedG_9
+  local s_a = [|
+    savedG_1,
+    if k1 &gt; 2.5 then savedG_3 else if k1 &lt; 0.5 then equilibrium (1/9) (1) (0) 1 savedU_1 savedU_2 + equilibrium (1/9) (-1) (0) 1 savedU_1 savedU_2 - savedG_3 else incoming1,
+    if k2 &gt; 2.5 then savedG_2 else if k2 &lt; 0.5 then equilibrium (1/9) (-1) (0) 1 savedU_1 savedU_2 + equilibrium (1/9) (1) (0) 1 savedU_1 savedU_2 - savedG_2 else incoming2,
+    if k3 &gt; 2.5 then savedG_5 else if k3 &lt; 0.5 then equilibrium (1/9) (0) (1) 1 savedU_1 savedU_2 + equilibrium (1/9) (0) (-1) 1 savedU_1 savedU_2 - savedG_5 else incoming3,
+    if k4 &gt; 2.5 then savedG_4 else if k4 &lt; 0.5 then equilibrium (1/9) (0) (-1) 1 savedU_1 savedU_2 + equilibrium (1/9) (0) (1) 1 savedU_1 savedU_2 - savedG_4 else incoming4,
+    if k5 &gt; 2.5 then savedG_7 else if k5 &lt; 0.5 then equilibrium (1/36) (1) (1) 1 savedU_1 savedU_2 + equilibrium (1/36) (-1) (-1) 1 savedU_1 savedU_2 - savedG_7 else incoming5,
+    if k6 &gt; 2.5 then savedG_6 else if k6 &lt; 0.5 then equilibrium (1/36) (-1) (-1) 1 savedU_1 savedU_2 + equilibrium (1/36) (1) (1) 1 savedU_1 savedU_2 - savedG_6 else incoming6,
+    if k7 &gt; 2.5 then savedG_9 else if k7 &lt; 0.5 then equilibrium (1/36) (1) (-1) 1 savedU_1 savedU_2 + equilibrium (1/36) (-1) (1) 1 savedU_1 savedU_2 - savedG_9 else incoming7,
+    if k8 &gt; 2.5 then savedG_8 else if k8 &lt; 0.5 then equilibrium (1/36) (-1) (1) 1 savedU_1 savedU_2 + equilibrium (1/36) (1) (-1) 1 savedU_1 savedU_2 - savedG_8 else incoming8 |]_a
+  local dm1 = if active kind &lt; 0.5 || active k1 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid k1 &gt; 0.5 then incoming1 - savedG_3 else (savedEps + e1)*(incoming1 - savedG_3)/2
+  local dm2 = if active kind &lt; 0.5 || active k2 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid k2 &gt; 0.5 then incoming2 - savedG_2 else (savedEps + e2)*(incoming2 - savedG_2)/2
+  local dm3 = if active kind &lt; 0.5 || active k3 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid k3 &gt; 0.5 then incoming3 - savedG_5 else (savedEps + e3)*(incoming3 - savedG_5)/2
+  local dm4 = if active kind &lt; 0.5 || active k4 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid k4 &gt; 0.5 then incoming4 - savedG_4 else (savedEps + e4)*(incoming4 - savedG_4)/2
+  local dm5 = if active kind &lt; 0.5 || active k5 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid k5 &gt; 0.5 then incoming5 - savedG_7 else (savedEps + e5)*(incoming5 - savedG_7)/2
+  local dm6 = if active kind &lt; 0.5 || active k6 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid k6 &gt; 0.5 then incoming6 - savedG_6 else (savedEps + e6)*(incoming6 - savedG_6)/2
+  local dm7 = if active kind &lt; 0.5 || active k7 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid k7 &gt; 0.5 then incoming7 - savedG_9 else (savedEps + e7)*(incoming7 - savedG_9)/2
+  local dm8 = if active kind &lt; 0.5 || active k8 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid k8 &gt; 0.5 then incoming8 - savedG_8 else (savedEps + e8)*(incoming8 - savedG_8)/2
+  local nr = ones~a . s_a
   local transported = mass + dm1 + dm2 + dm3 + dm4 + dm5 + dm6 + dm7 + dm8
   local fluidNeighbors = liquid k1 + liquid k2 + liquid k3 + liquid k4 + liquid k5 + liquid k6 + liquid k7 + liquid k8
   local airNeighbors = gas k1 + gas k2 + gas k3 + gas k4 + gas k5 + gas k6 + gas k7 + gas k8
   local proposal = if interface kind &gt; 0.5 then (if transported &gt; (1+threshold)*nr || (airNeighbors &lt; 0.5 &amp;&amp; transported &gt; (1-threshold)*nr) then 2 else if transported &lt; (0-threshold)*nr || (fluidNeighbors &lt; 0.5 &amp;&amp; transported &lt; threshold*nr) then 0 else 1) else kind
-  savedS0' = if stage &lt; 1.5 &amp;&amp; stage &gt; 0.5 then s0 else savedS0
-  savedS1' = if stage &lt; 1.5 &amp;&amp; stage &gt; 0.5 then s1 else savedS1
-  savedS2' = if stage &lt; 1.5 &amp;&amp; stage &gt; 0.5 then s2 else savedS2
-  savedS3' = if stage &lt; 1.5 &amp;&amp; stage &gt; 0.5 then s3 else savedS3
-  savedS4' = if stage &lt; 1.5 &amp;&amp; stage &gt; 0.5 then s4 else savedS4
-  savedS5' = if stage &lt; 1.5 &amp;&amp; stage &gt; 0.5 then s5 else savedS5
-  savedS6' = if stage &lt; 1.5 &amp;&amp; stage &gt; 0.5 then s6 else savedS6
-  savedS7' = if stage &lt; 1.5 &amp;&amp; stage &gt; 0.5 then s7 else savedS7
-  savedS8' = if stage &lt; 1.5 &amp;&amp; stage &gt; 0.5 then s8 else savedS8
+  savedS'_a = [|
+    if stage &lt; 1.5 &amp;&amp; stage &gt; 0.5 then s_1 else savedS_1,
+    if stage &lt; 1.5 &amp;&amp; stage &gt; 0.5 then s_2 else savedS_2,
+    if stage &lt; 1.5 &amp;&amp; stage &gt; 0.5 then s_3 else savedS_3,
+    if stage &lt; 1.5 &amp;&amp; stage &gt; 0.5 then s_4 else savedS_4,
+    if stage &lt; 1.5 &amp;&amp; stage &gt; 0.5 then s_5 else savedS_5,
+    if stage &lt; 1.5 &amp;&amp; stage &gt; 0.5 then s_6 else savedS_6,
+    if stage &lt; 1.5 &amp;&amp; stage &gt; 0.5 then s_7 else savedS_7,
+    if stage &lt; 1.5 &amp;&amp; stage &gt; 0.5 then s_8 else savedS_8,
+    if stage &lt; 1.5 &amp;&amp; stage &gt; 0.5 then s_9 else savedS_9 |]_a
   savedNr' = if stage &lt; 1.5 &amp;&amp; stage &gt; 0.5 then nr else savedNr
   savedTransported' = if stage &lt; 1.5 &amp;&amp; stage &gt; 0.5 then transported else savedTransported
   savedProposal' = if stage &lt; 1.5 &amp;&amp; stage &gt; 0.5 then proposal else savedProposal
@@ -5271,8 +5238,8 @@ step:
   local excess = savedTransported - baseMass + bank
   local act = active kind
   local arho = act*savedRho
-  local ax = act*savedUx
-  local ay = act*savedUy
+  local ax = act*savedU_1
+  local ay = act*savedU_2
   local act1 = sx (-1) act
   local ar1 = sx (-1) arho
   local ax1 = sx (-1) ax
@@ -5308,14 +5275,16 @@ step:
   local neighbors = act1 + act2 + act3 + act4 + act5 + act6 + act7 + act8
   local neighborCount = if neighbors &gt; 0.5 then neighbors else 1
   local averageRho = if neighbors &gt; 0.5 then (ar1 + ar2 + ar3 + ar4 + ar5 + ar6 + ar7 + ar8)/neighborCount else 1
-  local averageX = (ax1 + ax2 + ax3 + ax4 + ax5 + ax6 + ax7 + ax8)/neighborCount
-  local averageY = (ay1 + ay2 + ay3 + ay4 + ay5 + ay6 + ay7 + ay8)/neighborCount
+  local average_i = [|
+    (ax1 + ax2 + ax3 + ax4 + ax5 + ax6 + ax7 + ax8)/neighborCount,
+    (ay1 + ay2 + ay3 + ay4 + ay5 + ay6 + ay7 + ay8)/neighborCount |]_i
   savedNextKind' = if stage &lt; 2.5 &amp;&amp; stage &gt; 1.5 then nextKind else savedNextKind
   savedBaseMass' = if stage &lt; 2.5 &amp;&amp; stage &gt; 1.5 then baseMass else savedBaseMass
   savedExcess' = if stage &lt; 2.5 &amp;&amp; stage &gt; 1.5 then excess else savedExcess
   savedAverageRho' = if stage &lt; 2.5 &amp;&amp; stage &gt; 1.5 then averageRho else savedAverageRho
-  savedAverageX' = if stage &lt; 2.5 &amp;&amp; stage &gt; 1.5 then averageX else savedAverageX
-  savedAverageY' = if stage &lt; 2.5 &amp;&amp; stage &gt; 1.5 then averageY else savedAverageY
+  savedAverage'_i = [|
+    if stage &lt; 2.5 &amp;&amp; stage &gt; 1.5 then average_1 else savedAverage_1,
+    if stage &lt; 2.5 &amp;&amp; stage &gt; 1.5 then average_2 else savedAverage_2 |]_i
 
   -- Stage 3: conservative redistribution and the physical state update.
   local receiver = interface savedNextKind
@@ -5343,28 +5312,28 @@ step:
   mass' = if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then nextMass else mass
   bank' = if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then nextBank else bank
   water' = if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then nextMass + nextBank else water
-  f0' = if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then (4/9) else if kind &lt; 0.5 then equilibrium (4/9) (0) (0) savedAverageRho savedAverageX savedAverageY else savedS0) else f0
-  f1' = if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then (1/9) else if kind &lt; 0.5 then equilibrium (1/9) (1) (0) savedAverageRho savedAverageX savedAverageY else savedS1) else f1
-  f2' = if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then (1/9) else if kind &lt; 0.5 then equilibrium (1/9) (-1) (0) savedAverageRho savedAverageX savedAverageY else savedS2) else f2
-  f3' = if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then (1/9) else if kind &lt; 0.5 then equilibrium (1/9) (0) (1) savedAverageRho savedAverageX savedAverageY else savedS3) else f3
-  f4' = if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then (1/9) else if kind &lt; 0.5 then equilibrium (1/9) (0) (-1) savedAverageRho savedAverageX savedAverageY else savedS4) else f4
-  f5' = if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then (1/36) else if kind &lt; 0.5 then equilibrium (1/36) (1) (1) savedAverageRho savedAverageX savedAverageY else savedS5) else f5
-  f6' = if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then (1/36) else if kind &lt; 0.5 then equilibrium (1/36) (-1) (-1) savedAverageRho savedAverageX savedAverageY else savedS6) else f6
-  f7' = if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then (1/36) else if kind &lt; 0.5 then equilibrium (1/36) (1) (-1) savedAverageRho savedAverageX savedAverageY else savedS7) else f7
-  f8' = if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then (1/36) else if kind &lt; 0.5 then equilibrium (1/36) (-1) (1) savedAverageRho savedAverageX savedAverageY else savedS8) else f8
+  f'_a = [|
+    if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then (4/9) else if kind &lt; 0.5 then equilibrium (4/9) (0) (0) savedAverageRho savedAverage_1 savedAverage_2 else savedS_1) else f_1,
+    if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then (1/9) else if kind &lt; 0.5 then equilibrium (1/9) (1) (0) savedAverageRho savedAverage_1 savedAverage_2 else savedS_2) else f_2,
+    if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then (1/9) else if kind &lt; 0.5 then equilibrium (1/9) (-1) (0) savedAverageRho savedAverage_1 savedAverage_2 else savedS_3) else f_3,
+    if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then (1/9) else if kind &lt; 0.5 then equilibrium (1/9) (0) (1) savedAverageRho savedAverage_1 savedAverage_2 else savedS_4) else f_4,
+    if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then (1/9) else if kind &lt; 0.5 then equilibrium (1/9) (0) (-1) savedAverageRho savedAverage_1 savedAverage_2 else savedS_5) else f_5,
+    if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then (1/36) else if kind &lt; 0.5 then equilibrium (1/36) (1) (1) savedAverageRho savedAverage_1 savedAverage_2 else savedS_6) else f_6,
+    if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then (1/36) else if kind &lt; 0.5 then equilibrium (1/36) (-1) (-1) savedAverageRho savedAverage_1 savedAverage_2 else savedS_7) else f_7,
+    if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then (1/36) else if kind &lt; 0.5 then equilibrium (1/36) (1) (-1) savedAverageRho savedAverage_1 savedAverage_2 else savedS_8) else f_8,
+    if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then (1/36) else if kind &lt; 0.5 then equilibrium (1/36) (-1) (1) savedAverageRho savedAverage_1 savedAverage_2 else savedS_9) else f_9 |]_a
 
   -- Stage 4: diagnostics read only the completed state.
-  local newRho = f0 + f1 + f2 + f3 + f4 + f5 + f6 + f7 + f8
-  local newUx = (f1 - f2 + f5 - f6 + f7 - f8)/newRho
-  local newUy = (f3 - f4 + f5 - f6 - f7 + f8)/newRho - gravity/2
+  local newRho = ones~a . f_a
+  local newU_i = (directions~a_i . f_a)/newRho - [| 0,gravity/2 |]_i
   local newFraction = if active kind &gt; 0.5 then bounded (mass/newRho) else 0
   local below = sy (-1) newFraction
   local belowWall = sy (-1) wall
   fraction' = if stage &gt; 3.5 then newFraction else fraction
   density' = if stage &gt; 3.5 then (if active kind &gt; 0.5 then newRho else 1) else density
-  speed' = if stage &gt; 3.5 then (if active kind &gt; 0.5 then sqrt(newUx^2 + newUy^2) else 0) else speed
+  speed' = if stage &gt; 3.5 then (if active kind &gt; 0.5 then sqrt(newU_1^2 + newU_2^2) else 0) else speed
   overhang' = if stage &gt; 3.5 then (if newFraction &gt; 0.5 &amp;&amp; below &lt; 0.5 &amp;&amp; belowWall &lt; 0.5 then 1 else 0) else overhang
-  bad' = if stage &gt; 3.5 then (if newRho &gt; 0.5 &amp;&amp; newRho &lt; 1.5 &amp;&amp; newUx^2 + newUy^2 &lt; 0.09 then 0 else 1) else bad
+  bad' = if stage &gt; 3.5 then (if newRho &gt; 0.5 &amp;&amp; newRho &lt; 1.5 &amp;&amp; newU_1^2 + newU_2^2 &lt; 0.09 then 0 else 1) else bad
   stage' = if stage &gt; 3.5 then 0 else stage + 1</pre></details>
 </article>
 
