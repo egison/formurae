@@ -1,3 +1,4 @@
 length_per_node: [64.0,4.0,4.0]
 grid_per_node: [64,4,4]
 mpi_shape: [1,1,1]
+reduces: [mass = sum density, amplitude = sum mode, ux = absmax transverseX, uz = absmax transverseZ]

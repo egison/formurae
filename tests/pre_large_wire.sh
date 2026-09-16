@@ -22,6 +22,6 @@ EGISON_HEAP_LIMIT=1G "$ROOT/tools/run_egison_machine.sh" "$@" -l "$WORK/model.eg
   -c 'main []' > "$WORK/model.feir"
 
 # Splitting definitions must preserve every normalized value and every
-# provenance entry, including the large origin table in this model.
+# provenance entry, including the 19-component tensors in this model.
 cmp examples/lbm_d3q19/lbm_d3q19.feir "$WORK/model.feir"
 printf 'formurae-pre large wire output within 1 GiB: ok\n'

@@ -496,7 +496,7 @@ cabal run -v0 formurae-post -- /tmp/model.feir > /tmp/model.fmr
 typed `local`として物質化し、`lbm_d3q19`は中心1階・2階差分の恒等式で整数1セルpullを構成して、
 どちらも通常の`.fme -> .egi -> .feir -> .fmr`経路で検査します。LBMの19成分を
 まとめて宣言する場合は `index a : 19` と `field f_a` を使えます。
-既存の `lbm_d3q19` は個別のスカラー宣言を使う例として残しています。
+`lbm_d3q19` では，この添字宣言で分布と衝突・移動の各段階をまとめています。
 
 ## リポジトリ構成
 

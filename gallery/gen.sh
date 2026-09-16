@@ -55,7 +55,7 @@ run metric metric_torus metric_torus -DAXIS_X=theta -DAXIS_Y=phi -DAXIS_Z=z \
 run kg kleingordon kleingordon -DDUMPS='{0,400,800}' -DF1="$U.phi[i][j][k]"
 run sw shallowwater shallowwater -DDUMPS='{0,400}' -DF1="$U.h[i][j][k]" -DF2="$U.mx[i][j][k]"
 run lbm lbm_d3q19 lbm_d3q19 -DDUMPS='{0,1000}' \
-  -DF1="$U.f3[i][j][k]-$U.f4[i][j][k]+$U.f7[i][j][k]-$U.f8[i][j][k]-$U.f9[i][j][k]+$U.f10[i][j][k]+$U.f15[i][j][k]-$U.f16[i][j][k]+$U.f17[i][j][k]-$U.f18[i][j][k]"
+  -DF1="$U.momentum_down2[i][j][k]"
 run acoustic acoustic3d acoustic3d -DDUMPS='{0,600}' -DF1="$U.p[i][j][k]"
 run sod euler_sod euler_sod -DDUMPS='{120}' -DF1="$U.rho[i][j][k]" \
   -DF2="0.4*($U.en[i][j][k]-$U.mx[i][j][k]*$U.mx[i][j][k]/(2.0*$U.rho[i][j][k]))" \
