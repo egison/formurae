@@ -1,0 +1,5 @@
+length_per_node: [0.00721875, 0.06567708333333333]
+grid_per_node: [33, 97]
+mpi_shape: [1, 1]
+boundary: [fixed 0.0, fixed 0.0]
+reduces: [time = max clock, maximum = max T, minimum = min T, heat = sum heat, supplied = sum supplied, removed = sum removed, balance = sum balance, error = absmax uniformError]

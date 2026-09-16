@@ -1,0 +1,58 @@
+-- Axisymmetric heat conduction in the wound annulus of a cylindrical cell.
+-- r = 2..9 mm, z = 0..65 mm. T is the rise above a 25 degree C coolant.
+-- Positive flux below means K grad(T); physical heat flux has the opposite sign.
+-- All boundary fluxes, heat input/loss and heat-content diagnostics are FME.
+dimension 2
+axes r, z
+origin r = 0.002
+boundary r : sbp
+boundary z : sbp
+metric g
+
+param capacity = 2000000.0
+param radial = 0.5
+param axial = 10.0
+param side = 50.0
+param ends = 0.0
+param heating = 100000.0
+param dt = 0.01
+param cell = 6.283185307179586 * dr * dz
+param initial = 0.0
+param hotspot = 4.0
+extern exp
+
+def heatSource = heating * (1 + hotspot * exp (0 - (z - 0.0325)^2 / 0.0001))
+
+def axis = [| 0, 1 |]~i
+def conductivity = withSymbols [i, j] (radial * g~i~j + (axial - radial) * axis~i * axis~j)
+def heatFlux U = withSymbols [i, j] (conductivity~i~j . ∂_j U)
+def weight = (if r < sbpLoR || r > sbpHiR then 0.5 else 1) * (if z < sbpLoZ || z > sbpHiZ then 0.5 else 1)
+def cooling U = (if r > sbpHiR then sbpHinvR * side * U else 0) + (if z < sbpLoZ || z > sbpHiZ then sbpHinvZ * ends * U else 0)
+
+field T : scalar @ primal
+field clock : scalar @ primal
+field heat : scalar @ primal
+field supplied : scalar @ primal
+field removed : scalar @ primal
+field balance : scalar @ primal
+field uniformError : scalar @ primal
+
+init:
+  T := initial
+  clock := 0
+  heat := cell * weight * r * capacity * initial
+  supplied := 0
+  removed := 0
+  balance := 0
+  uniformError := 0
+
+step:
+  local q~i @ primal = heatFlux T
+  local flux~i @ primal = [| r * q~1, q~2 |]~i
+  T' = T + (dt / capacity) * ((∂_r flux~1 + satNeumann_r(flux~1, 0, 0 - r * side * T)) / r + ∂_z flux~2 + satNeumann_z(flux~2, ends * T, 0 - ends * T) + heatSource)
+  clock' = clock + dt
+  heat' = cell * weight * r * capacity * T'
+  supplied' = supplied + dt * cell * weight * r * heatSource
+  removed' = removed + dt * cell * weight * r * cooling T
+  balance' = heat' - cell * weight * r * capacity * initial - supplied' + removed'
+  uniformError' = T' - initial - (heating / capacity) * clock'

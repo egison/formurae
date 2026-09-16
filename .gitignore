@@ -94,3 +94,9 @@ examples/elastic_pulse/elastic_pulse.h
 examples/elastic_pulse/__pycache__/
 examples/taylor_couette/taylor_couette.c
 examples/taylor_couette/taylor_couette.h
+
+examples/application_demos/__pycache__/
+examples/battery_cooling/battery_cooling.c
+examples/battery_cooling/battery_cooling.h
+examples/composite_ultrasound/composite_ultrasound.c
+examples/composite_ultrasound/composite_ultrasound.h

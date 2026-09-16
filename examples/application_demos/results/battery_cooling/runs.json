@@ -1,0 +1,146 @@
+{
+  "side-isotropic": {
+    "name": "battery_cooling",
+    "parameters": {
+      "capacity": "2000000.0",
+      "radial": "0.5",
+      "axial": "0.5",
+      "side": "50.0",
+      "ends": "0.0",
+      "heating": "100000.0",
+      "dt": "0.01",
+      "cell": "6.283185307179586 * dr * dz",
+      "initial": "0.0",
+      "hotspot": "4.0"
+    },
+    "grid": [
+      33,
+      97
+    ],
+    "spacing": [
+      0.00021875,
+      0.0006770833333333334
+    ],
+    "mpi": [
+      1,
+      1
+    ],
+    "blocking": 0,
+    "fields": [
+      "T"
+    ],
+    "source_sha256": "06e486bd2a421afbe11401e40e9463fe58670b74979d1f78ff88f6ca3ed642e0",
+    "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+    "normalized": ".build/application_demos/normalized/battery_cooling/cddcb07107589de34949",
+    "steps": 40000,
+    "every": 500
+  },
+  "side-anisotropic": {
+    "name": "battery_cooling",
+    "parameters": {
+      "capacity": "2000000.0",
+      "radial": "0.5",
+      "axial": "10.0",
+      "side": "50.0",
+      "ends": "0.0",
+      "heating": "100000.0",
+      "dt": "0.01",
+      "cell": "6.283185307179586 * dr * dz",
+      "initial": "0.0",
+      "hotspot": "4.0"
+    },
+    "grid": [
+      33,
+      97
+    ],
+    "spacing": [
+      0.00021875,
+      0.0006770833333333334
+    ],
+    "mpi": [
+      1,
+      1
+    ],
+    "blocking": 0,
+    "fields": [
+      "T"
+    ],
+    "source_sha256": "6b67ce26307c4f193579efdc7e6299a6b103b8feef9c5644e12748e9941c6d84",
+    "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+    "normalized": ".build/application_demos/normalized/battery_cooling/cddcb07107589de34949",
+    "steps": 40000,
+    "every": 500
+  },
+  "ends-anisotropic": {
+    "name": "battery_cooling",
+    "parameters": {
+      "capacity": "2000000.0",
+      "radial": "0.5",
+      "axial": "10.0",
+      "side": "0.0",
+      "ends": "50.0",
+      "heating": "100000.0",
+      "dt": "0.01",
+      "cell": "6.283185307179586 * dr * dz",
+      "initial": "0.0",
+      "hotspot": "4.0"
+    },
+    "grid": [
+      33,
+      97
+    ],
+    "spacing": [
+      0.00021875,
+      0.0006770833333333334
+    ],
+    "mpi": [
+      1,
+      1
+    ],
+    "blocking": 0,
+    "fields": [
+      "T"
+    ],
+    "source_sha256": "e820e853498f41e77ef76173e08ef24445c83c8bf4721d13c240c8d37110246f",
+    "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+    "normalized": ".build/application_demos/normalized/battery_cooling/cddcb07107589de34949",
+    "steps": 40000,
+    "every": 500
+  },
+  "both-anisotropic": {
+    "name": "battery_cooling",
+    "parameters": {
+      "capacity": "2000000.0",
+      "radial": "0.5",
+      "axial": "10.0",
+      "side": "50.0",
+      "ends": "50.0",
+      "heating": "100000.0",
+      "dt": "0.01",
+      "cell": "6.283185307179586 * dr * dz",
+      "initial": "0.0",
+      "hotspot": "4.0"
+    },
+    "grid": [
+      33,
+      97
+    ],
+    "spacing": [
+      0.00021875,
+      0.0006770833333333334
+    ],
+    "mpi": [
+      1,
+      1
+    ],
+    "blocking": 0,
+    "fields": [
+      "T"
+    ],
+    "source_sha256": "19542d9a40d709897df549520e74bb3fbe618f624df60af2e98e05f03dde4ff3",
+    "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+    "normalized": ".build/application_demos/normalized/battery_cooling/cddcb07107589de34949",
+    "steps": 40000,
+    "every": 500
+  }
+}

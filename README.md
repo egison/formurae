@@ -145,6 +145,16 @@ fork で修正済み）．
 球座標の[再現手順と過去の数値結果](examples/elastic_curvilinear/README.md)，
 [関連研究との比較](examples/elastic_curvilinear/RELATED-WORK.md)を参照してください．
 
+## 材料則と座標変換を変更する応用デモ
+
+[三つの比較デモ](examples/application_demos/README.md)では，利用者が定義した演算子を
+材料モデルや装置の比較に使います．[複合材の超音波](examples/composite_ultrasound/README.md)は
+繊維方向と局所的な剛性低下による受信波形の違い，場の回転子は座標変換の回転角と材料層の厚さ，
+[円筒型電池の冷却](examples/battery_cooling/README.md)は熱伝導の方向依存性と冷却面を比較します．
+初期条件・境界処理・更新式・物理量の測定を `.fme` に記述し，通常の生成経路で実行します．
+日英の gallery には比較動画，測定値，ソースと検証結果を掲載しています．
+`make application-demos` で計算・検証・動画・gallery を再生成できます（描画用 Python と ffmpeg が必要）．
+
 ## 最小例
 
 ```formurae

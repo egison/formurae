@@ -1,0 +1,83 @@
+{
+  "battery_cooling": {
+    "comparisons": {
+      "side-isotropic": {
+        "maximum_temperature_C": 62.87111222917744,
+        "temperature_range_K": 29.86261845515412,
+        "relative_heat_balance_error": 1.1908371852199207e-13
+      },
+      "side-anisotropic": {
+        "maximum_temperature_C": 48.07679776950326,
+        "temperature_range_K": 9.060075898201983,
+        "relative_heat_balance_error": 2.8596452583540684e-13
+      },
+      "ends-anisotropic": {
+        "maximum_temperature_C": 64.60974305842913,
+        "temperature_range_K": 6.355123882428295,
+        "relative_heat_balance_error": 4.252617356924269e-13
+      },
+      "both-anisotropic": {
+        "maximum_temperature_C": 46.66100451930312,
+        "temperature_range_K": 9.542418050830436,
+        "relative_heat_balance_error": 2.9086387896791926e-13
+      }
+    },
+    "uniform_heating_max_error_K": 1.7541523789077473e-13,
+    "fine_grid_maximum_temperature_C": 46.66138346723582,
+    "refinement_difference_K": 0.0003789479327025447,
+    "blocking_max_error": 0.0,
+    "mpi_2_1_max_error": 0.0,
+    "mpi_1_2_max_error": 0.0
+  },
+  "composite_ultrasound": {
+    "comparisons": {
+      "healthy-0": {
+        "relative_modified_energy_drift": 2.2362017584894385e-14,
+        "receiver_peak": 0.4012550876895442
+      },
+      "soft-0": {
+        "relative_modified_energy_drift": 2.975442009229749e-14,
+        "receiver_peak": 0.4591871881808756
+      },
+      "healthy-45": {
+        "relative_modified_energy_drift": 2.1437967271469042e-14,
+        "receiver_peak": 0.11647017373528104
+      },
+      "soft-45": {
+        "relative_modified_energy_drift": 1.7187335829712248e-14,
+        "receiver_peak": 0.12922967345864375
+      }
+    },
+    "plane_wave_max_errors": [
+      0.001219187183816306,
+      0.0003050288397348222
+    ],
+    "blocking_max_error": 0.0,
+    "mpi_2_1_max_error": 0.0,
+    "mpi_1_2_max_error": 0.0
+  },
+  "optics_design": {
+    "comparisons": {
+      "zero": {
+        "scattering_ratio": 7.244868495539768e-33,
+        "relative_energy_drift": 0.00030850711717145566
+      },
+      "turn22": {
+        "scattering_ratio": 0.0015731002965278281,
+        "relative_energy_drift": 0.00031348147654993455
+      },
+      "turn45": {
+        "scattering_ratio": 0.015776290114161297,
+        "relative_energy_drift": 0.0010553798377727556
+      },
+      "turn45-wide": {
+        "scattering_ratio": 0.003628546006039126,
+        "relative_energy_drift": 0.00048254566449194484
+      }
+    },
+    "coarse_grid_scattering_ratio": 0.009577765998697698,
+    "blocking_electric_max_error": 0.0,
+    "mpi_2_1_electric_max_error": 0.0,
+    "mpi_1_2_electric_max_error": 0.0
+  }
+}

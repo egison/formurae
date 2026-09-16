@@ -1,0 +1,5 @@
+length_per_node: [16.0, 12.0]
+grid_per_node: [256, 192]
+mpi_shape: [1, 1]
+boundary: [periodic, periodic]
+reduces: [time = max clock, maximum = max speed, energy = sum energy, modified = sum modified, signal = sum signal, error = absmax modeError]

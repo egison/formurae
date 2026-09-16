@@ -1,0 +1,162 @@
+{
+  "healthy-0": {
+    "name": "composite_ultrasound",
+    "parameters": {
+      "lambda": "2.0",
+      "mu": "1.0",
+      "alpha": "5.0",
+      "angle": "0.0",
+      "damage": "0.0",
+      "dt": "0.0025",
+      "cell": "dx * dy",
+      "mode": "0.0",
+      "wave": "0.39269908169872414"
+    },
+    "grid": [
+      256,
+      192
+    ],
+    "spacing": [
+      0.0625,
+      0.0625
+    ],
+    "mpi": [
+      1,
+      1
+    ],
+    "blocking": 0,
+    "fields": [
+      "speed",
+      "v_up1",
+      "v_up2",
+      "E_down1_down1",
+      "E_down1_down2",
+      "E_down2_down2"
+    ],
+    "source_sha256": "ae869fc22148ec6e46a27e0be504d7c50a6188ad6a363d2acedabde8229b37e7",
+    "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+    "normalized": ".build/application_demos/normalized/composite_ultrasound/39acf634d9e574cb8892",
+    "steps": 960,
+    "every": 12
+  },
+  "soft-0": {
+    "name": "composite_ultrasound",
+    "parameters": {
+      "lambda": "2.0",
+      "mu": "1.0",
+      "alpha": "5.0",
+      "angle": "0.0",
+      "damage": "0.7",
+      "dt": "0.0025",
+      "cell": "dx * dy",
+      "mode": "0.0",
+      "wave": "0.39269908169872414"
+    },
+    "grid": [
+      256,
+      192
+    ],
+    "spacing": [
+      0.0625,
+      0.0625
+    ],
+    "mpi": [
+      1,
+      1
+    ],
+    "blocking": 0,
+    "fields": [
+      "speed",
+      "v_up1",
+      "v_up2",
+      "E_down1_down1",
+      "E_down1_down2",
+      "E_down2_down2"
+    ],
+    "source_sha256": "ea0ff5a556436da83e7ee47ac3c9d08ec309e2012a649ce57f36ff381855758e",
+    "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+    "normalized": ".build/application_demos/normalized/composite_ultrasound/39acf634d9e574cb8892",
+    "steps": 960,
+    "every": 12
+  },
+  "healthy-45": {
+    "name": "composite_ultrasound",
+    "parameters": {
+      "lambda": "2.0",
+      "mu": "1.0",
+      "alpha": "5.0",
+      "angle": "0.7853981633974483",
+      "damage": "0.0",
+      "dt": "0.0025",
+      "cell": "dx * dy",
+      "mode": "0.0",
+      "wave": "0.39269908169872414"
+    },
+    "grid": [
+      256,
+      192
+    ],
+    "spacing": [
+      0.0625,
+      0.0625
+    ],
+    "mpi": [
+      1,
+      1
+    ],
+    "blocking": 0,
+    "fields": [
+      "speed",
+      "v_up1",
+      "v_up2",
+      "E_down1_down1",
+      "E_down1_down2",
+      "E_down2_down2"
+    ],
+    "source_sha256": "f35f4769b55a11fa942d20256a444b330014963e99e956587b6ec20daa99ffc5",
+    "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+    "normalized": ".build/application_demos/normalized/composite_ultrasound/39acf634d9e574cb8892",
+    "steps": 960,
+    "every": 12
+  },
+  "soft-45": {
+    "name": "composite_ultrasound",
+    "parameters": {
+      "lambda": "2.0",
+      "mu": "1.0",
+      "alpha": "5.0",
+      "angle": "0.7853981633974483",
+      "damage": "0.7",
+      "dt": "0.0025",
+      "cell": "dx * dy",
+      "mode": "0.0",
+      "wave": "0.39269908169872414"
+    },
+    "grid": [
+      256,
+      192
+    ],
+    "spacing": [
+      0.0625,
+      0.0625
+    ],
+    "mpi": [
+      1,
+      1
+    ],
+    "blocking": 0,
+    "fields": [
+      "speed",
+      "v_up1",
+      "v_up2",
+      "E_down1_down1",
+      "E_down1_down2",
+      "E_down2_down2"
+    ],
+    "source_sha256": "9f734f283d30d7e29a5d16fc9960aebc90e2b3b93461544665c927dc28f3bdd5",
+    "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+    "normalized": ".build/application_demos/normalized/composite_ultrasound/39acf634d9e574cb8892",
+    "steps": 960,
+    "every": 12
+  }
+}

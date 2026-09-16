@@ -1,0 +1,66 @@
+-- Two-dimensional plane-strain bulk ultrasound in an idealized composite.
+-- A Gaussian initial compressive stress launches a pulse. Compare a healthy
+-- medium with a smooth, softer inclusion and rotate the reinforcing direction.
+-- The box is periodic; the displayed observation ends before a wave crosses it.
+-- Units are nondimensional. No crack/contact or traction-free surface is assumed.
+dimension 2
+axes x, y
+metric g
+
+param lambda = 2.0
+param mu = 1.0
+param alpha = 5.0
+param angle = 0.7853981633974483
+param damage = 0.7
+param dt = 0.0025
+param cell = dx * dy
+param mode = 0.0
+param wave = 0.39269908169872414
+extern exp
+extern sqrt
+
+def direction = [| cos angle, sin angle |]~i
+def inclusion = exp (0 - ((x - 7)^2 + (y - 6)^2) / 0.16)
+def stiffness = 1 - damage * inclusion
+def pulse = exp (0 - ((x - 4)^2 + (y - 6)^2) / 0.09)
+def strain V~a = withSymbols [i, j] ((∂_i V_j + ∂_j V_i) / 2)
+def stressRate E_i_j = withSymbols [i, j, k, l] (stiffness * (lambda * g~i~j * (g~k~l . E_k_l) + 2 * mu * (g~i~k . g~j~l . E_k_l) + alpha * direction~i * direction~j * (direction~k . direction~l . E_k_l)))
+def stressDiv S~a~b = withSymbols [i, j] (∂_j S~i~j)
+def norm2 V~a = withSymbols [i] (V~i . V_i)
+def work E_i_j S = withSymbols [i, j] (E_i_j . S~i~j)
+def receiver = exp (0 - ((x - 9)^2 + (y - 6)^2) / 0.0225)
+def receiverWeight = cell * receiver / (3.141592653589793 * 0.0225)
+
+field v~i @ collocated
+field E{_i_j} @ collocated
+field clock : scalar @ collocated
+field speed : scalar @ collocated
+field energy : scalar @ collocated
+field modified : scalar @ collocated
+field signal : scalar @ collocated
+field modeError : scalar @ collocated
+
+init:
+  v~i := [| mode * sin (wave * x), 0 |]~i
+  E_i_j := (1 - mode) * [| [| pulse, 0 |], [| 0, pulse |] |]_i_j
+  clock := 0
+  speed := sqrt (norm2 v)
+  energy := cell * (norm2 v + work E (stressRate E)) / 2
+  modified := energy
+  signal := receiverWeight * v~1
+  modeError := 0
+
+step:
+  local S{~i~j} @ collocated = stressRate E
+  local force~i @ collocated = stressDiv S
+  local half~i @ collocated = v~i + (dt / 2) * force~i
+  E'_i_j = E_i_j + dt * (strain half)_i_j
+  local nextS{~i~j} @ collocated = stressRate E'
+  local nextForce~i @ collocated = stressDiv nextS
+  v'~i = half~i + (dt / 2) * nextForce~i
+  clock' = clock + dt
+  speed' = sqrt (norm2 v')
+  energy' = cell * (norm2 v' + work E' nextS) / 2
+  modified' = energy' - cell * dt^2 * norm2 nextForce / 8
+  signal' = receiverWeight * v'~1
+  modeError' = v'~1 - sin (wave * x) * cos (sqrt (lambda + 2 * mu + alpha) * wave * clock')

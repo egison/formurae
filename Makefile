@@ -35,7 +35,7 @@ FME_EXAMPLES := acoustic3d diffusion1d diffusion2d divergence2d diffusion3d maxw
                 sbp_diffusion1d sbp_wave1d sbp_diffusion2d sbp_highorder4 \
                 sbp_neumann sbp_wave_open \
                 metric_torus metric_sphere hyperbolic polar2d spherical3d yinyang_diffusion mhd_ot lbm_d3q19 excitable_torus \
-                nematic_torus transformation_optics elastic_pulse elastic_shell taylor_couette
+                nematic_torus transformation_optics elastic_pulse elastic_shell taylor_couette battery_cooling composite_ultrasound
 
 CHECK_diffusion1d         := diffusion1d_check.c
 CHECK_diffusion2d         := diffusion2d_check.c
@@ -77,6 +77,10 @@ CHECK_transformation_optics := driver.c
 CHECK_elastic_pulse       := driver.c
 CHECK_elastic_shell       := driver.c
 CHECK_taylor_couette      := tc_check.c
+CHECK_battery_cooling    := driver.c
+CHECK_composite_ultrasound := driver.c
+RUNARGS_battery_cooling := 40 40
+RUNARGS_composite_ultrasound := 40 40
 
 RUNARGS_pearson3d := 20000
 RUNARGS_elastic_pulse := 40 40
@@ -194,3 +198,25 @@ clean:
 	rm -f examples/*/check examples/*/*.o examples/*/run examples/*/viz
 	rm -f $(foreach e,$(FME_EXAMPLES),examples/$(e)/$(e).c examples/$(e)/$(e).h)
 	rm -f examples/pearson3d/pearson_V.pgm examples/mhd_ot/mhd_rho.pgm
+
+# Three application comparisons, with sequential builds and simulation runs.
+PLOT_PYTHON ?= python3
+.PHONY: application-demos application-demos-verify application-demos-render application-demos-gallery
+application-demos:
+	python3 examples/application_demos/run.py battery_cooling
+	python3 examples/application_demos/run.py composite_ultrasound
+	python3 examples/application_demos/run.py optics_design
+	$(MAKE) application-demos-verify
+	$(MAKE) application-demos-render
+	$(MAKE) application-demos-gallery
+
+application-demos-verify:
+	python3 examples/application_demos/verify.py
+
+application-demos-render:
+	$(PLOT_PYTHON) examples/application_demos/render.py
+
+application-demos-gallery:
+	$(MAKE) battery_cooling
+	$(MAKE) composite_ultrasound
+	python3 examples/application_demos/gallery.py
