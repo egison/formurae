@@ -226,3 +226,13 @@ application-demos-gallery:
 breaking-wave-demo:
 	python3 examples/breaking_wave/run.py
 	python3 examples/breaking_wave/render.py --snapshot-step 1980
+
+# Rendering dependencies are listed in examples/breaking_wave3d/requirements-render.txt.
+WAVE3D_PYTHON ?= python3
+.PHONY: breaking-wave3d-demo breaking-wave3d-verify
+breaking-wave3d-demo:
+	python3 examples/breaking_wave3d/run.py
+	$(WAVE3D_PYTHON) examples/breaking_wave3d/render.py
+
+breaking-wave3d-verify:
+	python3 examples/breaking_wave3d/verify.py --require-overhang --reference-cases

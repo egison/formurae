@@ -1,0 +1,31 @@
+{
+  "grid": [
+    80,
+    56,
+    12
+  ],
+  "parameters": {
+    "nx": "80",
+    "ny": "56",
+    "nz": "12",
+    "depth": "20",
+    "amplitude": "0",
+    "center": "35",
+    "width": "12",
+    "beachStart": "60",
+    "beachSlope": "0",
+    "gravity": "0.0002",
+    "tau": "0.62",
+    "launch": "2.5",
+    "ripple": "0",
+    "bend": "0",
+    "threshold": "0.001",
+    "hx": "dx",
+    "hy": "dy",
+    "hz": "dz"
+  },
+  "source_sha256": "daeeff4048e70024a8ba52937f08b6b385b328c03153b20e395b2ff354bc3342",
+  "normalization_cache": "6e4c9d21264103d0f1a9",
+  "steps": 400,
+  "every": 20
+}

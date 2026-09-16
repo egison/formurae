@@ -201,6 +201,13 @@ fork で修正済み）．
 水面の更新，水量保存の測定をすべて `.fme` に記述し，Formura 本体を変更せずに
 通常の生成経路で実行します．`make breaking-wave-demo` で動画まで生成できます．
 
+[三次元版](examples/breaking_wave3d/README.md)は，3次元空間で19種類の移動速度を使う
+D3Q19へ拡張し，奥行きによって波高と波の位置が変わる水槽を計算します．
+`index a : 19` で宣言した分布 `f_a` と，3成分の流速 `u_i` を使います．
+立体の水面と2か所の断面を動画にし，水量保存・静水・奥行き方向の対称性を検査します．
+実行と描画は `make breaking-wave3d-demo`，数値検証は `make breaking-wave3d-verify` です．
+描画用ライブラリの準備は三次元版のREADMEを参照してください．
+
 ## 材料則と座標変換を変更する応用デモ
 
 [三つの比較デモ](examples/application_demos/README.md)では，利用者が定義した演算子を

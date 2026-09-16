@@ -53,7 +53,7 @@
 <body>
 <header>
   <h1>Formurae Gallery <span class="tag">Executed and verified</span></h1>
-  <p><a href="#lbm-d3q19">New syntax: 19 populations in 3 spatial dimensions</a> · <a href="#breaking-wave">Overturning wave video</a></p>
+  <p><a href="#breaking-wave3d">Three-dimensional breaking wave</a> · <a href="#lbm-d3q19">New syntax: 19 populations in 3 spatial dimensions</a> · <a href="#breaking-wave">Overturning wave video</a></p>
   <p><a href="#application-demos">New application comparisons: composite ultrasound, field rotators and cylindrical-cell cooling</a></p>
   <p>These are the results of taking continuous systems written in Formurae/Egison’s tensor index notation and computer algebra,
      converting them with the <code>formurae-pre → Egison → FEIR → formurae-post</code> pipeline into discrete Formura programs,
@@ -4652,6 +4652,344 @@ end function</pre></details>
   <div class="cap">An actual run in which the density field develops the characteristic OT vortex structure from t=0</div>
   <div class="facts">Drift of the 8 conserved quantities <b>~1e-12</b>; <b>divB=1.2e-14</b>; positivity preserved. 6 seconds.</div>
 </div>
+
+<article class="card featured" id="breaking-wave3d">
+<h3>A three-dimensional breaking wave — a D3Q19 free-surface simulation</h3>
+<p class="description">This prototype extends the water/air surface tracking to three dimensions, aiming for an overturning crest inspired by Hokusai’s wave. D3Q19 is a lattice Boltzmann model with 19 discrete velocities in three-dimensional space. The initial crest height and position vary across the span, producing flow in all three directions. <code>index a : 19</code> declares the population count for <code>f_a</code>; the velocity <code>u_i</code> has three components.</p>
+<div class="imgs"><video controls loop muted playsinline preload="none" poster="../../examples/breaking_wave3d/results/wave3d.png" aria-label="Computed three-dimensional water surface and two vertical sections across the span"><source src="../../examples/breaking_wave3d/results/breaking-wave3d.mp4" type="video/mp4">Video playback is unavailable.</video></div>
+<p class="cap">An actual 128×64×16 simulation over 760 steps. The 3D view shows the fraction=0.5 surface and the two spanwise cuts; the panels on the right show close-ups of the crest in two vertical sections. This coarse grid resolves a small overhang, but no large barrel beneath the crest.</p>
+<p class="facts" id="breaking-wave3d-checks"><b>Maximum relative water-mass change:</b> 2.23×10⁻¹⁴. The maximum undistributed mass per cell is 9.44×10⁻¹⁴. The overhang indicator reaches 16 cells; the maximum spanwise velocity is 0.0188.<br>The 400-step still-water test has no overhang and a maximum speed of 0.000329. The 200-step spanwise-uniform wave test retains identical water fractions across the span, with a maximum spanwise velocity of 2.22×10⁻¹⁶.</p>
+<p class="description">Initial conditions, walls, gravity, surface motion, mass redistribution and physical diagnostics are all written in Formurae. The model excludes air flow, bubble compression, surface tension and fine white foam. Comparison with experiments and a grid refinement study remain future work.<br><a href="../../examples/breaking_wave3d/README.md">Model and reproduction</a> · <a href="../../examples/breaking_wave3d/results/verification.json">Verification</a> · <a href="../../examples/breaking_wave3d/results/metadata.json">Run settings</a> · <a href="#breaking-wave">2D version</a></p>
+<details class="codebox" data-fme="breaking_wave3d/breaking_wave3d.fme" open><summary>Full Formurae source (breaking_wave3d.fme, 328 lines)</summary>
+<pre><span class="c">-- Three-dimensional free-surface water tank, D3Q19.</span>
+<span class="c">-- x: propagation, y: vertical, z: spanwise (periodic).</span>
+<span class="c">-- All dynamics, initialization, boundaries and diagnostics are Formurae.</span>
+<span class="c">-- Five generated steps make one physical step; intermediate states are fields.</span>
+<span class="c">-- The spanwise modulation changes the simulated water, not the rendering.</span>
+dimension 3
+axes x, y, z
+index a : 19
+
+param nx = 128
+param ny = 64
+param nz = 16
+param depth = 24
+param amplitude = 17.5
+param center = 35
+param width = 12
+param beachStart = 60
+param beachSlope = 0.2
+param gravity = 0.0002
+param tau = 0.62
+param launch = 2.5
+param ripple = 0.06
+param bend = 2
+param threshold = 0.001
+param hx = dx
+param hy = dy
+param hz = dz
+
+def weights = [| 1/3, 1/18, 1/18, 1/18, 1/18, 1/18, 1/18, 1/36, 1/36, 1/36, 1/36, 1/36, 1/36, 1/36, 1/36, 1/36, 1/36, 1/36, 1/36 |]
+def directions = [| [| 0,0,0 |], [| 1,0,0 |], [| -1,0,0 |], [| 0,1,0 |], [| 0,-1,0 |], [| 0,0,1 |], [| 0,0,-1 |], [| 1,1,0 |], [| -1,-1,0 |], [| 1,-1,0 |], [| -1,1,0 |], [| 1,0,1 |], [| -1,0,-1 |], [| 1,0,-1 |], [| -1,0,1 |], [| 0,1,1 |], [| 0,-1,-1 |], [| 0,1,-1 |], [| 0,-1,1 |] |]
+def ones = [| 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1 |]
+def moving = [| 0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1 |]
+def equilibrium W_a Cx_a Cy_a Cz_a r u v w =
+  W_a*r*(1 + 3*(Cx_a*u + Cy_a*v + Cz_a*w) + (9/2)*(Cx_a*u + Cy_a*v + Cz_a*w)^2 - (3/2)*(u^2 + v^2 + w^2))
+def forcing W_a Cx_a Cy_a Cz_a r u v w =
+  (1 - 1/(2*tau))*W_a*r*(0 - gravity)*(3*(Cy_a-v) + 9*(Cx_a*u+Cy_a*v+Cz_a*w)*Cy_a)
+def bounded q = if q &lt; 0 then 0 else if q &gt; 1 then 1 else q
+<span class="c">-- Preserve field-valued predicates when shifting the cell classifications.</span>
+def liquid q = if q &gt; 1.5 &amp;&amp; q &lt; 2.5 then q/2 else 0
+def interface q = if q &gt; 0.5 &amp;&amp; q &lt; 1.5 then q else 0
+def gas q = if q &lt; 0.5 then 1-q else 0
+def active q = if q &gt; 0.5 &amp;&amp; q &lt; 2.5 then (if q &lt; 1.5 then q else q/2) else 0
+
+<span class="c">-- Exact one-cell pull for c=-1,0,1; c^2 makes zero velocity the identity.</span>
+def pullx C_a Q_a = Q_a - C_a*hx*∂_x Q_a + C_a^2*hx^2*∂^2_x Q_a/2
+def pully C_a Q_a = Q_a - C_a*hy*∂_y Q_a + C_a^2*hy^2*∂^2_y Q_a/2
+def pullz C_a Q_a = Q_a - C_a*hz*∂_z Q_a + C_a^2*hz^2*∂^2_z Q_a/2
+macro stream Q =
+  local shiftedX_a = pullx directions_a_1 Q
+  local shiftedY_a = pully directions_a_2 shiftedX_a
+  in pullz directions_a_3 shiftedY_a
+<span class="c">-- Scalar neighbors share four intermediate shifts; this avoids allocating</span>
+<span class="c">-- a full 19-component intermediate for each coordinate direction.</span>
+def sx c q = q-c*hx*∂_x q+hx^2*∂^2_x q/2
+def sy c q = q-c*hy*∂_y q+hy^2*∂^2_y q/2
+def sz c q = q-c*hz*∂_z q+hz^2*∂^2_z q/2
+macro neighbors q =
+  local xm = sx 1 q
+  local xp = sx (-1) q
+  local ym = sy 1 q
+  local yp = sy (-1) q
+  in [| q, xm, xp, ym, yp, sz 1 q, sz (-1) q,
+        sy 1 xm, sy (-1) xp, sy (-1) xm, sy 1 xp,
+        sz 1 xm, sz (-1) xp, sz (-1) xm, sz 1 xp,
+        sz 1 ym, sz (-1) yp, sz (-1) ym, sz 1 yp |]
+
+<span class="c">-- Scalar sums need no 19-component array at all.</span>
+macro adjacentSum q =
+  local xm = sx 1 q
+  local xp = sx (-1) q
+  local ym = sy 1 q
+  local yp = sy (-1) q
+  in xm+xp+ym+yp+sz 1 q+sz (-1) q + sy 1 xm+sy (-1) xp+sy (-1) xm+sy 1 xp + sz 1 xm+sz (-1) xp+sz (-1) xm+sz 1 xp + sz 1 ym+sz (-1) yp+sz (-1) ym+sz 1 yp
+
+def bed = if x &gt; beachStart then 2 + beachSlope*(x - beachStart) else 2
+def span = cos (6.283185307179586*z/nz)
+def elevation = amplitude*(1+ripple*span) / cosh((x-center-bend*span)/width)^2
+static field seedHeight : scalar := depth + elevation
+def height = seedHeight
+def fill = bounded (height - y + 0.5)
+def initialType = if x &lt; 2 || x &gt; nx-3 || y &lt; bed || y &gt; ny-3 then 3 else if y &lt; height-1.5 then 2 else if y &lt; height+1.5 then 1 else 0
+static field seedDensity : scalar := if y &lt; height then 1 + 3*gravity*(height-y) else 1
+def initialDensity = seedDensity
+static field seedSpeed : scalar := if active initialType &gt; 0.5 then launch*sqrt(gravity*(depth+amplitude))*(height-depth)/height else 0
+def initialU = seedSpeed
+
+static field wall : scalar := if initialType &gt; 2.5 then 1 else 0
+field kind : scalar
+field mass : scalar
+field bank : scalar
+field water : scalar
+field fraction : scalar
+field speed : scalar
+field density : scalar
+field overhang : scalar
+field bad : scalar
+field spanVelocity : scalar
+field spanDifference : scalar
+field f_a
+field savedRho : scalar
+field savedU_i
+field savedEps : scalar
+field savedG_a
+field savedS_a
+field savedNr : scalar
+field savedTransported : scalar
+field savedProposal : scalar
+field savedNextKind : scalar
+field savedBaseMass : scalar
+field savedExcess : scalar
+field savedAverageRho : scalar
+field savedAverage_i
+field stage : scalar
+
+init:
+  kind := initialType
+  mass := if active initialType &gt; 0.5 then fill*initialDensity else 0
+  bank := 0
+  water := mass
+  fraction := if active initialType &gt; 0.5 then fill else 0
+  density := if active initialType &gt; 0.5 then initialDensity else 1
+  speed := initialU
+  overhang := 0
+  bad := 0
+  spanVelocity := 0
+  spanDifference := 0
+  f_a := equilibrium weights_a directions_a_1 directions_a_2 directions_a_3 initialDensity initialU 0 0
+  savedRho := 1
+  savedU_i := [| 0,0,0 |]_i
+  savedEps := 0
+  savedG_a := 0*ones_a
+  savedS_a := 0*ones_a
+  savedNr := 1
+  savedTransported := 0
+  savedProposal := 0
+  savedNextKind := 0
+  savedBaseMass := 0
+  savedExcess := 0
+  savedAverageRho := 1
+  savedAverage_i := [| 0,0,0 |]_i
+  stage := 0
+
+step:
+  -- Stage 0: collision and gravity (Guo forcing).
+  local rho = ones~a . f_a
+  local u_i = (directions~a_i . f_a)/rho - [| 0,gravity/2,0 |]_i
+  local g_a = f_a + ((equilibrium weights_a directions_a_1 directions_a_2 directions_a_3 rho u_1 u_2 u_3)_a-f_a)/tau + (forcing weights_a directions_a_1 directions_a_2 directions_a_3 rho u_1 u_2 u_3)_a
+  savedRho' = if stage &lt; 0.5 then rho else savedRho
+  savedU'_i = [|
+    if stage &lt; 0.5 then u_1 else savedU_1,
+    if stage &lt; 0.5 then u_2 else savedU_2,
+    if stage &lt; 0.5 then u_3 else savedU_3 |]_i
+  savedEps' = if stage &lt; 0.5 then bounded (mass/rho) else savedEps
+  savedG'_a = [|
+    if stage &lt; 0.5 then g_1 else savedG_1,
+    if stage &lt; 0.5 then g_2 else savedG_2,
+    if stage &lt; 0.5 then g_3 else savedG_3,
+    if stage &lt; 0.5 then g_4 else savedG_4,
+    if stage &lt; 0.5 then g_5 else savedG_5,
+    if stage &lt; 0.5 then g_6 else savedG_6,
+    if stage &lt; 0.5 then g_7 else savedG_7,
+    if stage &lt; 0.5 then g_8 else savedG_8,
+    if stage &lt; 0.5 then g_9 else savedG_9,
+    if stage &lt; 0.5 then g_10 else savedG_10,
+    if stage &lt; 0.5 then g_11 else savedG_11,
+    if stage &lt; 0.5 then g_12 else savedG_12,
+    if stage &lt; 0.5 then g_13 else savedG_13,
+    if stage &lt; 0.5 then g_14 else savedG_14,
+    if stage &lt; 0.5 then g_15 else savedG_15,
+    if stage &lt; 0.5 then g_16 else savedG_16,
+    if stage &lt; 0.5 then g_17 else savedG_17,
+    if stage &lt; 0.5 then g_18 else savedG_18,
+    if stage &lt; 0.5 then g_19 else savedG_19 |]_a
+
+  -- Stage 1: pull streaming, symmetric mass exchange, proposed cell types.
+  local neighborKind_a = neighbors kind
+  local eps_a = neighbors savedEps
+  local incoming_a = stream savedG
+  local airEq_a = equilibrium weights_a directions_a_1 directions_a_2 directions_a_3 1 savedU_1 savedU_2 savedU_3
+  -- Scalar conditions are evaluated per component before making tensors.
+  local s_a = [|
+    if neighborKind_1 &gt; 2.5 then savedG_1 else if neighborKind_1 &lt; 0.5 then airEq_1+airEq_1-savedG_1 else incoming_1,
+    if neighborKind_2 &gt; 2.5 then savedG_3 else if neighborKind_2 &lt; 0.5 then airEq_2+airEq_3-savedG_3 else incoming_2,
+    if neighborKind_3 &gt; 2.5 then savedG_2 else if neighborKind_3 &lt; 0.5 then airEq_3+airEq_2-savedG_2 else incoming_3,
+    if neighborKind_4 &gt; 2.5 then savedG_5 else if neighborKind_4 &lt; 0.5 then airEq_4+airEq_5-savedG_5 else incoming_4,
+    if neighborKind_5 &gt; 2.5 then savedG_4 else if neighborKind_5 &lt; 0.5 then airEq_5+airEq_4-savedG_4 else incoming_5,
+    if neighborKind_6 &gt; 2.5 then savedG_7 else if neighborKind_6 &lt; 0.5 then airEq_6+airEq_7-savedG_7 else incoming_6,
+    if neighborKind_7 &gt; 2.5 then savedG_6 else if neighborKind_7 &lt; 0.5 then airEq_7+airEq_6-savedG_6 else incoming_7,
+    if neighborKind_8 &gt; 2.5 then savedG_9 else if neighborKind_8 &lt; 0.5 then airEq_8+airEq_9-savedG_9 else incoming_8,
+    if neighborKind_9 &gt; 2.5 then savedG_8 else if neighborKind_9 &lt; 0.5 then airEq_9+airEq_8-savedG_8 else incoming_9,
+    if neighborKind_10 &gt; 2.5 then savedG_11 else if neighborKind_10 &lt; 0.5 then airEq_10+airEq_11-savedG_11 else incoming_10,
+    if neighborKind_11 &gt; 2.5 then savedG_10 else if neighborKind_11 &lt; 0.5 then airEq_11+airEq_10-savedG_10 else incoming_11,
+    if neighborKind_12 &gt; 2.5 then savedG_13 else if neighborKind_12 &lt; 0.5 then airEq_12+airEq_13-savedG_13 else incoming_12,
+    if neighborKind_13 &gt; 2.5 then savedG_12 else if neighborKind_13 &lt; 0.5 then airEq_13+airEq_12-savedG_12 else incoming_13,
+    if neighborKind_14 &gt; 2.5 then savedG_15 else if neighborKind_14 &lt; 0.5 then airEq_14+airEq_15-savedG_15 else incoming_14,
+    if neighborKind_15 &gt; 2.5 then savedG_14 else if neighborKind_15 &lt; 0.5 then airEq_15+airEq_14-savedG_14 else incoming_15,
+    if neighborKind_16 &gt; 2.5 then savedG_17 else if neighborKind_16 &lt; 0.5 then airEq_16+airEq_17-savedG_17 else incoming_16,
+    if neighborKind_17 &gt; 2.5 then savedG_16 else if neighborKind_17 &lt; 0.5 then airEq_17+airEq_16-savedG_16 else incoming_17,
+    if neighborKind_18 &gt; 2.5 then savedG_19 else if neighborKind_18 &lt; 0.5 then airEq_18+airEq_19-savedG_19 else incoming_18,
+    if neighborKind_19 &gt; 2.5 then savedG_18 else if neighborKind_19 &lt; 0.5 then airEq_19+airEq_18-savedG_18 else incoming_19 |]_a
+  local dm_a = [|
+    if active kind &lt; 0.5 || active neighborKind_1 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid neighborKind_1 &gt; 0.5 then incoming_1-savedG_1 else (savedEps+eps_1)*(incoming_1-savedG_1)/2,
+    if active kind &lt; 0.5 || active neighborKind_2 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid neighborKind_2 &gt; 0.5 then incoming_2-savedG_3 else (savedEps+eps_2)*(incoming_2-savedG_3)/2,
+    if active kind &lt; 0.5 || active neighborKind_3 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid neighborKind_3 &gt; 0.5 then incoming_3-savedG_2 else (savedEps+eps_3)*(incoming_3-savedG_2)/2,
+    if active kind &lt; 0.5 || active neighborKind_4 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid neighborKind_4 &gt; 0.5 then incoming_4-savedG_5 else (savedEps+eps_4)*(incoming_4-savedG_5)/2,
+    if active kind &lt; 0.5 || active neighborKind_5 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid neighborKind_5 &gt; 0.5 then incoming_5-savedG_4 else (savedEps+eps_5)*(incoming_5-savedG_4)/2,
+    if active kind &lt; 0.5 || active neighborKind_6 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid neighborKind_6 &gt; 0.5 then incoming_6-savedG_7 else (savedEps+eps_6)*(incoming_6-savedG_7)/2,
+    if active kind &lt; 0.5 || active neighborKind_7 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid neighborKind_7 &gt; 0.5 then incoming_7-savedG_6 else (savedEps+eps_7)*(incoming_7-savedG_6)/2,
+    if active kind &lt; 0.5 || active neighborKind_8 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid neighborKind_8 &gt; 0.5 then incoming_8-savedG_9 else (savedEps+eps_8)*(incoming_8-savedG_9)/2,
+    if active kind &lt; 0.5 || active neighborKind_9 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid neighborKind_9 &gt; 0.5 then incoming_9-savedG_8 else (savedEps+eps_9)*(incoming_9-savedG_8)/2,
+    if active kind &lt; 0.5 || active neighborKind_10 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid neighborKind_10 &gt; 0.5 then incoming_10-savedG_11 else (savedEps+eps_10)*(incoming_10-savedG_11)/2,
+    if active kind &lt; 0.5 || active neighborKind_11 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid neighborKind_11 &gt; 0.5 then incoming_11-savedG_10 else (savedEps+eps_11)*(incoming_11-savedG_10)/2,
+    if active kind &lt; 0.5 || active neighborKind_12 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid neighborKind_12 &gt; 0.5 then incoming_12-savedG_13 else (savedEps+eps_12)*(incoming_12-savedG_13)/2,
+    if active kind &lt; 0.5 || active neighborKind_13 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid neighborKind_13 &gt; 0.5 then incoming_13-savedG_12 else (savedEps+eps_13)*(incoming_13-savedG_12)/2,
+    if active kind &lt; 0.5 || active neighborKind_14 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid neighborKind_14 &gt; 0.5 then incoming_14-savedG_15 else (savedEps+eps_14)*(incoming_14-savedG_15)/2,
+    if active kind &lt; 0.5 || active neighborKind_15 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid neighborKind_15 &gt; 0.5 then incoming_15-savedG_14 else (savedEps+eps_15)*(incoming_15-savedG_14)/2,
+    if active kind &lt; 0.5 || active neighborKind_16 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid neighborKind_16 &gt; 0.5 then incoming_16-savedG_17 else (savedEps+eps_16)*(incoming_16-savedG_17)/2,
+    if active kind &lt; 0.5 || active neighborKind_17 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid neighborKind_17 &gt; 0.5 then incoming_17-savedG_16 else (savedEps+eps_17)*(incoming_17-savedG_16)/2,
+    if active kind &lt; 0.5 || active neighborKind_18 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid neighborKind_18 &gt; 0.5 then incoming_18-savedG_19 else (savedEps+eps_18)*(incoming_18-savedG_19)/2,
+    if active kind &lt; 0.5 || active neighborKind_19 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid neighborKind_19 &gt; 0.5 then incoming_19-savedG_18 else (savedEps+eps_19)*(incoming_19-savedG_18)/2 |]_a
+  local nr = ones~a . s_a
+  local transported = mass + (ones~a . dm_a)
+  local liquidNeighbors = moving~a . [| liquid neighborKind_1, liquid neighborKind_2, liquid neighborKind_3, liquid neighborKind_4, liquid neighborKind_5, liquid neighborKind_6, liquid neighborKind_7, liquid neighborKind_8, liquid neighborKind_9, liquid neighborKind_10, liquid neighborKind_11, liquid neighborKind_12, liquid neighborKind_13, liquid neighborKind_14, liquid neighborKind_15, liquid neighborKind_16, liquid neighborKind_17, liquid neighborKind_18, liquid neighborKind_19 |]_a
+  local airNeighbors = moving~a . [| gas neighborKind_1, gas neighborKind_2, gas neighborKind_3, gas neighborKind_4, gas neighborKind_5, gas neighborKind_6, gas neighborKind_7, gas neighborKind_8, gas neighborKind_9, gas neighborKind_10, gas neighborKind_11, gas neighborKind_12, gas neighborKind_13, gas neighborKind_14, gas neighborKind_15, gas neighborKind_16, gas neighborKind_17, gas neighborKind_18, gas neighborKind_19 |]_a
+  local proposal = if interface kind &gt; 0.5 then (if transported &gt; (1+threshold)*nr || (airNeighbors &lt; 0.5 &amp;&amp; transported &gt; (1-threshold)*nr) then 2 else if transported &lt; (0-threshold)*nr || (liquidNeighbors &lt; 0.5 &amp;&amp; transported &lt; threshold*nr) then 0 else 1) else kind
+  savedS'_a = [|
+    if stage &gt; 0.5 &amp;&amp; stage &lt; 1.5 then s_1 else savedS_1,
+    if stage &gt; 0.5 &amp;&amp; stage &lt; 1.5 then s_2 else savedS_2,
+    if stage &gt; 0.5 &amp;&amp; stage &lt; 1.5 then s_3 else savedS_3,
+    if stage &gt; 0.5 &amp;&amp; stage &lt; 1.5 then s_4 else savedS_4,
+    if stage &gt; 0.5 &amp;&amp; stage &lt; 1.5 then s_5 else savedS_5,
+    if stage &gt; 0.5 &amp;&amp; stage &lt; 1.5 then s_6 else savedS_6,
+    if stage &gt; 0.5 &amp;&amp; stage &lt; 1.5 then s_7 else savedS_7,
+    if stage &gt; 0.5 &amp;&amp; stage &lt; 1.5 then s_8 else savedS_8,
+    if stage &gt; 0.5 &amp;&amp; stage &lt; 1.5 then s_9 else savedS_9,
+    if stage &gt; 0.5 &amp;&amp; stage &lt; 1.5 then s_10 else savedS_10,
+    if stage &gt; 0.5 &amp;&amp; stage &lt; 1.5 then s_11 else savedS_11,
+    if stage &gt; 0.5 &amp;&amp; stage &lt; 1.5 then s_12 else savedS_12,
+    if stage &gt; 0.5 &amp;&amp; stage &lt; 1.5 then s_13 else savedS_13,
+    if stage &gt; 0.5 &amp;&amp; stage &lt; 1.5 then s_14 else savedS_14,
+    if stage &gt; 0.5 &amp;&amp; stage &lt; 1.5 then s_15 else savedS_15,
+    if stage &gt; 0.5 &amp;&amp; stage &lt; 1.5 then s_16 else savedS_16,
+    if stage &gt; 0.5 &amp;&amp; stage &lt; 1.5 then s_17 else savedS_17,
+    if stage &gt; 0.5 &amp;&amp; stage &lt; 1.5 then s_18 else savedS_18,
+    if stage &gt; 0.5 &amp;&amp; stage &lt; 1.5 then s_19 else savedS_19 |]_a
+  savedNr' = if stage &gt; 0.5 &amp;&amp; stage &lt; 1.5 then nr else savedNr
+  savedTransported' = if stage &gt; 0.5 &amp;&amp; stage &lt; 1.5 then transported else savedTransported
+  savedProposal' = if stage &gt; 0.5 &amp;&amp; stage &lt; 1.5 then proposal else savedProposal
+
+  -- Stage 2: surround liquid with interface cells and initialize new water.
+  local proposedLiquid = liquid savedProposal
+  local proposedGas = gas savedProposal
+  local nearLiquid = adjacentSum proposedLiquid
+  local nearGas = adjacentSum proposedGas
+  local nextKind = if wall &gt; 0.5 then 3 else if savedProposal &lt; 0.5 &amp;&amp; nearLiquid &gt; 0.5 then 1 else if savedProposal &gt; 1.5 &amp;&amp; nearGas &gt; 0.5 then 1 else savedProposal
+  local baseMass = if liquid nextKind &gt; 0.5 then savedNr else if interface nextKind &gt; 0.5 then savedTransported else 0
+  local act = active kind
+  local ar = act*savedRho
+  local ax = act*savedU_1
+  local ay = act*savedU_2
+  local az = act*savedU_3
+  local neighborNumber = adjacentSum act
+  local neighboringRho = adjacentSum ar
+  local neighboringX = adjacentSum ax
+  local neighboringY = adjacentSum ay
+  local neighboringZ = adjacentSum az
+  local neighborDivisor = if neighborNumber &gt; 0.5 then neighborNumber else 1
+  local averageRho = if neighborNumber &gt; 0.5 then neighboringRho/neighborDivisor else 1
+  local average_i = [| neighboringX, neighboringY, neighboringZ |]_i/neighborDivisor
+  savedNextKind' = if stage &gt; 1.5 &amp;&amp; stage &lt; 2.5 then nextKind else savedNextKind
+  savedBaseMass' = if stage &gt; 1.5 &amp;&amp; stage &lt; 2.5 then baseMass else savedBaseMass
+  savedExcess' = if stage &gt; 1.5 &amp;&amp; stage &lt; 2.5 then savedTransported-baseMass+bank else savedExcess
+  savedAverageRho' = if stage &gt; 1.5 &amp;&amp; stage &lt; 2.5 then averageRho else savedAverageRho
+  savedAverage'_i = [|
+    if stage &gt; 1.5 &amp;&amp; stage &lt; 2.5 then average_1 else savedAverage_1,
+    if stage &gt; 1.5 &amp;&amp; stage &lt; 2.5 then average_2 else savedAverage_2,
+    if stage &gt; 1.5 &amp;&amp; stage &lt; 2.5 then average_3 else savedAverage_3 |]_i
+
+  -- Stage 3: conservative redistribution; unmatched mass remains in bank.
+  local receiver = interface savedNextKind
+  local otherReceivers = adjacentSum receiver
+  local receiverCount = receiver + otherReceivers
+  local share = if receiverCount &gt; 0.5 then savedExcess/receiverCount else 0
+  local otherShares = adjacentSum share
+  local nextMass = savedBaseMass + receiver*(share + otherShares)
+  local nextBank = if receiverCount &gt; 0.5 then 0 else savedExcess
+  local newEq_a = equilibrium weights_a directions_a_1 directions_a_2 directions_a_3 savedAverageRho savedAverage_1 savedAverage_2 savedAverage_3
+  kind' = if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then savedNextKind else kind
+  mass' = if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then nextMass else mass
+  bank' = if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then nextBank else bank
+  water' = if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then nextMass+nextBank else water
+  f'_a = [|
+    if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then weights_1 else if kind &lt; 0.5 then newEq_1 else savedS_1) else f_1,
+    if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then weights_2 else if kind &lt; 0.5 then newEq_2 else savedS_2) else f_2,
+    if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then weights_3 else if kind &lt; 0.5 then newEq_3 else savedS_3) else f_3,
+    if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then weights_4 else if kind &lt; 0.5 then newEq_4 else savedS_4) else f_4,
+    if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then weights_5 else if kind &lt; 0.5 then newEq_5 else savedS_5) else f_5,
+    if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then weights_6 else if kind &lt; 0.5 then newEq_6 else savedS_6) else f_6,
+    if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then weights_7 else if kind &lt; 0.5 then newEq_7 else savedS_7) else f_7,
+    if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then weights_8 else if kind &lt; 0.5 then newEq_8 else savedS_8) else f_8,
+    if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then weights_9 else if kind &lt; 0.5 then newEq_9 else savedS_9) else f_9,
+    if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then weights_10 else if kind &lt; 0.5 then newEq_10 else savedS_10) else f_10,
+    if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then weights_11 else if kind &lt; 0.5 then newEq_11 else savedS_11) else f_11,
+    if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then weights_12 else if kind &lt; 0.5 then newEq_12 else savedS_12) else f_12,
+    if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then weights_13 else if kind &lt; 0.5 then newEq_13 else savedS_13) else f_13,
+    if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then weights_14 else if kind &lt; 0.5 then newEq_14 else savedS_14) else f_14,
+    if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then weights_15 else if kind &lt; 0.5 then newEq_15 else savedS_15) else f_15,
+    if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then weights_16 else if kind &lt; 0.5 then newEq_16 else savedS_16) else f_16,
+    if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then weights_17 else if kind &lt; 0.5 then newEq_17 else savedS_17) else f_17,
+    if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then weights_18 else if kind &lt; 0.5 then newEq_18 else savedS_18) else f_18,
+    if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then weights_19 else if kind &lt; 0.5 then newEq_19 else savedS_19) else f_19 |]_a
+
+  -- Stage 4: diagnose the completed state, including spanwise motion.
+  local newRho = ones~a . f_a
+  local newU_i = (directions~a_i . f_a)/newRho - [| 0,gravity/2,0 |]_i
+  local newFraction = if active kind &gt; 0.5 then bounded (mass/newRho) else 0
+  local below = newFraction-hy*∂_y newFraction+hy^2*∂^2_y newFraction/2
+  local belowWall = wall-hy*∂_y wall+hy^2*∂^2_y wall/2
+  local spanDiff = hz*∂_z newFraction-hz^2*∂^2_z newFraction/2
+  local squaredSpeed = newU_1^2+newU_2^2+newU_3^2
+  fraction' = if stage &gt; 3.5 then newFraction else fraction
+  density' = if stage &gt; 3.5 then (if active kind &gt; 0.5 then newRho else 1) else density
+  speed' = if stage &gt; 3.5 then (if active kind &gt; 0.5 then sqrt squaredSpeed else 0) else speed
+  overhang' = if stage &gt; 3.5 then (if newFraction &gt; 0.5 &amp;&amp; below &lt; 0.5 &amp;&amp; belowWall &lt; 0.5 then 1 else 0) else overhang
+  bad' = if stage &gt; 3.5 then (if newRho &gt; 0.5 &amp;&amp; newRho &lt; 1.5 &amp;&amp; squaredSpeed &lt; 0.09 then 0 else 1) else bad
+  spanVelocity' = if stage &gt; 3.5 then (if active kind &gt; 0.5 then newU_3 else 0) else spanVelocity
+  spanDifference' = if stage &gt; 3.5 then spanDiff else spanDifference
+  stage' = if stage &gt; 3.5 then 0 else stage+1</pre></details>
+</article>
 
 <article class="card featured" id="breaking-wave">
 <h3>An overturning wave — a 2D tank inspired by Hokusai’s crest</h3>

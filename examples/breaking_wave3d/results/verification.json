@@ -1,0 +1,47 @@
+[
+  {
+    "directory": ".build/breaking_wave3d/demo",
+    "grid": [
+      128,
+      64,
+      16
+    ],
+    "steps": 760,
+    "relative_mass_drift": 2.2291317757089613e-14,
+    "max_unredistributed_mass_per_cell": 9.43689570931383e-14,
+    "max_speed": 0.14888740459995065,
+    "max_overhang_cells": 16.0,
+    "max_spanwise_velocity": 0.018802538595741686,
+    "max_spanwise_fraction_difference": 0.981409494265621
+  },
+  {
+    "directory": ".build/breaking_wave3d/still",
+    "grid": [
+      80,
+      56,
+      12
+    ],
+    "steps": 400,
+    "relative_mass_drift": 2.0800003732730012e-14,
+    "max_unredistributed_mass_per_cell": 5.773159728050814e-14,
+    "max_speed": 0.000328820345900681,
+    "max_overhang_cells": 0.0,
+    "max_spanwise_velocity": 3.2612801348363973e-16,
+    "max_spanwise_fraction_difference": 0.0
+  },
+  {
+    "directory": ".build/breaking_wave3d/planar",
+    "grid": [
+      80,
+      56,
+      12
+    ],
+    "steps": 200,
+    "relative_mass_drift": 3.5455612331012475e-14,
+    "max_unredistributed_mass_per_cell": 3.019806626980426e-14,
+    "max_speed": 0.05356049680765543,
+    "max_overhang_cells": 0.0,
+    "max_spanwise_velocity": 2.220446049250313e-16,
+    "max_spanwise_fraction_difference": 0.0
+  }
+]
