@@ -145,6 +145,14 @@ fork で修正済み）．
 球座標の[再現手順と過去の数値結果](examples/elastic_curvilinear/README.md)，
 [関連研究との比較](examples/elastic_curvilinear/RELATED-WORK.md)を参照してください．
 
+## 巻き込む波
+
+[巻き込む波の試作](examples/breaking_wave/README.md)は，横から見た二次元の水槽で
+水と空気の境界を追跡します．水面が前へせり出す形を，格子ボルツマン法
+（格子点間を移動する分布から流れを求める方法）で計算します．初期条件，海底，
+水面の更新，水量保存の測定をすべて `.fme` に記述し，Formura 本体を変更せずに
+通常の生成経路で実行します．`make breaking-wave-demo` で動画まで生成できます．
+
 ## 材料則と座標変換を変更する応用デモ
 
 [三つの比較デモ](examples/application_demos/README.md)では，利用者が定義した演算子を

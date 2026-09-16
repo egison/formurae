@@ -1,0 +1,18 @@
+[
+  {
+    "directory": ".build/breaking_wave/final",
+    "steps": 3000,
+    "relative_mass_drift": 1.3260964449692502e-14,
+    "max_unredistributed_mass_per_cell": 2.8910207561239076e-13,
+    "max_speed": 0.22050188017395211,
+    "max_overhang_cells": 32.0
+  },
+  {
+    "directory": ".build/breaking_wave/still",
+    "steps": 1200,
+    "relative_mass_drift": 9.488973214428016e-15,
+    "max_unredistributed_mass_per_cell": 1.20570220474292e-13,
+    "max_speed": 0.00011056405761669426,
+    "max_overhang_cells": 0.0
+  }
+]

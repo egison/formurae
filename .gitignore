@@ -100,3 +100,4 @@ examples/battery_cooling/battery_cooling.c
 examples/battery_cooling/battery_cooling.h
 examples/composite_ultrasound/composite_ultrasound.c
 examples/composite_ultrasound/composite_ultrasound.h
+examples/breaking_wave/__pycache__/

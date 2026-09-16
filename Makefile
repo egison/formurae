@@ -220,3 +220,9 @@ application-demos-gallery:
 	$(MAKE) battery_cooling
 	$(MAKE) composite_ultrasound
 	python3 examples/application_demos/gallery.py
+
+# A free-surface water tank; builds and runs through the normal FME pipeline.
+.PHONY: breaking-wave-demo
+breaking-wave-demo:
+	python3 examples/breaking_wave/run.py
+	python3 examples/breaking_wave/render.py --snapshot-step 1980
