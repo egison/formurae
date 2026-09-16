@@ -32,7 +32,7 @@ def call(command, directory, label, stdout=None, cwd=ROOT):
         raise RuntimeError(f"{label} failed ({result.returncode})")
 
 
-def build(directory, grid=(512, 192), overrides=None):
+def build(directory, grid=(384, 96), overrides=None):
     directory = Path(directory).resolve()
     directory.mkdir(parents=True, exist_ok=True)
     source = (HERE / (NAME + ".fme")).read_text()
@@ -41,6 +41,10 @@ def build(directory, grid=(512, 192), overrides=None):
                                 f"param {name} = {value}", source, flags=re.M)
         if count != 1:
             raise ValueError("unknown parameter: " + name)
+    parameters = dict(re.findall(r"^param (\w+) = (.*)$", source, flags=re.M))
+    gauge = float(parameters["gaugeX"])
+    if not gauge.is_integer() or not 2 <= gauge <= grid[0]-3:
+        raise ValueError("gaugeX must be an integer column inside the tank")
     model = directory / (NAME + ".fme")
     model.write_text(source)
     # Parameters are substituted in Formura after normalization, as in the
@@ -68,7 +72,6 @@ def build(directory, grid=(512, 192), overrides=None):
         call(["cabal", "run", "-v0", "formurae-post", "--",
               cache / (NAME + ".feir")], cache, "post", pending)
         pending.rename(normalized)
-    parameters = dict(re.findall(r"^param (\w+) = (.*)$", source, flags=re.M))
     program = normalized.read_text()
     for name, value in parameters.items():
         program, count = re.subn(r"^double :: " + re.escape(name) + r" = .*$",
@@ -80,7 +83,9 @@ def build(directory, grid=(512, 192), overrides=None):
               "grid_per_node: " + json.dumps(list(grid)), "mpi_shape: [1, 1]",
               "boundary: [periodic, periodic]",
               "reduces: [water = sum water, bank = absmax bank, speed = max speed, "
-              "rmin = min density, rmax = max density, overhang = sum overhang, bad = sum bad]"]
+              "rmin = min density, rmax = max density, overhang = sum overhang, bad = sum bad, "
+              "shore_flux = sum shoreFlux, wet_front = max wetFront, bank_total = sum bankMagnitude, "
+              "fraction_min = min rawFraction, fraction_max = max rawFraction, bulk_front = max bulkFront]"]
     (directory / (NAME + ".yaml")).write_text("\n".join(config) + "\n")
     call([os.environ.get("FORMURA", ROOT / "bin/formura"), NAME + ".fmr"],
          directory, "formura", cwd=directory)
@@ -111,9 +116,9 @@ def run(directory, steps, every):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--grid", type=int, nargs=2, default=[512, 192])
-    parser.add_argument("--steps", type=int, default=3000)
-    parser.add_argument("--every", type=int, default=30)
+    parser.add_argument("--grid", type=int, nargs=2, default=[384, 96])
+    parser.add_argument("--steps", type=int, default=9000)
+    parser.add_argument("--every", type=int, default=60)
     parser.add_argument("--param", action="append", default=[])
     parser.add_argument("--output", type=Path, default=ROOT / ".build/breaking_wave/demo")
     args = parser.parse_args()

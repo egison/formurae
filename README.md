@@ -193,13 +193,15 @@ fork で修正済み）．
 球座標の[再現手順と過去の数値結果](examples/elastic_curvilinear/README.md)，
 [関連研究との比較](examples/elastic_curvilinear/RELATED-WORK.md)を参照してください．
 
-## 巻き込む波
+## 巻き込む波と引き波
 
-[巻き込む波の試作](examples/breaking_wave/README.md)は，横から見た二次元の水槽で
+[巻き込む波と引き波](examples/breaking_wave/README.md)は，横から見た二次元の水槽で
 水と空気の境界を追跡します．水面が前へせり出す形を，格子ボルツマン法
 （格子点間を移動する分布から流れを求める方法）で計算します．初期条件，海底，
 水面の更新，水量保存の測定をすべて `.fme` に記述し，Formura 本体を変更せずに
-通常の生成経路で実行します．`make breaking-wave-demo` で動画まで生成できます．
+通常の生成経路で実行します．1つの波が崩れ，岸へ乗り上げた水が沖へ戻る引き波まで計算し，
+流れが岸向きから沖向きに変わり，持続することを検査します．`make breaking-wave-demo` で動画まで生成し，
+`make breaking-wave-verify` で静水との比較も検査できます．
 
 [三次元版](examples/breaking_wave3d/README.md)は，3次元空間で19種類の移動速度を使う
 D3Q19へ拡張し，奥行きによって波高と波の位置が変わる水槽を計算します．

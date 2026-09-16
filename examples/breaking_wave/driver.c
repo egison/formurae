@@ -30,7 +30,8 @@ static void dump(Formura_Navi n, const char *directory) {
                          ((j+n.offset_y)%n.total_grid_y+n.total_grid_y)%n.total_grid_y};
       double values[] = {formura_data.fraction[i][j], formura_data.speed[i][j],
                          formura_data.wall[i][j], formura_data.bank[i][j],
-                         formura_data.kind[i][j], formura_data.mass[i][j], formura_data.density[i][j]};
+                         formura_data.kind[i][j], formura_data.mass[i][j], formura_data.density[i][j],
+                         formura_data.velocityX[i][j], formura_data.velocityY[i][j]};
       if (fwrite(index, sizeof index, 1, file) != 1) exit(2);
       if (fwrite(values, sizeof values, 1, file) != 1) exit(2);
     }
@@ -38,9 +39,11 @@ static void dump(Formura_Navi n, const char *directory) {
 }
 
 static int report(Formura_Navi n) {
-  printf("%d,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g\n", n.time_step/5,
+  printf("%d,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g\n", n.time_step/5,
          n.reduce_water, n.reduce_bank, n.reduce_speed, n.reduce_rmin,
-         n.reduce_rmax, n.reduce_overhang, n.reduce_bad);
+         n.reduce_rmax, n.reduce_overhang, n.reduce_bad, n.reduce_shore_flux,
+         n.reduce_wet_front, n.reduce_bank_total, n.reduce_fraction_min,
+         n.reduce_fraction_max, n.reduce_bulk_front);
   fflush(stdout);
   return isfinite(n.reduce_water) && isfinite(n.reduce_speed) && n.reduce_bad == 0;
 }
@@ -51,7 +54,7 @@ int main(int argc, char **argv) {
   if (!every || steps % every) return 2;
   Formura_Navi n;
   Formura_Init(&argc, &argv, &n);
-  puts("step,water,bank,speed,rmin,rmax,overhang,bad");
+  puts("step,water,bank,speed,rmin,rmax,overhang,bad,shore_flux,wet_front,bank_total,fraction_min,fraction_max,bulk_front");
   int ok=report(n);
   dump(n, argv[3]);
   struct timespec start, stop;

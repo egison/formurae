@@ -222,10 +222,18 @@ application-demos-gallery:
 	python3 examples/application_demos/gallery.py
 
 # A free-surface water tank; builds and runs through the normal FME pipeline.
-.PHONY: breaking-wave-demo
+.PHONY: breaking-wave-demo breaking-wave-verify
 breaking-wave-demo:
 	python3 examples/breaking_wave/run.py
-	python3 examples/breaking_wave/render.py --snapshot-step 1980
+	python3 examples/breaking_wave/verify.py --require-overhang --require-backwash
+	python3 examples/breaking_wave/render.py --snapshot-step 1200 --sequence-steps 0 1200 1800 4800 6600 9000
+	cp .build/breaking_wave/demo/stats.csv .build/breaking_wave/demo/metadata.json .build/breaking_wave/demo/verification.json examples/breaking_wave/results/
+
+breaking-wave-verify:
+	python3 examples/breaking_wave/verify.py --require-overhang --require-backwash --still-water
+	mkdir -p examples/breaking_wave/results/still
+	cp .build/breaking_wave/demo/verification.json examples/breaking_wave/results/
+	cp .build/breaking_wave/still/metadata.json .build/breaking_wave/still/stats.csv examples/breaking_wave/results/still/
 
 # Rendering dependencies are listed in examples/breaking_wave3d/requirements-render.txt.
 WAVE3D_PYTHON ?= python3

@@ -1,0 +1,13 @@
+{
+  "snapshot_step": 1200,
+  "sequence_steps": [
+    0,
+    1200,
+    1800,
+    4800,
+    6600,
+    9000
+  ],
+  "video_fps": 12,
+  "video_frames": 151
+}

@@ -8,18 +8,20 @@
 dimension 2
 axes x, y
 index a : 9
-param nx = 512
-param ny = 192
-param depth = 72
-param amplitude = 52.5
-param center = 105
-param width = 36
-param beachStart = 180
+param nx = 384
+param ny = 96
+param depth = 36
+param amplitude = 26.25
+param center = 53
+param width = 18
+param beachStart = 90
 param beachSlope = 0.2
-param gravity = 0.00006666666666666667
-param tau = 0.68
+param gravity = 0.00013333333333333334
+param tau = 0.59
 param launch = 2.5
 param threshold = 0.001
+param lonelyThreshold = 0.1
+param gaugeX = 225
 param hx = dx
 param hy = dy
 
@@ -36,6 +38,9 @@ macro diagonal cx cy q =
 
 def equilibrium w cx cy r u v = w*r*(1 + 3*(cx*u + cy*v) + (9/2)*(cx*u + cy*v)^2 - (3/2)*(u^2 + v^2))
 def forcing w cx cy r u v = (1 - 1/(2*tau))*w*r*(0 - gravity)*(3*(cy-v) + 9*(cx*u+cy*v)*cy)
+-- Antisymmetric interface exchange; unequal classes transfer in one direction.
+def surfaceExchange here there incoming outgoing = if here < there then 0-outgoing else if here > there then incoming else incoming-outgoing
+
 def bounded q = if q < 0 then 0 else if q > 1 then 1 else q
 -- Keep a field-valued branch: Formura infers a scalar for two constant branches,
 -- so shifting that local would not shift its predicate. Kinds are exactly 0/1/2/3.
@@ -62,6 +67,13 @@ field speed : scalar
 field density : scalar
 field overhang : scalar
 field bad : scalar
+field velocityX : scalar
+field velocityY : scalar
+field shoreFlux : scalar
+field wetFront : scalar
+field bankMagnitude : scalar
+field rawFraction : scalar
+field bulkFront : scalar
 
 field f_a
 
@@ -90,6 +102,13 @@ init:
   speed := initialU
   overhang := 0
   bad := 0
+  velocityX := initialU
+  velocityY := 0
+  shoreFlux := if x > gaugeX-0.5 && x < gaugeX+0.5 && active initialType > 0.5 then fill*initialDensity*initialU else 0
+  wetFront := if active initialType > 0.5 && fill > 0.5 && y-1 < bed then x else 0
+  bankMagnitude := 0
+  rawFraction := if active initialType > 0.5 then fill else 0
+  bulkFront := if active initialType > 0.5 && y+1 < height && y-1 < bed then x else 0
   f_a := [|
     equilibrium (4/9) (0) (0) initialDensity initialU 0,
     equilibrium (1/9) (1) (0) initialDensity initialU 0,
@@ -183,19 +202,30 @@ step:
     if k6 > 2.5 then savedG_6 else if k6 < 0.5 then equilibrium (1/36) (-1) (-1) 1 savedU_1 savedU_2 + equilibrium (1/36) (1) (1) 1 savedU_1 savedU_2 - savedG_6 else incoming6,
     if k7 > 2.5 then savedG_9 else if k7 < 0.5 then equilibrium (1/36) (1) (-1) 1 savedU_1 savedU_2 + equilibrium (1/36) (-1) (1) 1 savedU_1 savedU_2 - savedG_9 else incoming7,
     if k8 > 2.5 then savedG_8 else if k8 < 0.5 then equilibrium (1/36) (-1) (1) 1 savedU_1 savedU_2 + equilibrium (1/36) (1) (-1) 1 savedU_1 savedU_2 - savedG_8 else incoming8 |]_a
-  local dm1 = if active kind < 0.5 || active k1 < 0.5 then 0 else if liquid kind > 0.5 || liquid k1 > 0.5 then incoming1 - savedG_3 else (savedEps + e1)*(incoming1 - savedG_3)/2
-  local dm2 = if active kind < 0.5 || active k2 < 0.5 then 0 else if liquid kind > 0.5 || liquid k2 > 0.5 then incoming2 - savedG_2 else (savedEps + e2)*(incoming2 - savedG_2)/2
-  local dm3 = if active kind < 0.5 || active k3 < 0.5 then 0 else if liquid kind > 0.5 || liquid k3 > 0.5 then incoming3 - savedG_5 else (savedEps + e3)*(incoming3 - savedG_5)/2
-  local dm4 = if active kind < 0.5 || active k4 < 0.5 then 0 else if liquid kind > 0.5 || liquid k4 > 0.5 then incoming4 - savedG_4 else (savedEps + e4)*(incoming4 - savedG_4)/2
-  local dm5 = if active kind < 0.5 || active k5 < 0.5 then 0 else if liquid kind > 0.5 || liquid k5 > 0.5 then incoming5 - savedG_7 else (savedEps + e5)*(incoming5 - savedG_7)/2
-  local dm6 = if active kind < 0.5 || active k6 < 0.5 then 0 else if liquid kind > 0.5 || liquid k6 > 0.5 then incoming6 - savedG_6 else (savedEps + e6)*(incoming6 - savedG_6)/2
-  local dm7 = if active kind < 0.5 || active k7 < 0.5 then 0 else if liquid kind > 0.5 || liquid k7 > 0.5 then incoming7 - savedG_9 else (savedEps + e7)*(incoming7 - savedG_9)/2
-  local dm8 = if active kind < 0.5 || active k8 < 0.5 then 0 else if liquid kind > 0.5 || liquid k8 > 0.5 then incoming8 - savedG_8 else (savedEps + e8)*(incoming8 - savedG_8)/2
-  local nr = ones~a . s_a
-  local transported = mass + dm1 + dm2 + dm3 + dm4 + dm5 + dm6 + dm7 + dm8
+  -- Thuerey (2007), section 4.4: drain interfaces without liquid
+  -- neighbours and fill those without gas neighbours using pairwise fluxes.
   local fluidNeighbors = liquid k1 + liquid k2 + liquid k3 + liquid k4 + liquid k5 + liquid k6 + liquid k7 + liquid k8
   local airNeighbors = gas k1 + gas k2 + gas k3 + gas k4 + gas k5 + gas k6 + gas k7 + gas k8
-  local proposal = if interface kind > 0.5 then (if transported > (1+threshold)*nr || (airNeighbors < 0.5 && transported > (1-threshold)*nr) then 2 else if transported < (0-threshold)*nr || (fluidNeighbors < 0.5 && transported < threshold*nr) then 0 else 1) else kind
+  local surfaceClass = if fluidNeighbors < 0.5 && airNeighbors > 0.5 then 0-kind else if airNeighbors < 0.5 && fluidNeighbors > 0.5 then kind else 0
+  local class1 = sx (-1) surfaceClass
+  local class2 = sx (1) surfaceClass
+  local class3 = sy (-1) surfaceClass
+  local class4 = sy (1) surfaceClass
+  local class5 = diagonal (-1) (-1) surfaceClass
+  local class6 = diagonal (1) (1) surfaceClass
+  local class7 = diagonal (-1) (1) surfaceClass
+  local class8 = diagonal (1) (-1) surfaceClass
+  local dm1 = if active kind < 0.5 || active k1 < 0.5 then 0 else if liquid kind > 0.5 || liquid k1 > 0.5 then incoming1 - savedG_3 else (savedEps + e1)*(surfaceExchange surfaceClass class1 incoming1 savedG_3)/2
+  local dm2 = if active kind < 0.5 || active k2 < 0.5 then 0 else if liquid kind > 0.5 || liquid k2 > 0.5 then incoming2 - savedG_2 else (savedEps + e2)*(surfaceExchange surfaceClass class2 incoming2 savedG_2)/2
+  local dm3 = if active kind < 0.5 || active k3 < 0.5 then 0 else if liquid kind > 0.5 || liquid k3 > 0.5 then incoming3 - savedG_5 else (savedEps + e3)*(surfaceExchange surfaceClass class3 incoming3 savedG_5)/2
+  local dm4 = if active kind < 0.5 || active k4 < 0.5 then 0 else if liquid kind > 0.5 || liquid k4 > 0.5 then incoming4 - savedG_4 else (savedEps + e4)*(surfaceExchange surfaceClass class4 incoming4 savedG_4)/2
+  local dm5 = if active kind < 0.5 || active k5 < 0.5 then 0 else if liquid kind > 0.5 || liquid k5 > 0.5 then incoming5 - savedG_7 else (savedEps + e5)*(surfaceExchange surfaceClass class5 incoming5 savedG_7)/2
+  local dm6 = if active kind < 0.5 || active k6 < 0.5 then 0 else if liquid kind > 0.5 || liquid k6 > 0.5 then incoming6 - savedG_6 else (savedEps + e6)*(surfaceExchange surfaceClass class6 incoming6 savedG_6)/2
+  local dm7 = if active kind < 0.5 || active k7 < 0.5 then 0 else if liquid kind > 0.5 || liquid k7 > 0.5 then incoming7 - savedG_9 else (savedEps + e7)*(surfaceExchange surfaceClass class7 incoming7 savedG_9)/2
+  local dm8 = if active kind < 0.5 || active k8 < 0.5 then 0 else if liquid kind > 0.5 || liquid k8 > 0.5 then incoming8 - savedG_8 else (savedEps + e8)*(surfaceExchange surfaceClass class8 incoming8 savedG_8)/2
+  local nr = ones~a . s_a
+  local transported = mass + dm1 + dm2 + dm3 + dm4 + dm5 + dm6 + dm7 + dm8
+  local proposal = if interface kind > 0.5 then (if transported > (1+threshold)*nr || (airNeighbors < 0.5 && transported > (1-lonelyThreshold)*nr) then 2 else if transported < (0-threshold)*nr || (fluidNeighbors < 0.5 && transported < lonelyThreshold*nr) then 0 else 1) else kind
   savedS'_a = [|
     if stage < 1.5 && stage > 0.5 then s_1 else savedS_1,
     if stage < 1.5 && stage > 0.5 then s_2 else savedS_2,
@@ -211,27 +241,31 @@ step:
   savedProposal' = if stage < 1.5 && stage > 0.5 then proposal else savedProposal
 
   -- Stage 2: consistent surface types and new-cell initial states.
-  local proposedLiquid = liquid savedProposal
-  local proposedGas = gas savedProposal
+  local proposedLiquid = if interface kind > 0.5 then liquid savedProposal else 0
+  local proposedGas = if interface kind > 0.5 then gas savedProposal else 0
   local pl1 = sx (-1) proposedLiquid
-  local pg1 = sx (-1) proposedGas
   local pl2 = sx (1) proposedLiquid
-  local pg2 = sx (1) proposedGas
   local pl3 = sy (-1) proposedLiquid
-  local pg3 = sy (-1) proposedGas
   local pl4 = sy (1) proposedLiquid
-  local pg4 = sy (1) proposedGas
   local pl5 = diagonal (-1) (-1) proposedLiquid
-  local pg5 = diagonal (-1) (-1) proposedGas
   local pl6 = diagonal (1) (1) proposedLiquid
-  local pg6 = diagonal (1) (1) proposedGas
   local pl7 = diagonal (-1) (1) proposedLiquid
-  local pg7 = diagonal (-1) (1) proposedGas
   local pl8 = diagonal (1) (-1) proposedLiquid
-  local pg8 = diagonal (1) (-1) proposedGas
   local nearLiquid = pl1 + pl2 + pl3 + pl4 + pl5 + pl6 + pl7 + pl8
+  -- Filling has priority: cancel adjacent empty flags before changing old liquid.
+  local permittedGas = if nearLiquid > 0.5 then 0 else proposedGas
+  local pg1 = sx (-1) permittedGas
+  local pg2 = sx (1) permittedGas
+  local pg3 = sy (-1) permittedGas
+  local pg4 = sy (1) permittedGas
+  local pg5 = diagonal (-1) (-1) permittedGas
+  local pg6 = diagonal (1) (1) permittedGas
+  local pg7 = diagonal (-1) (1) permittedGas
+  local pg8 = diagonal (1) (-1) permittedGas
   local nearGas = pg1 + pg2 + pg3 + pg4 + pg5 + pg6 + pg7 + pg8
-  local nextKind = if wall > 0.5 then 3 else if savedProposal < 0.5 && nearLiquid > 0.5 then 1 else if savedProposal > 1.5 && nearGas > 0.5 then 1 else savedProposal
+  -- A newly filled interface remains liquid and creates an outer interface.
+  -- Only old liquid next to a newly emptied interface becomes interface.
+  local nextKind = if wall > 0.5 then 3 else if kind < 0.5 then (if nearLiquid > 0.5 then 1 else 0) else if kind > 1.5 then (if nearGas > 0.5 then 1 else 2) else if savedProposal < 0.5 && nearLiquid > 0.5 then 1 else savedProposal
   local baseMass = if liquid nextKind > 0.5 then savedNr else if interface nextKind > 0.5 then savedTransported else 0
   local excess = savedTransported - baseMass + bank
   local act = active kind
@@ -325,11 +359,21 @@ step:
   local newRho = ones~a . f_a
   local newU_i = (directions~a_i . f_a)/newRho - [| 0,gravity/2 |]_i
   local newFraction = if active kind > 0.5 then bounded (mass/newRho) else 0
+  local above = sy (1) newFraction
   local below = sy (-1) newFraction
   local belowWall = sy (-1) wall
   fraction' = if stage > 3.5 then newFraction else fraction
   density' = if stage > 3.5 then (if active kind > 0.5 then newRho else 1) else density
   speed' = if stage > 3.5 then (if active kind > 0.5 then sqrt(newU_1^2 + newU_2^2) else 0) else speed
   overhang' = if stage > 3.5 then (if newFraction > 0.5 && below < 0.5 && belowWall < 0.5 then 1 else 0) else overhang
-  bad' = if stage > 3.5 then (if newRho > 0.5 && newRho < 1.5 && newU_1^2 + newU_2^2 < 0.09 then 0 else 1) else bad
+  bad' = if stage > 3.5 then (if newRho > 0.5 && newRho < 1.5 && newU_1^2 + newU_2^2 < 0.09 then (if active kind > 0.5 && (mass < (0-0.5)*newRho || mass > 1.5*newRho) then 1 else 0) else 1) else bad
+  -- Signed discharge through one vertical column: negative means offshore.
+  velocityX' = if stage > 3.5 then (if active kind > 0.5 then newU_1 else 0) else velocityX
+  velocityY' = if stage > 3.5 then (if active kind > 0.5 then newU_2 else 0) else velocityY
+  shoreFlux' = if stage > 3.5 then (if x > gaugeX-0.5 && x < gaugeX+0.5 && active kind > 0.5 then mass*newU_1 else 0) else shoreFlux
+  -- Furthest wet point directly above the solid seabed (not an airborne drop).
+  wetFront' = if stage > 3.5 then (if newFraction > 0.5 && belowWall > 0.5 then x else 0) else wetFront
+  rawFraction' = if stage > 3.5 then (if active kind > 0.5 then mass/newRho else 0) else rawFraction
+  bulkFront' = if stage > 3.5 then (if newFraction > 0.5 && above > 0.5 && belowWall > 0.5 then x else 0) else bulkFront
+  bankMagnitude' = if stage > 3.5 then (if bank < 0 then 0-bank else bank) else bankMagnitude
   stage' = if stage > 3.5 then 0 else stage + 1

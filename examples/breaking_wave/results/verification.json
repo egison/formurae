@@ -1,18 +1,46 @@
 [
   {
-    "directory": ".build/breaking_wave/final",
-    "steps": 3000,
-    "relative_mass_drift": 1.3260964449692502e-14,
-    "max_unredistributed_mass_per_cell": 2.8910207561239076e-13,
-    "max_speed": 0.22050188017395211,
-    "max_overhang_cells": 32.0
+    "directory": ".build/breaking_wave/demo",
+    "steps": 9000,
+    "relative_mass_drift": 7.7175742546393e-15,
+    "max_unredistributed_mass_per_cell": 9.177103521551544e-13,
+    "max_speed": 0.1668215422182727,
+    "max_overhang_cells": 26.0,
+    "max_total_pending_mass": 4.5136219206654005e-09,
+    "raw_fraction_range": [
+      -0.1296964297620923,
+      1.0324779445104304
+    ],
+    "source_sha256": "b0ab91a4bf615d539a98f01e1815775bf7a39da1883caa2e2380316ba093efec",
+    "backwash": {
+      "peak_runup_step": 4920,
+      "peak_bulk_front_x": 350.0,
+      "final_bulk_front_x": 350.0,
+      "furthest_wet_front_x": 351.0,
+      "final_wet_front_x": 351.0,
+      "peak_onshore_flux": 1.2577490526611923,
+      "peak_return_step": 5760,
+      "peak_offshore_flux_after_runup": -0.1705837129300163,
+      "sustained_return_interval": [
+        4980,
+        8400
+      ],
+      "bulk_front_retreat_cells": 0.0
+    }
   },
   {
     "directory": ".build/breaking_wave/still",
     "steps": 1200,
-    "relative_mass_drift": 9.488973214428016e-15,
-    "max_unredistributed_mass_per_cell": 1.20570220474292e-13,
-    "max_speed": 0.00011056405761669426,
-    "max_overhang_cells": 0.0
+    "relative_mass_drift": 8.507453297916083e-15,
+    "max_unredistributed_mass_per_cell": 1.4011014570769476e-13,
+    "max_speed": 0.0002405871801286904,
+    "max_overhang_cells": 0.0,
+    "max_total_pending_mass": 5.189153551299341e-10,
+    "raw_fraction_range": [
+      0.0,
+      1.0
+    ],
+    "source_sha256": "010c8bd9cd499460378a94e796c694e17e8b879824206b235a56fba60f83e4cf",
+    "backwash": null
   }
 ]
