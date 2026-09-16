@@ -103,6 +103,7 @@ step:
 <tr><th>構文</th><th>意味</th></tr>
 <tr><td><code>dimension 1..3</code></td><td>Formura backendの次元</td></tr>
 <tr><td><code>axes x, y, z</code></td><td>座標名とAxisId。必須</td></tr>
+<tr><td><code>index a, b : 9</code></td><td>空間次元と独立した添字の成分数</td></tr>
 <tr><td><code>param dt = ...</code></td><td>Formura parameter</td></tr>
 <tr><td><code>extern exp</code></td><td>external scalar function</td></tr>
 <tr><td><code>raw NAME = ...</code></td><td>verbatim Formura helper</td></tr>
@@ -129,6 +130,26 @@ surfaceで暗黙総和しません。唯一の例外は記号添字つき<code>�
 繰り返す場合に限り<code>contractWith (+)</code>を自動適用します(<code>∂_i X~i</code>は発散、
 <code>∂_j σ~i~j</code>はvector)。<code>withSymbols</code>、<code>tensorMap</code>、<code>subrefs</code>、
 <code>transpose</code>、<code>!.</code>はEgison tensor algebraへ渡されます。</p>
+
+<h3>添字記号ごとの成分数</h3>
+<pre>dimension 2
+axes x, y
+index a, b : 9
+field f_a
+field c_a_i
+field M_a_b</pre>
+<p><code>f</code> は9成分，<code>c</code> は9×2成分，<code>M</code> は9×9成分です。
+未宣言の <code>i</code> などは空間方向を表し，1から <code>dimension</code> まで動きます。
+<code>index</code> は場・関数の宣言より前に書き，サイズには正の整数を指定します。
+場の形状は宣言時に固定されます。<code>f_b</code> として参照できますが，
+<code>f_i</code> として2成分に読み替えることはできません。<code>f_9</code> は第9成分です。</p>
+<p>固定場，添字付きの局所場・関数引数，縮約（添字について和を取る演算）にも同じ宣言を使います。
+格子配置には空間方向の添字だけが影響します。<code>c_a_i @ primal</code> では，
+すべての成分番号 <code>a</code> について <code>i</code> が指定する方向に半格子だけずらします。
+成分番号は，サイズが空間次元と等しくても，微分方向や空間の計量の添字には使えません。
+<code>index</code> 宣言があるモデルでは <code>local q_a_i = ...</code> のように局所場の添字を明示します。
+<code>local q : tensor</code> の推論は空間方向だけを使うモデルで利用できます。
+通常の添字付きの場は従来どおり2軸までです。</p>
 
 <h2 id="operators">5. 演算子は「pureに短く定義できるか」で分ける</h2>
 

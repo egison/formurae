@@ -1,0 +1,46 @@
+-- Nine independently evolving concentrations in a two-dimensional domain.
+dimension 2
+axes x, y
+index a, b : 9
+index r, s : 3
+index p : 2
+param dt = 0.001
+field f_a
+field total : scalar
+field selected : scalar
+field moment_i
+field gradient_a_i
+field M_r_s
+field S{_r_s}
+field A[_r_s]
+static field pair_p @ primal := [| sin x, cos y |]_p
+static field weights~a := [| 1, 1, 1, 1, 1, 1, 1, 1, 1 |]~a
+static field C~a_i := [| [| 1, 2 |], [| 2, 4 |], [| 3, 6 |], [| 4, 8 |], [| 5, 10 |], [| 6, 12 |], [| 7, 14 |], [| 8, 16 |], [| 9, 18 |] |]~a_i
+-- Only i is spatial: every species has the same face placement for i.
+static field face_a_i @ primal := [| [| sin x, cos y |], [| sin x, cos y |], [| sin x, cos y |], [| sin x, cos y |], [| sin x, cos y |], [| sin x, cos y |], [| sin x, cos y |], [| sin x, cos y |], [| sin x, cos y |] |]_a_i
+def relax X_b = X_b + dt * ∂^2_x X_b
+-- The parameter C is local to this definition, independent of the field C.
+def preserve C_i = C_i
+def identity X_b =
+  let result := X_b
+   in result
+init:
+  f_a := [| 1, 2, 3, 4, 5, 6, 7, 8, 9 |]_a * sin x
+  total := 45 * sin x
+  selected := 9 * sin x
+  moment_i := [| 285 * sin x, 570 * sin x |]_i
+  gradient_a_i := [| [| 0, 0 |], [| 0, 0 |], [| 0, 0 |], [| 0, 0 |], [| 0, 0 |], [| 0, 0 |], [| 0, 0 |], [| 0, 0 |], [| 0, 0 |] |]_a_i
+  M_r_s = [| [| 1, 2, 3 |], [| 4, 5, 6 |], [| 7, 8, 9 |] |]_r_s
+  S_r_s = [| [| 1, 2, 3 |], [| 4, 5 |], [| 6 |] |]_r_s
+  A_r_s = [| [| 2, 3 |], [| 5 |] |]_r_s
+step:
+  let source_a = f_a
+  local next_a = identity (relax source)
+  f'_b = next_b
+  total' = weights~a . f'_a
+  selected' = f'_9
+  moment'_i = preserve (C~a_i . f'_a)
+  gradient'_a_i = ∂_i f_a
+  M'_r_s = M_r_s
+  S'_r_s = S_r_s
+  A'_r_s = A_r_s

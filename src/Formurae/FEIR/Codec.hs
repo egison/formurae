@@ -717,6 +717,7 @@ encodeLogicalFieldDecl logicalField = record "field"
   , ("layout", encodeLayout (logicalFieldLayout logicalField))
   , ("declared-variances",
       encodeList (encodeMaybe encodeVariance) (logicalFieldDeclaredVariances logicalField))
+  , ("spatial-slots", encodeList encodeInt (logicalFieldSpatialSlots logicalField))
   , ("lifetime", encodeLifetime (logicalFieldLifetime logicalField))
   , ("origin", encodeOriginId (logicalFieldOrigin logicalField))
   ]
@@ -725,7 +726,7 @@ decodeLogicalFieldDecl :: SExpr -> Either CodecError LogicalFieldDecl
 decodeLogicalFieldDecl expression = do
   fields <- decodeRecord "field"
     [ "id", "source-name", "policy", "tensor-type", "layout"
-    , "declared-variances", "lifetime", "origin"
+    , "declared-variances", "spatial-slots", "lifetime", "origin"
     ] expression
   LogicalFieldDecl
     <$> (required "id" fields >>= decodeFieldId)
@@ -735,6 +736,7 @@ decodeLogicalFieldDecl expression = do
     <*> (required "layout" fields >>= decodeLayout)
     <*> (required "declared-variances" fields
           >>= decodeList "declared-variances" (decodeMaybe "declared-variance" decodeVariance))
+    <*> (required "spatial-slots" fields >>= decodeList "spatial-slots" (decodeInt "spatial-slot"))
     <*> (required "lifetime" fields >>= decodeLifetime)
     <*> (required "origin" fields >>= decodeOriginId)
 

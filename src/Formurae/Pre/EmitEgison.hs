@@ -19,10 +19,16 @@ import Formurae.FEIR.RegistryFingerprint (computeRegistryId)
 import Formurae.FEIR.SExpr (SExpr(..))
 import qualified Formurae.FEIR.Syntax as FEIR
 import Formurae.Index
-  ( componentIndices
+  ( fieldComponentIndices
+  , fieldShape
+  , indexShape
   , fieldIndexParts
   , internalCoordNames
   , invalidAxisProjection
+  , invalidIndexUse
+  , spatialIndex
+  , ixName
+  , indexSize
   , ixVariance
   , parseIndexedIdent
   )
@@ -300,9 +306,9 @@ prepareInitializers model registry state0 =
 
     rawComponents name values origin state = do
       field <- fieldNamed registry name
-      kind <- maybe (Left (EmitUnsupportedInitializer name)) Right
-        (Surface.kindOf model name)
-      let bases = componentIndices (Surface.mDim model) kind
+      surfaceField <- maybe (Left (EmitUnsupportedInitializer name)) Right
+        (Surface.fieldDeclOf model name)
+      let bases = fieldComponentIndices model surfaceField
       if length bases /= length values
         then Left (EmitUnsupportedInitializer name)
         else Right
@@ -422,7 +428,7 @@ fullBases (size : rest) =
 
 indexedTensorType :: Surface.Model -> [Surface.IxPart] -> FEIR.TensorType
 indexedTensorType model indices = FEIR.TensorType
-  (replicate (length indices) (Surface.mDim model))
+  (indexShape model indices)
   (map (mapVariance . ixVariance) indices)
   0
 
@@ -776,6 +782,8 @@ contextualize model userDefinitions shadowedNames boundNames expression
   | otherwise = case expression of
     TENumber value -> Right (TENumber value)
     TEIdent name parts
+      | Just msg <- invalidIndexUse model name parts
+      , name `notElem` boundNames -> Left (EmitExpressionError msg)
       | Just msg <- invalidAxisProjection model name parts ->
           Left (EmitExpressionError msg)
       | null parts
@@ -793,7 +801,7 @@ contextualize model userDefinitions shadowedNames boundNames expression
       , not (isLexicallyShadowed name)
       , Just completedParts <- indexedLetCompletion name ->
           Right (TEIdent name completedParts)
-      | otherwise -> Right (TEIdent name parts)
+      | otherwise -> Right (checkedReference name parts)
     TEUnary "!" body ->
       TEApply (TEIdent "Formurae.predicateNot" []) . (: []) <$> walk body
     TEUnary operator body -> TEUnary operator <$> walk body
@@ -874,7 +882,14 @@ contextualize model userDefinitions shadowedNames boundNames expression
         , applicationArgument yes'
         , applicationArgument no'
         ])
-    TEAppendIndexed body parts -> TEAppendIndexed <$> walk body <*> pure parts
+    TEAppendIndexed body parts -> do
+      case ungroup body of
+        TEIdent name [] | name `notElem` boundNames
+                       , Just message <- invalidIndexUse model name parts ->
+          Left (EmitExpressionError message)
+        _ -> Right ()
+      body' <- walk body
+      Right (checkedIndexed body' parts)
     TEWithSymbols names body -> TEWithSymbols names <$> walk body
     TEContractWith reducer body -> TEContractWith reducer <$> walk body
     TETensorMap function body -> TETensorMap <$> walk function <*> walk body
@@ -882,6 +897,9 @@ contextualize model userDefinitions shadowedNames boundNames expression
     TETranspose names body -> TETranspose names <$> walk body
     TEDisjoint parts -> TEDisjoint <$> mapM walk parts
     TEDerivative parts body -> do
+      case [ixName part | part <- parts, not (spatialIndex model (ixName part))] of
+        name : _ -> Left (EmitExpressionError ("non-spatial index cannot select a derivative direction: " ++ name))
+        [] -> Right ()
       body' <- walk body
       Right (foldr indexedDerivativePart body' parts)
     TEGridDerivativeChain parts body -> do
@@ -895,8 +913,9 @@ contextualize model userDefinitions shadowedNames boundNames expression
         _ -> Right (TEApply
           (TEIdent "FormuraeInternalOrderedDerivative" [])
           [integerVector axisIds, applicationArgument body'])
-    TETensorLiteral elements parts ->
-      TETensorLiteral <$> mapM walk elements <*> pure parts
+    TETensorLiteral elements parts -> do
+      elements' <- mapM walk elements
+      Right (checkedIndexed (TETensorLiteral elements' []) parts)
     TEDot parts -> do
       parts' <- mapM walk parts
       case lookup "." userDefinitions of
@@ -911,6 +930,26 @@ contextualize model userDefinitions shadowedNames boundNames expression
       | otherwise -> TEBinary operator <$> walk lhs <*> walk rhs
     TEGroup body -> TEGroup <$> walk body
   where
+    -- The extent check precedes Egison's relabelling/contraction, so even
+    -- a function result or literal cannot silently use a differently sized
+    -- symbol. Existing spatial-only expressions need no extra wrapper.
+    checkedReference name parts
+      | null (Surface.mIndexSizes model) || null parts = TEIdent name parts
+      | otherwise = TEGroup (TEIdent
+          ("let FormuraeInternalIndexed := FormuraeInternalCheckIndexShape "
+            ++ show (map indexExtent parts) ++ " " ++ name
+            ++ " in FormuraeInternalIndexed" ++ renderIndexParts parts) [])
+    indexExtent part
+      | ixName part == "#" || all isDigit (ixName part) = 0
+      | otherwise = indexSize model (ixName part)
+    checkedIndexed body parts
+      | null (Surface.mIndexSizes model) || null parts = case body of
+          TETensorLiteral elements [] -> TETensorLiteral elements parts
+          _ -> TEAppendIndexed body parts
+      | otherwise = TEAppendIndexed
+          (TEGroup (TEApply (TEIdent "FormuraeInternalCheckAppendIndexShape" [])
+            [ TEIdent (show (map indexExtent parts)) []
+            , applicationArgument body])) parts
     walk value = contextualize model userDefinitions
       shadowedNames boundNames value
     applyUserDot internalName (first : rest) =
@@ -1117,7 +1156,7 @@ renderUnit model registry geometryDeclarations definitions dynamics program = un
       ["declare symbol " ++ intercalate ", " coordinateNames]
       ++ ["declare symbol " ++ intercalate ", " parameterNames
          | not (null parameterNames)]
-      ++ ["declare symbol " ++ intercalate ", " indexNames]
+      ++ ["declare symbol " ++ intercalate ", " (nub (indexNames ++ map fst (Surface.mIndexSizes model)))]
       ++ [""]
     modelEnvironmentDeclarations =
       [ "def feDimension : Integer := " ++ show (Surface.mDim model)
@@ -1126,6 +1165,18 @@ renderUnit model registry geometryDeclarations definitions dynamics program = un
       , "def dimension : Integer := feDimension"
       , "def coordinates : Vector MathValue := feCoordinates"
       ]
+      ++ (if null (Surface.mIndexSizes model) then [] else
+         [ "def FormuraeInternalCheckIndexShape expected value :="
+         , "  match assert \"index extent does not match tensor slot\""
+         , "               (length expected <= length (tensorShape value) && all (\\(n, actual) -> n = 0 || n = actual) (zip expected (tensorShape value))) as bool with"
+         , "    | #True -> value"
+         , "def FormuraeInternalCheckAppendIndexShape expected value :="
+         , "  let shape := drop (length (tensorIndices value)) (tensorShape value)"
+         , "   in match assert \"index extent does not match tensor slot\""
+         , "                   (length expected <= length shape && all (\\(n, actual) -> n = 0 || n = actual) (zip expected shape)) as bool with"
+         , "        | #True -> value"
+         , ""
+         ])
       ++ [""]
     ambientOperatorDeclarations =
       [ "def feGeometryScales : Vector MathValue := [| "
@@ -1272,12 +1323,12 @@ renderUnit model registry geometryDeclarations definitions dynamics program = un
     orderedTailDeclarations
       | null deferredSplices =
           registryDeclarations model registry deferredSplices
-          ++ definitionDeclarations (Surface.mDim model) definitions
+          ++ definitionDeclarations model definitions
           ++ dynamicDeclarations dynamics
           ++ encoderDeclarations
       | otherwise =
           deferredHelperDeclarations
-          ++ definitionDeclarations (Surface.mDim model) definitions
+          ++ definitionDeclarations model definitions
           ++ dynamicAndReaderDeclarations
           ++ registryDeclarations model registry deferredSplices
           ++ encoderDeclarations
@@ -1472,7 +1523,7 @@ fieldVersionDeclarations model field primes slot =
     generatedTensor rank =
       "generateTensor (\\[" ++ intercalate ", " (take rank indexNames)
       ++ "] -> function (" ++ coordinateArguments ++ ")) "
-      ++ show (replicate rank (Surface.mDim model))
+      ++ show (fieldShape model field)
     fullTensorDeclaration rank =
       "def " ++ publicName ++ " := "
       ++ attachFieldTensorMetadata field rank (generatedTensor rank)
@@ -1481,7 +1532,7 @@ fieldVersionDeclarations model field primes slot =
       , "def " ++ publicName ++ " := "
           ++ attachFieldTensorMetadata field 2
                ("generateTensor (\\[i, j] -> " ++ component ++ ") "
-                 ++ show [Surface.mDim model, Surface.mDim model])
+                 ++ show (fieldShape model field))
       ]
       where
         at a b = "FE.tensorComponentAt " ++ rawName ++ " [" ++ a ++ ", " ++ b ++ "]"
@@ -1582,8 +1633,7 @@ registryDeclarations model registry deferredSplices =
         currentEntry surfaceField timeSlot slot =
           [ entry logicalField timeSlot basis
               (fieldComponentExpression surfaceField slot timeSlot basis)
-          | basis <- componentIndices (Surface.mDim model)
-              (Surface.fdKind surfaceField)
+          | basis <- fieldComponentIndices model surfaceField
           ]
     localFields =
       [Surface.localDeclAsField local
@@ -1611,9 +1661,9 @@ fieldComponentExpression field slot timeSlot basis =
     rawComponent = "FE.tensorComponentAt " ++ fieldRawName field slot
       ++ " " ++ show basis
 
-definitionDeclarations :: Int -> [PreparedDefinition] -> [String]
+definitionDeclarations :: Surface.Model -> [PreparedDefinition] -> [String]
 definitionDeclarations _ [] = []
-definitionDeclarations dimension definitions =
+definitionDeclarations model definitions =
   renderAll [] definitions
   where
     renderAll _ [] = []
@@ -1640,7 +1690,7 @@ definitionDeclarations dimension definitions =
         rawEgison = preparedDefinitionIsRawEgison prepared
         wrapBody
           | rawEgison = withIndexSymbolsMultiline
-          | otherwise = withIndexSymbols
+          | otherwise = \body -> "withSymbols [" ++ intercalate ", " scopedIndices ++ "] (" ++ body ++ ")"
 
     scopedBody prior prepared
       | not (preparedDefinitionIsRawEgison prepared) = body
@@ -1693,7 +1743,7 @@ definitionDeclarations dimension definitions =
                   ("indexed parameter " ++ parameter
                     ++ " metadata mismatch in " ++ Surface.defName definition)
                 ++ " (tensorShape " ++ definitionParameterBase parameter
-                ++ " = " ++ show (replicate (length parts) dimension)
+                ++ " = " ++ show (indexShape model parts)
                 ++ " && Formurae.logicalTensorVariances "
                 ++ definitionParameterBase parameter ++ " = "
                 ++ show (map (varianceName . mapParameterVariance) parts)
@@ -1704,8 +1754,10 @@ definitionDeclarations dimension definitions =
                else prefix ++ " | #True -> " ++ inner
 
     withIndexSymbolsMultiline source =
-      "withSymbols [" ++ intercalate ", " indexNames ++ "] (\n"
+      "withSymbols [" ++ intercalate ", " scopedIndices ++ "] (\n"
       ++ indentLines 2 source ++ "\n)"
+
+    scopedIndices = nub (indexNames ++ map fst (Surface.mIndexSizes model))
 
     indentLines count source = intercalate "\n"
       [replicate count ' ' ++ line | line <- lines source]
@@ -1767,10 +1819,6 @@ renderIndexParts = concatMap renderPart
 varianceMarker :: Surface.Variance -> String
 varianceMarker Surface.VUp = "~"
 varianceMarker Surface.VDown = "_"
-
-withIndexSymbols :: String -> String
-withIndexSymbols source =
-  "withSymbols [" ++ intercalate ", " indexNames ++ "] (" ++ source ++ ")"
 
 -- Deferred local splice: the registry only reserved the field id, so the
 -- authoritative declaration is built during normalization from the writer's

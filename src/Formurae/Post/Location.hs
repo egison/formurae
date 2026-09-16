@@ -5,6 +5,7 @@ module Formurae.Post.Location
   , LocationError(..)
   , latticeClassOfPolicy
   , componentPlacement
+  , fieldComponentPlacement
   , togglePlacement
   , derivativePlacement
   , derivativePlacementForPolicy
@@ -68,6 +69,14 @@ componentPlacement dimension policy (Basis componentAxes)
         PrimalPolicy -> if odd (count axis componentAxes) then HalfPoint else IntegerPoint
         DualPolicy -> if odd (count axis componentAxes) then IntegerPoint else HalfPoint
 
+fieldComponentPlacement :: Int -> LogicalFieldDecl -> Basis -> Either LocationError Placement
+fieldComponentPlacement dimension field basis@(Basis components)
+  | not (basisFitsType basis (logicalFieldTensorType field)) =
+      Left (FieldJetBasisMismatch (logicalFieldId field) basis)
+  | otherwise = componentPlacement dimension (logicalFieldPolicy field)
+      (Basis [component | (slot, component) <- zip [1..] components,
+                          slot `elem` logicalFieldSpatialSlots field])
+
 togglePlacement :: AxisId -> Placement -> Either LocationError Placement
 togglePlacement axisId@(AxisId axis) (Placement bits)
   | axis < 1 || axis > length bits =
@@ -130,7 +139,7 @@ fieldJetPlacements dimension fields jet = do
   let basis = fieldJetBasis jet
   if basisFitsType basis (logicalFieldTensorType field)
     then do
-      source <- componentPlacement dimension (logicalFieldPolicy field) basis
+      source <- fieldComponentPlacement dimension field basis
       target <- derivativePlacementForPolicy (logicalFieldPolicy field)
         (fieldJetMultiIndex jet) source
       Right (source, target)

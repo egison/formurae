@@ -114,8 +114,9 @@ streaming は、c=±1 に対する中心差分の恒等式
 `q(x-c h) = q - c h Dq + h² D²q/2`を `pullx`/`pully`/`pullz` として書き、
 各軸の materialized local を連結する。これにより新しいbackend専用shiftを追加せず、
 FEIRの既存derivative requestからD3Q19の整数・対角offsetを厳密に生成する。
-将来 `field f : family 19` と式familyを表層化すれば、速度集合と重みをデータとして
-19 本の宣言・衝突・streamingを自動展開できる。
+`index a : 19` と `field f_a` により，19成分をひとつの場として宣言できる。
+速度集合も `c_a_i` の19×3成分，重みも `w_a` の19成分として表せる。
+既存の `lbm_d3q19` は個別のスカラー宣言を使う例として残している。
 
 ### 8. Cahn–Hilliard — 4 階微分と 2 段参照
 

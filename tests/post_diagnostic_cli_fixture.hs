@@ -57,7 +57,7 @@ baseProgram = FEProgram
 
 scalarField :: LogicalFieldDecl
 scalarField = LogicalFieldDecl (FieldId 1) "u" CollocatedPolicy
-  (TensorType [] [] 0) ScalarLayout [] UserStateLifetime (OriginId 2)
+  (TensorType [] [] 0) ScalarLayout [] [] UserStateLifetime (OriginId 2)
 
 wideEquation :: FEEquation
 wideEquation = FEEquation (EquationId 1)

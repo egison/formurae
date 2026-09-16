@@ -6,6 +6,7 @@ import Formurae.Post.Location
 main :: IO ()
 main = do
   testComponentPlacement
+  testMixedPlacement
   testDerivativePlacement
   testFieldJetPlacement
   testCapabilities
@@ -26,6 +27,27 @@ testComponentPlacement = do
   assertEqual "dual component 1"
     (Right (Placement [IntegerPoint, HalfPoint, HalfPoint]))
     (componentPlacement 3 DualPolicy (Basis [1]))
+
+testMixedPlacement :: IO ()
+testMixedPlacement = do
+  let field = (vectorField (FieldId 1) PrimalPolicy)
+        { logicalFieldTensorType = TensorType [9,3] [VarianceDown, VarianceUp] 0
+        , logicalFieldLayout = FullLayout
+        , logicalFieldDeclaredVariances = [Just VarianceDown, Just VarianceUp]
+        , logicalFieldSpatialSlots = [2]
+        }
+  assertEqual "only the spatial slot affects primal placement"
+    (Right (Placement [IntegerPoint, HalfPoint, IntegerPoint]))
+    (fieldComponentPlacement 3 field (Basis [9,2]))
+  assertEqual "only the spatial slot affects dual placement"
+    (Right (Placement [HalfPoint, IntegerPoint, HalfPoint]))
+    (fieldComponentPlacement 3 (field { logicalFieldPolicy = DualPolicy }) (Basis [9,2]))
+  assertEqual "a component number equal to a direction is still non-spatial"
+    (Right (Placement [IntegerPoint, HalfPoint, IntegerPoint]))
+    (fieldComponentPlacement 3 field (Basis [2,2]))
+  assertEqual "component extent is checked independently of dimension"
+    (Left (FieldJetBasisMismatch (FieldId 1) (Basis [10,2])))
+    (fieldComponentPlacement 3 field (Basis [10,2]))
 
 testDerivativePlacement :: IO ()
 testDerivativePlacement = do
@@ -116,6 +138,7 @@ vectorField fieldId policy = LogicalFieldDecl
   , logicalFieldTensorType = TensorType [3] [VarianceDown] 0
   , logicalFieldLayout = VectorLayout
   , logicalFieldDeclaredVariances = [Just VarianceDown]
+  , logicalFieldSpatialSlots = [1]
   , logicalFieldLifetime = UserStateLifetime
   , logicalFieldOrigin = OriginId 1
   }

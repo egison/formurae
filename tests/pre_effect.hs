@@ -588,6 +588,7 @@ baseModel = Model
   , mSourcePath = "effect.fme"
   , mDim = 1
   , mAxes = ["x"]
+  , mIndexSizes = []
   , mAxesSourceLine = Just 1
   , mMetricName = Nothing
   , mParams = []

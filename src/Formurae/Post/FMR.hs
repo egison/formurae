@@ -79,25 +79,25 @@ independentBases dimension field
       case (logicalFieldLayout field, tensorTypeShape tensorType) of
         (ScalarLayout, []) -> Right [Basis []]
         (VectorLayout, [extent])
-          | extent == dimension -> Right [Basis [axis] | axis <- axes]
+          | extent > 0 -> Right [Basis [axis] | axis <- [1 .. extent]]
         (SymmetricLayout, [rows, columns])
-          | rows == dimension && columns == dimension ->
+          | rows > 0 && columns == rows ->
               Right
-                ( [Basis [axis, axis] | axis <- axes]
+                ( [Basis [axis, axis] | axis <- [1 .. rows]]
                   ++ [ Basis [row, column]
-                     | row <- axes
-                     , column <- [row + 1 .. dimension]
+                     | row <- [1 .. rows]
+                     , column <- [row + 1 .. rows]
                      ]
                 )
         (AntisymmetricLayout, [rows, columns])
-          | rows == dimension && columns == dimension ->
+          | rows > 0 && columns == rows ->
               Right
                 [ Basis [row, column]
-                | row <- axes
-                , column <- [row + 1 .. dimension]
+                | row <- [1 .. rows]
+                , column <- [row + 1 .. rows]
                 ]
         (FullLayout, shape)
-          | all (== dimension) shape -> Right (map Basis (rowMajorBases shape))
+          | all (> 0) shape -> Right (map Basis (rowMajorBases shape))
         (FormLayout, shape)
           | length shape == tensorTypeDfOrder tensorType
           , all (== dimension) shape ->

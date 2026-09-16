@@ -117,6 +117,7 @@ data ValidationIssue
   | StaticFieldRequiresAnalyticInitializer FieldId
   | StaticFieldDependencyUnavailable FieldId
   | TensorTypeMismatch TensorType TensorType
+  | InvalidSpatialSlots [Int] [Int]
   | InvalidDerivativeRuleOrder Int
   | InvalidFormalAccuracy Int
   | InvalidLatticeFamily LatticeClass StencilFamily
@@ -352,12 +353,23 @@ validateFields environment = concat
         | null (logicalFieldSourceName field)]
       , validateTensorType environment path tensorType
       , validateFieldLayout path field
+      , [validationError path (InvalidSpatialSlots slots shape)
+        | slots /= sort (nub slots)
+          || any (\slot -> slot < 1 || slot > length shape) slots
+          || any (\slot -> shape !! (slot - 1) /= dimension)
+               [slot | slot <- slots, slot >= 1, slot <= length shape]
+          || (logicalFieldLayout field `elem` [SymmetricLayout, AntisymmetricLayout]
+              && slots `notElem` [[], [1 .. length shape]])
+          || (tensorTypeDfOrder tensorType > 0 && slots /= [1 .. length shape])]
       , validateDeclaredVariances path field
       , validateOriginReference environment path (logicalFieldOrigin field)
       ]
       where
         path = [ProgramPath, FieldPath (logicalFieldId field)]
         tensorType = logicalFieldTensorType field
+        slots = logicalFieldSpatialSlots field
+        shape = tensorTypeShape tensorType
+        dimension = feProgramDimension (environmentProgram environment)
 
 validateGeometry :: Environment -> [ValidationError]
 validateGeometry environment = concat
@@ -793,7 +805,7 @@ validateTensorType environment path tensorType = concat
   [ [validationError path (InvalidShape shape)
     | any (<= 0) shape]
   , [validationError path (TensorAxisDimensionMismatch dimension shape)
-    | any (/= dimension) shape]
+    | tensorTypeDfOrder tensorType > 0 && any (/= dimension) shape]
   , [validationError path
        (VarianceCountMismatch (length shape) (length variances))
     | length variances /= length shape]

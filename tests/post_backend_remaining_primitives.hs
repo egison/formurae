@@ -76,9 +76,9 @@ fixture = FEProgram
   , feProgramFunctions = []
   , feProgramFields =
       [ LogicalFieldDecl (FieldId 1) "u" CollocatedPolicy
-          (TensorType [] [] 0) ScalarLayout [] UserStateLifetime (OriginId 1)
+          (TensorType [] [] 0) ScalarLayout [] [] UserStateLifetime (OriginId 1)
       , LogicalFieldDecl (FieldId 2) "q" CollocatedPolicy
-          (TensorType [] [] 0) ScalarLayout [] StepLocalLifetime (OriginId 1)
+          (TensorType [] [] 0) ScalarLayout [] [] StepLocalLifetime (OriginId 1)
       ]
   , feProgramInitializers = []
   , feProgramStepActions = []

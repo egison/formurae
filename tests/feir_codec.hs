@@ -150,12 +150,12 @@ fixtureProfile = setProfileFingerprint $ DiscretizationProfile
 fixtureFields :: [LogicalFieldDecl]
 fixtureFields =
   [ LogicalFieldDecl (FieldId 1) "u" CollocatedPolicy
-      (TensorType [] [] 0) ScalarLayout [] UserStateLifetime (OriginId 1)
+      (TensorType [] [] 0) ScalarLayout [] [] UserStateLifetime (OriginId 1)
   , LogicalFieldDecl (FieldId 2) "E" PrimalPolicy
       (TensorType [2] [VarianceDown] 0) VectorLayout
-      [Just VarianceDown] UserStateLifetime (OriginId 1)
+      [Just VarianceDown] [1] UserStateLifetime (OriginId 1)
   , LogicalFieldDecl (FieldId 3) "flux" CollocatedPolicy
-      (TensorType [] [] 0) ScalarLayout [] StepLocalLifetime (OriginId 2)
+      (TensorType [] [] 0) ScalarLayout [] [] StepLocalLifetime (OriginId 2)
   ]
 
 fixtureGeometry :: GeometryDecl

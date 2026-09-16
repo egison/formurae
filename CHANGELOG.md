@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add `index a, b : 9` for component counts independent of spatial dimension,
+  including mixed shapes such as `field c_a_i`, contractions, explicit locals,
+  and symmetric/antisymmetric matrices. Preserve spatial slot information in
+  FEIR so component indices do not change grid placement.
 - Accept Egison's index application on parenthesized expressions, `(f x)~i_j`,
   in init, step and def expressions, including numeric component indices.
 - Add `metric tensor [[...], [...]]` and `metric volume EXPR` for metrics

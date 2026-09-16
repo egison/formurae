@@ -116,7 +116,7 @@ twoFieldFixture = fixture
 
 scalarField :: FieldId -> String -> GridPolicy -> LogicalFieldDecl
 scalarField fieldId name policy = LogicalFieldDecl fieldId name policy
-  (TensorType [] [] 0) ScalarLayout [] UserStateLifetime (OriginId 1)
+  (TensorType [] [] 0) ScalarLayout [] [] UserStateLifetime (OriginId 1)
 
 fieldJet :: FieldId -> FieldJet
 fieldJet fieldId = FieldJetValue fieldId CurrentTime (Basis [])

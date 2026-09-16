@@ -38,6 +38,16 @@ main = do
   assert "static storage remains part of registry identity"
     (computeRegistryId staticProgram /= computeRegistryId
       staticProgram { feProgramFields = [] })
+  let spatial = program { feProgramFields =
+        [field { logicalFieldTensorType = TensorType [1] [VarianceDown] 0
+               , logicalFieldLayout = VectorLayout
+               , logicalFieldDeclaredVariances = [Just VarianceDown]
+               , logicalFieldSpatialSlots = [1] }
+        | field <- feProgramFields program] }
+      component = spatial { feProgramFields =
+        [field { logicalFieldSpatialSlots = [] } | field <- feProgramFields spatial] }
+  assert "spatial roles affect registry identity even with equal extents"
+    (computeRegistryId spatial /= computeRegistryId component)
   assert "stored ID verifies" (registryIdMatches program
     { feProgramRegistryId = registryId })
   putStrLn "FEIR registry fingerprint tests: ok"

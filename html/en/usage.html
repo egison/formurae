@@ -105,6 +105,7 @@ step:
 <tr><th>Syntax</th><th>Meaning</th></tr>
 <tr><td><code>dimension 1..3</code></td><td>Dimension of the Formura backend</td></tr>
 <tr><td><code>axes x, y, z</code></td><td>Coordinate names and AxisIds. Required</td></tr>
+<tr><td><code>index a, b : 9</code></td><td>Component index size, independent of the spatial dimension</td></tr>
 <tr><td><code>param dt = ...</code></td><td>Formura parameter</td></tr>
 <tr><td><code>extern exp</code></td><td>external scalar function</td></tr>
 <tr><td><code>raw NAME = ...</code></td><td>verbatim Formura helper</td></tr>
@@ -132,6 +133,26 @@ The single exception is <code>∂</code> with a symbolic index, which auto-appli
 only when the operand repeats <b>an index introduced by the derivative</b> (<code>∂_i X~i</code> is a
 divergence, <code>∂_j σ~i~j</code> is a vector). <code>withSymbols</code>, <code>tensorMap</code>, <code>subrefs</code>,
 <code>transpose</code>, and <code>!.</code> are passed through to Egison tensor algebra.</p>
+
+<h3>Component sizes declared by index symbol</h3>
+<pre>dimension 2
+axes x, y
+index a, b : 9
+field f_a
+field c_a_i
+field M_a_b</pre>
+<p><code>f</code> has 9 components, <code>c</code> has 9×2, and <code>M</code> has 9×9.
+An undeclared index such as <code>i</code> denotes a spatial direction and ranges from 1 to
+<code>dimension</code>. Declare index sizes before fields and definitions; sizes are positive integers.
+A field keeps the shape fixed by its declaration. It can be read as <code>f_b</code> but not as
+<code>f_i</code>; <code>f_9</code> selects its ninth component.</p>
+<p>The same declarations apply to static fields, indexed locals, indexed function parameters, and contractions.
+Only spatial indices affect grid placement: for <code>c_a_i @ primal</code>, every component
+number <code>a</code> uses the face selected by <code>i</code>. Component indices cannot select a
+derivative direction or index the spatial metric, even when their size equals the spatial dimension.
+In a model with index declarations, write local indices explicitly, as in <code>local q_a_i = ...</code>;
+<code>local q : tensor</code> inference is available for models using spatial indices only.
+Ordinary indexed fields still support at most two slots.</p>
 
 <h2 id="operators">5. Operators are classified by "does it have a short pure definition?"</h2>
 

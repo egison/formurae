@@ -123,6 +123,7 @@ field fieldId name layout shape declared = LogicalFieldDecl
       (replicate (length shape) VarianceDown) 0
   , logicalFieldLayout = layout
   , logicalFieldDeclaredVariances = declared
+  , logicalFieldSpatialSlots = [1 .. length shape]
   , logicalFieldLifetime = UserStateLifetime
   , logicalFieldOrigin = OriginId 1
   }

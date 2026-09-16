@@ -495,6 +495,7 @@ fallbackProgramOrigin program =
 validationIssueMessage :: ValidationIssue -> String
 validationIssueMessage issue =
   case issue of
+    InvalidSpatialSlots slots shape -> "invalid spatial tensor slots " ++ show slots ++ " for shape " ++ show shape
     EmptyIdentifier namespace ->
       identifierNamespaceName namespace ++ " must not be empty"
     NonPositiveIdentifier namespace value ->

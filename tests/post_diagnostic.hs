@@ -172,7 +172,7 @@ fixture = FEProgram
         IntrinsicFunction (Just (OriginId 4))]
   , feProgramFields =
       [LogicalFieldDecl (FieldId 1) "u" CollocatedPolicy
-        (TensorType [] [] 0) ScalarLayout [] UserStateLifetime (OriginId 3)]
+        (TensorType [] [] 0) ScalarLayout [] [] UserStateLifetime (OriginId 3)]
   , feProgramInitializers =
       [AnalyticInitializer (FEEquation (EquationId 1)
         (WholeFieldTarget (FieldId 1) CurrentTime)

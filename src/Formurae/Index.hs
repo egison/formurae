@@ -48,6 +48,73 @@ itok = go 1
 ixName :: IxPart -> String
 ixName (IxPart _ nm) = nm
 
+indexSize :: Model -> String -> Int
+indexSize model name = maybe (mDim model) id (lookup name (mIndexSizes model))
+
+spatialIndex :: Model -> String -> Bool
+spatialIndex model name = lookup name (mIndexSizes model) == Nothing
+
+indexShape :: Model -> [IxPart] -> [Int]
+indexShape model = map (indexSize model . ixName)
+
+fieldShape :: Model -> FieldDecl -> [Int]
+fieldShape model field = case fieldIndexParts field of
+  Just parts -> indexShape model parts
+  Nothing -> replicate (componentRank (fdKind field)) (mDim model)
+
+-- Slot numbers are one-based. Component indices do not move a field to a
+-- spatial face or edge, even when their extent happens to equal dimension.
+fieldSpatialSlots :: Model -> FieldDecl -> [Int]
+fieldSpatialSlots model field = case fieldIndexParts field of
+  Just parts -> [slot | (slot, part) <- zip [1..] parts,
+                       spatialIndex model (ixName part)]
+  Nothing -> [1 .. componentRank (fdKind field)]
+
+fieldComponentIndices :: Model -> FieldDecl -> [[Int]]
+fieldComponentIndices model field = case fdKind field of
+  SymM -> symComponentIndices size
+  AntiM -> antiComponentIndices size
+  Form degree -> choose degree [1 .. mDim model]
+  TensorAny -> []
+  _ -> sequence [[1 .. extent] | extent <- shape]
+  where
+    shape = fieldShape model field
+    size = case shape of first : _ -> first; [] -> 0
+
+-- Relabelling a tensor may change the spelling of a slot, not its extent
+-- or whether it denotes a coordinate direction. Numeric projection selects
+-- a component without changing either property.
+invalidFieldIndexUse :: Model -> FieldDecl -> [IxPart] -> Maybe String
+invalidFieldIndexUse model field parts
+  | null parts = Nothing
+  | otherwise = case
+      [ "index '" ++ name ++ "' does not match slot " ++ show slot
+          ++ " of " ++ fdName field ++ " (expected " ++ show size
+          ++ if spatial then " spatial components)" else " non-spatial components)"
+      | (slot, (part, size)) <- zip [1..] (zip parts (fieldShape model field))
+      , let name = ixName part
+      , name /= "#", not (all isDigit name)
+      , let spatial = slot `elem` fieldSpatialSlots model field
+      , if name `elem` mAxes model
+          then not spatial
+          else indexSize model name /= size || spatialIndex model name /= spatial
+      ] of
+        message : _ -> Just message
+        [] -> Nothing
+
+invalidIndexUse :: Model -> String -> [IxPart] -> Maybe String
+invalidIndexUse model name parts
+  | Just field <- find ((== base) . fdName) fields = invalidFieldIndexUse model field parts
+  | base `elem` ("metric" : "inverseMetric" : "coordinates" : "epsilon"
+                : "FormuraeInternalKroneckerDelta" : maybe [] (:[]) (mMetricName model))
+  , any (not . spatialIndex model . ixName) parts =
+      Just ("spatial tensor " ++ base ++ " cannot use a non-spatial index")
+  | otherwise = Nothing
+  where
+    base = takeWhile (/= '\'') name
+    fields = mFieldDecls model ++ [localDeclAsField local
+              | step <- mSteps model, Just local <- [sLocalDecl step]]
+
 -- | Parse the identifier and marked indices at the start of a binding
 -- target.  Unlike 'parseIndexedIdent', this also returns the unconsumed
 -- suffix, so the equation parser can distinguish the left-hand-side indices

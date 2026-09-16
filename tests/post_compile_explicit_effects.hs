@@ -100,15 +100,15 @@ profile = DiscretizationProfile
 
 stateScalar :: LogicalFieldDecl
 stateScalar = LogicalFieldDecl (FieldId 1) "u" CollocatedPolicy
-  (TensorType [] [] 0) ScalarLayout [] UserStateLifetime (OriginId 1)
+  (TensorType [] [] 0) ScalarLayout [] [] UserStateLifetime (OriginId 1)
 
 secondStateScalar :: LogicalFieldDecl
 secondStateScalar = LogicalFieldDecl (FieldId 4) "v" CollocatedPolicy
-  (TensorType [] [] 0) ScalarLayout [] UserStateLifetime (OriginId 1)
+  (TensorType [] [] 0) ScalarLayout [] [] UserStateLifetime (OriginId 1)
 
 scalarLocal :: LogicalFieldDecl
 scalarLocal = LogicalFieldDecl (FieldId 5) "q" CollocatedPolicy
-  (TensorType [] [] 0) ScalarLayout [] StepLocalLifetime (OriginId 1)
+  (TensorType [] [] 0) ScalarLayout [] [] StepLocalLifetime (OriginId 1)
 
 sourceFluxField :: LogicalFieldDecl
 sourceFluxField = vectorField (FieldId 2) "F" UserStateLifetime
@@ -118,7 +118,7 @@ localFluxField = vectorField (FieldId 3) "q" StepLocalLifetime
 
 vectorField :: FieldId -> String -> Lifetime -> LogicalFieldDecl
 vectorField fieldId name lifetime = LogicalFieldDecl fieldId name PrimalPolicy
-  (TensorType [2] [VarianceDown] 0) VectorLayout [Just VarianceDown]
+  (TensorType [2] [VarianceDown] 0) VectorLayout [Just VarianceDown] [1]
   lifetime (OriginId 1)
 
 sourceFlux :: TensorNF

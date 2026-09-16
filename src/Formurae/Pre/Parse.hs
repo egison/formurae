@@ -12,6 +12,7 @@ import Control.Monad (foldM, when)
 import Data.Char (isAlpha, isAlphaNum, isDigit, isSpace, toUpper)
 import Data.List (dropWhileEnd, intercalate, nub, sort, stripPrefix, isSuffixOf)
 import Data.Ratio (denominator, numerator)
+import Text.Read (readMaybe)
 
 import Formurae.Common
 import Formurae.Index
@@ -103,6 +104,7 @@ normalizationDependencies =
   -- These names occur in generated tensor encoders and indexed-parameter
   -- checks and therefore must not resolve to a model binding.
   , "tensorShape", "dfOrder", "assert", "bool"
+  , "all", "zip", "length", "drop", "tensorIndices"
   ]
 
 -- Every user definition is wrapped in one `withSymbols` that binds these
@@ -291,6 +293,10 @@ validateIndexedStepTargets :: Model -> IO ()
 validateIndexedStepTargets model = mapM_ validateStep (mSteps model)
   where
     validateStep step = do
+      case fieldDeclOf model targetName of
+        Just field -> maybe (return ()) fatal
+          (invalidFieldIndexUse model field (sIdx step))
+        Nothing -> return ()
       either (fatal . renderIndexedTargetError line targetName)
              return
              (validateBindingIndices forbidden (sIdx step))
@@ -527,16 +533,44 @@ primeEqForm s = do
 
 data Section = STop | SInit | SStep
 
+validateIndexDeclarations :: Model -> IO ()
+validateIndexDeclarations model = do
+  mapM_ checkName (mIndexSizes model)
+  mapM_ checkField fields
+  where
+    fields = mFieldDecls model ++ [localDeclAsField local
+             | step <- mSteps model, Just local <- [sLocalDecl step]]
+    checkName (name, _) = do
+      when (name `elem` conflicts)
+        (fatal ("index symbol '" ++ name ++ "' conflicts with a coordinate or value declaration"))
+      when (name `elem` (generatedNormalizationNames ++ normalizationDependencies
+              ++ standardNames ++ scalarIntrinsics ++ egisonReservedWords ++ mathematicalConstantNames))
+        (fatal ("index symbol '" ++ name ++ "' is reserved for normalization"))
+    conflicts = mAxes model ++ internalCoordNames model ++ map fst (mParams model)
+      ++ map fdName fields ++ map defName (mDefs model)
+      ++ [sNm step | step <- mSteps model, sk step == KLet]
+      ++ concatMap (map (fst . parseIndexedIdent) . defParams) (mDefs model)
+      ++ maybe [] (:[]) (mMetricName model)
+    checkField field = do
+      when (not (null (mIndexSizes model)) && fdKind field == TensorAny)
+        (fatal ("local : tensor requires explicit indices in a model with index declarations; write local "
+                ++ fdName field ++ "_a or local " ++ fdName field ++ "_a_i"))
+      when (fdKind field `elem` [SymM, AntiM]
+        && case fieldShape model field of
+             [a,b] -> a /= b || fieldSpatialSlots model field `notElem` [[],[1,2]]
+             _ -> True)
+        (fatal ("symmetric/antisymmetric field needs two indices of the same size and space: " ++ fdName field))
+
 validateDimensionFeatures :: Model -> IO ()
 validateDimensionFeatures m
-  | any isAntiField fieldKinds && mDim m < 2 =
-      fatal "antisymmetric rank-2 fields require dimension at least 2"
+  | any (\field -> fdKind field == AntiM && any (< 2) (fieldShape m field)) fields =
+      fatal "antisymmetric rank-2 fields require index size at least 2"
   | Just k <- firstBadFormDegree =
       fatal (show k ++ "-form fields require dimension at least " ++ show k)
   | otherwise = return ()
   where
-    isAntiField (_, AntiM) = True
-    isAntiField _ = False
+    fields = mFieldDecls m ++ [localDeclAsField local
+             | step <- mSteps m, Just local <- [sLocalDecl step]]
     firstBadFormDegree =
       case [k | (_, Form k) <- fieldKinds, k < 0 || k > mDim m] of
         k:_ -> Just k
@@ -837,6 +871,7 @@ parseModel sourceFile name txt = do
       , mSourcePath = sourceFile
       , mDim = 0
       , mAxes = []
+      , mIndexSizes = []
       , mAxesSourceLine = Nothing
       , mAxisStarts = []
       , mAxisStartSourceLines = []
@@ -924,6 +959,7 @@ parseModel sourceFile name txt = do
           mUse <- expandMacros (ms ++ activePreludeMacros supplied) supplied
           validateValueBindingNames mUse
           validateMetricName mUse
+          validateIndexDeclarations mUse
           validateDimensionFeatures mUse
           validateIndexedStepTargets mUse
           mapM_ (checkUserSurface mUse [] "in embedding expression")
@@ -1129,6 +1165,23 @@ parseModel sourceFile name txt = do
           }
       | Just r <- stripPrefix "field " s =
           parseFieldDecl ln r >>= addField
+      | Just r <- stripPrefix "index " s =
+          case break (== ':') r of
+            (namesText, ':' : sizeText)
+              | let names = map strip (splitTop ',' namesText)
+              , not (null names), all validSurfaceName names
+              , let digits = strip sizeText
+              , not (null digits), all isDigit digits
+              , Just extent <- readMaybe digits :: Maybe Integer
+              , extent > 0, extent <= toInteger (maxBound :: Int) -> do
+                  when (not (null (mFieldDecls m)) || not (null (mDefs m)))
+                    (fatal ("index declarations must precede fields and definitions (line " ++ show ln ++ ")"))
+                  when (length names /= length (nub names)
+                        || any (`elem` map fst (mIndexSizes m)) names)
+                    (fatal ("duplicate index declaration (line " ++ show ln ++ ")"))
+                  mapM_ (rejectReservedName ln) names
+                  return m { mIndexSizes = mIndexSizes m ++ [(n, fromInteger extent) | n <- names] }
+            _ -> fatal ("index declaration needs names and a positive integer size: index a, b : 9 (line " ++ show ln ++ ")")
       | Just r <- stripPrefix "embedding " s =
           case strip r of
             ('[':r1) | last r1 == ']' ->
@@ -1359,14 +1412,14 @@ parseModel sourceFile name txt = do
                         Nothing -> fatal ("symmetric initializer rows must be [| ... |] (line "
                                           ++ show ln ++ ")")) rows
               comps <-
-                if fullMatrixRows rows'
-                  then if symmetricRows rows'
+                if fullMatrixRows nm rows'
+                  then if symmetricRows nm rows'
                          then return [matrixAt rows' a b
-                                     | (a, b) <- rank2Pairs (symComponentIndices (mDim m))]
+                                     | (a, b) <- rank2Pairs (symComponentIndices (matrixSize nm))]
                          else fatal ("symmetric initializer is not symmetric (line " ++ show ln ++ ")")
-                  else if upperSymRows rows'
+                  else if upperSymRows nm rows'
                          then return [upperSymAt rows' a b
-                                     | (a, b) <- rank2Pairs (symComponentIndices (mDim m))]
+                                     | (a, b) <- rank2Pairs (symComponentIndices (matrixSize nm))]
                          else fatal ("symmetric initializer needs a full matrix or upper-triangle rows (line "
                                      ++ show ln ++ ")")
               addInit (ISym nm comps)
@@ -1379,15 +1432,15 @@ parseModel sourceFile name txt = do
                         Nothing -> fatal ("antisymmetric initializer rows must be [| ... |] (line "
                                           ++ show ln ++ ")")) rows
               comps <-
-                if fullMatrixRows rows'
-                  then if antisymmetricRows rows'
+                if fullMatrixRows nm rows'
+                  then if antisymmetricRows nm rows'
                          then return [matrixAt rows' a b
-                                     | (a, b) <- rank2Pairs (antiComponentIndices (mDim m))]
+                                     | (a, b) <- rank2Pairs (antiComponentIndices (matrixSize nm))]
                          else fatal ("antisymmetric initializer is not antisymmetric (line "
                                      ++ show ln ++ ")")
-                  else if upperAntiRows rows'
+                  else if upperAntiRows nm rows'
                          then return [upperAntiAt rows' a b
-                                     | (a, b) <- rank2Pairs (antiComponentIndices (mDim m))]
+                                     | (a, b) <- rank2Pairs (antiComponentIndices (matrixSize nm))]
                          else fatal ("antisymmetric initializer needs a full matrix or upper-off-diagonal rows (line "
                                      ++ show ln ++ ")")
               addInit (IAnti nm comps)
@@ -1400,9 +1453,9 @@ parseModel sourceFile name txt = do
                         Nothing -> fatal ("tensor initializer rows must be [| ... |] (line "
                                           ++ show ln ++ ")")) rows
               comps <-
-                if fullMatrixRows rows'
+                if fullMatrixRows nm rows'
                   then return [matrixAt rows' a b
-                              | (a, b) <- rank2Pairs (componentIndices (mDim m) Tensor2)]
+                              | (a, b) <- rank2Pairs (bases nm)]
                   else fatal ("tensor initializer needs a full matrix (line "
                               ++ show ln ++ ")")
               addInit (ITensor2 nm comps)
@@ -1415,8 +1468,8 @@ parseModel sourceFile name txt = do
               if not ok
                 then fatal ("[| ... |] initializer needs a vector/form/tensor field: "
                             ++ nm ++ " (line " ++ show ln ++ ")")
-                else if length elems /= componentCount k
-                  then fatal ("[| ... |] initializer needs " ++ show (componentCount k)
+                else if length elems /= componentCount nm
+                  then fatal ("[| ... |] initializer needs " ++ show (componentCount nm)
                               ++ " components (line "
                               ++ show ln ++ ")")
                   else addInit (IVec nm elems)
@@ -1491,7 +1544,8 @@ parseModel sourceFile name txt = do
         validateInitTarget nm ix =
           case fieldDeclOf m nm of
             Just fd
-              | fieldDeclAcceptsParts fd ix -> return ()
+              | fieldDeclAcceptsParts fd ix ->
+                  maybe (return ()) fatal (invalidFieldIndexUse m fd ix)
               | fdIndex fd /= Nothing && null ix ->
                   fatal ("indexed field initializer must write declared indices: "
                          ++ nm ++ fieldDeclIndexSuffix fd ++ " = [| ... |]"
@@ -1537,31 +1591,35 @@ parseModel sourceFile name txt = do
              || l == "(-1)*" ++ u
              || l == "-1*" ++ u
         rowLengthsMatch lens rows = map length rows == lens
-        fullMatrixRows rows =
-          length rows == mDim m && all ((== mDim m) . length) rows
+        fullMatrixRows nm rows =
+          case shape nm of
+            [nrows, ncols] -> map length rows == replicate nrows ncols
+            _ -> False
         matrixAt rows a b = rows !! (a - 1) !! (b - 1)
-        upperSymRows rows =
-          length rows == mDim m && rowLengthsMatch [mDim m, mDim m - 1 .. 1] rows
+        upperSymRows nm rows =
+          length rows == matrixSize nm && rowLengthsMatch [matrixSize nm, matrixSize nm - 1 .. 1] rows
         upperSymAt rows a b =
           let lo = min a b
               hi = max a b
           in rows !! (lo - 1) !! (hi - lo)
-        upperAntiRows rows =
-          length rows == max 0 (mDim m - 1)
-          && rowLengthsMatch [mDim m - 1, mDim m - 2 .. 1] rows
+        upperAntiRows nm rows =
+          length rows == max 0 (matrixSize nm - 1)
+          && rowLengthsMatch [matrixSize nm - 1, matrixSize nm - 2 .. 1] rows
         upperAntiAt rows a b =
           let lo = min a b
               hi = max a b
           in rows !! (lo - 1) !! (hi - lo - 1)
-        symmetricRows rows =
+        symmetricRows nm rows =
           and [matrixAt rows a b == matrixAt rows b a
-              | a <- axisRange m, b <- axisRange m, a < b]
-        antisymmetricRows rows =
-          and [isZeroExpr (matrixAt rows a a) | a <- axisRange m]
+              | a <- [1 .. matrixSize nm], b <- [1 .. matrixSize nm], a < b]
+        antisymmetricRows nm rows =
+          and [isZeroExpr (matrixAt rows a a) | a <- [1 .. matrixSize nm]]
           && and [negatesExpr (matrixAt rows b a) (matrixAt rows a b)
-                 | a <- axisRange m, b <- axisRange m, a < b]
-        componentCount (Just kind) = length (componentIndices (mDim m) kind)
-        componentCount Nothing = mDim m
+                 | a <- [1 .. matrixSize nm], b <- [1 .. matrixSize nm], a < b]
+        shape nm = maybe [] (fieldShape m) (fieldDeclOf m nm)
+        matrixSize nm = case shape nm of first : _ -> first; [] -> 0
+        bases nm = maybe [] (fieldComponentIndices m) (fieldDeclOf m nm)
+        componentCount nm = length (bases nm)
 
     -- Step equations keep superscripts (~i) and subscripts (_i) distinct.
     -- formurae-pre preserves that variance in the logical tensor type; Egison
@@ -1688,7 +1746,7 @@ parseModel sourceFile name txt = do
           length prefix + 2 + length (takeWhile isSpace rhs)
 
 surfaceBanned :: Model -> [String] -> String -> Maybe String
-surfaceBanned m _ s =
+surfaceBanned m locals s =
   foldr (\t acc -> checkTok t `orElse` acc) Nothing (tokenize s)
   `orElse`
   foldr (\t acc -> checkIndexTok t `orElse` acc) Nothing (itok s)
@@ -1703,6 +1761,9 @@ surfaceBanned m _ s =
       | Just msg <- invalidDerivativeOp m nm =
           Just msg
       | Just msg <- invalidAxisProjection m baseName indexedParts =
+          Just msg
+      | baseName `notElem` locals
+      , Just msg <- invalidIndexUse m baseName indexedParts =
           Just msg
       | nm == "badPartialDerivative" =
           Just "coordinate derivative must be written with subscript notation, e.g. ∂_x u, ∂^2_x u, or ∂'^2_x u"
@@ -1754,7 +1815,7 @@ generatedMetricNameConflicts = nub
    ++ normalizationDependencies)
 
 invalidDerivativeOp :: Model -> String -> Maybe String
-invalidDerivativeOp _ nm =
+invalidDerivativeOp model nm =
   case derivativeOpParts nm of
     Nothing ->
       -- The sbpd spelling is retired: the boundary treatment is an axis
@@ -1766,6 +1827,8 @@ invalidDerivativeOp _ nm =
                 ++ " (∂_x for sbpd_x, ∂^2_x for sbpd2_x)")
         _ -> Nothing
     Just (ordr, radius, part)
+      | not (spatialIndex model (ixName part)) ->
+          Just ("non-spatial index cannot select a derivative direction: " ++ nm)
       | ordr < 1 ->
           Just ("coordinate derivative order must be at least 1: " ++ nm)
       | radius < 1 ->

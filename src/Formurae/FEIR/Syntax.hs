@@ -229,6 +229,8 @@ data LogicalFieldDecl = LogicalFieldDecl
   -- formurae-post uses this declaration metadata for deterministic storage
   -- projection without confusing an unmarked axis with an explicit subscript.
   , logicalFieldDeclaredVariances :: [Maybe Variance]
+  , logicalFieldSpatialSlots      :: [Int]
+    -- ^ One-based tensor slots corresponding to coordinate directions.
   , logicalFieldLifetime          :: Lifetime
   , logicalFieldOrigin            :: OriginId
   } deriving (Eq, Ord, Show)

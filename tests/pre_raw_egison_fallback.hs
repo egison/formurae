@@ -118,6 +118,7 @@ baseModel definitions = Model
   , mSourcePath = "raw.fme"
   , mDim = 1
   , mAxes = ["x"]
+  , mIndexSizes = []
   , mAxesSourceLine = Just 2
   , mMetricName = Nothing
   , mParams = []

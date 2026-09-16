@@ -325,8 +325,7 @@ compileEquation environment stage equation = withPostOrigin
   where
     compileBasis field basis = do
       targetPlacement <- mapLocationError
-        (componentPlacement (programDimension environment)
-          (logicalFieldPolicy field) basis)
+        (fieldComponentPlacement (programDimension environment) field basis)
       component <- tensorComponent basis (feEquationRhs equation)
       expression <- lowerScalar environment targetPlacement component
       name <- mapFMRError (storageName field basis)
@@ -372,16 +371,14 @@ compileMaterialization environment field value = do
         TensorValue tensor -> tensorComponent basis tensor
     compileBasis basis = do
       targetPlacement <- mapLocationError
-        (componentPlacement (programDimension environment)
-          (logicalFieldPolicy field) basis)
+        (fieldComponentPlacement (programDimension environment) field basis)
       scalar <- componentScalar basis
       expression <- lowerScalar environment targetPlacement scalar
       name <- mapFMRError (storageName field basis)
       Right (FAssignment (StepBindingTarget name) (normalizeExpr expression))
     compileFrozenBasis basis = do
       targetPlacement <- mapLocationError
-        (componentPlacement (programDimension environment)
-          (logicalFieldPolicy field) basis)
+        (fieldComponentPlacement (programDimension environment) field basis)
       scalar <- componentScalar basis
       expression <- lowerScalar environment targetPlacement scalar
       name <- mapFMRError (storageName field basis)
@@ -1253,8 +1250,7 @@ inferFieldJetLocation
 inferFieldJetLocation environment jet = do
   field <- lookupField environment (fieldJetFieldId jet)
   source <- mapLocationError
-    (componentPlacement (programDimension environment)
-      (logicalFieldPolicy field) (fieldJetBasis jet))
+    (fieldComponentPlacement (programDimension environment) field (fieldJetBasis jet))
   target <- mapLocationError
     (derivativePlacementForPolicy (logicalFieldPolicy field)
       (fieldJetMultiIndex jet) source)
@@ -1505,8 +1501,7 @@ lowerFieldReferenceShifted
 lowerFieldReferenceShifted environment targetPlacement sampleOffsets jet = do
   field <- lookupField environment (fieldJetFieldId jet)
   sourcePlacement <- mapLocationError
-    (componentPlacement (programDimension environment)
-      (logicalFieldPolicy field) (fieldJetBasis jet))
+    (fieldComponentPlacement (programDimension environment) field (fieldJetBasis jet))
   if sourcePlacement /= targetPlacement
     then Left (PostInvalidReferencePlacement targetPlacement sourcePlacement)
     else do
@@ -1531,8 +1526,7 @@ lowerFieldDerivativeShifted
 lowerFieldDerivativeShifted environment targetPlacement sampleOffsets jet = do
   field <- lookupField environment (fieldJetFieldId jet)
   sourcePlacement <- mapLocationError
-    (componentPlacement (programDimension environment)
-      (logicalFieldPolicy field) (fieldJetBasis jet))
+    (fieldComponentPlacement (programDimension environment) field (fieldJetBasis jet))
   naturalTarget <- mapLocationError
     (derivativePlacementForPolicy (logicalFieldPolicy field)
       (fieldJetMultiIndex jet) sourcePlacement)

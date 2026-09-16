@@ -180,7 +180,7 @@ profile = DiscretizationProfile
 
 scalarField :: LogicalFieldDecl
 scalarField = LogicalFieldDecl (FieldId 1) "u" CollocatedPolicy
-  (TensorType [] [] 0) ScalarLayout [] UserStateLifetime (OriginId 1)
+  (TensorType [] [] 0) ScalarLayout [] [] UserStateLifetime (OriginId 1)
 
 jet :: FieldId -> FieldJet
 jet fieldId = FieldJetValue fieldId CurrentTime (Basis [])

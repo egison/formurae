@@ -136,7 +136,7 @@ fixture = FEProgram
 
 scalarField :: FieldId -> String -> GridPolicy -> LogicalFieldDecl
 scalarField identifier name policy = LogicalFieldDecl identifier name policy
-  (TensorType [] [] 0) ScalarLayout [] UserStateLifetime (OriginId 1)
+  (TensorType [] [] 0) ScalarLayout [] [] UserStateLifetime (OriginId 1)
 
 origin :: SourceOrigin
 origin = SourceOrigin

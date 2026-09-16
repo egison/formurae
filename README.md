@@ -108,6 +108,54 @@ ambient名と`metric g`の宣言名はfield、parameter、user definition、defi
 step-level `let` / `local`では予約されます。Egison expression block内の局所`let`やlambdaだけは
 通常のlexical scopeに従います。
 
+## 空間次元と独立した成分数
+
+`index a, b : 9` は，添字記号 `a` と `b` の範囲をそれぞれ **1〜9** と宣言します。
+`dimension` と `axes` は引き続き計算領域の空間次元と座標を指定します。
+`index` は場と関数の宣言より前に書きます。
+
+```formurae
+dimension 2
+axes x, y
+index a, b : 9
+
+field f_a             -- 9成分
+field u~i             -- 空間方向の2成分
+field c_a~i           -- 9×2成分
+field M_a_b           -- 9×9成分
+```
+
+場の各軸のサイズは宣言時の添字で決まります。宣言していない `i`，`j` などは，
+従来どおり `dimension` 個の空間方向を表します。同じサイズを宣言した記号への
+付け替え（`f_a` → `f_b`）は可能ですが，`f_i` として2成分に読み替えることはできません。
+数値添字 `f_9` は第9成分を取り出します。
+
+`static field`，添字を明示した `local` / `let`，関数の添字付き引数でも同じ指定を使えます。
+例えば，9成分の場を各成分で拡散させる更新は次のように書けます。
+
+```formurae
+def diffuse X_b = X_b + dt * (∂^2_x X_b + ∂^2_y X_b)
+step:
+  local next_a = diffuse f
+  f'_b = next_b
+```
+
+上付きと下付きの同じ添字を `.` で縮約する，つまりその成分について和を取ると，
+`weights~a . f_a` は9項の和になります。`∂_i f_a` では `i` が空間方向，`a` が成分番号です。
+[実行検査用の例](tests/fixtures/pre_index_sizes.fme)は，拡散，縮約，空間微分，
+9×2の場，対称・反対称な3×3の場を含みます。
+
+明示した `index` は空間方向ではありません。`index a : 2` と空間次元が同じ場合でも，
+`∂_a` や空間の計量 `g_a_b` には使えません。`@ primal` / `@ dual` による格子配置も
+空間方向の添字だけで決めます。例えば `c_a_i @ primal` は，すべての `a` について
+`i` の方向に半格子だけずらします。
+
+サイズには正の整数を指定します。対称・反対称な場の2軸には同じサイズと種類
+（両方とも空間方向，または両方とも成分番号）が必要です。微分形式の軸は空間方向のままです。
+`index` 宣言があるモデルの局所場には `local q_a` や `local q_a_i` のように添字を
+明示します。`local q : tensor` の推論は，空間方向だけを使うモデルで利用できます。
+場の対応範囲は従来と同じで，通常の添字付きの場は2軸までです。
+
 ## 弾性波の例と適用条件
 
 [壁のある球殻の弾性波の例](examples/elastic_shell/README.md)は，同じプログラムを球座標と，
@@ -366,6 +414,7 @@ symbolic FEIRを通らないので、そこでは`π`を使わずbackend数値�
   `origin` 宣言があるときだけ省略可能な `start` fieldを持つ）
 - scalar/tensor normal formとderivative multi-index付き`FieldJet`
 - `GeometryNF`、discretization profile、opaque discrete request
+- 場の各軸のサイズと，空間方向を表す軸の位置 `spatial-slots`（1から数える）
 - registry/primitive-manifest/profile fingerprint
 - `.fme`のpath・line・columnとdefinition expansion trace
 
@@ -442,11 +491,12 @@ cabal run -v0 formurae-post -- /tmp/model.feir > /tmp/model.fmr
 
 ## 生成物
 
-`.fme`が編集対象です。27個のFME例では`.egi`、`.feir`、`.fmr`をreview可能な生成artifactとして
+`.fme`が編集対象です。42個のFME例では`.egi`、`.feir`、`.fmr`をreview可能な生成artifactとして
 追跡し、Makefileから再生成します。galleryは4段すべてを表示します。`mhd_ot`は19本の保存流束を
 typed `local`として物質化し、`lbm_d3q19`は中心1階・2階差分の恒等式で整数1セルpullを構成して、
-どちらも通常の`.fme -> .egi -> .feir -> .fmr`経路で検査します。LBMの19成分宣言と式を速度集合から
-自動展開する`field f : family 19`構文は、記述量をさらに減らす将来の表層機能です。
+どちらも通常の`.fme -> .egi -> .feir -> .fmr`経路で検査します。LBMの19成分を
+まとめて宣言する場合は `index a : 19` と `field f_a` を使えます。
+既存の `lbm_d3q19` は個別のスカラー宣言を使う例として残しています。
 
 ## リポジトリ構成
 

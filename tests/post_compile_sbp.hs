@@ -349,7 +349,7 @@ fixture = FEProgram
 
 scalarField :: FieldId -> String -> LogicalFieldDecl
 scalarField fieldId name = LogicalFieldDecl fieldId name CollocatedPolicy
-  (TensorType [] [] 0) ScalarLayout [] UserStateLifetime (OriginId 1)
+  (TensorType [] [] 0) ScalarLayout [] [] UserStateLifetime (OriginId 1)
 
 scalarField2d :: FieldId -> String -> LogicalFieldDecl
 scalarField2d = scalarField

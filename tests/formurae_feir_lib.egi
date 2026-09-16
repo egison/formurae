@@ -304,6 +304,7 @@ def feirProgramFixture :=
                     ])
               , FEIR.field "layout" (FEIR.atom "scalar")
               , FEIR.field "declared-variances" (FEIR.list [])
+              , FEIR.field "spatial-slots" (FEIR.list [])
               , FEIR.field "lifetime" (FEIR.atom "user-state")
               , FEIR.field "origin" (FEIR.int 1)
               ]])

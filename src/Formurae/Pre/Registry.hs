@@ -602,10 +602,10 @@ logicalFieldFromSurface
 logicalFieldFromSurface model identifier origin lifetime field =
   FEIR.LogicalFieldDecl
     identifier (Surface.fdName field) (mapPolicy (Surface.fdPolicy field))
-    tensorType layout declaredVariances lifetime origin
+    tensorType layout declaredVariances (Index.fieldSpatialSlots model field) lifetime origin
   where
     rank = Index.componentRank (Surface.fdKind field)
-    shape = replicate rank (Surface.mDim model)
+    shape = Index.fieldShape model field
     explicitVariances = fmap (map (mapVariance . Index.ixVariance))
       (Index.fieldIndexParts field)
     semanticVariances = maybe (replicate rank FEIR.VarianceDown) id explicitVariances

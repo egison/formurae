@@ -174,6 +174,8 @@ data Model = Model
   , mSourcePath :: FilePath
   , mDim    :: Int
   , mAxes   :: [String]
+  , mIndexSizes :: [(String, Int)]
+    -- ^ Non-spatial index symbols and their compile-time extents.
   , mAxesSourceLine :: Maybe Int
   , mAxisStarts :: [(String, Rational)]
     -- ^ origin declarations: the coordinate of the first grid node of an axis

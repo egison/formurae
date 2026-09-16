@@ -1054,6 +1054,8 @@ def FEIR.deferredLocalFieldDecl
         , FEIR.field "layout" (FEIR.atom (FEIR.deferredLayoutTag value))
         , FEIR.field "declared-variances"
             (FEIR.list (map (\_ -> FEIR.list [FEIR.atom "none"]) shape))
+        , FEIR.field "spatial-slots"
+            (FEIR.list (map FEIR.int (between 1 (length shape))))
         , FEIR.field "lifetime" (FEIR.atom "step-local")
         , FEIR.field "origin" (FEIR.int originId)
         ]

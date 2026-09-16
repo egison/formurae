@@ -195,7 +195,7 @@ fixture = FEProgram
 
 scalarField :: FieldId -> String -> LogicalFieldDecl
 scalarField fieldId name = LogicalFieldDecl fieldId name CollocatedPolicy
-  (TensorType [] [] 0) ScalarLayout [] UserStateLifetime (OriginId 1)
+  (TensorType [] [] 0) ScalarLayout [] [] UserStateLifetime (OriginId 1)
 
 scalarTensor :: ScalarNF -> TensorNF
 scalarTensor scalar = TensorNF [] [] 0 [(Basis [], scalar)]

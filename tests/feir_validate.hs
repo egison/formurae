@@ -135,6 +135,7 @@ scalarField fieldId name lifetime = LogicalFieldDecl
   , logicalFieldTensorType = TensorType [] [] 0
   , logicalFieldLayout = ScalarLayout
   , logicalFieldDeclaredVariances = []
+  , logicalFieldSpatialSlots = []
   , logicalFieldLifetime = lifetime
   , logicalFieldOrigin = origin1
   }
@@ -174,6 +175,7 @@ main = do
     (validateFEProgram validationConfig validProgram)
   checkHeaderAndIds
   checkTensorAndExact
+  checkComponentShapes
   checkNormalForms
   checkFieldJet
   checkReferencesAndActions
@@ -247,6 +249,37 @@ checkTensorAndExact = do
     isVariance _ = False
     isDfOrder (InvalidDifferentialFormOrder 1 0) = True
     isDfOrder _ = False
+
+checkComponentShapes :: IO ()
+checkComponentShapes = do
+  let field = validUserField
+        { logicalFieldTensorType = TensorType [9,2] [VarianceDown, VarianceUp] 0
+        , logicalFieldLayout = FullLayout
+        , logicalFieldDeclaredVariances = [Just VarianceDown, Just VarianceUp]
+        , logicalFieldSpatialSlots = [2]
+        }
+      program slots = validProgram
+        { feProgramFields = [field { logicalFieldSpatialSlots = slots }]
+        , feProgramInitializers = []
+        , feProgramStepActions = []
+        , feProgramProvenance = ProvenanceTable []
+        }
+  assertValid "mixed 9 by 2 field" (program [2])
+  assertValid "component extent may equal dimension" (program [])
+  mapM_ (assertIssue "invalid spatial slot metadata" isSlots . program)
+    [[1], [2,2], [0,2], [3]]
+  let mixedSymmetric = (program [2])
+        { feProgramFields = [field
+            { logicalFieldTensorType = TensorType [2,2] [VarianceDown, VarianceUp] 0
+            , logicalFieldLayout = SymmetricLayout
+            }] }
+  assertIssue "symmetric axes must have the same spatial role" isSlots mixedSymmetric
+  case decodeFEProgram (encodeFEProgram (program [2])) of
+    Right decoded | decoded == program [2] -> pure ()
+    result -> fail ("mixed shape codec round trip: " ++ show result)
+  where
+    isSlots (InvalidSpatialSlots _ _) = True
+    isSlots _ = False
 
 checkNormalForms :: IO ()
 checkNormalForms = do
