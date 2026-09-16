@@ -1,0 +1,30 @@
+{
+  "grid": [
+    128,
+    96
+  ],
+  "parameters": {
+    "nx": "128",
+    "ny": "96",
+    "depth": "36",
+    "amplitude": "0",
+    "center": "180",
+    "width": "12",
+    "beachStart": "215",
+    "beachSlope": "0",
+    "gravity": "0.0001",
+    "tau": "0.58",
+    "launch": "2.5",
+    "threshold": "0.001",
+    "waveCount": "3",
+    "waveSpacing": "70",
+    "gaugeOffshoreX": "40",
+    "gaugeSurfX": "80",
+    "hx": "dx",
+    "hy": "dy"
+  },
+  "source_sha256": "28b5016424deff9614668fa53d696357de42856bba8b4dc71febb4878d2dff2c",
+  "normalization_cache": "0c1f7d994beee4c29c16",
+  "steps": 1200,
+  "every": 60
+}
