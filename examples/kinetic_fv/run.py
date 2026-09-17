@@ -20,10 +20,11 @@ module = importlib.util.spec_from_file_location("kinetic_build_tools", HERE.pare
 helpers = importlib.util.module_from_spec(module)
 module.loader.exec_module(helpers)
 CHARTS = {"cartesian": (0, 0), "mapped": (0.2, 0.15)}
+METHODS = {0: "upwind", 1: "centered", 2: "muscl", 3: "upwind-rk2"}
 SCENARIOS = {"uniform": 0, "smooth": 1, "sharp": 2}
 REDUCTIONS = ["elapsed = max elapsed", "error = max error", "lowest = min lowest",
               "highest = max highest", "cfl = max cfl", "closure = max closure",
-              "minArea = min minArea"] + [f"m{a} = sum mass_down{a}" for a in range(1, 10)]
+              "minArea = min minArea", "errorL1 = sum errorL1", "mixing = sum mixing"] + [f"m{a} = sum mass_down{a}" for a in range(1, 10)]
 
 
 def normalize(base):
@@ -64,20 +65,22 @@ def simulate(directory, size, chart, scenario, method):
                              *map(str, CHARTS[chart]), str(SCENARIOS[scenario]), str(method)],
                             cwd=directory, capture_output=True, text=True, check=True)
     rows = [{key: float(value) for key, value in row.items()} for row in csv.DictReader(io.StringIO(result.stdout))]
-    if len(rows) != size + 1 or any(not math.isfinite(value) for row in rows for value in row.values()):
+    if len(rows) != (2*size if method >= 2 else size) + 1 or any(not math.isfinite(value) for row in rows for value in row.values()):
         raise AssertionError("missing steps or nonfinite diagnostic")
     drift = max(abs(row[f"m{a}"]-rows[0][f"m{a}"])/rows[0][f"m{a}"]
                 for row in rows for a in range(1, 10))
-    record = dict(grid=size, chart=chart, scenario=scenario, method="upwind" if method==0 else "centered",
+    record = dict(grid=size, chart=chart, scenario=scenario, method=METHODS[method], generated_updates=len(rows)-1,
                   population_mass_relative_drift=drift, final=rows[-1],
                   max_cfl=max(r["cfl"] for r in rows),
                   max_closure=max(r["closure"] for r in rows))
     assert drift < 1e-10, record
     assert all(r["minArea"] > 0 for r in rows), record
-    assert record["max_cfl"] < 1, record
+    assert record["max_cfl"] < (0.5 if method==2 else 1), record
+    assert abs(rows[-1]["time"]-0.2*math.pi) < 1e-12, record
     assert record["max_closure"] < 1e-10, record
-    if method == 0:
-        assert rows[-1]["lowest"] >= -1e-12, record
+    if method != 1:
+        assert rows[-1]["lowest"] >= rows[0]["lowest"]-1e-12, record
+        assert rows[-1]["highest"] <= rows[0]["highest"]+1e-12, record
         assert rows[-1]["highest"] <= (1.2 if scenario=="smooth" else 1)+1e-12, record
     else:
         assert rows[-1]["lowest"] < -1e-3, record
@@ -110,19 +113,40 @@ def main():
         directory = build(base, size)
         for chart in CHARTS:
             for scenario in SCENARIOS:
-                records.append(simulate(directory, size, chart, scenario, 0))
+                for method in (0, 2):
+                    records.append(simulate(directory, size, chart, scenario, method))
+            records.append(simulate(directory, size, chart, "smooth", 3))
             records.append(simulate(directory, size, chart, "sharp", 1))
     orders = {}
+    improvements = {}
     if len(args.grids) >= 2:
+        for method in ("upwind", "muscl", "upwind-rk2"):
+            orders[method] = {}
+            for chart in CHARTS:
+                smooth = [r for r in records if r["chart"]==chart and r["scenario"]=="smooth" and r["method"]==method]
+                orders[method][chart] = {
+                    norm: [math.log(a["final"][norm]/b["final"][norm])/math.log(b["grid"]/a["grid"])
+                           for a, b in zip(smooth, smooth[1:])] for norm in ("error", "errorL1")}
+                # MC limiting can lower the maximum-norm order near extrema;
+                # require near-second-order mean error and improved peak error.
+                if method=="muscl":
+                    assert orders[method][chart]["error"][-1] > 1.3, orders
+                    assert orders[method][chart]["errorL1"][-1] > 1.7, orders
+                else:
+                    assert orders[method][chart]["error"][-1] > 0.65, orders
         for chart in CHARTS:
-            smooth = [r for r in records if r["chart"]==chart and r["scenario"]=="smooth"]
-            orders[chart] = [math.log(a["final"]["error"]/b["final"]["error"])/math.log(b["grid"]/a["grid"])
-                             for a, b in zip(smooth, smooth[1:])]
-            assert orders[chart][-1] > 0.65, orders
+            finest = {r["method"]: r for r in records if r["grid"]==args.grids[-1]
+                      and r["chart"]==chart and r["scenario"]=="smooth"}
+            improvements[chart] = {method: finest[method]["final"]["error"]/finest["muscl"]["final"]["error"]
+                                   for method in ("upwind", "upwind-rk2")}
+            assert improvements[chart]["upwind-rk2"] > 3, improvements
+            sharp = {r["method"]: r for r in records if r["grid"]==args.grids[-1]
+                     and r["chart"]==chart and r["scenario"]=="sharp"}
+            assert 0 <= sharp["muscl"]["final"]["mixing"] < sharp["upwind"]["final"]["mixing"], sharp
     output = HERE / "results"
     output.mkdir(exist_ok=True)
-    (output / "verification.json").write_text(json.dumps(dict(**identity, runs=records, orders=orders), indent=2)+"\n")
-    print(json.dumps(dict(runs=len(records), orders=orders), indent=2))
+    (output / "verification.json").write_text(json.dumps(dict(**identity, runs=records, orders=orders, improvements=improvements), indent=2)+"\n")
+    print(json.dumps(dict(runs=len(records), orders=orders, improvements=improvements), indent=2))
 
 
 if __name__ == "__main__":

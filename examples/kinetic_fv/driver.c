@@ -21,6 +21,7 @@ static void report(Formura_Navi *n) {
   printf("%d,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g",n->time_step,
     n->reduce_elapsed,n->reduce_error,n->reduce_lowest,n->reduce_highest,
     n->reduce_cfl,n->reduce_closure,n->reduce_minArea);
+  printf(",%.17g,%.17g", n->reduce_errorL1, n->reduce_mixing);
   printf(",%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g\n",
     n->reduce_m1,n->reduce_m2,n->reduce_m3,n->reduce_m4,n->reduce_m5,
     n->reduce_m6,n->reduce_m7,n->reduce_m8,n->reduce_m9);
@@ -32,8 +33,9 @@ int main(int argc,char **argv) {
   int steps=(int)requested;
   for(int k=0;k<4;++k) configuration[k]=real(argv[k+2]);
   Formura_Navi n; Formura_Init(&argc,&argv,&n);
-  puts("step,time,error,lowest,highest,cfl,closure,minArea,m1,m2,m3,m4,m5,m6,m7,m8,m9");
+  puts("update,time,error,lowest,highest,cfl,closure,minArea,errorL1,mixing,m1,m2,m3,m4,m5,m6,m7,m8,m9");
   report(&n);
-  while(n.time_step<steps) { Formura_Forward(&n); report(&n); }
+  int updates=configuration[3]>1.5 ? 2*steps : steps;
+  while(n.time_step<updates) { Formura_Forward(&n); report(&n); }
   Formura_Finalize(); return 0;
 }
