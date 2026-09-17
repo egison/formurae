@@ -269,3 +269,14 @@ kinetic-fv-gallery:
 	$(POST_FEC_RUN) examples/kinetic_fv/kinetic_fv.feir > examples/kinetic_fv/kinetic_fv.fmr
 	$(PLOT_PYTHON) examples/kinetic_fv/render.py
 	python3 examples/kinetic_fv/gallery.py
+
+.PHONY: kinetic-viscosity-verify kinetic-viscosity-gallery
+kinetic-viscosity-verify:
+	python3 examples/kinetic_viscosity/run.py
+
+kinetic-viscosity-gallery:
+	$(PRE_FEC_RUN) examples/kinetic_viscosity/kinetic_viscosity.fme > examples/kinetic_viscosity/kinetic_viscosity.egi
+	$(EGISON_NORMALIZE) $(abspath examples/kinetic_viscosity/kinetic_viscosity.egi) > examples/kinetic_viscosity/kinetic_viscosity.feir
+	$(POST_FEC_RUN) examples/kinetic_viscosity/kinetic_viscosity.feir > examples/kinetic_viscosity/kinetic_viscosity.fmr
+	$(PLOT_PYTHON) examples/kinetic_viscosity/render.py
+	python3 examples/kinetic_viscosity/gallery.py

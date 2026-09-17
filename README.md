@@ -242,6 +242,13 @@ D3Q19へ拡張し，奥行きによって波高と波の位置が変わる水槽
 `make kinetic-fv-verify` で48条件の検証，`make kinetic-fv-gallery` で
 保存済みの結果から日英のギャラリー更新を再現できます．
 
+[衝突と粘性の検証](examples/kinetic_viscosity/README.md)では，この輸送に
+分布を平衡状態へ近づけるBGK衝突項を加えます．位置によって横向きの速さが変わる
+せん断流の減衰を，方程式から導いた参照値と比較します．三つの緩和時間，
+直交格子と曲がった格子，格子の細分化で誤差を調べ，質量と運動量の保存も確認します．
+`make kinetic-viscosity-verify` で50条件の検証，`make kinetic-viscosity-gallery` で
+日英のギャラリー更新を再現できます．
+
 ## 材料則と座標変換を変更する応用デモ
 
 [三つの比較デモ](examples/application_demos/README.md)では，利用者が定義した演算子を
