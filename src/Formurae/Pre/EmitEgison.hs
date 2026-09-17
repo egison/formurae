@@ -937,8 +937,22 @@ contextualize model userDefinitions shadowedNames boundNames expression
       | null (Surface.mIndexSizes model) || null parts = TEIdent name parts
       | otherwise = TEGroup (TEIdent
           ("let FormuraeInternalIndexed := FormuraeInternalCheckIndexShape "
-            ++ show (map indexExtent parts) ++ " " ++ name
+            ++ show (map indexExtent parts) ++ " " ++ checkedReferenceValue name parts
             ++ " in FormuraeInternalIndexed" ++ renderIndexParts parts) [])
+    -- Ambient metrics have indexed covariant/contravariant views, not a
+    -- binding for the bare name. Check the extent of the selected whole
+    -- view before relabelling it, including when non-spatial indices exist.
+    checkedReferenceValue name parts
+      | isLexicallyShadowed name = name
+      | name == "metric" = "metric_#_#"
+      | name == "inverseMetric" = "inverseMetric~#~#"
+      | Just name == Surface.mMetricName model
+      , all (\(Surface.IxPart variance _) -> variance == Surface.VDown) parts =
+          name ++ "_#_#"
+      | Just name == Surface.mMetricName model
+      , all (\(Surface.IxPart variance _) -> variance == Surface.VUp) parts =
+          name ++ "~#~#"
+      | otherwise = name
     indexExtent part
       | ixName part == "#" || all isDigit (ixName part) = 0
       | otherwise = indexSize model (ixName part)

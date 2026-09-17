@@ -1,0 +1,2956 @@
+{
+  "passed": true,
+  "source_sha256": "f51bbcfad603ddd3a8dfaf97d945448b44175f1cc987506970dcdb67414863d5",
+  "physical_duration": 2.513274122871837,
+  "max_mass_relative_drift": 1.9539925233402698e-14,
+  "max_momentum_absolute_drift": 6.35005777479972e-17,
+  "max_uniform_error": 8.845388854693244e-17,
+  "transport": {
+    "cartesian": {
+      "grids": [
+        16,
+        32,
+        64
+      ],
+      "final_max_population_error": [
+        0.0016216627884199646,
+        0.00040888804283279503,
+        0.00010166274062536464
+      ],
+      "observed_orders": [
+        1.9876960743768857,
+        2.007914845945715
+      ]
+    },
+    "stretched": {
+      "grids": [
+        16,
+        32,
+        64
+      ],
+      "final_max_population_error": [
+        0.0016241901950904967,
+        0.00041007945173825926,
+        0.0001020140827005777
+      ],
+      "observed_orders": [
+        1.9857452241294442,
+        2.007135129774423
+      ]
+    },
+    "curved": {
+      "grids": [
+        16,
+        32,
+        64
+      ],
+      "final_max_population_error": [
+        0.0022281662214802935,
+        0.00048060273308428274,
+        0.0001149740586861735
+      ],
+      "observed_orders": [
+        2.2129401040241574,
+        2.063536466631453
+      ]
+    }
+  },
+  "shear": {
+    "stretched": {
+      "grids": [
+        16,
+        32,
+        64
+      ],
+      "mode_difference_from_cartesian": [
+        7.310868811630233e-06,
+        1.9557740665171464e-06,
+        4.967524986042304e-07
+      ],
+      "observed_orders": [
+        1.90230314590445,
+        1.977140588782954
+      ]
+    },
+    "curved": {
+      "grids": [
+        16,
+        32,
+        64
+      ],
+      "mode_difference_from_cartesian": [
+        7.201916958264609e-06,
+        1.9498226587859324e-06,
+        4.963940973060077e-07
+      ],
+      "observed_orders": [
+        1.8850380513783143,
+        1.9737850478566716
+      ]
+    }
+  },
+  "runs": {
+    "uniform-cartesian-16": {
+      "metadata": {
+        "scenario": "uniform",
+        "chart": "cartesian",
+        "grid": [
+          16,
+          16
+        ],
+        "steps": 64,
+        "output_interval": 16,
+        "parameters": {
+          "stretch": "0",
+          "shear": "0",
+          "scenario": "0",
+          "amplitude": "0.02",
+          "tau": "0.2",
+          "dt": "0.1*dx",
+          "area": "39.47841760435743",
+          "cell": "dx*dy"
+        },
+        "config": [
+          "length_per_node: [6.283185307179586, 6.283185307179586]",
+          "grid_per_node: [16, 16]",
+          "mpi_shape: [1, 1]",
+          "boundary: [periodic, periodic]",
+          "reduces: [elapsed = max elapsed, mass = sum mass, momentum_x = sum momentumX, momentum_y = sum momentumY, mode = sum mode, energy = sum energy, error = max error, rmin = min density, rmax = max density, bad = max bad]"
+        ],
+        "source_sha256": "f51bbcfad603ddd3a8dfaf97d945448b44175f1cc987506970dcdb67414863d5",
+        "instantiated_fmr_sha256": "0576272a816b0939669e686b5a2d34250ae2967900f2edff484f39dcc5d28351",
+        "toolchain": {
+          "formurae_inputs_sha256": "45a4b166820b6dc86912468eb39fac6bdb6cf91b3f4ba0a59f1f7e76adf9554e",
+          "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+          "formura_executable_sha256": "dc4a5698895da10f7bd7879df5e169b708e5b9e486dfebc9e5c36aef2fba6a8d"
+        },
+        "elapsed_seconds": 0.5920054160000063
+      },
+      "records": [
+        {
+          "step": 0.0,
+          "time": 0.0,
+          "mass": 1.0,
+          "momentum_x": 0.030000000000000075,
+          "momentum_y": 0.019999999999999917,
+          "mode": -2.032879073410321e-18,
+          "energy": 0.0006500000000000018,
+          "error": 0.0,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 16.0,
+          "time": 0.6283185307179586,
+          "mass": 1.0,
+          "momentum_x": 0.030000000000000075,
+          "momentum_y": 0.019999999999999917,
+          "mode": -2.032879073410321e-18,
+          "energy": 0.0006500000000000018,
+          "error": 6.798699777552591e-17,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 32.0,
+          "time": 1.2566370614359172,
+          "mass": 1.0,
+          "momentum_x": 0.030000000000000075,
+          "momentum_y": 0.019999999999999917,
+          "mode": -2.032879073410321e-18,
+          "energy": 0.0006500000000000018,
+          "error": 6.798699777552591e-17,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 48.0,
+          "time": 1.8849555921538759,
+          "mass": 1.0,
+          "momentum_x": 0.030000000000000075,
+          "momentum_y": 0.019999999999999917,
+          "mode": -2.032879073410321e-18,
+          "energy": 0.0006500000000000018,
+          "error": 6.798699777552591e-17,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 64.0,
+          "time": 2.513274122871837,
+          "mass": 1.0,
+          "momentum_x": 0.030000000000000075,
+          "momentum_y": 0.019999999999999917,
+          "mode": -2.032879073410321e-18,
+          "energy": 0.0006500000000000018,
+          "error": 6.798699777552591e-17,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        }
+      ],
+      "mass_relative_drift": 0.0,
+      "momentum_absolute_drift": 0.0
+    },
+    "uniform-cartesian-32": {
+      "metadata": {
+        "scenario": "uniform",
+        "chart": "cartesian",
+        "grid": [
+          32,
+          32
+        ],
+        "steps": 128,
+        "output_interval": 32,
+        "parameters": {
+          "stretch": "0",
+          "shear": "0",
+          "scenario": "0",
+          "amplitude": "0.02",
+          "tau": "0.2",
+          "dt": "0.1*dx",
+          "area": "39.47841760435743",
+          "cell": "dx*dy"
+        },
+        "config": [
+          "length_per_node: [6.283185307179586, 6.283185307179586]",
+          "grid_per_node: [32, 32]",
+          "mpi_shape: [1, 1]",
+          "boundary: [periodic, periodic]",
+          "reduces: [elapsed = max elapsed, mass = sum mass, momentum_x = sum momentumX, momentum_y = sum momentumY, mode = sum mode, energy = sum energy, error = max error, rmin = min density, rmax = max density, bad = max bad]"
+        ],
+        "source_sha256": "f51bbcfad603ddd3a8dfaf97d945448b44175f1cc987506970dcdb67414863d5",
+        "instantiated_fmr_sha256": "0576272a816b0939669e686b5a2d34250ae2967900f2edff484f39dcc5d28351",
+        "toolchain": {
+          "formurae_inputs_sha256": "45a4b166820b6dc86912468eb39fac6bdb6cf91b3f4ba0a59f1f7e76adf9554e",
+          "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+          "formura_executable_sha256": "dc4a5698895da10f7bd7879df5e169b708e5b9e486dfebc9e5c36aef2fba6a8d"
+        },
+        "elapsed_seconds": 0.9683164170000111
+      },
+      "records": [
+        {
+          "step": 0.0,
+          "time": 0.0,
+          "mass": 1.0,
+          "momentum_x": 0.030000000000000398,
+          "momentum_y": 0.01999999999999966,
+          "mode": -2.515687853345272e-18,
+          "energy": 0.0006500000000000057,
+          "error": 0.0,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 32.0,
+          "time": 0.6283185307179586,
+          "mass": 1.0,
+          "momentum_x": 0.030000000000000398,
+          "momentum_y": 0.01999999999999966,
+          "mode": -2.515687853345272e-18,
+          "energy": 0.0006500000000000057,
+          "error": 6.798699777552591e-17,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 64.0,
+          "time": 1.2566370614359186,
+          "mass": 1.0,
+          "momentum_x": 0.030000000000000398,
+          "momentum_y": 0.01999999999999966,
+          "mode": -2.515687853345272e-18,
+          "energy": 0.0006500000000000057,
+          "error": 6.798699777552591e-17,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 96.0,
+          "time": 1.8849555921538808,
+          "mass": 1.0,
+          "momentum_x": 0.030000000000000398,
+          "momentum_y": 0.01999999999999966,
+          "mode": -2.515687853345272e-18,
+          "energy": 0.0006500000000000057,
+          "error": 6.798699777552591e-17,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 128.0,
+          "time": 2.513274122871843,
+          "mass": 1.0,
+          "momentum_x": 0.030000000000000398,
+          "momentum_y": 0.01999999999999966,
+          "mode": -2.515687853345272e-18,
+          "energy": 0.0006500000000000057,
+          "error": 6.798699777552591e-17,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        }
+      ],
+      "mass_relative_drift": 0.0,
+      "momentum_absolute_drift": 0.0
+    },
+    "uniform-cartesian-64": {
+      "metadata": {
+        "scenario": "uniform",
+        "chart": "cartesian",
+        "grid": [
+          64,
+          64
+        ],
+        "steps": 256,
+        "output_interval": 64,
+        "parameters": {
+          "stretch": "0",
+          "shear": "0",
+          "scenario": "0",
+          "amplitude": "0.02",
+          "tau": "0.2",
+          "dt": "0.1*dx",
+          "area": "39.47841760435743",
+          "cell": "dx*dy"
+        },
+        "config": [
+          "length_per_node: [6.283185307179586, 6.283185307179586]",
+          "grid_per_node: [64, 64]",
+          "mpi_shape: [1, 1]",
+          "boundary: [periodic, periodic]",
+          "reduces: [elapsed = max elapsed, mass = sum mass, momentum_x = sum momentumX, momentum_y = sum momentumY, mode = sum mode, energy = sum energy, error = max error, rmin = min density, rmax = max density, bad = max bad]"
+        ],
+        "source_sha256": "f51bbcfad603ddd3a8dfaf97d945448b44175f1cc987506970dcdb67414863d5",
+        "instantiated_fmr_sha256": "0576272a816b0939669e686b5a2d34250ae2967900f2edff484f39dcc5d28351",
+        "toolchain": {
+          "formurae_inputs_sha256": "45a4b166820b6dc86912468eb39fac6bdb6cf91b3f4ba0a59f1f7e76adf9554e",
+          "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+          "formura_executable_sha256": "dc4a5698895da10f7bd7879df5e169b708e5b9e486dfebc9e5c36aef2fba6a8d"
+        },
+        "elapsed_seconds": 3.329593999999986
+      },
+      "records": [
+        {
+          "step": 0.0,
+          "time": 0.0,
+          "mass": 1.0,
+          "momentum_x": 0.03000000000000095,
+          "momentum_y": 0.020000000000000205,
+          "mode": 2.879912020664621e-20,
+          "energy": 0.0006499999999999757,
+          "error": 0.0,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 64.0,
+          "time": 0.6283185307179593,
+          "mass": 1.0,
+          "momentum_x": 0.03000000000000095,
+          "momentum_y": 0.020000000000000205,
+          "mode": 2.879912020664621e-20,
+          "energy": 0.0006499999999999757,
+          "error": 6.798699777552591e-17,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 128.0,
+          "time": 1.2566370614359215,
+          "mass": 1.0,
+          "momentum_x": 0.03000000000000095,
+          "momentum_y": 0.020000000000000205,
+          "mode": 2.879912020664621e-20,
+          "energy": 0.0006499999999999757,
+          "error": 6.798699777552591e-17,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 192.0,
+          "time": 1.8849555921538836,
+          "mass": 1.0,
+          "momentum_x": 0.03000000000000095,
+          "momentum_y": 0.020000000000000205,
+          "mode": 2.879912020664621e-20,
+          "energy": 0.0006499999999999757,
+          "error": 6.798699777552591e-17,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 256.0,
+          "time": 2.5132741228718456,
+          "mass": 1.0,
+          "momentum_x": 0.03000000000000095,
+          "momentum_y": 0.020000000000000205,
+          "mode": 2.879912020664621e-20,
+          "energy": 0.0006499999999999757,
+          "error": 6.798699777552591e-17,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        }
+      ],
+      "mass_relative_drift": 0.0,
+      "momentum_absolute_drift": 0.0
+    },
+    "uniform-stretched-16": {
+      "metadata": {
+        "scenario": "uniform",
+        "chart": "stretched",
+        "grid": [
+          16,
+          16
+        ],
+        "steps": 64,
+        "output_interval": 16,
+        "parameters": {
+          "stretch": "0.2",
+          "shear": "0",
+          "scenario": "0",
+          "amplitude": "0.02",
+          "tau": "0.2",
+          "dt": "0.1*dx",
+          "area": "39.47841760435743",
+          "cell": "dx*dy"
+        },
+        "config": [
+          "length_per_node: [6.283185307179586, 6.283185307179586]",
+          "grid_per_node: [16, 16]",
+          "mpi_shape: [1, 1]",
+          "boundary: [periodic, periodic]",
+          "reduces: [elapsed = max elapsed, mass = sum mass, momentum_x = sum momentumX, momentum_y = sum momentumY, mode = sum mode, energy = sum energy, error = max error, rmin = min density, rmax = max density, bad = max bad]"
+        ],
+        "source_sha256": "f51bbcfad603ddd3a8dfaf97d945448b44175f1cc987506970dcdb67414863d5",
+        "instantiated_fmr_sha256": "0576272a816b0939669e686b5a2d34250ae2967900f2edff484f39dcc5d28351",
+        "toolchain": {
+          "formurae_inputs_sha256": "45a4b166820b6dc86912468eb39fac6bdb6cf91b3f4ba0a59f1f7e76adf9554e",
+          "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+          "formura_executable_sha256": "dc4a5698895da10f7bd7879df5e169b708e5b9e486dfebc9e5c36aef2fba6a8d"
+        },
+        "elapsed_seconds": 0.05049424999998564
+      },
+      "records": [
+        {
+          "step": 0.0,
+          "time": 0.0,
+          "mass": 1.0000000000000002,
+          "momentum_x": 0.029999999999999936,
+          "momentum_y": 0.02,
+          "mode": -2.4665599424045226e-18,
+          "energy": 0.0006500000000000014,
+          "error": 0.0,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 16.0,
+          "time": 0.6283185307179586,
+          "mass": 1.0000000000000002,
+          "momentum_x": 0.029999999999999936,
+          "momentum_y": 0.020000000000000004,
+          "mode": -9.215718466126788e-18,
+          "energy": 0.0006500000000000018,
+          "error": 8.047322186915396e-17,
+          "rmin": 0.9999999999999998,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 32.0,
+          "time": 1.2566370614359172,
+          "mass": 1.0000000000000002,
+          "momentum_x": 0.029999999999999936,
+          "momentum_y": 0.020000000000000004,
+          "mode": -9.215718466126788e-18,
+          "energy": 0.0006500000000000018,
+          "error": 8.047322186915396e-17,
+          "rmin": 0.9999999999999998,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 48.0,
+          "time": 1.8849555921538759,
+          "mass": 1.0000000000000002,
+          "momentum_x": 0.029999999999999936,
+          "momentum_y": 0.020000000000000004,
+          "mode": -9.215718466126788e-18,
+          "energy": 0.0006500000000000018,
+          "error": 8.047322186915396e-17,
+          "rmin": 0.9999999999999998,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 64.0,
+          "time": 2.513274122871837,
+          "mass": 1.0000000000000002,
+          "momentum_x": 0.029999999999999936,
+          "momentum_y": 0.020000000000000004,
+          "mode": -9.215718466126788e-18,
+          "energy": 0.0006500000000000018,
+          "error": 8.047322186915396e-17,
+          "rmin": 0.9999999999999998,
+          "rmax": 1.0,
+          "bad": 0.0
+        }
+      ],
+      "mass_relative_drift": 0.0,
+      "momentum_absolute_drift": 3.469446951953614e-18
+    },
+    "uniform-stretched-32": {
+      "metadata": {
+        "scenario": "uniform",
+        "chart": "stretched",
+        "grid": [
+          32,
+          32
+        ],
+        "steps": 128,
+        "output_interval": 32,
+        "parameters": {
+          "stretch": "0.2",
+          "shear": "0",
+          "scenario": "0",
+          "amplitude": "0.02",
+          "tau": "0.2",
+          "dt": "0.1*dx",
+          "area": "39.47841760435743",
+          "cell": "dx*dy"
+        },
+        "config": [
+          "length_per_node: [6.283185307179586, 6.283185307179586]",
+          "grid_per_node: [32, 32]",
+          "mpi_shape: [1, 1]",
+          "boundary: [periodic, periodic]",
+          "reduces: [elapsed = max elapsed, mass = sum mass, momentum_x = sum momentumX, momentum_y = sum momentumY, mode = sum mode, energy = sum energy, error = max error, rmin = min density, rmax = max density, bad = max bad]"
+        ],
+        "source_sha256": "f51bbcfad603ddd3a8dfaf97d945448b44175f1cc987506970dcdb67414863d5",
+        "instantiated_fmr_sha256": "0576272a816b0939669e686b5a2d34250ae2967900f2edff484f39dcc5d28351",
+        "toolchain": {
+          "formurae_inputs_sha256": "45a4b166820b6dc86912468eb39fac6bdb6cf91b3f4ba0a59f1f7e76adf9554e",
+          "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+          "formura_executable_sha256": "dc4a5698895da10f7bd7879df5e169b708e5b9e486dfebc9e5c36aef2fba6a8d"
+        },
+        "elapsed_seconds": 0.36464145799999415
+      },
+      "records": [
+        {
+          "step": 0.0,
+          "time": 0.0,
+          "mass": 1.0,
+          "momentum_x": 0.030000000000000228,
+          "momentum_y": 0.01999999999999997,
+          "mode": -2.168404344971009e-19,
+          "energy": 0.0006500000000000062,
+          "error": 0.0,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 32.0,
+          "time": 0.6283185307179586,
+          "mass": 1.0,
+          "momentum_x": 0.030000000000000228,
+          "momentum_y": 0.01999999999999997,
+          "mode": -2.202285662861181e-19,
+          "energy": 0.0006500000000000062,
+          "error": 6.798699777552591e-17,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 64.0,
+          "time": 1.2566370614359186,
+          "mass": 1.0,
+          "momentum_x": 0.030000000000000228,
+          "momentum_y": 0.01999999999999997,
+          "mode": -2.202285662861181e-19,
+          "energy": 0.0006500000000000062,
+          "error": 6.798699777552591e-17,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 96.0,
+          "time": 1.8849555921538808,
+          "mass": 1.0,
+          "momentum_x": 0.030000000000000228,
+          "momentum_y": 0.01999999999999997,
+          "mode": -2.202285662861181e-19,
+          "energy": 0.0006500000000000062,
+          "error": 6.798699777552591e-17,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 128.0,
+          "time": 2.513274122871843,
+          "mass": 1.0,
+          "momentum_x": 0.030000000000000228,
+          "momentum_y": 0.01999999999999997,
+          "mode": -2.202285662861181e-19,
+          "energy": 0.0006500000000000062,
+          "error": 6.798699777552591e-17,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        }
+      ],
+      "mass_relative_drift": 0.0,
+      "momentum_absolute_drift": 0.0
+    },
+    "uniform-stretched-64": {
+      "metadata": {
+        "scenario": "uniform",
+        "chart": "stretched",
+        "grid": [
+          64,
+          64
+        ],
+        "steps": 256,
+        "output_interval": 64,
+        "parameters": {
+          "stretch": "0.2",
+          "shear": "0",
+          "scenario": "0",
+          "amplitude": "0.02",
+          "tau": "0.2",
+          "dt": "0.1*dx",
+          "area": "39.47841760435743",
+          "cell": "dx*dy"
+        },
+        "config": [
+          "length_per_node: [6.283185307179586, 6.283185307179586]",
+          "grid_per_node: [64, 64]",
+          "mpi_shape: [1, 1]",
+          "boundary: [periodic, periodic]",
+          "reduces: [elapsed = max elapsed, mass = sum mass, momentum_x = sum momentumX, momentum_y = sum momentumY, mode = sum mode, energy = sum energy, error = max error, rmin = min density, rmax = max density, bad = max bad]"
+        ],
+        "source_sha256": "f51bbcfad603ddd3a8dfaf97d945448b44175f1cc987506970dcdb67414863d5",
+        "instantiated_fmr_sha256": "0576272a816b0939669e686b5a2d34250ae2967900f2edff484f39dcc5d28351",
+        "toolchain": {
+          "formurae_inputs_sha256": "45a4b166820b6dc86912468eb39fac6bdb6cf91b3f4ba0a59f1f7e76adf9554e",
+          "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+          "formura_executable_sha256": "dc4a5698895da10f7bd7879df5e169b708e5b9e486dfebc9e5c36aef2fba6a8d"
+        },
+        "elapsed_seconds": 2.9108538749999866
+      },
+      "records": [
+        {
+          "step": 0.0,
+          "time": 0.0,
+          "mass": 1.0000000000000029,
+          "momentum_x": 0.029999999999999753,
+          "momentum_y": 0.020000000000000313,
+          "mode": 1.1032646489634625e-16,
+          "energy": 0.0006499999999999824,
+          "error": 0.0,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 64.0,
+          "time": 0.6283185307179593,
+          "mass": 1.0000000000000029,
+          "momentum_x": 0.029999999999999753,
+          "momentum_y": 0.020000000000000313,
+          "mode": 1.1032646489634625e-16,
+          "energy": 0.0006499999999999824,
+          "error": 6.798699777552591e-17,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 128.0,
+          "time": 1.2566370614359215,
+          "mass": 1.0000000000000029,
+          "momentum_x": 0.029999999999999753,
+          "momentum_y": 0.020000000000000313,
+          "mode": 1.1032646489634625e-16,
+          "energy": 0.0006499999999999824,
+          "error": 6.798699777552591e-17,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 192.0,
+          "time": 1.8849555921538836,
+          "mass": 1.0000000000000029,
+          "momentum_x": 0.029999999999999753,
+          "momentum_y": 0.020000000000000313,
+          "mode": 1.1032646489634625e-16,
+          "energy": 0.0006499999999999824,
+          "error": 6.798699777552591e-17,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 256.0,
+          "time": 2.5132741228718456,
+          "mass": 1.0000000000000029,
+          "momentum_x": 0.029999999999999753,
+          "momentum_y": 0.020000000000000313,
+          "mode": 1.1032646489634625e-16,
+          "energy": 0.0006499999999999824,
+          "error": 6.798699777552591e-17,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        }
+      ],
+      "mass_relative_drift": 0.0,
+      "momentum_absolute_drift": 0.0
+    },
+    "uniform-curved-16": {
+      "metadata": {
+        "scenario": "uniform",
+        "chart": "curved",
+        "grid": [
+          16,
+          16
+        ],
+        "steps": 64,
+        "output_interval": 16,
+        "parameters": {
+          "stretch": "0.2",
+          "shear": "0.3",
+          "scenario": "0",
+          "amplitude": "0.02",
+          "tau": "0.2",
+          "dt": "0.1*dx",
+          "area": "39.47841760435743",
+          "cell": "dx*dy"
+        },
+        "config": [
+          "length_per_node: [6.283185307179586, 6.283185307179586]",
+          "grid_per_node: [16, 16]",
+          "mpi_shape: [1, 1]",
+          "boundary: [periodic, periodic]",
+          "reduces: [elapsed = max elapsed, mass = sum mass, momentum_x = sum momentumX, momentum_y = sum momentumY, mode = sum mode, energy = sum energy, error = max error, rmin = min density, rmax = max density, bad = max bad]"
+        ],
+        "source_sha256": "f51bbcfad603ddd3a8dfaf97d945448b44175f1cc987506970dcdb67414863d5",
+        "instantiated_fmr_sha256": "0576272a816b0939669e686b5a2d34250ae2967900f2edff484f39dcc5d28351",
+        "toolchain": {
+          "formurae_inputs_sha256": "45a4b166820b6dc86912468eb39fac6bdb6cf91b3f4ba0a59f1f7e76adf9554e",
+          "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+          "formura_executable_sha256": "dc4a5698895da10f7bd7879df5e169b708e5b9e486dfebc9e5c36aef2fba6a8d"
+        },
+        "elapsed_seconds": 0.04947999999998842
+      },
+      "records": [
+        {
+          "step": 0.0,
+          "time": 0.0,
+          "mass": 1.0000000000000002,
+          "momentum_x": 0.029999999999999936,
+          "momentum_y": 0.02,
+          "mode": -2.2632720350634905e-18,
+          "energy": 0.0006500000000000014,
+          "error": 0.0,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 16.0,
+          "time": 0.6283185307179586,
+          "mass": 1.0000000000000002,
+          "momentum_x": 0.029999999999999936,
+          "momentum_y": 0.020000000000000007,
+          "mode": -3.198396408832238e-18,
+          "energy": 0.0006500000000000016,
+          "error": 8.845388854693244e-17,
+          "rmin": 0.9999999999999998,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 32.0,
+          "time": 1.2566370614359172,
+          "mass": 1.0000000000000002,
+          "momentum_x": 0.029999999999999936,
+          "momentum_y": 0.020000000000000007,
+          "mode": -3.198396408832238e-18,
+          "energy": 0.0006500000000000015,
+          "error": 8.845388854693244e-17,
+          "rmin": 0.9999999999999998,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 48.0,
+          "time": 1.8849555921538759,
+          "mass": 1.0000000000000002,
+          "momentum_x": 0.029999999999999936,
+          "momentum_y": 0.020000000000000007,
+          "mode": -3.198396408832238e-18,
+          "energy": 0.0006500000000000015,
+          "error": 8.845388854693244e-17,
+          "rmin": 0.9999999999999998,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 64.0,
+          "time": 2.513274122871837,
+          "mass": 1.0000000000000002,
+          "momentum_x": 0.029999999999999936,
+          "momentum_y": 0.020000000000000007,
+          "mode": -3.198396408832238e-18,
+          "energy": 0.0006500000000000015,
+          "error": 8.845388854693244e-17,
+          "rmin": 0.9999999999999998,
+          "rmax": 1.0,
+          "bad": 0.0
+        }
+      ],
+      "mass_relative_drift": 0.0,
+      "momentum_absolute_drift": 6.938893903907228e-18
+    },
+    "uniform-curved-32": {
+      "metadata": {
+        "scenario": "uniform",
+        "chart": "curved",
+        "grid": [
+          32,
+          32
+        ],
+        "steps": 128,
+        "output_interval": 32,
+        "parameters": {
+          "stretch": "0.2",
+          "shear": "0.3",
+          "scenario": "0",
+          "amplitude": "0.02",
+          "tau": "0.2",
+          "dt": "0.1*dx",
+          "area": "39.47841760435743",
+          "cell": "dx*dy"
+        },
+        "config": [
+          "length_per_node: [6.283185307179586, 6.283185307179586]",
+          "grid_per_node: [32, 32]",
+          "mpi_shape: [1, 1]",
+          "boundary: [periodic, periodic]",
+          "reduces: [elapsed = max elapsed, mass = sum mass, momentum_x = sum momentumX, momentum_y = sum momentumY, mode = sum mode, energy = sum energy, error = max error, rmin = min density, rmax = max density, bad = max bad]"
+        ],
+        "source_sha256": "f51bbcfad603ddd3a8dfaf97d945448b44175f1cc987506970dcdb67414863d5",
+        "instantiated_fmr_sha256": "0576272a816b0939669e686b5a2d34250ae2967900f2edff484f39dcc5d28351",
+        "toolchain": {
+          "formurae_inputs_sha256": "45a4b166820b6dc86912468eb39fac6bdb6cf91b3f4ba0a59f1f7e76adf9554e",
+          "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+          "formura_executable_sha256": "dc4a5698895da10f7bd7879df5e169b708e5b9e486dfebc9e5c36aef2fba6a8d"
+        },
+        "elapsed_seconds": 0.36518212500001823
+      },
+      "records": [
+        {
+          "step": 0.0,
+          "time": 0.0,
+          "mass": 1.0,
+          "momentum_x": 0.030000000000000228,
+          "momentum_y": 0.01999999999999997,
+          "mode": 3.5405977195229754e-19,
+          "energy": 0.0006500000000000062,
+          "error": 0.0,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 32.0,
+          "time": 0.6283185307179586,
+          "mass": 1.0,
+          "momentum_x": 0.030000000000000228,
+          "momentum_y": 0.01999999999999997,
+          "mode": 3.5067164016328034e-19,
+          "energy": 0.0006500000000000062,
+          "error": 6.877910602720239e-17,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 64.0,
+          "time": 1.2566370614359186,
+          "mass": 1.0,
+          "momentum_x": 0.030000000000000228,
+          "momentum_y": 0.01999999999999997,
+          "mode": 3.5067164016328034e-19,
+          "energy": 0.0006500000000000062,
+          "error": 6.877910602720239e-17,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 96.0,
+          "time": 1.8849555921538808,
+          "mass": 1.0,
+          "momentum_x": 0.030000000000000228,
+          "momentum_y": 0.01999999999999997,
+          "mode": 3.5067164016328034e-19,
+          "energy": 0.0006500000000000062,
+          "error": 6.877910602720239e-17,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 128.0,
+          "time": 2.513274122871843,
+          "mass": 1.0,
+          "momentum_x": 0.030000000000000228,
+          "momentum_y": 0.01999999999999997,
+          "mode": 3.5067164016328034e-19,
+          "energy": 0.0006500000000000062,
+          "error": 6.877910602720239e-17,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        }
+      ],
+      "mass_relative_drift": 0.0,
+      "momentum_absolute_drift": 0.0
+    },
+    "uniform-curved-64": {
+      "metadata": {
+        "scenario": "uniform",
+        "chart": "curved",
+        "grid": [
+          64,
+          64
+        ],
+        "steps": 256,
+        "output_interval": 64,
+        "parameters": {
+          "stretch": "0.2",
+          "shear": "0.3",
+          "scenario": "0",
+          "amplitude": "0.02",
+          "tau": "0.2",
+          "dt": "0.1*dx",
+          "area": "39.47841760435743",
+          "cell": "dx*dy"
+        },
+        "config": [
+          "length_per_node: [6.283185307179586, 6.283185307179586]",
+          "grid_per_node: [64, 64]",
+          "mpi_shape: [1, 1]",
+          "boundary: [periodic, periodic]",
+          "reduces: [elapsed = max elapsed, mass = sum mass, momentum_x = sum momentumX, momentum_y = sum momentumY, mode = sum mode, energy = sum energy, error = max error, rmin = min density, rmax = max density, bad = max bad]"
+        ],
+        "source_sha256": "f51bbcfad603ddd3a8dfaf97d945448b44175f1cc987506970dcdb67414863d5",
+        "instantiated_fmr_sha256": "0576272a816b0939669e686b5a2d34250ae2967900f2edff484f39dcc5d28351",
+        "toolchain": {
+          "formurae_inputs_sha256": "45a4b166820b6dc86912468eb39fac6bdb6cf91b3f4ba0a59f1f7e76adf9554e",
+          "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+          "formura_executable_sha256": "dc4a5698895da10f7bd7879df5e169b708e5b9e486dfebc9e5c36aef2fba6a8d"
+        },
+        "elapsed_seconds": 2.8818178330000137
+      },
+      "records": [
+        {
+          "step": 0.0,
+          "time": 0.0,
+          "mass": 1.0000000000000029,
+          "momentum_x": 0.029999999999999753,
+          "momentum_y": 0.020000000000000313,
+          "mode": 1.088437337221776e-19,
+          "energy": 0.0006499999999999824,
+          "error": 0.0,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 64.0,
+          "time": 0.6283185307179593,
+          "mass": 1.0000000000000029,
+          "momentum_x": 0.029999999999999753,
+          "momentum_y": 0.020000000000000313,
+          "mode": 1.088437337221776e-19,
+          "energy": 0.0006499999999999824,
+          "error": 6.798699777552591e-17,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 128.0,
+          "time": 1.2566370614359215,
+          "mass": 1.0000000000000029,
+          "momentum_x": 0.029999999999999753,
+          "momentum_y": 0.020000000000000313,
+          "mode": 1.088437337221776e-19,
+          "energy": 0.0006499999999999824,
+          "error": 6.798699777552591e-17,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 192.0,
+          "time": 1.8849555921538836,
+          "mass": 1.0000000000000029,
+          "momentum_x": 0.029999999999999753,
+          "momentum_y": 0.020000000000000313,
+          "mode": 1.088437337221776e-19,
+          "energy": 0.0006499999999999824,
+          "error": 6.798699777552591e-17,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 256.0,
+          "time": 2.5132741228718456,
+          "mass": 1.0000000000000029,
+          "momentum_x": 0.029999999999999753,
+          "momentum_y": 0.020000000000000313,
+          "mode": 1.088437337221776e-19,
+          "energy": 0.0006499999999999824,
+          "error": 6.798699777552591e-17,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        }
+      ],
+      "mass_relative_drift": 0.0,
+      "momentum_absolute_drift": 0.0
+    },
+    "transport-cartesian-16": {
+      "metadata": {
+        "scenario": "transport",
+        "chart": "cartesian",
+        "grid": [
+          16,
+          16
+        ],
+        "steps": 64,
+        "output_interval": 16,
+        "parameters": {
+          "stretch": "0",
+          "shear": "0",
+          "scenario": "1",
+          "amplitude": "0.02",
+          "tau": "0.2",
+          "dt": "0.1*dx",
+          "area": "39.47841760435743",
+          "cell": "dx*dy"
+        },
+        "config": [
+          "length_per_node: [6.283185307179586, 6.283185307179586]",
+          "grid_per_node: [16, 16]",
+          "mpi_shape: [1, 1]",
+          "boundary: [periodic, periodic]",
+          "reduces: [elapsed = max elapsed, mass = sum mass, momentum_x = sum momentumX, momentum_y = sum momentumY, mode = sum mode, energy = sum energy, error = max error, rmin = min density, rmax = max density, bad = max bad]"
+        ],
+        "source_sha256": "f51bbcfad603ddd3a8dfaf97d945448b44175f1cc987506970dcdb67414863d5",
+        "instantiated_fmr_sha256": "0576272a816b0939669e686b5a2d34250ae2967900f2edff484f39dcc5d28351",
+        "toolchain": {
+          "formurae_inputs_sha256": "45a4b166820b6dc86912468eb39fac6bdb6cf91b3f4ba0a59f1f7e76adf9554e",
+          "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+          "formura_executable_sha256": "dc4a5698895da10f7bd7879df5e169b708e5b9e486dfebc9e5c36aef2fba6a8d"
+        },
+        "elapsed_seconds": 0.049394791999986865
+      },
+      "records": [
+        {
+          "step": 0.0,
+          "time": 0.0,
+          "mass": 1.0,
+          "momentum_x": 0.0,
+          "momentum_y": 0.0,
+          "mode": 0.0,
+          "energy": 0.0,
+          "error": 0.0,
+          "rmin": 0.98,
+          "rmax": 1.02,
+          "bad": 0.0
+        },
+        {
+          "step": 16.0,
+          "time": 0.6283185307179586,
+          "mass": 0.9999999999999998,
+          "momentum_x": 8.470329472543003e-19,
+          "momentum_y": -2.337810934421869e-19,
+          "mode": -1.3552527156068805e-20,
+          "energy": 1.0430439882507191e-05,
+          "error": 0.0003852502284025541,
+          "rmin": 0.984809726460057,
+          "rmax": 1.0151902735399412,
+          "bad": 0.0
+        },
+        {
+          "step": 32.0,
+          "time": 1.2566370614359172,
+          "mass": 0.9999999999999986,
+          "momentum_x": 2.137911158869854e-18,
+          "momentum_y": 5.234663614031576e-19,
+          "mode": -8.080694316806025e-19,
+          "energy": 6.032152432367778e-06,
+          "error": 0.0006100208544370298,
+          "rmin": 0.9929195187758562,
+          "rmax": 1.0070804812241412,
+          "bad": 0.0
+        },
+        {
+          "step": 48.0,
+          "time": 1.8849555921538759,
+          "mass": 0.9999999999999991,
+          "momentum_x": 9.84252284709497e-19,
+          "momentum_y": 2.749892463261086e-18,
+          "mode": -3.1509625637859973e-19,
+          "energy": 1.4559257271807843e-06,
+          "error": 0.0010862325299364302,
+          "rmin": 0.9960173901482922,
+          "rmax": 1.003982609851704,
+          "bad": 0.0
+        },
+        {
+          "step": 64.0,
+          "time": 2.513274122871837,
+          "mass": 0.9999999999999984,
+          "momentum_x": 5.082197683525802e-20,
+          "momentum_y": 6.776263578034403e-19,
+          "mode": 5.920760301307559e-19,
+          "energy": 3.4597971289985177e-06,
+          "error": 0.0016216627884199646,
+          "rmin": 0.9950402984996044,
+          "rmax": 1.0049597015003904,
+          "bad": 0.0
+        }
+      ],
+      "mass_relative_drift": 1.5543122344752192e-15,
+      "momentum_absolute_drift": 2.749892463261086e-18
+    },
+    "transport-cartesian-32": {
+      "metadata": {
+        "scenario": "transport",
+        "chart": "cartesian",
+        "grid": [
+          32,
+          32
+        ],
+        "steps": 128,
+        "output_interval": 32,
+        "parameters": {
+          "stretch": "0",
+          "shear": "0",
+          "scenario": "1",
+          "amplitude": "0.02",
+          "tau": "0.2",
+          "dt": "0.1*dx",
+          "area": "39.47841760435743",
+          "cell": "dx*dy"
+        },
+        "config": [
+          "length_per_node: [6.283185307179586, 6.283185307179586]",
+          "grid_per_node: [32, 32]",
+          "mpi_shape: [1, 1]",
+          "boundary: [periodic, periodic]",
+          "reduces: [elapsed = max elapsed, mass = sum mass, momentum_x = sum momentumX, momentum_y = sum momentumY, mode = sum mode, energy = sum energy, error = max error, rmin = min density, rmax = max density, bad = max bad]"
+        ],
+        "source_sha256": "f51bbcfad603ddd3a8dfaf97d945448b44175f1cc987506970dcdb67414863d5",
+        "instantiated_fmr_sha256": "0576272a816b0939669e686b5a2d34250ae2967900f2edff484f39dcc5d28351",
+        "toolchain": {
+          "formurae_inputs_sha256": "45a4b166820b6dc86912468eb39fac6bdb6cf91b3f4ba0a59f1f7e76adf9554e",
+          "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+          "formura_executable_sha256": "dc4a5698895da10f7bd7879df5e169b708e5b9e486dfebc9e5c36aef2fba6a8d"
+        },
+        "elapsed_seconds": 0.3643509579999886
+      },
+      "records": [
+        {
+          "step": 0.0,
+          "time": 0.0,
+          "mass": 1.0,
+          "momentum_x": 0.0,
+          "momentum_y": 0.0,
+          "mode": 0.0,
+          "energy": 0.0,
+          "error": 0.0,
+          "rmin": 0.98,
+          "rmax": 1.02,
+          "bad": 0.0
+        },
+        {
+          "step": 32.0,
+          "time": 0.6283185307179586,
+          "mass": 0.9999999999999999,
+          "momentum_x": 4.891615270393584e-19,
+          "momentum_y": 1.8003685293890154e-18,
+          "mode": -7.595767954502938e-19,
+          "energy": 1.094306026724488e-05,
+          "error": 0.00010014335398762801,
+          "rmin": 0.98538498909231,
+          "rmax": 1.014615010907687,
+          "bad": 0.0
+        },
+        {
+          "step": 64.0,
+          "time": 1.2566370614359186,
+          "mass": 0.9999999999999982,
+          "momentum_x": -4.55491967386e-18,
+          "momentum_y": 2.0409258864092367e-18,
+          "mode": -1.0986017325888275e-18,
+          "energy": 4.381761026794851e-06,
+          "error": 0.0001667120715055118,
+          "rmin": 0.993666194614086,
+          "rmax": 1.006333805385909,
+          "bad": 0.0
+        },
+        {
+          "step": 96.0,
+          "time": 1.8849555921538808,
+          "mass": 0.9999999999999947,
+          "momentum_x": -8.03241343881253e-18,
+          "momentum_y": 8.898716385616866e-18,
+          "mode": -4.275134103470064e-18,
+          "energy": 2.3793521505514416e-06,
+          "error": 0.00026194914122237243,
+          "rmin": 0.9956934607184913,
+          "rmax": 1.0043065392815016,
+          "bad": 0.0
+        },
+        {
+          "step": 128.0,
+          "time": 2.513274122871843,
+          "mass": 0.9999999999999988,
+          "momentum_x": -1.4353820324171374e-17,
+          "momentum_y": 1.1601810278542152e-17,
+          "mode": -7.28522450021583e-18,
+          "energy": 3.845526548892727e-06,
+          "error": 0.00040888804283279503,
+          "rmin": 0.9941709390167366,
+          "rmax": 1.0058290609832534,
+          "bad": 0.0
+        }
+      ],
+      "mass_relative_drift": 5.329070518200751e-15,
+      "momentum_absolute_drift": 1.4353820324171374e-17
+    },
+    "transport-cartesian-64": {
+      "metadata": {
+        "scenario": "transport",
+        "chart": "cartesian",
+        "grid": [
+          64,
+          64
+        ],
+        "steps": 256,
+        "output_interval": 64,
+        "parameters": {
+          "stretch": "0",
+          "shear": "0",
+          "scenario": "1",
+          "amplitude": "0.02",
+          "tau": "0.2",
+          "dt": "0.1*dx",
+          "area": "39.47841760435743",
+          "cell": "dx*dy"
+        },
+        "config": [
+          "length_per_node: [6.283185307179586, 6.283185307179586]",
+          "grid_per_node: [64, 64]",
+          "mpi_shape: [1, 1]",
+          "boundary: [periodic, periodic]",
+          "reduces: [elapsed = max elapsed, mass = sum mass, momentum_x = sum momentumX, momentum_y = sum momentumY, mode = sum mode, energy = sum energy, error = max error, rmin = min density, rmax = max density, bad = max bad]"
+        ],
+        "source_sha256": "f51bbcfad603ddd3a8dfaf97d945448b44175f1cc987506970dcdb67414863d5",
+        "instantiated_fmr_sha256": "0576272a816b0939669e686b5a2d34250ae2967900f2edff484f39dcc5d28351",
+        "toolchain": {
+          "formurae_inputs_sha256": "45a4b166820b6dc86912468eb39fac6bdb6cf91b3f4ba0a59f1f7e76adf9554e",
+          "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+          "formura_executable_sha256": "dc4a5698895da10f7bd7879df5e169b708e5b9e486dfebc9e5c36aef2fba6a8d"
+        },
+        "elapsed_seconds": 2.877107207999984
+      },
+      "records": [
+        {
+          "step": 0.0,
+          "time": 0.0,
+          "mass": 1.0,
+          "momentum_x": 0.0,
+          "momentum_y": 0.0,
+          "mode": 0.0,
+          "energy": 0.0,
+          "error": 0.0,
+          "rmin": 0.98,
+          "rmax": 1.02,
+          "bad": 0.0
+        },
+        {
+          "step": 64.0,
+          "time": 0.6283185307179593,
+          "mass": 0.9999999999999922,
+          "momentum_x": -7.837966437858465e-19,
+          "momentum_y": -2.8169139452125826e-18,
+          "mode": 1.871294303831762e-18,
+          "energy": 1.1051665410308938e-05,
+          "error": 2.527187659049103e-05,
+          "rmin": 0.9855356840089151,
+          "rmax": 1.01446431599108,
+          "bad": 0.0
+        },
+        {
+          "step": 128.0,
+          "time": 1.2566370614359215,
+          "mass": 0.9999999999999968,
+          "momentum_x": -3.7258861767348536e-19,
+          "momentum_y": -7.837410572486829e-18,
+          "mode": 4.195122577179035e-18,
+          "energy": 3.986888641652727e-06,
+          "error": 4.254694546043797e-05,
+          "rmin": 0.9938346155919875,
+          "rmax": 1.006165384408003,
+          "bad": 0.0
+        },
+        {
+          "step": 192.0,
+          "time": 1.8849555921538836,
+          "mass": 0.9999999999999991,
+          "momentum_x": -1.0601146730479603e-19,
+          "momentum_y": -1.2509723718880355e-17,
+          "mode": 4.984630075913947e-18,
+          "energy": 2.693050723285024e-06,
+          "error": 6.458238554339983e-05,
+          "rmin": 0.995569571063796,
+          "rmax": 1.0044304289361898,
+          "bad": 0.0
+        },
+        {
+          "step": 256.0,
+          "time": 2.5132741228718456,
+          "mass": 0.9999999999999885,
+          "momentum_x": 1.1382005228729661e-20,
+          "momentum_y": -1.0487273738633103e-17,
+          "mode": 3.921616961999601e-18,
+          "energy": 3.860528860390662e-06,
+          "error": 0.00010166274062536464,
+          "rmin": 0.9939584038333268,
+          "rmax": 1.0060415961666538,
+          "bad": 0.0
+        }
+      ],
+      "mass_relative_drift": 1.1546319456101628e-14,
+      "momentum_absolute_drift": 1.2509723718880355e-17
+    },
+    "transport-stretched-16": {
+      "metadata": {
+        "scenario": "transport",
+        "chart": "stretched",
+        "grid": [
+          16,
+          16
+        ],
+        "steps": 64,
+        "output_interval": 16,
+        "parameters": {
+          "stretch": "0.2",
+          "shear": "0",
+          "scenario": "1",
+          "amplitude": "0.02",
+          "tau": "0.2",
+          "dt": "0.1*dx",
+          "area": "39.47841760435743",
+          "cell": "dx*dy"
+        },
+        "config": [
+          "length_per_node: [6.283185307179586, 6.283185307179586]",
+          "grid_per_node: [16, 16]",
+          "mpi_shape: [1, 1]",
+          "boundary: [periodic, periodic]",
+          "reduces: [elapsed = max elapsed, mass = sum mass, momentum_x = sum momentumX, momentum_y = sum momentumY, mode = sum mode, energy = sum energy, error = max error, rmin = min density, rmax = max density, bad = max bad]"
+        ],
+        "source_sha256": "f51bbcfad603ddd3a8dfaf97d945448b44175f1cc987506970dcdb67414863d5",
+        "instantiated_fmr_sha256": "0576272a816b0939669e686b5a2d34250ae2967900f2edff484f39dcc5d28351",
+        "toolchain": {
+          "formurae_inputs_sha256": "45a4b166820b6dc86912468eb39fac6bdb6cf91b3f4ba0a59f1f7e76adf9554e",
+          "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+          "formura_executable_sha256": "dc4a5698895da10f7bd7879df5e169b708e5b9e486dfebc9e5c36aef2fba6a8d"
+        },
+        "elapsed_seconds": 0.04902470799999037
+      },
+      "records": [
+        {
+          "step": 0.0,
+          "time": 0.0,
+          "mass": 1.0,
+          "momentum_x": 0.0,
+          "momentum_y": 0.0,
+          "mode": 0.0,
+          "energy": 0.0,
+          "error": 0.0,
+          "rmin": 0.98,
+          "rmax": 1.02,
+          "bad": 0.0
+        },
+        {
+          "step": 16.0,
+          "time": 0.6283185307179586,
+          "mass": 0.9999999999999997,
+          "momentum_x": 3.059483005482533e-18,
+          "momentum_y": 9.825582188149884e-19,
+          "mode": -2.8611056632329903e-11,
+          "energy": 1.0427004676896466e-05,
+          "error": 0.00038909873553114326,
+          "rmin": 0.9847735404308879,
+          "rmax": 1.0152264595691105,
+          "bad": 0.0
+        },
+        {
+          "step": 32.0,
+          "time": 1.2566370614359172,
+          "mass": 0.9999999999999983,
+          "momentum_x": -1.4196272195982074e-18,
+          "momentum_y": 1.6534083130403943e-18,
+          "mode": 2.3828893400839896e-11,
+          "energy": 6.034949996638758e-06,
+          "error": 0.0006131136824759121,
+          "rmin": 0.9928647914786272,
+          "rmax": 1.0071352085213705,
+          "bad": 0.0
+        },
+        {
+          "step": 48.0,
+          "time": 1.8849555921538759,
+          "mass": 0.9999999999999981,
+          "momentum_x": -5.3939058081153846e-18,
+          "momentum_y": 1.9888333601530972e-18,
+          "mode": -2.07231942372528e-11,
+          "energy": 1.4585442280189916e-06,
+          "error": 0.0010948680608376233,
+          "rmin": 0.9959789345294141,
+          "rmax": 1.0040210654705821,
+          "bad": 0.0
+        },
+        {
+          "step": 64.0,
+          "time": 2.513274122871837,
+          "mass": 0.999999999999998,
+          "momentum_x": -4.717973516206453e-18,
+          "momentum_y": -9.67311625764411e-19,
+          "mode": 2.1429591469255193e-11,
+          "energy": 3.4869694439699493e-06,
+          "error": 0.0016241901950904967,
+          "rmin": 0.9949782492482304,
+          "rmax": 1.0050217507517645,
+          "bad": 0.0
+        }
+      ],
+      "mass_relative_drift": 1.9984014443252818e-15,
+      "momentum_absolute_drift": 5.3939058081153846e-18
+    },
+    "transport-stretched-32": {
+      "metadata": {
+        "scenario": "transport",
+        "chart": "stretched",
+        "grid": [
+          32,
+          32
+        ],
+        "steps": 128,
+        "output_interval": 32,
+        "parameters": {
+          "stretch": "0.2",
+          "shear": "0",
+          "scenario": "1",
+          "amplitude": "0.02",
+          "tau": "0.2",
+          "dt": "0.1*dx",
+          "area": "39.47841760435743",
+          "cell": "dx*dy"
+        },
+        "config": [
+          "length_per_node: [6.283185307179586, 6.283185307179586]",
+          "grid_per_node: [32, 32]",
+          "mpi_shape: [1, 1]",
+          "boundary: [periodic, periodic]",
+          "reduces: [elapsed = max elapsed, mass = sum mass, momentum_x = sum momentumX, momentum_y = sum momentumY, mode = sum mode, energy = sum energy, error = max error, rmin = min density, rmax = max density, bad = max bad]"
+        ],
+        "source_sha256": "f51bbcfad603ddd3a8dfaf97d945448b44175f1cc987506970dcdb67414863d5",
+        "instantiated_fmr_sha256": "0576272a816b0939669e686b5a2d34250ae2967900f2edff484f39dcc5d28351",
+        "toolchain": {
+          "formurae_inputs_sha256": "45a4b166820b6dc86912468eb39fac6bdb6cf91b3f4ba0a59f1f7e76adf9554e",
+          "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+          "formura_executable_sha256": "dc4a5698895da10f7bd7879df5e169b708e5b9e486dfebc9e5c36aef2fba6a8d"
+        },
+        "elapsed_seconds": 0.3643191250000086
+      },
+      "records": [
+        {
+          "step": 0.0,
+          "time": 0.0,
+          "mass": 1.0000000000000013,
+          "momentum_x": 0.0,
+          "momentum_y": 0.0,
+          "mode": 0.0,
+          "energy": 0.0,
+          "error": 0.0,
+          "rmin": 0.98,
+          "rmax": 1.02,
+          "bad": 0.0
+        },
+        {
+          "step": 32.0,
+          "time": 0.6283185307179586,
+          "mass": 0.9999999999999979,
+          "momentum_x": 2.9544509200229996e-18,
+          "momentum_y": 1.0232158002831948e-18,
+          "mode": -1.0173492009626006e-12,
+          "energy": 1.0942373405486933e-05,
+          "error": 0.0001011021851231935,
+          "rmin": 0.9853754958616205,
+          "rmax": 1.0146245041383763,
+          "bad": 0.0
+        },
+        {
+          "step": 64.0,
+          "time": 1.2566370614359186,
+          "mass": 0.9999999999999973,
+          "momentum_x": 5.967347113406546e-19,
+          "momentum_y": 8.876905287225068e-19,
+          "mode": 1.0601640516806534e-12,
+          "energy": 4.382258459760608e-06,
+          "error": 0.00016731840265279035,
+          "rmin": 0.9936537472145197,
+          "rmax": 1.0063462527854752,
+          "bad": 0.0
+        },
+        {
+          "step": 96.0,
+          "time": 1.8849555921538808,
+          "mass": 0.9999999999999957,
+          "momentum_x": -3.1886555299388136e-18,
+          "momentum_y": 1.6498084230145635e-18,
+          "mode": -1.2965100767188819e-12,
+          "energy": 2.3807800753616568e-06,
+          "error": 0.000264843776360002,
+          "rmin": 0.9956853823763535,
+          "rmax": 1.0043146176236393,
+          "bad": 0.0
+        },
+        {
+          "step": 128.0,
+          "time": 2.513274122871843,
+          "mass": 0.9999999999999958,
+          "momentum_x": -7.741881137904305e-18,
+          "momentum_y": 4.31563286626066e-19,
+          "mode": 2.7273671874516236e-12,
+          "energy": 3.853013044878104e-06,
+          "error": 0.00041007945173825926,
+          "rmin": 0.9941477744237508,
+          "rmax": 1.0058522255762392,
+          "bad": 0.0
+        }
+      ],
+      "mass_relative_drift": 5.6621374255882905e-15,
+      "momentum_absolute_drift": 7.741881137904305e-18
+    },
+    "transport-stretched-64": {
+      "metadata": {
+        "scenario": "transport",
+        "chart": "stretched",
+        "grid": [
+          64,
+          64
+        ],
+        "steps": 256,
+        "output_interval": 64,
+        "parameters": {
+          "stretch": "0.2",
+          "shear": "0",
+          "scenario": "1",
+          "amplitude": "0.02",
+          "tau": "0.2",
+          "dt": "0.1*dx",
+          "area": "39.47841760435743",
+          "cell": "dx*dy"
+        },
+        "config": [
+          "length_per_node: [6.283185307179586, 6.283185307179586]",
+          "grid_per_node: [64, 64]",
+          "mpi_shape: [1, 1]",
+          "boundary: [periodic, periodic]",
+          "reduces: [elapsed = max elapsed, mass = sum mass, momentum_x = sum momentumX, momentum_y = sum momentumY, mode = sum mode, energy = sum energy, error = max error, rmin = min density, rmax = max density, bad = max bad]"
+        ],
+        "source_sha256": "f51bbcfad603ddd3a8dfaf97d945448b44175f1cc987506970dcdb67414863d5",
+        "instantiated_fmr_sha256": "0576272a816b0939669e686b5a2d34250ae2967900f2edff484f39dcc5d28351",
+        "toolchain": {
+          "formurae_inputs_sha256": "45a4b166820b6dc86912468eb39fac6bdb6cf91b3f4ba0a59f1f7e76adf9554e",
+          "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+          "formura_executable_sha256": "dc4a5698895da10f7bd7879df5e169b708e5b9e486dfebc9e5c36aef2fba6a8d"
+        },
+        "elapsed_seconds": 2.8775217499999712
+      },
+      "records": [
+        {
+          "step": 0.0,
+          "time": 0.0,
+          "mass": 1.0000000000000002,
+          "momentum_x": 0.0,
+          "momentum_y": 0.0,
+          "mode": 0.0,
+          "energy": 0.0,
+          "error": 0.0,
+          "rmin": 0.98,
+          "rmax": 1.02,
+          "bad": 0.0
+        },
+        {
+          "step": 64.0,
+          "time": 0.6283185307179593,
+          "mass": 0.9999999999999994,
+          "momentum_x": 4.437393852428466e-19,
+          "momentum_y": 8.649265182650474e-19,
+          "mode": -3.209608128674834e-14,
+          "energy": 1.1051505576858852e-05,
+          "error": 2.5510799561591108e-05,
+          "rmin": 0.9855332853629152,
+          "rmax": 1.0144667146370794,
+          "bad": 0.0
+        },
+        {
+          "step": 128.0,
+          "time": 1.2566370614359215,
+          "mass": 0.9999999999999956,
+          "momentum_x": 1.4743667238145165e-19,
+          "momentum_y": 1.6877131474041934e-19,
+          "mode": 3.48131861634124e-14,
+          "energy": 3.986996550893465e-06,
+          "error": 4.270112156343601e-05,
+          "rmin": 0.9938315857948334,
+          "rmax": 1.006168414205157,
+          "bad": 0.0
+        },
+        {
+          "step": 192.0,
+          "time": 1.8849555921538836,
+          "mass": 0.9999999999999908,
+          "momentum_x": 2.337281538829835e-19,
+          "momentum_y": -9.937814053661079e-19,
+          "mode": -4.371821935017297e-14,
+          "energy": 2.693466739616732e-06,
+          "error": 6.53410372092279e-05,
+          "rmin": 0.9955676720430959,
+          "rmax": 1.0044323279568905,
+          "bad": 0.0
+        },
+        {
+          "step": 256.0,
+          "time": 2.5132741228718456,
+          "mass": 0.9999999999999933,
+          "momentum_x": -8.719674796390988e-19,
+          "momentum_y": 5.167165676047249e-19,
+          "mode": 1.042564238194345e-13,
+          "energy": 3.862419301791048e-06,
+          "error": 0.0001020140827005777,
+          "rmin": 0.9939520772687631,
+          "rmax": 1.006047922731218,
+          "bad": 0.0
+        }
+      ],
+      "mass_relative_drift": 9.436895709313829e-15,
+      "momentum_absolute_drift": 9.937814053661079e-19
+    },
+    "transport-curved-16": {
+      "metadata": {
+        "scenario": "transport",
+        "chart": "curved",
+        "grid": [
+          16,
+          16
+        ],
+        "steps": 64,
+        "output_interval": 16,
+        "parameters": {
+          "stretch": "0.2",
+          "shear": "0.3",
+          "scenario": "1",
+          "amplitude": "0.02",
+          "tau": "0.2",
+          "dt": "0.1*dx",
+          "area": "39.47841760435743",
+          "cell": "dx*dy"
+        },
+        "config": [
+          "length_per_node: [6.283185307179586, 6.283185307179586]",
+          "grid_per_node: [16, 16]",
+          "mpi_shape: [1, 1]",
+          "boundary: [periodic, periodic]",
+          "reduces: [elapsed = max elapsed, mass = sum mass, momentum_x = sum momentumX, momentum_y = sum momentumY, mode = sum mode, energy = sum energy, error = max error, rmin = min density, rmax = max density, bad = max bad]"
+        ],
+        "source_sha256": "f51bbcfad603ddd3a8dfaf97d945448b44175f1cc987506970dcdb67414863d5",
+        "instantiated_fmr_sha256": "0576272a816b0939669e686b5a2d34250ae2967900f2edff484f39dcc5d28351",
+        "toolchain": {
+          "formurae_inputs_sha256": "45a4b166820b6dc86912468eb39fac6bdb6cf91b3f4ba0a59f1f7e76adf9554e",
+          "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+          "formura_executable_sha256": "dc4a5698895da10f7bd7879df5e169b708e5b9e486dfebc9e5c36aef2fba6a8d"
+        },
+        "elapsed_seconds": 0.04887958399999093
+      },
+      "records": [
+        {
+          "step": 0.0,
+          "time": 0.0,
+          "mass": 1.0000000000000007,
+          "momentum_x": 0.0,
+          "momentum_y": 0.0,
+          "mode": 0.0,
+          "energy": 0.0,
+          "error": 0.0,
+          "rmin": 0.98,
+          "rmax": 1.02,
+          "bad": 0.0
+        },
+        {
+          "step": 16.0,
+          "time": 0.6283185307179586,
+          "mass": 0.9999999999999992,
+          "momentum_x": 1.7194768829262297e-18,
+          "momentum_y": -5.014435047745458e-19,
+          "mode": -5.2647076218077876e-06,
+          "energy": 1.0391868726326392e-05,
+          "error": 0.0005690429076356436,
+          "rmin": 0.9844980849015919,
+          "rmax": 1.0155569450189028,
+          "bad": 0.0
+        },
+        {
+          "step": 32.0,
+          "time": 1.2566370614359172,
+          "mass": 0.9999999999999986,
+          "momentum_x": 1.7533582008164017e-18,
+          "momentum_y": 1.145188544687814e-18,
+          "mode": -3.779625849892292e-06,
+          "energy": 6.1204941350605016e-06,
+          "error": 0.0008668961578964801,
+          "rmin": 0.9925173302840138,
+          "rmax": 1.0075651353615145,
+          "bad": 0.0
+        },
+        {
+          "step": 48.0,
+          "time": 1.8849555921538759,
+          "mass": 0.9999999999999987,
+          "momentum_x": 5.0245994431125096e-18,
+          "momentum_y": 9.880639329721413e-19,
+          "mode": 8.094949743048792e-07,
+          "energy": 1.478255603416632e-06,
+          "error": 0.001532180019285556,
+          "rmin": 0.9957896688044368,
+          "rmax": 1.004257600947756,
+          "bad": 0.0
+        },
+        {
+          "step": 64.0,
+          "time": 2.513274122871837,
+          "mass": 0.9999999999999978,
+          "momentum_x": 5.985134805298886e-18,
+          "momentum_y": -2.0464316005663896e-18,
+          "mode": 2.451566249579541e-06,
+          "energy": 3.419728408029168e-06,
+          "error": 0.0022281662214802935,
+          "rmin": 0.9946613518172778,
+          "rmax": 1.005217702928764,
+          "bad": 0.0
+        }
+      ],
+      "mass_relative_drift": 2.886579864025405e-15,
+      "momentum_absolute_drift": 5.985134805298886e-18
+    },
+    "transport-curved-32": {
+      "metadata": {
+        "scenario": "transport",
+        "chart": "curved",
+        "grid": [
+          32,
+          32
+        ],
+        "steps": 128,
+        "output_interval": 32,
+        "parameters": {
+          "stretch": "0.2",
+          "shear": "0.3",
+          "scenario": "1",
+          "amplitude": "0.02",
+          "tau": "0.2",
+          "dt": "0.1*dx",
+          "area": "39.47841760435743",
+          "cell": "dx*dy"
+        },
+        "config": [
+          "length_per_node: [6.283185307179586, 6.283185307179586]",
+          "grid_per_node: [32, 32]",
+          "mpi_shape: [1, 1]",
+          "boundary: [periodic, periodic]",
+          "reduces: [elapsed = max elapsed, mass = sum mass, momentum_x = sum momentumX, momentum_y = sum momentumY, mode = sum mode, energy = sum energy, error = max error, rmin = min density, rmax = max density, bad = max bad]"
+        ],
+        "source_sha256": "f51bbcfad603ddd3a8dfaf97d945448b44175f1cc987506970dcdb67414863d5",
+        "instantiated_fmr_sha256": "0576272a816b0939669e686b5a2d34250ae2967900f2edff484f39dcc5d28351",
+        "toolchain": {
+          "formurae_inputs_sha256": "45a4b166820b6dc86912468eb39fac6bdb6cf91b3f4ba0a59f1f7e76adf9554e",
+          "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+          "formura_executable_sha256": "dc4a5698895da10f7bd7879df5e169b708e5b9e486dfebc9e5c36aef2fba6a8d"
+        },
+        "elapsed_seconds": 0.36508470900000134
+      },
+      "records": [
+        {
+          "step": 0.0,
+          "time": 0.0,
+          "mass": 0.9999999999999987,
+          "momentum_x": 0.0,
+          "momentum_y": 0.0,
+          "mode": 0.0,
+          "energy": 0.0,
+          "error": 0.0,
+          "rmin": 0.98,
+          "rmax": 1.02,
+          "bad": 0.0
+        },
+        {
+          "step": 32.0,
+          "time": 0.6283185307179586,
+          "mass": 0.9999999999999981,
+          "momentum_x": 3.621065849512134e-19,
+          "momentum_y": 6.098637220230962e-20,
+          "mode": -1.296238117271024e-06,
+          "energy": 1.0936681958659526e-05,
+          "error": 0.00015142008750152215,
+          "rmin": 0.9852969601613771,
+          "rmax": 1.0147166535327423,
+          "bad": 0.0
+        },
+        {
+          "step": 64.0,
+          "time": 1.2566370614359186,
+          "mass": 0.9999999999999971,
+          "momentum_x": 2.871441691192078e-19,
+          "momentum_y": -5.793705359219414e-19,
+          "mode": -7.29001589554266e-07,
+          "energy": 4.402320309589243e-06,
+          "error": 0.00024565831525366323,
+          "rmin": 0.9936160265068414,
+          "rmax": 1.0064026959399024,
+          "bad": 0.0
+        },
+        {
+          "step": 96.0,
+          "time": 1.8849555921538808,
+          "mass": 0.9999999999999943,
+          "momentum_x": -2.7714918034160707e-18,
+          "momentum_y": -3.190984870543763e-18,
+          "mode": 4.1989367168862785e-07,
+          "energy": 2.3672461662292634e-06,
+          "error": 0.0003304680056779811,
+          "rmin": 0.9956116027661491,
+          "rmax": 1.0043959328790868,
+          "bad": 0.0
+        },
+        {
+          "step": 128.0,
+          "time": 2.513274122871843,
+          "mass": 0.999999999999994,
+          "momentum_x": -8.694793203565393e-19,
+          "momentum_y": -1.6932188615613464e-18,
+          "mode": 5.778526604888926e-07,
+          "energy": 3.846678983442475e-06,
+          "error": 0.00048060273308428274,
+          "rmin": 0.9941141004634998,
+          "rmax": 1.0058448399487279,
+          "bad": 0.0
+        }
+      ],
+      "mass_relative_drift": 4.662936703425664e-15,
+      "momentum_absolute_drift": 3.190984870543763e-18
+    },
+    "transport-curved-64": {
+      "metadata": {
+        "scenario": "transport",
+        "chart": "curved",
+        "grid": [
+          64,
+          64
+        ],
+        "steps": 256,
+        "output_interval": 64,
+        "parameters": {
+          "stretch": "0.2",
+          "shear": "0.3",
+          "scenario": "1",
+          "amplitude": "0.02",
+          "tau": "0.2",
+          "dt": "0.1*dx",
+          "area": "39.47841760435743",
+          "cell": "dx*dy"
+        },
+        "config": [
+          "length_per_node: [6.283185307179586, 6.283185307179586]",
+          "grid_per_node: [64, 64]",
+          "mpi_shape: [1, 1]",
+          "boundary: [periodic, periodic]",
+          "reduces: [elapsed = max elapsed, mass = sum mass, momentum_x = sum momentumX, momentum_y = sum momentumY, mode = sum mode, energy = sum energy, error = max error, rmin = min density, rmax = max density, bad = max bad]"
+        ],
+        "source_sha256": "f51bbcfad603ddd3a8dfaf97d945448b44175f1cc987506970dcdb67414863d5",
+        "instantiated_fmr_sha256": "0576272a816b0939669e686b5a2d34250ae2967900f2edff484f39dcc5d28351",
+        "toolchain": {
+          "formurae_inputs_sha256": "45a4b166820b6dc86912468eb39fac6bdb6cf91b3f4ba0a59f1f7e76adf9554e",
+          "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+          "formura_executable_sha256": "dc4a5698895da10f7bd7879df5e169b708e5b9e486dfebc9e5c36aef2fba6a8d"
+        },
+        "elapsed_seconds": 2.880724541999996
+      },
+      "records": [
+        {
+          "step": 0.0,
+          "time": 0.0,
+          "mass": 1.0000000000000016,
+          "momentum_x": 0.0,
+          "momentum_y": 0.0,
+          "mode": 0.0,
+          "energy": 0.0,
+          "error": 0.0,
+          "rmin": 0.98,
+          "rmax": 1.02,
+          "bad": 0.0
+        },
+        {
+          "step": 64.0,
+          "time": 0.6283185307179593,
+          "mass": 0.9999999999999994,
+          "momentum_x": 2.5516867536035798e-20,
+          "momentum_y": -2.2467548925920316e-19,
+          "mode": -3.224406730697488e-07,
+          "energy": 1.1050357648913712e-05,
+          "error": 3.830725848196496e-05,
+          "rmin": 0.9855132667150069,
+          "rmax": 1.0144901308953789,
+          "bad": 0.0
+        },
+        {
+          "step": 128.0,
+          "time": 1.2566370614359215,
+          "mass": 0.9999999999999925,
+          "momentum_x": 1.4795018610572457e-18,
+          "momentum_y": -9.266540442962046e-19,
+          "mode": -1.6823948215580144e-07,
+          "energy": 3.991471931142773e-06,
+          "error": 6.251966498513502e-05,
+          "rmin": 0.9938256401939767,
+          "rmax": 1.0061787237746176,
+          "bad": 0.0
+        },
+        {
+          "step": 192.0,
+          "time": 1.8849555921538836,
+          "mass": 0.9999999999999932,
+          "momentum_x": 3.1249163006579275e-18,
+          "momentum_y": -2.672600706824131e-18,
+          "mode": 1.162364835236007e-07,
+          "energy": 2.6895634383162658e-06,
+          "error": 8.14466720199465e-05,
+          "rmin": 0.9955482346940382,
+          "rmax": 1.0044533427888067,
+          "bad": 0.0
+        },
+        {
+          "step": 256.0,
+          "time": 2.5132741228718456,
+          "mass": 0.9999999999999917,
+          "momentum_x": 4.06697575668232e-18,
+          "momentum_y": -3.4040136567782195e-18,
+          "mode": 1.386710638905455e-07,
+          "energy": 3.861345956934173e-06,
+          "error": 0.0001149740586861735,
+          "rmin": 0.9939476531415674,
+          "rmax": 1.0060437519380876,
+          "bad": 0.0
+        }
+      ],
+      "mass_relative_drift": 9.880984919163877e-15,
+      "momentum_absolute_drift": 4.06697575668232e-18
+    },
+    "shear-cartesian-16": {
+      "metadata": {
+        "scenario": "shear",
+        "chart": "cartesian",
+        "grid": [
+          16,
+          16
+        ],
+        "steps": 64,
+        "output_interval": 16,
+        "parameters": {
+          "stretch": "0",
+          "shear": "0",
+          "scenario": "2",
+          "amplitude": "0.02",
+          "tau": "0.2",
+          "dt": "0.1*dx",
+          "area": "39.47841760435743",
+          "cell": "dx*dy"
+        },
+        "config": [
+          "length_per_node: [6.283185307179586, 6.283185307179586]",
+          "grid_per_node: [16, 16]",
+          "mpi_shape: [1, 1]",
+          "boundary: [periodic, periodic]",
+          "reduces: [elapsed = max elapsed, mass = sum mass, momentum_x = sum momentumX, momentum_y = sum momentumY, mode = sum mode, energy = sum energy, error = max error, rmin = min density, rmax = max density, bad = max bad]"
+        ],
+        "source_sha256": "f51bbcfad603ddd3a8dfaf97d945448b44175f1cc987506970dcdb67414863d5",
+        "instantiated_fmr_sha256": "0576272a816b0939669e686b5a2d34250ae2967900f2edff484f39dcc5d28351",
+        "toolchain": {
+          "formurae_inputs_sha256": "45a4b166820b6dc86912468eb39fac6bdb6cf91b3f4ba0a59f1f7e76adf9554e",
+          "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+          "formura_executable_sha256": "dc4a5698895da10f7bd7879df5e169b708e5b9e486dfebc9e5c36aef2fba6a8d"
+        },
+        "elapsed_seconds": 0.049057375000018055
+      },
+      "records": [
+        {
+          "step": 0.0,
+          "time": 0.0,
+          "mass": 1.0,
+          "momentum_x": 0.0,
+          "momentum_y": -1.0164395367051604e-18,
+          "mode": 0.019999999999999983,
+          "energy": 9.999999999999987e-05,
+          "error": 0.0,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 16.0,
+          "time": 0.6283185307179586,
+          "mass": 0.9999999999999999,
+          "momentum_x": 1.9515639104739057e-18,
+          "momentum_y": -2.7531958917553778e-17,
+          "mode": 0.01945594673699946,
+          "energy": 9.463346585823987e-05,
+          "error": 0.0,
+          "rmin": 0.9999999999999984,
+          "rmax": 0.9999999999999992,
+          "bad": 0.0
+        },
+        {
+          "step": 32.0,
+          "time": 1.2566370614359172,
+          "mass": 0.9999999999999997,
+          "momentum_x": -5.204170427930399e-18,
+          "momentum_y": -3.406427700677894e-17,
+          "mode": 0.018714304996969633,
+          "energy": 8.75563028799005e-05,
+          "error": 0.0,
+          "rmin": 0.9999999999999972,
+          "rmax": 0.9999999999999983,
+          "bad": 0.0
+        },
+        {
+          "step": 48.0,
+          "time": 1.8849555921538759,
+          "mass": 0.9999999999999996,
+          "momentum_x": -7.806255641895532e-18,
+          "momentum_y": -3.036443709317216e-17,
+          "mode": 0.017993911507483237,
+          "energy": 8.094521283478386e-05,
+          "error": 0.0,
+          "rmin": 0.9999999999999962,
+          "rmax": 0.9999999999999976,
+          "bad": 0.0
+        },
+        {
+          "step": 64.0,
+          "time": 2.513274122871837,
+          "mass": 0.9999999999999987,
+          "momentum_x": -3.6862873864507274e-18,
+          "momentum_y": -2.0552407432178343e-17,
+          "mode": 0.01730111437937301,
+          "energy": 7.483213969203578e-05,
+          "error": 0.0,
+          "rmin": 0.9999999999999951,
+          "rmax": 0.9999999999999963,
+          "bad": 0.0
+        }
+      ],
+      "mass_relative_drift": 1.3322676295501878e-15,
+      "momentum_absolute_drift": 3.304783747007378e-17
+    },
+    "shear-cartesian-32": {
+      "metadata": {
+        "scenario": "shear",
+        "chart": "cartesian",
+        "grid": [
+          32,
+          32
+        ],
+        "steps": 128,
+        "output_interval": 32,
+        "parameters": {
+          "stretch": "0",
+          "shear": "0",
+          "scenario": "2",
+          "amplitude": "0.02",
+          "tau": "0.2",
+          "dt": "0.1*dx",
+          "area": "39.47841760435743",
+          "cell": "dx*dy"
+        },
+        "config": [
+          "length_per_node: [6.283185307179586, 6.283185307179586]",
+          "grid_per_node: [32, 32]",
+          "mpi_shape: [1, 1]",
+          "boundary: [periodic, periodic]",
+          "reduces: [elapsed = max elapsed, mass = sum mass, momentum_x = sum momentumX, momentum_y = sum momentumY, mode = sum mode, energy = sum energy, error = max error, rmin = min density, rmax = max density, bad = max bad]"
+        ],
+        "source_sha256": "f51bbcfad603ddd3a8dfaf97d945448b44175f1cc987506970dcdb67414863d5",
+        "instantiated_fmr_sha256": "0576272a816b0939669e686b5a2d34250ae2967900f2edff484f39dcc5d28351",
+        "toolchain": {
+          "formurae_inputs_sha256": "45a4b166820b6dc86912468eb39fac6bdb6cf91b3f4ba0a59f1f7e76adf9554e",
+          "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+          "formura_executable_sha256": "dc4a5698895da10f7bd7879df5e169b708e5b9e486dfebc9e5c36aef2fba6a8d"
+        },
+        "elapsed_seconds": 0.3641188749999742
+      },
+      "records": [
+        {
+          "step": 0.0,
+          "time": 0.0,
+          "mass": 1.0,
+          "momentum_x": 0.0,
+          "momentum_y": -1.257843926672636e-18,
+          "mode": 0.020000000000000066,
+          "energy": 9.999999999999994e-05,
+          "error": 0.0,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 32.0,
+          "time": 0.6283185307179586,
+          "mass": 0.9999999999999999,
+          "momentum_x": -7.264154555652867e-18,
+          "momentum_y": 3.6651115627693576e-18,
+          "mode": 0.019434783739285737,
+          "energy": 9.442770474820071e-05,
+          "error": 0.0,
+          "rmin": 0.9999999999999973,
+          "rmax": 0.9999999999999992,
+          "bad": 0.0
+        },
+        {
+          "step": 64.0,
+          "time": 1.2566370614359186,
+          "mass": 0.9999999999999997,
+          "momentum_x": 3.577867169202175e-18,
+          "momentum_y": 6.485731277126178e-18,
+          "mode": 0.018665543683401942,
+          "energy": 8.710063024924478e-05,
+          "error": 0.0,
+          "rmin": 0.9999999999999951,
+          "rmax": 0.9999999999999974,
+          "bad": 0.0
+        },
+        {
+          "step": 96.0,
+          "time": 1.8849555921538808,
+          "mass": 0.9999999999999996,
+          "momentum_x": -4.987329993433222e-18,
+          "momentum_y": 4.75880050426411e-17,
+          "mode": 0.017919554136940553,
+          "energy": 8.027760511668528e-05,
+          "error": 0.0,
+          "rmin": 0.9999999999999929,
+          "rmax": 0.9999999999999946,
+          "bad": 0.0
+        },
+        {
+          "step": 128.0,
+          "time": 2.513274122871843,
+          "mass": 0.9999999999999987,
+          "momentum_x": -8.673617379884453e-19,
+          "momentum_y": -9.303809892641235e-18,
+          "mode": 0.017203248549035884,
+          "energy": 7.398794015997425e-05,
+          "error": 0.0,
+          "rmin": 0.9999999999999907,
+          "rmax": 0.9999999999999929,
+          "bad": 0.0
+        }
+      ],
+      "mass_relative_drift": 1.3322676295501878e-15,
+      "momentum_absolute_drift": 4.884584896931374e-17
+    },
+    "shear-cartesian-64": {
+      "metadata": {
+        "scenario": "shear",
+        "chart": "cartesian",
+        "grid": [
+          64,
+          64
+        ],
+        "steps": 256,
+        "output_interval": 64,
+        "parameters": {
+          "stretch": "0",
+          "shear": "0",
+          "scenario": "2",
+          "amplitude": "0.02",
+          "tau": "0.2",
+          "dt": "0.1*dx",
+          "area": "39.47841760435743",
+          "cell": "dx*dy"
+        },
+        "config": [
+          "length_per_node: [6.283185307179586, 6.283185307179586]",
+          "grid_per_node: [64, 64]",
+          "mpi_shape: [1, 1]",
+          "boundary: [periodic, periodic]",
+          "reduces: [elapsed = max elapsed, mass = sum mass, momentum_x = sum momentumX, momentum_y = sum momentumY, mode = sum mode, energy = sum energy, error = max error, rmin = min density, rmax = max density, bad = max bad]"
+        ],
+        "source_sha256": "f51bbcfad603ddd3a8dfaf97d945448b44175f1cc987506970dcdb67414863d5",
+        "instantiated_fmr_sha256": "0576272a816b0939669e686b5a2d34250ae2967900f2edff484f39dcc5d28351",
+        "toolchain": {
+          "formurae_inputs_sha256": "45a4b166820b6dc86912468eb39fac6bdb6cf91b3f4ba0a59f1f7e76adf9554e",
+          "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+          "formura_executable_sha256": "dc4a5698895da10f7bd7879df5e169b708e5b9e486dfebc9e5c36aef2fba6a8d"
+        },
+        "elapsed_seconds": 2.8779419579999512
+      },
+      "records": [
+        {
+          "step": 0.0,
+          "time": 0.0,
+          "mass": 1.0,
+          "momentum_x": 0.0,
+          "momentum_y": 1.4399560103323106e-20,
+          "mode": 0.020000000000000025,
+          "energy": 9.999999999999671e-05,
+          "error": 0.0,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 64.0,
+          "time": 0.6283185307179593,
+          "mass": 0.9999999999999999,
+          "momentum_x": -4.33680868994198e-18,
+          "momentum_y": 6.278419963285688e-18,
+          "mode": 0.01942939593199129,
+          "energy": 9.437535657052291e-05,
+          "error": 0.0,
+          "rmin": 0.9999999999999952,
+          "rmax": 0.9999999999999982,
+          "bad": 0.0
+        },
+        {
+          "step": 128.0,
+          "time": 1.2566370614359215,
+          "mass": 0.9999999999999997,
+          "momentum_x": -2.2334564753201268e-17,
+          "momentum_y": 4.431199924001669e-17,
+          "mode": 0.018653140805200863,
+          "energy": 8.698491547466155e-05,
+          "error": 0.0,
+          "rmin": 0.9999999999999908,
+          "rmax": 0.9999999999999952,
+          "bad": 0.0
+        },
+        {
+          "step": 192.0,
+          "time": 1.8849555921538836,
+          "mass": 0.9999999999999996,
+          "momentum_x": -3.3501847129801927e-17,
+          "momentum_y": -4.1285762277713887e-17,
+          "mode": 0.017900660780956677,
+          "energy": 8.010841409872273e-05,
+          "error": 0.0,
+          "rmin": 0.9999999999999866,
+          "rmax": 0.9999999999999902,
+          "bad": 0.0
+        },
+        {
+          "step": 256.0,
+          "time": 2.5132741228718456,
+          "mass": 0.9999999999999987,
+          "momentum_x": -3.859759734048319e-17,
+          "momentum_y": -4.5795577447132595e-17,
+          "mode": 0.017178407240796806,
+          "energy": 7.377441883266178e-05,
+          "error": 0.0,
+          "rmin": 0.9999999999999823,
+          "rmax": 0.9999999999999869,
+          "bad": 0.0
+        }
+      ],
+      "mass_relative_drift": 1.3322676295501878e-15,
+      "momentum_absolute_drift": 4.580997700723592e-17
+    },
+    "shear-stretched-16": {
+      "metadata": {
+        "scenario": "shear",
+        "chart": "stretched",
+        "grid": [
+          16,
+          16
+        ],
+        "steps": 64,
+        "output_interval": 16,
+        "parameters": {
+          "stretch": "0.2",
+          "shear": "0",
+          "scenario": "2",
+          "amplitude": "0.02",
+          "tau": "0.2",
+          "dt": "0.1*dx",
+          "area": "39.47841760435743",
+          "cell": "dx*dy"
+        },
+        "config": [
+          "length_per_node: [6.283185307179586, 6.283185307179586]",
+          "grid_per_node: [16, 16]",
+          "mpi_shape: [1, 1]",
+          "boundary: [periodic, periodic]",
+          "reduces: [elapsed = max elapsed, mass = sum mass, momentum_x = sum momentumX, momentum_y = sum momentumY, mode = sum mode, energy = sum energy, error = max error, rmin = min density, rmax = max density, bad = max bad]"
+        ],
+        "source_sha256": "f51bbcfad603ddd3a8dfaf97d945448b44175f1cc987506970dcdb67414863d5",
+        "instantiated_fmr_sha256": "0576272a816b0939669e686b5a2d34250ae2967900f2edff484f39dcc5d28351",
+        "toolchain": {
+          "formurae_inputs_sha256": "45a4b166820b6dc86912468eb39fac6bdb6cf91b3f4ba0a59f1f7e76adf9554e",
+          "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+          "formura_executable_sha256": "dc4a5698895da10f7bd7879df5e169b708e5b9e486dfebc9e5c36aef2fba6a8d"
+        },
+        "elapsed_seconds": 0.048904250000020966
+      },
+      "records": [
+        {
+          "step": 0.0,
+          "time": 0.0,
+          "mass": 1.0000000000000002,
+          "momentum_x": 0.0,
+          "momentum_y": -1.2332799712022613e-18,
+          "mode": 0.01999999999999998,
+          "energy": 0.00010000000000000015,
+          "error": 0.0,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 16.0,
+          "time": 0.6283185307179586,
+          "mass": 1.0,
+          "momentum_x": -3.3890897512426223e-18,
+          "momentum_y": 1.465028185571038e-17,
+          "mode": 0.019457466231883398,
+          "energy": 9.464837259185409e-05,
+          "error": 0.0,
+          "rmin": 0.9999999999999981,
+          "rmax": 0.9999999999999996,
+          "bad": 0.0
+        },
+        {
+          "step": 32.0,
+          "time": 1.2566370614359172,
+          "mass": 0.9999999999999998,
+          "momentum_x": 1.5215496369895063e-17,
+          "momentum_y": 1.7306577178299865e-17,
+          "mode": 0.018717861759333015,
+          "energy": 8.759017806908386e-05,
+          "error": 0.0,
+          "rmin": 0.9999999999999972,
+          "rmax": 0.9999999999999982,
+          "bad": 0.0
+        },
+        {
+          "step": 48.0,
+          "time": 1.8849555921538759,
+          "mass": 0.9999999999999969,
+          "momentum_x": 3.2090064758717495e-17,
+          "momentum_y": 7.345469718589293e-18,
+          "mode": 0.01799940469170531,
+          "energy": 8.09958859831726e-05,
+          "error": 0.0,
+          "rmin": 0.9999999999999961,
+          "rmax": 0.9999999999999982,
+          "bad": 0.0
+        },
+        {
+          "step": 64.0,
+          "time": 2.513274122871837,
+          "mass": 0.9999999999999967,
+          "momentum_x": 3.666881475768631e-17,
+          "momentum_y": 1.8810907692623502e-17,
+          "mode": 0.017308425248184642,
+          "energy": 7.48973617131333e-05,
+          "error": 0.0,
+          "rmin": 0.9999999999999947,
+          "rmax": 0.9999999999999967,
+          "bad": 0.0
+        }
+      ],
+      "mass_relative_drift": 3.5527136788005e-15,
+      "momentum_absolute_drift": 3.666881475768631e-17
+    },
+    "shear-stretched-32": {
+      "metadata": {
+        "scenario": "shear",
+        "chart": "stretched",
+        "grid": [
+          32,
+          32
+        ],
+        "steps": 128,
+        "output_interval": 32,
+        "parameters": {
+          "stretch": "0.2",
+          "shear": "0",
+          "scenario": "2",
+          "amplitude": "0.02",
+          "tau": "0.2",
+          "dt": "0.1*dx",
+          "area": "39.47841760435743",
+          "cell": "dx*dy"
+        },
+        "config": [
+          "length_per_node: [6.283185307179586, 6.283185307179586]",
+          "grid_per_node: [32, 32]",
+          "mpi_shape: [1, 1]",
+          "boundary: [periodic, periodic]",
+          "reduces: [elapsed = max elapsed, mass = sum mass, momentum_x = sum momentumX, momentum_y = sum momentumY, mode = sum mode, energy = sum energy, error = max error, rmin = min density, rmax = max density, bad = max bad]"
+        ],
+        "source_sha256": "f51bbcfad603ddd3a8dfaf97d945448b44175f1cc987506970dcdb67414863d5",
+        "instantiated_fmr_sha256": "0576272a816b0939669e686b5a2d34250ae2967900f2edff484f39dcc5d28351",
+        "toolchain": {
+          "formurae_inputs_sha256": "45a4b166820b6dc86912468eb39fac6bdb6cf91b3f4ba0a59f1f7e76adf9554e",
+          "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+          "formura_executable_sha256": "dc4a5698895da10f7bd7879df5e169b708e5b9e486dfebc9e5c36aef2fba6a8d"
+        },
+        "elapsed_seconds": 0.36487095799998315
+      },
+      "records": [
+        {
+          "step": 0.0,
+          "time": 0.0,
+          "mass": 1.0,
+          "momentum_x": 0.0,
+          "momentum_y": -1.1011428314305904e-19,
+          "mode": 0.019999999999999886,
+          "energy": 9.999999999999957e-05,
+          "error": 0.0,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 32.0,
+          "time": 0.6283185307179586,
+          "mass": 0.9999999999999982,
+          "momentum_x": 1.0888909536178175e-17,
+          "momentum_y": 1.3315357930837601e-17,
+          "mode": 0.019435203480521843,
+          "energy": 9.443179267286103e-05,
+          "error": 0.0,
+          "rmin": 0.9999999999999972,
+          "rmax": 0.9999999999999992,
+          "bad": 0.0
+        },
+        {
+          "step": 64.0,
+          "time": 1.2566370614359186,
+          "mass": 0.9999999999999927,
+          "momentum_x": 7.757379747909297e-18,
+          "momentum_y": 2.056765402522892e-17,
+          "mode": 0.018666514091038425,
+          "energy": 8.710972902798691e-05,
+          "error": 0.0,
+          "rmin": 0.9999999999999952,
+          "rmax": 0.9999999999999977,
+          "bad": 0.0
+        },
+        {
+          "step": 96.0,
+          "time": 1.8849555921538808,
+          "mass": 0.9999999999999916,
+          "momentum_x": 2.0600911092803183e-17,
+          "momentum_y": 1.4884062949152566e-17,
+          "mode": 0.017921037308996076,
+          "energy": 8.02909807896607e-05,
+          "error": 0.0,
+          "rmin": 0.9999999999999929,
+          "rmax": 0.9999999999999953,
+          "bad": 0.0
+        },
+        {
+          "step": 128.0,
+          "time": 2.513274122871843,
+          "mass": 0.9999999999999897,
+          "momentum_x": 2.877780540476478e-17,
+          "momentum_y": 2.4026936581815483e-17,
+          "mode": 0.0172052043231024,
+          "energy": 7.400489733186289e-05,
+          "error": 0.0,
+          "rmin": 0.9999999999999907,
+          "rmax": 0.9999999999999925,
+          "bad": 0.0
+        }
+      ],
+      "mass_relative_drift": 1.0325074129013956e-14,
+      "momentum_absolute_drift": 2.877780540476478e-17
+    },
+    "shear-stretched-64": {
+      "metadata": {
+        "scenario": "shear",
+        "chart": "stretched",
+        "grid": [
+          64,
+          64
+        ],
+        "steps": 256,
+        "output_interval": 64,
+        "parameters": {
+          "stretch": "0.2",
+          "shear": "0",
+          "scenario": "2",
+          "amplitude": "0.02",
+          "tau": "0.2",
+          "dt": "0.1*dx",
+          "area": "39.47841760435743",
+          "cell": "dx*dy"
+        },
+        "config": [
+          "length_per_node: [6.283185307179586, 6.283185307179586]",
+          "grid_per_node: [64, 64]",
+          "mpi_shape: [1, 1]",
+          "boundary: [periodic, periodic]",
+          "reduces: [elapsed = max elapsed, mass = sum mass, momentum_x = sum momentumX, momentum_y = sum momentumY, mode = sum mode, energy = sum energy, error = max error, rmin = min density, rmax = max density, bad = max bad]"
+        ],
+        "source_sha256": "f51bbcfad603ddd3a8dfaf97d945448b44175f1cc987506970dcdb67414863d5",
+        "instantiated_fmr_sha256": "0576272a816b0939669e686b5a2d34250ae2967900f2edff484f39dcc5d28351",
+        "toolchain": {
+          "formurae_inputs_sha256": "45a4b166820b6dc86912468eb39fac6bdb6cf91b3f4ba0a59f1f7e76adf9554e",
+          "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+          "formura_executable_sha256": "dc4a5698895da10f7bd7879df5e169b708e5b9e486dfebc9e5c36aef2fba6a8d"
+        },
+        "elapsed_seconds": 2.8827505419999966
+      },
+      "records": [
+        {
+          "step": 0.0,
+          "time": 0.0,
+          "mass": 1.0000000000000029,
+          "momentum_x": 0.0,
+          "momentum_y": 5.5163232448173123e-17,
+          "mode": 0.01999999999999967,
+          "energy": 9.999999999999836e-05,
+          "error": 0.0,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 64.0,
+          "time": 0.6283185307179593,
+          "mass": 0.9999999999999947,
+          "momentum_x": -1.9270761811644246e-17,
+          "momentum_y": 5.847216665662205e-17,
+          "mode": 0.019429503453663934,
+          "energy": 9.437640170423406e-05,
+          "error": 0.0,
+          "rmin": 0.9999999999999951,
+          "rmax": 0.9999999999999984,
+          "bad": 0.0
+        },
+        {
+          "step": 128.0,
+          "time": 1.2566370614359215,
+          "mass": 0.9999999999999856,
+          "momentum_x": -1.9569003733505394e-17,
+          "momentum_y": 8.849164958202489e-18,
+          "mode": 0.01865338856464625,
+          "energy": 8.69872289396411e-05,
+          "error": 0.0,
+          "rmin": 0.9999999999999906,
+          "rmax": 0.9999999999999943,
+          "bad": 0.0
+        },
+        {
+          "step": 192.0,
+          "time": 1.8849555921538836,
+          "mass": 0.9999999999999856,
+          "momentum_x": 9.99504695385461e-18,
+          "momentum_y": 1.2198968506356433e-17,
+          "mode": 0.017901038412374587,
+          "energy": 8.011179958295609e-05,
+          "error": 0.0,
+          "rmin": 0.9999999999999863,
+          "rmax": 0.9999999999999901,
+          "bad": 0.0
+        },
+        {
+          "step": 256.0,
+          "time": 2.5132741228718456,
+          "mass": 0.9999999999999853,
+          "momentum_x": 2.4090617479202798e-17,
+          "momentum_y": -8.337345299824078e-18,
+          "mode": 0.01717890399329541,
+          "energy": 7.377869409619363e-05,
+          "error": 0.0,
+          "rmin": 0.999999999999982,
+          "rmax": 0.9999999999999856,
+          "bad": 0.0
+        }
+      ],
+      "mass_relative_drift": 1.7541523789077423e-14,
+      "momentum_absolute_drift": 6.35005777479972e-17
+    },
+    "shear-curved-16": {
+      "metadata": {
+        "scenario": "shear",
+        "chart": "curved",
+        "grid": [
+          16,
+          16
+        ],
+        "steps": 64,
+        "output_interval": 16,
+        "parameters": {
+          "stretch": "0.2",
+          "shear": "0.3",
+          "scenario": "2",
+          "amplitude": "0.02",
+          "tau": "0.2",
+          "dt": "0.1*dx",
+          "area": "39.47841760435743",
+          "cell": "dx*dy"
+        },
+        "config": [
+          "length_per_node: [6.283185307179586, 6.283185307179586]",
+          "grid_per_node: [16, 16]",
+          "mpi_shape: [1, 1]",
+          "boundary: [periodic, periodic]",
+          "reduces: [elapsed = max elapsed, mass = sum mass, momentum_x = sum momentumX, momentum_y = sum momentumY, mode = sum mode, energy = sum energy, error = max error, rmin = min density, rmax = max density, bad = max bad]"
+        ],
+        "source_sha256": "f51bbcfad603ddd3a8dfaf97d945448b44175f1cc987506970dcdb67414863d5",
+        "instantiated_fmr_sha256": "0576272a816b0939669e686b5a2d34250ae2967900f2edff484f39dcc5d28351",
+        "toolchain": {
+          "formurae_inputs_sha256": "45a4b166820b6dc86912468eb39fac6bdb6cf91b3f4ba0a59f1f7e76adf9554e",
+          "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+          "formura_executable_sha256": "dc4a5698895da10f7bd7879df5e169b708e5b9e486dfebc9e5c36aef2fba6a8d"
+        },
+        "elapsed_seconds": 0.04904454199999009
+      },
+      "records": [
+        {
+          "step": 0.0,
+          "time": 0.0,
+          "mass": 1.0000000000000002,
+          "momentum_x": 0.0,
+          "momentum_y": -1.1316360175317453e-18,
+          "mode": 0.01999999999999998,
+          "energy": 0.00010000000000000002,
+          "error": 0.0,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 16.0,
+          "time": 0.6283185307179586,
+          "mass": 0.9999999999999986,
+          "momentum_x": -2.083360251833207e-18,
+          "momentum_y": -1.0164395367051604e-18,
+          "mode": 0.019457433325875167,
+          "energy": 9.464812423908367e-05,
+          "error": 0.0,
+          "rmin": 0.9999324998207837,
+          "rmax": 1.0000668829732715,
+          "bad": 0.0
+        },
+        {
+          "step": 32.0,
+          "time": 1.2566370614359172,
+          "mass": 0.9999999999999971,
+          "momentum_x": -2.2234350167629367e-18,
+          "momentum_y": -1.3078188705606397e-18,
+          "mode": 0.018717781879004566,
+          "energy": 8.75898516937768e-05,
+          "error": 0.0,
+          "rmin": 0.9999154481856408,
+          "rmax": 1.000083343750155,
+          "bad": 0.0
+        },
+        {
+          "step": 48.0,
+          "time": 1.8849555921538759,
+          "mass": 0.9999999999999969,
+          "momentum_x": 7.180721810348331e-19,
+          "momentum_y": 6.640738306473715e-19,
+          "mode": 0.01799929634658645,
+          "energy": 8.099569089389992e-05,
+          "error": 0.0,
+          "rmin": 0.9999445817905145,
+          "rmax": 1.0000550993143553,
+          "bad": 0.0
+        },
+        {
+          "step": 64.0,
+          "time": 2.513274122871837,
+          "mass": 0.9999999999999953,
+          "momentum_x": -2.7897691862310424e-18,
+          "momentum_y": -1.700842158086635e-18,
+          "mode": 0.017308316296331276,
+          "energy": 7.489722261397977e-05,
+          "error": 0.0,
+          "rmin": 0.9999890145046713,
+          "rmax": 1.000012642717012,
+          "bad": 0.0
+        }
+      ],
+      "mass_relative_drift": 4.884981308350688e-15,
+      "momentum_absolute_drift": 2.7897691862310424e-18
+    },
+    "shear-curved-32": {
+      "metadata": {
+        "scenario": "shear",
+        "chart": "curved",
+        "grid": [
+          32,
+          32
+        ],
+        "steps": 128,
+        "output_interval": 32,
+        "parameters": {
+          "stretch": "0.2",
+          "shear": "0.3",
+          "scenario": "2",
+          "amplitude": "0.02",
+          "tau": "0.2",
+          "dt": "0.1*dx",
+          "area": "39.47841760435743",
+          "cell": "dx*dy"
+        },
+        "config": [
+          "length_per_node: [6.283185307179586, 6.283185307179586]",
+          "grid_per_node: [32, 32]",
+          "mpi_shape: [1, 1]",
+          "boundary: [periodic, periodic]",
+          "reduces: [elapsed = max elapsed, mass = sum mass, momentum_x = sum momentumX, momentum_y = sum momentumY, mode = sum mode, energy = sum energy, error = max error, rmin = min density, rmax = max density, bad = max bad]"
+        ],
+        "source_sha256": "f51bbcfad603ddd3a8dfaf97d945448b44175f1cc987506970dcdb67414863d5",
+        "instantiated_fmr_sha256": "0576272a816b0939669e686b5a2d34250ae2967900f2edff484f39dcc5d28351",
+        "toolchain": {
+          "formurae_inputs_sha256": "45a4b166820b6dc86912468eb39fac6bdb6cf91b3f4ba0a59f1f7e76adf9554e",
+          "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+          "formura_executable_sha256": "dc4a5698895da10f7bd7879df5e169b708e5b9e486dfebc9e5c36aef2fba6a8d"
+        },
+        "elapsed_seconds": 0.3655227080000145
+      },
+      "records": [
+        {
+          "step": 0.0,
+          "time": 0.0,
+          "mass": 1.0,
+          "momentum_x": 0.0,
+          "momentum_y": 1.7702988597614877e-19,
+          "mode": 0.01999999999999998,
+          "energy": 9.999999999999969e-05,
+          "error": 0.0,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 32.0,
+          "time": 0.6283185307179586,
+          "mass": 0.9999999999999982,
+          "momentum_x": -4.762500648580182e-19,
+          "momentum_y": 4.262269790583639e-18,
+          "mode": 0.01943520134269039,
+          "energy": 9.443177718044618e-05,
+          "error": 0.0,
+          "rmin": 0.9999824541676446,
+          "rmax": 1.000017544501813,
+          "bad": 0.0
+        },
+        {
+          "step": 64.0,
+          "time": 1.2566370614359186,
+          "mass": 0.999999999999996,
+          "momentum_x": -2.4926202676030057e-18,
+          "momentum_y": 3.62021881656488e-18,
+          "mode": 0.018666509115658765,
+          "energy": 8.710971113033373e-05,
+          "error": 0.0,
+          "rmin": 0.9999797001043721,
+          "rmax": 1.0000203464637003,
+          "bad": 0.0
+        },
+        {
+          "step": 96.0,
+          "time": 1.8849555921538808,
+          "mass": 0.999999999999993,
+          "momentum_x": -1.6118333882728665e-18,
+          "momentum_y": -2.157392916656703e-18,
+          "mode": 0.017921030940864186,
+          "energy": 8.029097090363133e-05,
+          "error": 0.0,
+          "rmin": 0.9999888585310768,
+          "rmax": 1.0000113604303817,
+          "bad": 0.0
+        },
+        {
+          "step": 128.0,
+          "time": 2.513274122871843,
+          "mass": 0.9999999999999906,
+          "momentum_x": -1.8612630845433316e-18,
+          "momentum_y": 1.1409533799515426e-18,
+          "mode": 0.01720519837169467,
+          "energy": 7.400488852521624e-05,
+          "error": 0.0,
+          "rmin": 0.9999968813380204,
+          "rmax": 1.0000031037418946,
+          "bad": 0.0
+        }
+      ],
+      "mass_relative_drift": 9.43689570931383e-15,
+      "momentum_absolute_drift": 4.0852399046074905e-18
+    },
+    "shear-curved-64": {
+      "metadata": {
+        "scenario": "shear",
+        "chart": "curved",
+        "grid": [
+          64,
+          64
+        ],
+        "steps": 256,
+        "output_interval": 64,
+        "parameters": {
+          "stretch": "0.2",
+          "shear": "0.3",
+          "scenario": "2",
+          "amplitude": "0.02",
+          "tau": "0.2",
+          "dt": "0.1*dx",
+          "area": "39.47841760435743",
+          "cell": "dx*dy"
+        },
+        "config": [
+          "length_per_node: [6.283185307179586, 6.283185307179586]",
+          "grid_per_node: [64, 64]",
+          "mpi_shape: [1, 1]",
+          "boundary: [periodic, periodic]",
+          "reduces: [elapsed = max elapsed, mass = sum mass, momentum_x = sum momentumX, momentum_y = sum momentumY, mode = sum mode, energy = sum energy, error = max error, rmin = min density, rmax = max density, bad = max bad]"
+        ],
+        "source_sha256": "f51bbcfad603ddd3a8dfaf97d945448b44175f1cc987506970dcdb67414863d5",
+        "instantiated_fmr_sha256": "0576272a816b0939669e686b5a2d34250ae2967900f2edff484f39dcc5d28351",
+        "toolchain": {
+          "formurae_inputs_sha256": "45a4b166820b6dc86912468eb39fac6bdb6cf91b3f4ba0a59f1f7e76adf9554e",
+          "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+          "formura_executable_sha256": "dc4a5698895da10f7bd7879df5e169b708e5b9e486dfebc9e5c36aef2fba6a8d"
+        },
+        "elapsed_seconds": 2.9118806249999807
+      },
+      "records": [
+        {
+          "step": 0.0,
+          "time": 0.0,
+          "mass": 1.0000000000000029,
+          "momentum_x": 0.0,
+          "momentum_y": 5.44218668610888e-20,
+          "mode": 0.020000000000000035,
+          "energy": 0.00010000000000000009,
+          "error": 0.0,
+          "rmin": 1.0,
+          "rmax": 1.0,
+          "bad": 0.0
+        },
+        {
+          "step": 64.0,
+          "time": 0.6283185307179593,
+          "mass": 0.9999999999999959,
+          "momentum_x": 1.8019703904946185e-18,
+          "momentum_y": -1.2451384324638215e-19,
+          "mode": 0.019429503318814052,
+          "energy": 9.437640073772213e-05,
+          "error": 0.0,
+          "rmin": 0.9999956160142062,
+          "rmax": 1.0000043913969179,
+          "bad": 0.0
+        },
+        {
+          "step": 128.0,
+          "time": 1.2566370614359215,
+          "mass": 0.9999999999999919,
+          "momentum_x": 1.1358875837086e-18,
+          "momentum_y": 9.245046981925468e-18,
+          "mode": 0.018653388254372873,
+          "energy": 8.698722786034512e-05,
+          "error": 0.0,
+          "rmin": 0.9999950362840544,
+          "rmax": 1.0000050155721856,
+          "bad": 0.0
+        },
+        {
+          "step": 192.0,
+          "time": 1.8849555921538836,
+          "mass": 0.9999999999999861,
+          "momentum_x": 9.610569771107737e-19,
+          "momentum_y": 2.590438510940464e-18,
+          "mode": 0.017901038021397742,
+          "energy": 8.011179899258823e-05,
+          "error": 0.0,
+          "rmin": 0.9999974194196727,
+          "rmax": 1.0000026626244924,
+          "bad": 0.0
+        },
+        {
+          "step": 256.0,
+          "time": 2.5132741228718456,
+          "mass": 0.9999999999999833,
+          "momentum_x": -2.378783490757699e-18,
+          "momentum_y": 1.3498846443036564e-17,
+          "mode": 0.017178903634894112,
+          "energy": 7.377869354095738e-05,
+          "error": 0.0,
+          "rmin": 0.9999991867353659,
+          "rmax": 1.0000008282109145,
+          "bad": 0.0
+        }
+      ],
+      "mass_relative_drift": 1.9539925233402698e-14,
+      "momentum_absolute_drift": 1.3444424576175475e-17
+    }
+  }
+}

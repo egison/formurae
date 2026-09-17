@@ -4,6 +4,8 @@ axes x, y
 index a, b : 9
 index r, s : 3
 index p : 2
+metric g
+metric tensor [[4,1],[1,9]]
 param dt = 0.001
 field f_a
 field total : scalar
@@ -13,6 +15,10 @@ field gradient_a_i
 field M_r_s
 field S{_r_s}
 field A[_r_s]
+field lowered_i
+field raised~i
+field publicLower_i
+field publicRaised~i
 static field pair_p @ primal := [| sin x, cos y |]_p
 static field weights~a := [| 1, 1, 1, 1, 1, 1, 1, 1, 1 |]~a
 static field C~a_i := [| [| 1, 2 |], [| 2, 4 |], [| 3, 6 |], [| 4, 8 |], [| 5, 10 |], [| 6, 12 |], [| 7, 14 |], [| 8, 16 |], [| 9, 18 |] |]~a_i
@@ -33,6 +39,10 @@ init:
   M_r_s = [| [| 1, 2, 3 |], [| 4, 5, 6 |], [| 7, 8, 9 |] |]_r_s
   S_r_s = [| [| 1, 2, 3 |], [| 4, 5 |], [| 6 |] |]_r_s
   A_r_s = [| [| 2, 3 |], [| 5 |] |]_r_s
+  lowered_i := g_i_j . [| 1,2 |]~j
+  raised~i := g~i~j . [| 6,19 |]_j
+  publicLower_i := metric_i_j . [| 1,2 |]~j
+  publicRaised~i := inverseMetric~i~j . [| 6,19 |]_j
 step:
   let source_a = f_a
   local next_a = identity (relax source)
@@ -44,3 +54,7 @@ step:
   M'_r_s = M_r_s
   S'_r_s = S_r_s
   A'_r_s = A_r_s
+  lowered'_i = g_i_j . raised~j
+  raised'~i = g~i~j . lowered_j
+  publicLower'_i = metric_i_j . publicRaised~j
+  publicRaised'~i = inverseMetric~i~j . publicLower_j

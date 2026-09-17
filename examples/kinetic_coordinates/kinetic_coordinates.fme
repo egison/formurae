@@ -1,0 +1,120 @@
+-- D2Q9 discrete-velocity Boltzmann equation on a mapped periodic plane.
+-- Physical coordinates: X=x+stretch*sin(x)+shear*sin(y), Y=y.
+-- Change only stretch/shear to change charts. The collision and conservative
+-- transport operators below use the same tensor expressions in every chart.
+-- scenario: 0 uniform equilibrium, 1 collisionless exact transport, 2 shear.
+dimension 2
+axes x, y
+index a, b : 9
+metric g
+metric tensor [[(1+stretch*cos(x))^2, (1+stretch*cos(x))*shear*cos(y)], [(1+stretch*cos(x))*shear*cos(y), 1+(shear*cos(y))^2]]
+metric volume 1+stretch*cos(x)
+
+param stretch = 0.2
+param shear = 0.3
+param scenario = 1
+param amplitude = 0.02
+param tau = 0.2
+param dt = 0.1*dx
+param area = 39.47841760435743
+param cell = dx*dy
+extern sin
+extern cos
+extern exp
+extern sqrt
+-- Optional runtime parameter input used by the experiment driver only.
+extern kineticConfig
+
+-- Geometry and the fixed physical velocity frame. The 9-valued label a is
+-- independent of the spatial index i. No grid shifts are used.
+def physicalX = x+stretch*sin(x)+shear*sin(y)
+def physicalY = y
+def jacobian = 1+stretch*cos(x)
+def cross = shear*cos(y)
+def weights = [| 4/9,1/9,1/9,1/9,1/9,1/36,1/36,1/36,1/36 |]
+def ex = [| 0,1,-1,0,0,1,-1,1,-1 |]
+def ey = [| 0,0,0,1,-1,1,-1,-1,1 |]
+def ones = generateTensor (\[q] -> 1) [9]
+def directions = generateTensor (\[q,k] -> if k = 1 then (ex_q-cross*ey_q)/jacobian else ey_q) [9,2]
+static field c_a~i := (directions)_a~i
+
+-- This independent physical-frame formula supplies initial/reference data.
+def referenceEquilibrium w cx cy ux uy = w*(1+3*(cx*ux+cy*uy)+(9/2)*(cx*ux+cy*uy)^2-(3/2)*(ux^2+uy^2))
+def referenceComponent w cx cy t = if scenario < 0.5 then referenceEquilibrium w cx cy 0.03 0.02 else if scenario < 1.5 then w*(1+amplitude*cos(physicalX+2*physicalY-(cx+2*cy)*t)) else referenceEquilibrium w cx cy 0 (amplitude*sin(physicalX))
+def reference t =
+  generateTensor (\[q] -> referenceComponent weights_q ex_q ey_q t) [9]
+def collisionRate = if scenario > 0.5 && scenario < 1.5 then 0 else 1/tau
+def metricLower V~i = withSymbols [j,k] (g_j_k . V~k)
+def metricNorm V~i = withSymbols [j,k] (g_j_k . V~j . V~k)
+def initialRho = if scenario > 0.5 && scenario < 1.5 then 1+amplitude*cos(physicalX+2*physicalY) else 1
+def initialUx = if scenario < 0.5 then 0.03 else 0
+def initialUy = if scenario < 0.5 then 0.02 else if scenario < 1.5 then 0 else amplitude*sin(physicalX)
+
+-- Geometry-independent model: metric contractions, a conservative flux, and
+-- local BGK relaxation. locals keep the RK stages from expanding into one
+-- very large expression. c is constant in physical space, not in the chart.
+macro rhs Q =
+  local state_a = Q
+  local rho = ones~a . state_a
+  local u~i = (c~a~i . state_a)/rho
+  local lower_i = metricLower u
+  local cu_a = c_a~i . lower_i
+  local uu = metricNorm u
+  local equilibrium_a = weights_a*rho*(1+3*cu_a+(9/2)*cu_a^2-(3/2)*uu)
+  local flux_a~i = volume*c_a~i*state_a
+  in (0-(∂_i flux_a~i)/volume)+collisionRate*(equilibrium_a-state_a)
+
+field f_a
+field original_a
+field stage : scalar
+field elapsed : scalar
+field mass : scalar
+field momentumX : scalar
+field momentumY : scalar
+field mode : scalar
+field energy : scalar
+field error : scalar
+field density : scalar
+field bad : scalar
+
+init:
+  f_a := (reference 0)_a
+  original_a := (reference 0)_a
+  stage := 0
+  elapsed := 0
+  mass := cell*volume*initialRho/area
+  momentumX := cell*volume*initialRho*initialUx/area
+  momentumY := cell*volume*initialRho*initialUy/area
+  mode := 2*cell*volume*initialUy*sin(physicalX)/area
+  energy := cell*volume*initialRho*(initialUx^2+initialUy^2)/(2*area)
+  error := 0
+  density := initialRho
+  bad := 0
+
+step:
+  -- Three generated updates form one third-order Runge-Kutta time step.
+  -- Keeping the stages in fields bounds the code generator's dependency
+  -- depth while retaining the same SSPRK3 formula.
+  local rate_a = rhs f
+  local euler_a = f_a+dt*rate_a
+  original'_a = if stage < 0.5 then f_a else original_a
+  f'_a = if stage < 0.5 then euler_a else if stage < 1.5 then (3/4)*original_a+euler_a/4 else original_a/3+(2/3)*euler_a
+  elapsed' = if stage > 1.5 then elapsed+dt else elapsed
+  stage' = if stage > 1.5 then 0 else stage+1
+
+  -- All physical moments, exact-solution errors, and validity checks are FME.
+  local nextRho = ones~a . f'_a
+  local nextU~i = (c~a~i . f'_a)/nextRho
+  local physicalUx = jacobian*nextU~1+cross*nextU~2
+  local physicalUy = nextU~2
+  local populationError_a = f'_a-(reference elapsed')_a
+  local square_a = populationError_a^2
+  local norm = metricNorm nextU
+  mass' = cell*volume*nextRho/area
+  momentumX' = cell*volume*nextRho*physicalUx/area
+  momentumY' = cell*volume*nextRho*physicalUy/area
+  mode' = 2*cell*volume*physicalUy*sin(physicalX)/area
+  energy' = cell*volume*nextRho*norm/(2*area)
+  error' = if stage > 1.5 && scenario < 1.5 then sqrt(ones~a . square_a) else 0
+  density' = nextRho
+  bad' = if nextRho > 0.5 && nextRho < 1.5 && norm >= 0 && norm < 0.1 then 0 else 1

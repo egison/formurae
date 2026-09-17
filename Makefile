@@ -221,6 +221,12 @@ application-demos-gallery:
 	$(MAKE) composite_ultrasound
 	python3 examples/application_demos/gallery.py
 
+# Coordinate-independent discrete-velocity transport, with sequential builds.
+.PHONY: kinetic-coordinates-verify
+kinetic-coordinates-verify:
+	python3 examples/kinetic_coordinates/run.py
+	python3 examples/kinetic_coordinates/verify.py
+
 # A free-surface water tank; builds and runs through the normal FME pipeline.
 .PHONY: breaking-wave-demo breaking-wave-verify
 breaking-wave-demo:

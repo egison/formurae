@@ -33,7 +33,15 @@ static int check(Formura_Navi n) {
           !near(formura_data.face_down9_down1[i][j], sin(x+h/2)) ||
           !near(formura_data.face_down9_down2[i][j], cos(y+h/2)) ||
           !near(formura_data.pair_down1[i][j], sin(x)) ||
-          !near(formura_data.pair_down2[i][j], cos(y))) {
+          !near(formura_data.pair_down2[i][j], cos(y)) ||
+          !near(formura_data.lowered_down1[i][j], 6) ||
+          !near(formura_data.lowered_down2[i][j], 19) ||
+          !near(formura_data.raised_up1[i][j], 1) ||
+          !near(formura_data.raised_up2[i][j], 2) ||
+          !near(formura_data.publicLower_down1[i][j], 6) ||
+          !near(formura_data.publicLower_down2[i][j], 19) ||
+          !near(formura_data.publicRaised_up1[i][j], 1) ||
+          !near(formura_data.publicRaised_up2[i][j], 2)) {
         fprintf(stderr, "index size/placement check failed: step=%d cell=(%d,%d)\n",
                 n.time_step, xi, yj);
         return 0;
