@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Publish the saved collision/viscosity verification in both galleries."""
+"""Publish the saved collision/viscosity verification on both wave pages."""
 import hashlib
 import html
 import json
@@ -143,7 +143,7 @@ def main():
     report=load_report()
     for lang in ('ja','en'):
         title,card=generate(lang,report)
-        path=ROOT/'html'/lang/'gallery.html'
+        path=ROOT/'html'/lang/'waves.html'
         page=replace_or_insert(path.read_text(),BEGIN,END,card,'<!-- kinetic-fv:begin -->')
         nav=f'{NAV_BEGIN}<p><a href="#{SLUG}">{title}</a></p>{NAV_END}'
         page=replace_or_insert(page,NAV_BEGIN,NAV_END,nav,'<!-- kinetic-fv:nav:begin -->')

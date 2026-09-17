@@ -126,13 +126,13 @@ def main():
         if not (HERE / "results" / filename).is_file():
             raise FileNotFoundError(filename)
     for lang in ("ja", "en"):
-        path = ROOT / "html" / lang / "gallery.html"
+        path = ROOT / "html" / lang / "waves.html"
         page = path.read_text()
         card = generate(lang, report, source)
-        page = replace_or_insert(page, BEGIN, END, card, '<article class="card featured" id="breaking-wave3d">')
+        page = replace_or_insert(page, BEGIN, END, card, '<article class="card featured" id="lbm-d3q19">')
         label = "座標を変えても同じ流れ：D2Q9の検証" if lang == "ja" else "The same flow in different coordinates: D2Q9"
         nav = f'{NAV_BEGIN}<p><a href="#kinetic-coordinates">{label}</a></p>{NAV_END}'
-        page = replace_or_insert(page, NAV_BEGIN, NAV_END, nav, '  <p><a href="#breaking-wave3d">')
+        page = replace_or_insert(page, NAV_BEGIN, NAV_END, nav, '<!-- waves-foundations-nav:end -->')
         path.write_text(page)
         print(path)
 

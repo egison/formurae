@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Fill the gallery's full-source blocks: in html/{ja,en}/gallery.html,
+# Fill full-source blocks in html/{ja,en}/{gallery,waves}.html:
 #   <details class="codebox" data-fme="<path under examples/>">...</details>
 #   <details class="codebox" data-egi="<path under examples/>">...</details>
 #   <details class="codebox" data-feir="<path under examples/>">...</details>
@@ -33,6 +33,8 @@ EN = {
 PAGES = [
     (os.path.join(ROOT, 'html', 'ja', 'gallery.html'), JA),
     (os.path.join(ROOT, 'html', 'en', 'gallery.html'), EN),
+    (os.path.join(ROOT, 'html', 'ja', 'waves.html'), JA),
+    (os.path.join(ROOT, 'html', 'en', 'waves.html'), EN),
 ]
 
 def load(rel, comment_re):

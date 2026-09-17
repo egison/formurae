@@ -226,6 +226,8 @@ D3Q19へ拡張し，奥行きによって波高と波の位置が変わる水槽
 描画用ライブラリの準備は三次元版のREADMEを参照してください．
 まず二次元の波の巻き込み・崩壊・水際の後退・計算精度・表示を整え，
 その後に三次元と飛沫へ進める方針を[波の開発計画](TODO/breaking-waves.md)にまとめています．
+波の動画と関連する流体の基礎検証は，専用の[波のシミュレーション](html/ja/waves.html)
+（[English](html/en/waves.html)）に掲載しています．
 
 座標に依存しない流体モデルに向け，
 [D2Q9の分布の移動を微分方程式で解く実験](examples/kinetic_coordinates/README.md)を
@@ -240,21 +242,21 @@ D3Q19へ拡張し，奥行きによって波高と波の位置が変わる水槽
 同じ更新式を直交格子と曲がった格子で実行し，9方向それぞれの総量保存，
 中間段階を含む非負性，滑らかな移動問題の収束を確認します．
 `make kinetic-fv-verify` で48条件の検証，`make kinetic-fv-gallery` で
-保存済みの結果から日英のギャラリー更新を再現できます．
+保存済みの結果から日英の波の専用ページの更新を再現できます．
 
 [衝突と粘性の検証](examples/kinetic_viscosity/README.md)では，この輸送に
 分布を平衡状態へ近づけるBGK衝突項を加えます．位置によって横向きの速さが変わる
 せん断流の減衰を，方程式から導いた参照値と比較します．三つの緩和時間，
 直交格子と曲がった格子，格子の細分化で誤差を調べ，質量と運動量の保存も確認します．
 `make kinetic-viscosity-verify` で50条件の検証，`make kinetic-viscosity-gallery` で
-日英のギャラリー更新を再現できます．
+日英の波の専用ページの更新を再現できます．
 
 [重力と静水の検証](examples/kinetic_hydrostatic/README.md)では，上下の反射壁と
 重力を加え，静水状態からの差を計算することで重力と圧力のつり合いを保ちます．
 静水・密度の小さな乱れ・水平加速度による運動量の変化を，直交格子と曲がった格子で
 調べます．壁は流体を通さず，接線方向には滑る条件です．領域を流体で満たした試験で，
 水面と傾斜した海底への結合は次の段階です．`make kinetic-hydrostatic-verify` で
-検証を，`make kinetic-hydrostatic-gallery` で日英のギャラリー更新を再現できます．
+検証を，`make kinetic-hydrostatic-gallery` で日英の波の専用ページの更新を再現できます．
 
 ## 材料則と座標変換を変更する応用デモ
 
@@ -631,6 +633,7 @@ EGISON_HEAP_LIMIT=4G make all EGISON_DIR="$EGISON_DIR"
 - [`DSL-DESIGN.md`](DSL-DESIGN.md): 表層構文と設計履歴
 - [`html/ja/usage.html`](html/ja/usage.html)/[`html/en/usage.html`](html/en/usage.html): tutorialとusage guide
 - [`html/ja/gallery.html`](html/ja/gallery.html)/[`html/en/gallery.html`](html/en/gallery.html): 検証済み応用のgallery
+- [`html/ja/waves.html`](html/ja/waves.html)/[`html/en/waves.html`](html/en/waves.html): 水面の波と関連する流体モデルの検証
 - [`APPLICATIONS.md`](APPLICATIONS.md): 応用例一覧
 - [`UPSTREAM.md`](UPSTREAM.md): Formura側の過去の拡張案と実装記録
 

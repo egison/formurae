@@ -152,8 +152,8 @@ python3 examples/kinetic_coordinates/render.py
 `.egi`・`.feir`・`.fmr` を保存し，グラフ・検証値・ソース全文を掲載する．
 シミュレーションの結果は保存済みの検証JSONから読み，FMEと一致することを確認する．
 HTMLだけを更新する場合は `python3 examples/kinetic_coordinates/gallery.py` を使う．
-[日本語ギャラリー](../../html/ja/gallery.html#kinetic-coordinates)・
-[英語ギャラリー](../../html/en/gallery.html#kinetic-coordinates)から閲覧できる．
+[波の専用ページ（日本語）](../../html/ja/waves.html#kinetic-coordinates)・
+[英語版](../../html/en/waves.html#kinetic-coordinates)から閲覧できる．
 
 添字と計量の変換に関する回帰検査も通過した．再現する場合は直列で実行する．
 

@@ -166,7 +166,7 @@ def main():
         if not (HERE / "results" / filename).is_file():
             raise FileNotFoundError(filename)
     for lang in ("ja", "en"):
-        path = ROOT / "html" / lang / "gallery.html"
+        path = ROOT / "html" / lang / "waves.html"
         page = replace_or_insert(path.read_text(), BEGIN, END, generate(lang, report, source),
                                  "<!-- kinetic-coordinates:begin -->")
         label = "波頭を保つための輸送の高精度化：D2Q9" if lang == "ja" else "More accurate D2Q9 transport toward sharper wave crests"
