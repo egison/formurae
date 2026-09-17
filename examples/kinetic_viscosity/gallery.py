@@ -6,9 +6,12 @@ import json
 import math
 from pathlib import Path
 import re
+import sys
 
 HERE=Path(__file__).resolve().parent
 ROOT=HERE.parents[1]
+sys.path.insert(0, str(ROOT / "gallery/tools"))
+from wave_movies import video_html
 NAME='kinetic_viscosity'
 BASE='../../examples/kinetic_viscosity'
 SLUG='kinetic-viscosity'
@@ -114,6 +117,7 @@ def generate(lang,report):
 <h3>{title}</h3><p class="description">{description}</p>
 <div class="math">∂t f + div(c f) = (f_eq − f) / τ</div>
 <p class="description">{equation_note}</p>
+{video_html(NAME, lang)}
 <div class="imgs"><a href="{BASE}/results/viscosity.svg"><img src="{BASE}/results/viscosity.png" alt="{html.escape(caption)}" width="1800" height="756" loading="lazy"></a></div>
 <p class="cap">{caption}</p><p class="facts">{facts}</p>
 <div style="overflow-x:auto;margin:12px 0"><table style="width:100%;min-width:600px;border-collapse:collapse;font-size:12.5px;text-align:right"><caption style="text-align:left;padding-bottom:8px">{table_caption}</caption><thead><tr>{headings}</tr></thead><tbody>{''.join(rows)}</tbody></table></div>

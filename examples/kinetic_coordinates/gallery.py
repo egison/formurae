@@ -5,9 +5,12 @@ import html
 import json
 from pathlib import Path
 import re
+import sys
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
+sys.path.insert(0, str(ROOT / "gallery/tools"))
+from wave_movies import video_html
 NAME = "kinetic_coordinates"
 BEGIN = "<!-- kinetic-coordinates:begin -->"
 END = "<!-- kinetic-coordinates:end -->"
@@ -90,6 +93,7 @@ def generate(lang, report, source):
 <p class="description">{description}</p>
 <div class="math">∂<sub>t</sub>f<sub>a</sub> = −J<sup>−1</sup>∂<sub>i</sub>(J c<sub>a</sub><sup>i</sup> f<sub>a</sub>) + (f<sub>a</sub><sup>eq</sup> − f<sub>a</sub>)/τ</div>
 <p class="description">{equation_note}</p>
+{video_html(NAME, lang)}
 <div class="imgs"><a href="{BASE}/results/convergence.svg"><img src="{BASE}/results/convergence.png" alt="{html.escape(caption)}" width="1800" height="756" loading="lazy"></a></div>
 <p class="cap">{caption}</p>
 <p class="facts">{facts}</p>

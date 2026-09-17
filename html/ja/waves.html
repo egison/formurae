@@ -57,7 +57,7 @@
 <body>
 <header>
   <h1>Formurae 波のシミュレーション</h1>
-  <p>一つの波が巻き込み，崩れ，岸から沖へ戻るまでのシミュレーションと，その開発を支える流体モデルの検証をまとめています。各例の動画・グラフ・計算結果・ソースを確認できます。</p>
+  <p>一つの波が巻き込み，崩れ，岸から沖へ戻るまでのシミュレーションと，その開発を支える流体モデルの検証をまとめています。各例の動画・グラフ・計算結果・ソースを確認できます。浅水波は水面を，基礎検証は分布や流速を動画で表示します。</p>
   <nav aria-label="ページ間の移動"><p><a href="gallery.html">ギャラリー</a> · <a href="usage.html">使い方ガイド</a> · <a href="../en/waves.html" lang="en" hreflang="en">English</a></p></nav>
   <p><a href="#breaking-wave">2次元の波と引き波</a> · <a href="#breaking-wave3d">3次元の波</a> · <a href="#shallow-water">浅水波</a></p>
   <details class="wave-index"><summary>流体モデルの基礎検証を探す</summary><nav aria-label="基礎検証">
@@ -68,6 +68,7 @@
 <!-- waves-foundations-nav:end -->
   <p><a href="#lbm-d3q19">D3Q19：三次元の19方向の分布</a></p>
   </nav></details>
+  <p><a href="../../gallery/video/waves/README.md">空間分布の動画の再現手順</a></p>
 </header>
 <main>
 <section aria-labelledby="water-waves">
@@ -766,7 +767,11 @@ step:
   <h3>浅水方程式</h3>
   <div class="math">∂<sub>t</sub>h + ∇·(h<b>u</b>) = 0,&nbsp;&nbsp;
     ∂<sub>t</sub>(hu) + ∂<sub>x</sub>(hu² + gh²/2) + ∂<sub>y</sub>(huv) = 0 …</div>
-  <details class="codebox" data-fme="shallowwater/shallowwater.fme" open><summary>Formurae ソース全文(shallowwater.fme・31 行)</summary>
+  <!-- wave-movie:shallowwater:begin -->
+<div class="imgs"><video controls loop muted playsinline preload="none" width="1200" height="680" poster="../../gallery/video/waves/shallowwater.png" aria-label="初めに1%だけ盛り上がった水面が，左右に分かれて進みます。上段は水面の高さの変化を縦に拡大し，下段は水底からの水深を表示しています。保存した水深 h の断面です。浅水方程式では，巻き込みや飛沫は表現していません。"><source src="../../gallery/video/waves/shallowwater.mp4" type="video/mp4"><a href="../../gallery/video/waves/shallowwater.mp4">動画を開く</a></video></div>
+<p class="cap">初めに1%だけ盛り上がった水面が，左右に分かれて進みます。上段は水面の高さの変化を縦に拡大し，下段は水底からの水深を表示しています。保存した水深 h の断面です。浅水方程式では，巻き込みや飛沫は表現していません。</p>
+<!-- wave-movie:shallowwater:end -->
+<details class="codebox" data-fme="shallowwater/shallowwater.fme" open><summary>Formurae ソース全文(shallowwater.fme・31 行)</summary>
 <pre><span class="c">-- Shallow water equations in conservation form (h, hu, hv), central</span>
 <span class="c">-- differences on the momentum fluxes (locals) plus a small Laplacian</span>
 <span class="c">-- viscosity; every piece is in flux form, so mass and momentum</span>
@@ -1004,6 +1009,10 @@ end function</pre></details>
 <h3>重力と壁を加える：静水を保ち，小さな乱れを動かす</h3><p class="description">粘性のあるD2Q9（二次元の九方向の分布）に，重力と上下の反射壁を加えました。静水状態からの差を計算し，重力と圧力が計算上もつり合うようにします。密度の小さな乱れを与えた場合は，流れが生じて伝わります。直交格子と曲がった格子で物理モデルは共通です。</p>
 <div class="math">ρH(Y) = exp(−3gY)，h = f − fH<br>∂t h + div(c h) = (f_eq − f)/τ + S(f) − S(fH)</div>
 <p class="description">ρHは高さYでの静水密度，hは静水の分布fHからの差です。この差を輸送することで静水を保つwell-balanced法（定常状態を保つ計算法）を使います。</p>
+<!-- wave-movie:kinetic_hydrostatic:begin -->
+<div class="imgs"><video controls loop muted playsinline preload="none" width="1200" height="680" poster="../../gallery/video/waves/kinetic_hydrostatic.png" aria-label="色は静水時の密度からのずれの絶対値，矢印は流速です。左は重力と圧力の釣り合いを保つ計算，中央はその工夫を使わない比較，右は左の方法に小さな密度の乱れを加えた計算です。上下の線は壁で，内部全体を流体が満たしています。3枚で色と矢印の尺度をそろえています。水面の映像ではありません。"><source src="../../gallery/video/waves/kinetic_hydrostatic.mp4" type="video/mp4"><a href="../../gallery/video/waves/kinetic_hydrostatic.mp4">動画を開く</a></video></div>
+<p class="cap">色は静水時の密度からのずれの絶対値，矢印は流速です。左は重力と圧力の釣り合いを保つ計算，中央はその工夫を使わない比較，右は左の方法に小さな密度の乱れを加えた計算です。上下の線は壁で，内部全体を流体が満たしています。3枚で色と矢印の尺度をそろえています。水面の映像ではありません。</p>
+<!-- wave-movie:kinetic_hydrostatic:end -->
 <div class="imgs"><a href="../../examples/kinetic_hydrostatic/results/hydrostatic.svg"><img src="../../examples/kinetic_hydrostatic/results/hydrostatic.png" alt="左：静水から勝手に生じる流速の最大値。通常の重力の加え方と，静水からの差を使う方法を比較します。右：密度に0.1%の乱れを与えたときの，初期の空間的な波形に沿った密度変化の大きさ（投影振幅）。曲線は実際の計算値で，解析解ではありません。" width="1800" height="756" loading="lazy"></a></div>
 <p class="cap">左：静水から勝手に生じる流速の最大値。通常の重力の加え方と，静水からの差を使う方法を比較します。右：密度に0.1%の乱れを与えたときの，初期の空間的な波形に沿った密度変化の大きさ（投影振幅）。曲線は実際の計算値で，解析解ではありません。</p><p class="facts"><b>24条件の検証が通過。</b> 静水での最大流速は0。32×32セルでは時刻8πまで静水を保ちました。乱れを与えた試験では流れが生じ，水平に外力を加えた試験では総運動量が力×時間に一致しました。</p>
 <div style="overflow-x:auto;margin:12px 0"><table style="width:100%;min-width:460px;border-collapse:collapse;font-size:12.5px;text-align:right"><caption style="text-align:left;padding-bottom:8px">静水試験での最大流速（時刻0〜2π）</caption><thead><tr><th scope="col" style="padding:6px">格子</th><th scope="col" style="padding:6px">セル数</th><th scope="col" style="padding:6px">通常の重力項</th><th scope="col" style="padding:6px">静水からの差</th></tr></thead><tbody><tr><th scope="row" style="text-align:left;padding:6px">直交</th><td style="padding:6px">16×16</td><td style="padding:6px"><span style="white-space:nowrap">2.02×10<sup>-3</sup></span></td><td style="padding:6px">0</td></tr><tr><th scope="row" style="text-align:left;padding:6px">直交</th><td style="padding:6px">32×32</td><td style="padding:6px"><span style="white-space:nowrap">1.00×10<sup>-3</sup></span></td><td style="padding:6px">0</td></tr><tr><th scope="row" style="text-align:left;padding:6px">直交</th><td style="padding:6px">64×64</td><td style="padding:6px"><span style="white-space:nowrap">5.00×10<sup>-4</sup></span></td><td style="padding:6px">0</td></tr><tr><th scope="row" style="text-align:left;padding:6px">曲がった格子</th><td style="padding:6px">16×16</td><td style="padding:6px"><span style="white-space:nowrap">2.30×10<sup>-3</sup></span></td><td style="padding:6px">0</td></tr><tr><th scope="row" style="text-align:left;padding:6px">曲がった格子</th><td style="padding:6px">32×32</td><td style="padding:6px"><span style="white-space:nowrap">1.15×10<sup>-3</sup></span></td><td style="padding:6px">0</td></tr><tr><th scope="row" style="text-align:left;padding:6px">曲がった格子</th><td style="padding:6px">64×64</td><td style="padding:6px"><span style="white-space:nowrap">5.75×10<sup>-4</sup></span></td><td style="padding:6px">0</td></tr></tbody></table></div>
@@ -4306,6 +4315,10 @@ end function</pre></details>
 <h3>輸送に衝突を加える：粘性による流れの減衰</h3><p class="description">D2Q9（二次元の九方向の分布）の輸送に，分布を同じ密度・運動量の平衡状態へ近づけるBGK衝突項を加えました。横方向の位置によって縦方向の速さが変わる「せん断流」が，粘性で減衰する様子を計算します。直交格子と曲がった格子で，同じ輸送・衝突の式を使います。</p>
 <div class="math">∂t f + div(c f) = (f_eq − f) / τ</div>
 <p class="description">τは平衡へ近づく時間の尺度です。密度と運動量から平衡分布 f_eq を作り，輸送と衝突を同じ二段の時間積分で進めます。</p>
+<!-- wave-movie:kinetic_viscosity:begin -->
+<div class="imgs"><video controls loop muted playsinline preload="none" width="1200" height="680" poster="../../gallery/video/waves/kinetic_viscosity.png" aria-label="色は y 方向の流速，矢印は流れの向きと速さです。直交格子と曲線格子の同じ流れを実際の空間に描き，粘性で少しずつ弱まる過程を比較します。色と矢印の尺度は固定しています。水面を持たない流体の計算です。"><source src="../../gallery/video/waves/kinetic_viscosity.mp4" type="video/mp4"><a href="../../gallery/video/waves/kinetic_viscosity.mp4">動画を開く</a></video></div>
+<p class="cap">色は y 方向の流速，矢印は流れの向きと速さです。直交格子と曲線格子の同じ流れを実際の空間に描き，粘性で少しずつ弱まる過程を比較します。色と矢印の尺度は固定しています。水面を持たない流体の計算です。</p>
+<!-- wave-movie:kinetic_viscosity:end -->
 <div class="imgs"><a href="../../examples/kinetic_viscosity/results/viscosity.svg"><img src="../../examples/kinetic_viscosity/results/viscosity.png" alt="左：三つの緩和時間での流れの減衰。実線は直交格子，丸印は曲がった格子，破線は方程式から導いた参照値です。右：同じ時間積分を使う一次風上法とMUSCL法の平均速度誤差。MUSCL法はセル内の傾きから面の値を求め，急な変化では傾きを抑えます。" width="1800" height="756" loading="lazy"></a></div>
 <p class="cap">左：三つの緩和時間での流れの減衰。実線は直交格子，丸印は曲がった格子，破線は方程式から導いた参照値です。右：同じ時間積分を使う一次風上法とMUSCL法の平均速度誤差。MUSCL法はセル内の傾きから面の値を求め，急な変化では傾きを抑えます。</p><p class="facts"><b>50条件の検証が通過。</b> 64×64セルの高精度法では，参照値との振幅の差は初期振幅の0.06%以内でした。各格子で三つの緩和時間を検証し，格子を細かくしたときの速度誤差の減少を確認しています。</p>
 <div style="overflow-x:auto;margin:12px 0"><table style="width:100%;min-width:600px;border-collapse:collapse;font-size:12.5px;text-align:right"><caption style="text-align:left;padding-bottom:8px">高精度法の平均速度誤差：同じ物理条件で格子を細分化（次数は64→128セル）</caption><thead><tr><th scope="col" style="padding:6px">格子</th><th scope="col" style="padding:6px">緩和時間 τ</th><th scope="col" style="padding:6px">16×16</th><th scope="col" style="padding:6px">32×32</th><th scope="col" style="padding:6px">64×64</th><th scope="col" style="padding:6px">128×128</th><th scope="col" style="padding:6px">平均誤差の次数</th></tr></thead><tbody><tr><th scope="row" style="text-align:left;padding:6px">直交</th><td style="padding:6px">0.0775</td><td style="padding:6px"><span style="white-space:nowrap">1.98×10<sup>-4</sup></span></td><td style="padding:6px"><span style="white-space:nowrap">4.31×10<sup>-5</sup></span></td><td style="padding:6px"><span style="white-space:nowrap">9.19×10<sup>-6</sup></span></td><td style="padding:6px"><span style="white-space:nowrap">1.36×10<sup>-6</sup></span></td><td style="padding:6px">2.752</td></tr><tr><th scope="row" style="text-align:left;padding:6px">直交</th><td style="padding:6px">0.1556</td><td style="padding:6px"><span style="white-space:nowrap">2.19×10<sup>-4</sup></span></td><td style="padding:6px"><span style="white-space:nowrap">5.58×10<sup>-5</sup></span></td><td style="padding:6px"><span style="white-space:nowrap">8.26×10<sup>-6</sup></span></td><td style="padding:6px"><span style="white-space:nowrap">1.43×10<sup>-6</sup></span></td><td style="padding:6px">2.526</td></tr><tr><th scope="row" style="text-align:left;padding:6px">直交</th><td style="padding:6px">0.2476</td><td style="padding:6px"><span style="white-space:nowrap">2.35×10<sup>-4</sup></span></td><td style="padding:6px"><span style="white-space:nowrap">3.47×10<sup>-5</sup></span></td><td style="padding:6px"><span style="white-space:nowrap">7.80×10<sup>-6</sup></span></td><td style="padding:6px"><span style="white-space:nowrap">1.70×10<sup>-6</sup></span></td><td style="padding:6px">2.199</td></tr><tr><th scope="row" style="text-align:left;padding:6px">曲がった格子</th><td style="padding:6px">0.0775</td><td style="padding:6px"><span style="white-space:nowrap">3.37×10<sup>-4</sup></span></td><td style="padding:6px"><span style="white-space:nowrap">4.64×10<sup>-5</sup></span></td><td style="padding:6px"><span style="white-space:nowrap">8.86×10<sup>-6</sup></span></td><td style="padding:6px"><span style="white-space:nowrap">1.58×10<sup>-6</sup></span></td><td style="padding:6px">2.488</td></tr><tr><th scope="row" style="text-align:left;padding:6px">曲がった格子</th><td style="padding:6px">0.1556</td><td style="padding:6px"><span style="white-space:nowrap">2.88×10<sup>-4</sup></span></td><td style="padding:6px"><span style="white-space:nowrap">4.87×10<sup>-5</sup></span></td><td style="padding:6px"><span style="white-space:nowrap">8.82×10<sup>-6</sup></span></td><td style="padding:6px"><span style="white-space:nowrap">1.88×10<sup>-6</sup></span></td><td style="padding:6px">2.226</td></tr><tr><th scope="row" style="text-align:left;padding:6px">曲がった格子</th><td style="padding:6px">0.2476</td><td style="padding:6px"><span style="white-space:nowrap">2.26×10<sup>-4</sup></span></td><td style="padding:6px"><span style="white-space:nowrap">4.31×10<sup>-5</sup></span></td><td style="padding:6px"><span style="white-space:nowrap">8.82×10<sup>-6</sup></span></td><td style="padding:6px"><span style="white-space:nowrap">1.97×10<sup>-6</sup></span></td><td style="padding:6px">2.164</td></tr></tbody></table></div>
@@ -6439,6 +6452,10 @@ end function</pre></details>
 <p class="description">D2Q9（二次元の九方向の分布）の移動を，セル内の量と共有面の流量から求める有限体積法で検証します。一次風上法に加え，セル内を直線で近似し，急な変化の近くで傾きを抑えるMUSCL法を実装しました。時間積分には，途中のEuler更新と平均を使う二段のSSPRK2法を組み合わせます。同じ更新式を直交格子と曲がった格子で使います。</p>
 <div class="math">F = max(B, 0) f<sub>lower</sub> + min(B, 0) f<sub>upper</sub></div>
 <p class="description">Fは共有面の流量，Bは移動速度と面の向き・長さから求める係数です。高精度法では，両側のセル平均と制限した傾きから面の値を求めます。隣接セルには同じ面の流量を逆符号で加えます。</p>
+<!-- wave-movie:kinetic_fv:begin -->
+<div class="imgs"><video controls loop muted playsinline preload="none" width="1200" height="680" poster="../../gallery/video/waves/kinetic_fv.png" aria-label="右向きに移動する一成分の分布を色で表示しています。左は一次精度の風上法，右は急な変化を保ちやすい高精度の方法で，同じ曲線格子・時間積分を使います。境目のぼやけ方を比較できます。色の範囲は両側とも0〜1で固定しています。水と空気の境界ではありません。"><source src="../../gallery/video/waves/kinetic_fv.mp4" type="video/mp4"><a href="../../gallery/video/waves/kinetic_fv.mp4">動画を開く</a></video></div>
+<p class="cap">右向きに移動する一成分の分布を色で表示しています。左は一次精度の風上法，右は急な変化を保ちやすい高精度の方法で，同じ曲線格子・時間積分を使います。境目のぼやけ方を比較できます。色の範囲は両側とも0〜1で固定しています。水と空気の境界ではありません。</p>
+<!-- wave-movie:kinetic_fv:end -->
 <div class="imgs"><a href="../../examples/kinetic_fv/results/comparison.svg"><img src="../../examples/kinetic_fv/results/comparison.png" alt="左：滑らかな移動問題の最大誤差。実線は高精度法，点線は一次風上法，破線は二次精度の傾きです。右：64×64セルの急な分布が，中間の値へどれだけ広がったかを示す指標。小さいほど分布のぼけが少なく，初期値は0です。水面の厚さを測った図ではありません。" width="1800" height="756" loading="lazy"></a></div>
 <p class="cap">左：滑らかな移動問題の最大誤差。実線は高精度法，点線は一次風上法，破線は二次精度の傾きです。右：64×64セルの急な分布が，中間の値へどれだけ広がったかを示す指標。小さいほど分布のぼけが少なく，初期値は0です。水面の厚さを測った図ではありません。</p>
 <p class="facts"><b>48条件の検証が通過。</b> 高精度法は平均前の候補も含め，全更新で負値を作りませんでした。64×64セルでは，時間積分を同じ二段法にそろえた一次風上法に対し，最大誤差が両格子で6.5分の1以下に減りました。急な分布のぼけの指標は，従来の一次風上法より両格子で55%以上減少しました。</p>
@@ -8255,6 +8272,10 @@ end function</pre></details>
 <p class="description">D2Q9は，二次元の九方向に移動する分布から流れを求める方法です。分布の移動を微分方程式で解き，直交座標・間隔が変わる直交座標・非直交の曲線座標で，同じ更新式を実行しました。物理的な九方向を固定して座標だけを変え，一様流，分布の移動，粘性で減衰する流れを比較します。</p>
 <div class="math">∂<sub>t</sub>f<sub>a</sub> = −J<sup>−1</sup>∂<sub>i</sub>(J c<sub>a</sub><sup>i</sup> f<sub>a</sub>) + (f<sub>a</sub><sup>eq</sup> − f<sub>a</sub>)/τ</div>
 <p class="description">Jは面積を換算する係数，cは九方向の速度，fは各方向の分布，fᵉᑫは平衡分布，τは緩和時間です。速度の内積には計量（長さと角度を表す係数）を使います。</p>
+<!-- wave-movie:kinetic_coordinates:begin -->
+<div class="imgs"><video controls loop muted playsinline preload="none" width="1200" height="680" poster="../../gallery/video/waves/kinetic_coordinates.png" aria-label="九方向のうち右向きに移動する一成分の分布を，その重みで割って色付けしています。左は直交格子，右は曲線格子で，どちらも実際の空間上に描いています。薄い線が計算格子です。同じ模様が右へ移動する様子を比較できます。色は水面の高さではありません。"><source src="../../gallery/video/waves/kinetic_coordinates.mp4" type="video/mp4"><a href="../../gallery/video/waves/kinetic_coordinates.mp4">動画を開く</a></video></div>
+<p class="cap">九方向のうち右向きに移動する一成分の分布を，その重みで割って色付けしています。左は直交格子，右は曲線格子で，どちらも実際の空間上に描いています。薄い線が計算格子です。同じ模様が右へ移動する様子を比較できます。色は水面の高さではありません。</p>
+<!-- wave-movie:kinetic_coordinates:end -->
 <div class="imgs"><a href="../../examples/kinetic_coordinates/results/convergence.svg"><img src="../../examples/kinetic_coordinates/results/convergence.png" alt="左：移動の厳密解との最大誤差。右：粘性で減衰する流れの，直交座標との振幅の差。格子間隔を半分にすると，どちらもおよそ4分の1になります。破線は二次精度の傾きです。" width="1800" height="756" loading="lazy"></a></div>
 <p class="cap">左：移動の厳密解との最大誤差。右：粘性で減衰する流れの，直交座標との振幅の差。格子間隔を半分にすると，どちらもおよそ4分の1になります。破線は二次精度の傾きです。</p>
 <p class="facts"><b>27通りの検証が通過。</b> 一様流の誤差は最大<span style="white-space:nowrap">8.85×10<sup>-17</sup></span>，質量の相対変化は<span style="white-space:nowrap">1.95×10<sup>-14</sup></span>，物理的な運動量の絶対変化は<span style="white-space:nowrap">6.35×10<sup>-17</sup></span>でした。64×64点で，曲線座標と直交座標との流れの振幅の差は<span style="white-space:nowrap">4.96×10<sup>-7</sup></span>でした。</p>
@@ -9321,6 +9342,10 @@ end function</pre></details>
 <p class="description">格子ボルツマン法は，格子点間を移動する分布から流れを求める方法です。<code>dimension 3</code> は空間の次元，<code>index a : 19</code> は分布の成分数を指定します。<code>f_a</code> は19成分，流速 <code>u_i</code> は3成分です。速度の表 <code>directions</code> は19×3成分で，上下の同じ添字を <code>.</code> で縮約し，成分について和を取ります。</p>
 <div class="math">f<sub>a</sub>(x+c<sub>a</sub>, t+1) = f<sub>a</sub> + (f<sup>eq</sup><sub>a</sub> − f<sub>a</sub>)/τ<br>
 f<sup>eq</sup><sub>a</sub> = w<sub>a</sub>ρ(1 + 3c·u + 9⁄2(c·u)² − 3⁄2u²)</div>
+<!-- wave-movie:lbm_d3q19:begin -->
+<div class="imgs"><video controls loop muted playsinline preload="none" width="1200" height="680" poster="../../gallery/video/waves/lbm_d3q19.png" aria-label="色と矢印は y 方向の流速です。上段は三次元計算の中央 z 断面，下段はその流速の分布で，破線は初期値です。粘性で流れが弱まる様子を，固定した色・矢印の尺度で表示しています。断面の縦方向は拡大表示です。水面を持たない流体の計算です。"><source src="../../gallery/video/waves/lbm_d3q19.mp4" type="video/mp4"><a href="../../gallery/video/waves/lbm_d3q19.mp4">動画を開く</a></video></div>
+<p class="cap">色と矢印は y 方向の流速です。上段は三次元計算の中央 z 断面，下段はその流速の分布で，破線は初期値です。粘性で流れが弱まる様子を，固定した色・矢印の尺度で表示しています。断面の縦方向は拡大表示です。水面を持たない流体の計算です。</p>
+<!-- wave-movie:lbm_d3q19:end -->
 <div class="imgs"><img src="../../gallery/img/lbm.svg" alt="D3Q19 shear wave at t=0 and t=1000" loading="lazy"></div>
 <p class="cap">横向きの流速が正弦波状に変化する流れ。粘性により，1,000ステップ後の振幅は初期値の約38.1%になります。</p>
 <div class="codebox"><div class="head">新しい添字記法（実際のソースから抜粋）</div><pre>dimension 3

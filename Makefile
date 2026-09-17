@@ -291,3 +291,14 @@ kinetic-hydrostatic-gallery:
 	$(POST_FEC_RUN) examples/kinetic_hydrostatic/kinetic_hydrostatic.feir > examples/kinetic_hydrostatic/kinetic_hydrostatic.fmr
 	$(PLOT_PYTHON) examples/kinetic_hydrostatic/render.py
 	python3 examples/kinetic_hydrostatic/gallery.py
+
+# Record fields through the existing drivers, then draw and publish both pages.
+# One Python process performs all compiler invocations and solver runs serially.
+.PHONY: wave-visualizations wave-visualizations-render
+wave-visualizations:
+	$(PLOT_PYTHON) gallery/tools/wave_frames.py
+	$(PLOT_PYTHON) gallery/tools/wave_movies.py
+
+# Redraw existing field archives without running a simulation.
+wave-visualizations-render:
+	$(PLOT_PYTHON) gallery/tools/wave_movies.py

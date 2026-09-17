@@ -1,0 +1,65 @@
+{
+  "capture": {
+    "model": "shallowwater",
+    "toolchain": {
+      "formurae_inputs_sha256": "bc780567e81b18362e1d7407cf2040cdb692e65f6326f9dd7f8b04a94f30cf99",
+      "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+      "formura_executable_sha256": "dc4a5698895da10f7bd7879df5e169b708e5b9e486dfebc9e5c36aef2fba6a8d"
+    },
+    "source_sha256": "5a9c3e950773738551e4b0470059fef2abfa119eccf1d8c5543a2e9f2e11175b",
+    "settings": {
+      "grid": [
+        256,
+        8,
+        8
+      ],
+      "dim": 3,
+      "fields": [
+        "h"
+      ],
+      "every": 4,
+      "last": 400,
+      "dt": 0.05,
+      "stages": 1,
+      "cases": {
+        "surface": [
+          400
+        ]
+      }
+    },
+    "cases": {
+      "surface": {
+        "arguments": [
+          400
+        ],
+        "frames": 101,
+        "shape": [
+          101,
+          1,
+          8,
+          256
+        ],
+        "archive_sha256": "020340420f556ed3d21a50abc5b708b890d3cf35385ca330dca7058f38aaf407",
+        "diagnostics_sha256": "b97e82626918895d68bee8fd0af44e24dff2bd88a42f23e5b3bd80101a8c2d07",
+        "baseline_diagnostics_identical": true
+      }
+    },
+    "byteorder": "little",
+    "driver_sha256": "036107b409f4f0f8f5868cca41db6ee072a810dd73a59726ddc08021b1d2546a",
+    "recorder_sha256": "c020ba17ed1500887017a135660fe6533c916e5e52a8d92857a572d0033857ef",
+    "capture_script_sha256": "1561fbd6e6055f6addcbf6d654f6fdfa0d4459e37b9cce40330cf49c5af96d8e",
+    "normalized_fmr_sha256": "8aeb8cf5031bc09d01531103d65c85afc3407e17472e03992020b9318659eb8f",
+    "instantiated_fmr_sha256": "8aeb8cf5031bc09d01531103d65c85afc3407e17472e03992020b9318659eb8f",
+    "config_sha256": "c303ca8fbb50c771051f0bd7b0c2e273b2448f387fad46235f494eb01039ddb1",
+    "generated_c_sha256": "df466e5fdde271fe67d3f4ec73ee4e2c53e0b459b9e7583bd85f92b995e7290f"
+  },
+  "frames": 101,
+  "fps": 12,
+  "physical_time": [
+    0.0,
+    20.0
+  ],
+  "renderer_sha256": "d8b89eb5b207c370a32032acb97ce8d99c1016efdaa05d14d75b3329ad44e92e",
+  "movie_sha256": "278c9b9a6b960c9c62196346897b6cd47733c972d999456f7bdb80a1659eb65d",
+  "poster_sha256": "135c9b7577c29dc05e24d39c3a41d88c8efd93b0eefc66b2248cca8169f983b0"
+}

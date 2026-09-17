@@ -6,9 +6,12 @@ import json
 import math
 from pathlib import Path
 import re
+import sys
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
+sys.path.insert(0, str(ROOT / "gallery/tools"))
+from wave_movies import video_html
 NAME = "kinetic_fv"
 SLUG = "kinetic-fv"
 BASE = "../../examples/kinetic_fv"
@@ -130,6 +133,7 @@ def generate(lang, report, source):
 <p class="description">{description}</p>
 <div class="math">F = max(B, 0) f<sub>lower</sub> + min(B, 0) f<sub>upper</sub></div>
 <p class="description">{equation_note}</p>
+{video_html(NAME, lang)}
 <div class="imgs"><a href="{BASE}/results/comparison.svg"><img src="{BASE}/results/comparison.png" alt="{html.escape(caption)}" width="1800" height="756" loading="lazy"></a></div>
 <p class="cap">{caption}</p>
 <p class="facts">{facts}</p>

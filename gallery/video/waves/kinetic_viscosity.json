@@ -1,0 +1,108 @@
+{
+  "capture": {
+    "model": "kinetic_viscosity",
+    "toolchain": {
+      "formurae_inputs_sha256": "bc780567e81b18362e1d7407cf2040cdb692e65f6326f9dd7f8b04a94f30cf99",
+      "egison_revision": "8ea78fb6acb22004070b39a3c6eabf10517c180d",
+      "formura_executable_sha256": "dc4a5698895da10f7bd7879df5e169b708e5b9e486dfebc9e5c36aef2fba6a8d"
+    },
+    "source_sha256": "c37240926129a21c9b3aaf028f1a5407363bfcdc9b6d48655cbcbc7da38d7299",
+    "settings": {
+      "grid": [
+        64,
+        64
+      ],
+      "dim": 2,
+      "fields": [
+        "mass",
+        "momentumX",
+        "momentumY"
+      ],
+      "every": 20,
+      "last": 2560,
+      "dt": 0.004908738521234052,
+      "stages": 2,
+      "cases": {
+        "cartesian": [
+          1280,
+          0,
+          0,
+          2,
+          1,
+          0.008,
+          1
+        ],
+        "mapped": [
+          1280,
+          0.2,
+          0.15,
+          2,
+          1,
+          0.008,
+          1
+        ]
+      }
+    },
+    "cases": {
+      "cartesian": {
+        "arguments": [
+          1280,
+          0,
+          0,
+          2,
+          1,
+          0.008,
+          1
+        ],
+        "frames": 129,
+        "shape": [
+          129,
+          3,
+          64,
+          64
+        ],
+        "archive_sha256": "07fbe697d66cb752850db64b5d56b1764dfccea7bae11d38ec77c8276df2e389",
+        "diagnostics_sha256": "afd90a69c8505afd9642d887fc744e62da10ed1fd4a45a1aae31a9bcf9ecf727",
+        "baseline_diagnostics_identical": true
+      },
+      "mapped": {
+        "arguments": [
+          1280,
+          0.2,
+          0.15,
+          2,
+          1,
+          0.008,
+          1
+        ],
+        "frames": 129,
+        "shape": [
+          129,
+          3,
+          64,
+          64
+        ],
+        "archive_sha256": "ca8fbc168c39e0b224c5261bd2b91f241eea5ea70c62debcc621c24c250c81c4",
+        "diagnostics_sha256": "cb883267841ec1768c6cff8bb3f630572eb4a62fbd53d9e8dcd899a0c1b65830",
+        "baseline_diagnostics_identical": true
+      }
+    },
+    "byteorder": "little",
+    "driver_sha256": "9fa38aead113ac6fa3c6f68c952c8e7e38d08db4a84d5e7c76271eeeaf3c5b09",
+    "recorder_sha256": "c020ba17ed1500887017a135660fe6533c916e5e52a8d92857a572d0033857ef",
+    "capture_script_sha256": "1561fbd6e6055f6addcbf6d654f6fdfa0d4459e37b9cce40330cf49c5af96d8e",
+    "normalized_fmr_sha256": "f9eae59b56b256b1150ff4e3626641066e006ddebb0aab452f21bbda2319f1fc",
+    "instantiated_fmr_sha256": "5d7aeeb6f7215358bdeebbc7862d890dd2d9022eca8bc0b10f05348ecc18875c",
+    "config_sha256": "d4c38071d8f6cad57d274bc03fc892e963b236269b5c1fcb9b3c249d89ffae01",
+    "generated_c_sha256": "0ccc222f20595a08b3acb0f0d8f540ec7adc7f49df44b65e64cef173836823c8"
+  },
+  "frames": 129,
+  "fps": 15,
+  "physical_time": [
+    0.0,
+    6.283185307179586
+  ],
+  "renderer_sha256": "d8b89eb5b207c370a32032acb97ce8d99c1016efdaa05d14d75b3329ad44e92e",
+  "movie_sha256": "fccaa1ab313e248b8865e4b4e9c8b285a1a0ff9895e6b403a39f5faae0a35d10",
+  "poster_sha256": "8a84153590091da5217709adf4f59c4556971bf4e7d9a4348323b7513b810b95"
+}
