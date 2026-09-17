@@ -84,6 +84,52 @@ local rho = ones~a . f_a
 local u_i = (directions~a_i . f_a)/rho - [| 0,gravity/2 |]_i
 ```
 
+重み `weights` と移動方向 `cx`・`cy` を一度だけ定義し，Egisonの
+`generateTensor`（成分番号を受け取る関数からテンソルを作る演算）で9成分を生成する．
+Formuraeでは既存の `def` 本体で利用できる．初期化は次の形となる．
+
+```text
+def equilibriumPopulations r u v =
+  generateTensor (\[q] -> equilibrium weights_q cx_q cy_q r u v) [9]
+
+init:
+  f_a := (equilibriumPopulations initialDensity initialU 0)_a
+```
+
+同じ関数を衝突計算と新しい水面点の初期化にも使う．重力の項と壁・空気に接する点の
+分布の再構成も，それぞれ9成分を生成する関数にまとめている．成分番号 `q` は1〜9の整数であり，
+結果に付ける添字記号 `a` と区別する．成分の生成は正規化時に行われ，通常のFormura配列へ変換される．
+条件分岐も成分ごとの列挙を避け，例えば次のようにテンソル全体へ適用する．
+
+```text
+savedG'_a = if stage < 0.5 && stage > -0.5 then g_a else savedG_a
+```
+
+### 中間値の保持
+
+物理的な1ステップを構成する5回の更新のうち，`f`・`mass`・`kind` を変更するのは
+`stage = 3` である．`rho`・`u_i`・`eps` はそれより前に使うため，元の状態からその場で
+計算できる．保存用の `savedRho`・`savedU_i`・`savedEps` は不要なので削除した．
+`local u_i` の数値成分 `u_1` も通常のスカラーとして扱う．
+
+衝突後の分布 `savedG_a`，移動後の分布 `savedS_a`，次の分類や再配分用の量は，
+複数の更新にまたがる中間状態として保持する．`field ... : scalar` は格子点ごとに
+1つの値を保持する宣言であり，水槽全体で1つの変数という意味ではない．
+
+[リファクタリングの比較記録](results/refactor.json)では，削除した4スカラー成分への参照を
+対応する局所変数に置き換えると，残る317個の生成式がすべて一致することを確認した．
+さらに，9,000ステップの検証値と151フレームの全9出力場が変更前とバイト単位で一致した．
+[静水の比較](results/still/refactor.json)でも，1,200ステップの検証値と21フレームが一致した．
+保存済みの2つの実行結果は次のコマンドで照合できる．
+
+```sh
+python3 examples/breaking_wave/verify_refactor.py \
+  .build/breaking_wave/demo-before-tensor-refactor .build/breaking_wave/demo \
+  --output examples/breaking_wave/results/refactor.json
+```
+
+### 流体と水面の計算
+
 `ones` は9個の1，`directions` は9×2成分の速度の表である．
 重力には [Guo・Zheng・Shiの力の項](https://doi.org/10.1103/PhysRevE.65.046308)を用いる．
 分布を平衡状態へ近づける緩和時間 `tau` と，流れの粘性を表す動粘性係数の関係は

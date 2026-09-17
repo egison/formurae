@@ -1,0 +1,32 @@
+{
+  "baseline_source_sha256": "b0ab91a4bf615d539a98f01e1815775bf7a39da1883caa2e2380316ba093efec",
+  "refactored_source_sha256": "185f23507235e63526878f3420d6a40529756b3ac5b8b94aa423ec1751c9ff6e",
+  "grid": [
+    384,
+    96
+  ],
+  "steps": 9000,
+  "every": 60,
+  "removed_state_components": [
+    "savedRho",
+    "savedU_down1",
+    "savedU_down2",
+    "savedEps"
+  ],
+  "retained_generated_assignments": 317,
+  "equations_equal_after_recomputed_aliases": true,
+  "diagnostics_byte_identical": true,
+  "saved_frames_byte_identical": true,
+  "compared_frames": 151,
+  "frame_fields": [
+    "fraction",
+    "speed",
+    "wall",
+    "bank",
+    "kind",
+    "mass",
+    "density",
+    "velocityX",
+    "velocityY"
+  ]
+}

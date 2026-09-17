@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Recognize fully numeric components of declared tensor locals as scalars,
+  while preserving tensor checks for partial and symbolic indexing.
+- Simplify the 2D wave example with existing Egison `generateTensor` helpers,
+  whole-tensor conditionals, and recomputed density, velocity and fill fraction
+  in place of four persistent scalar components.
 - Add `index a, b : 9` for component counts independent of spatial dimension,
   including mixed shapes such as `field c_a_i`, contractions, explicit locals,
   and symmetric/antisymmetric matrices. Preserve spatial slot information in

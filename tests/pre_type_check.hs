@@ -83,6 +83,28 @@ main = do
     "local q declares scalar, but its RHS has ordinary tensor kind"
     (validateModelOperatorTypes scalarLocalMismatch)
 
+  localComponents <- model "local-components" (localComponentSource "v_1 + q_9 + M_1_2")
+  assertEqual "numeric components of vector, population and matrix locals are scalar"
+    (Right ()) (validateModelOperatorTypes localComponents)
+  localDerivative <- model "local-component-derivative" (localComponentSource "Δ v_1")
+  assertEqual "a scalar-only derivative accepts a numeric local component"
+    (Right ()) (validateModelOperatorTypes localDerivative)
+  shadowedLocal <- model "local-component-shadowing"
+    ("dimension 2\naxes x, y\nfield u : scalar\n"
+      ++ "def projected value = Δ value_1\nstep:\n"
+      ++ "  local value_i = [| u, u |]_i\n  u' = u\n")
+  assertLeft "a definition parameter cannot borrow a step-local shape"
+    "scalar Δ requires a scalar operand, but received ordinary tensor"
+    (validateModelOperatorTypes shadowedLocal)
+  partialLocal <- model "partial-local-component" (localComponentSource "M_1")
+  assertLeft "partial numeric local indexing still denotes a tensor"
+    "local result declares scalar, but its RHS has ordinary tensor kind"
+    (validateModelOperatorTypes partialLocal)
+  symbolicLocal <- model "symbolic-local-component" (localComponentSource "q_a")
+  assertLeft "symbolic local indexing still denotes a tensor"
+    "local result declares scalar, but its RHS has ordinary tensor kind"
+    (validateModelOperatorTypes symbolicLocal)
+
   -- Both sides are tensors at this granularity; the declared degree is
   -- validated against the value's dfOrder at the encode boundary.
   formLocalMismatch <- model "form-local-mismatch" formLocalMismatchSource
@@ -477,3 +499,19 @@ assertEqual label expected actual
   | expected == actual = pure ()
   | otherwise = fail
       (label ++ ": expected " ++ show expected ++ ", got " ++ show actual)
+
+localComponentSource :: String -> String
+localComponentSource expression = unlines
+  [ "dimension 2"
+  , "axes x, y"
+  , "index a : 9"
+  , "field f_a"
+  , "field u : scalar"
+  , "step:"
+  , "  local v_i = [| u, 2*u |]_i"
+  , "  local q_a = f_a"
+  , "  local M_i_j = [| [| u,0 |], [| 0,u |] |]_i_j"
+  , "  local result = " ++ expression
+  , "  u' = result"
+  , "  f'_a = f_a"
+  ]

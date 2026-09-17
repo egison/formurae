@@ -4995,11 +4995,12 @@ step:
 <h3>A breaking wave and backwash — one wave returning from the beach</h3>
 <p class="description">One initial wave advances into shallow water, its crest collapses, and the water runs up the beach before returning offshore. Tracking the water fraction in each cell allows an overhanging surface. The simulation uses D2Q9, a two-dimensional lattice Boltzmann model with nine velocity populations. Initial conditions, walls, gravity, surface motion and mass transfer are all written in Formurae.</p>
 <p class="description"><code>dimension 2</code> and <code>index a : 9</code> specify the spatial dimension and population count separately. <code>field f_a</code> holds the nine populations; <code>savedG_a</code> and <code>savedS_a</code> store them after collision and streaming. The velocity <code>u_i</code> has two components. Contraction, which sums over matching upper and lower indices, computes density and velocity.</p>
+<p class="description"><code>generateTensor</code> inside <code>def</code> generates the nine components for initialization, collision and boundary reconstruction from weight and direction tables. Density, velocity and fill fraction are recomputed from unchanged state, removing four persistent scalar components. <a href="../../examples/breaking_wave/results/refactor.json">Before-and-after comparison</a></p>
 <div class="imgs"><video controls loop muted playsinline preload="none" poster="../../examples/breaking_wave/results/wave.png" aria-label="One computed wave curling, breaking and returning offshore"><source src="../../examples/breaking_wave/results/breaking-wave.mp4" type="video/mp4">Video playback is unavailable.</video></div>
 <p class="cap">White contour: computed surface. Arrows: computed velocity. Dashed line: gauge location. The graph shows water flux through the gauge; negative values indicate offshore return flow.</p>
 <p class="facts" id="backwash-checks"><b>384×96 points, 9,000 steps:</b> the maximum relative water-mass change is 7.72×10⁻¹⁵. Flux at the gauge changes from positive (onshore) to negative (offshore), remaining below −0.01 from steps 4,980 to 8,400.<br>A thin water layer remains on the bed, so retreat of the furthest shoreline is not reproduced. The model omits air flow, surface tension and fine foam; comparison with experiments remains future work.</p>
 <p class="description"><a href="../../examples/breaking_wave/README.md">Model and reproduction</a> · <a href="../../examples/breaking_wave/results/sequence.png">Frame sequence</a> · <a href="../../examples/breaking_wave/results/verification.json">Verification</a> · <a href="../../examples/breaking_wave/results/metadata.json">Run settings</a><br>Use <code>make breaking-wave-demo</code> to regenerate the video, and <code>make breaking-wave-verify</code> to include the still-water control.</p>
-<details class="codebox" data-fme="breaking_wave/breaking_wave.fme" open><summary>Full Formurae source (breaking_wave.fme, 379 lines)</summary>
+<details class="codebox" data-fme="breaking_wave/breaking_wave.fme" open><summary>Full Formurae source (breaking_wave.fme, 339 lines)</summary>
 <pre><span class="c">-- Two-dimensional free-surface lattice Boltzmann water tank (D2Q9).</span>
 <span class="c">-- All initial conditions, collision, streaming, surface conversion, mass</span>
 <span class="c">-- redistribution, wall handling and diagnostic fields are evaluated here.</span>
@@ -5028,8 +5029,13 @@ param hx = dx
 param hy = dy
 
 <span class="c">-- The population index has nine components; spatial indices have two.</span>
-def ones = [| 1,1,1,1,1,1,1,1,1 |]
-def directions = [| [| 0,0 |], [| 1,0 |], [| -1,0 |], [| 0,1 |], [| 0,-1 |], [| 1,1 |], [| -1,-1 |], [| 1,-1 |], [| -1,1 |] |]
+def weights = [| 4/9,1/9,1/9,1/9,1/9,1/36,1/36,1/36,1/36 |]
+def cx = [| 0,1,-1,0,0,1,-1,1,-1 |]
+def cy = [| 0,0,0,1,-1,1,-1,-1,1 |]
+def ones =
+  generateTensor (\[q] -&gt; 1) [9]
+def directions =
+  generateTensor (\[q,component] -&gt; if component = 1 then cx_q else cy_q) [9,2]
 
 <span class="c">-- Exact one-cell shifts from the existing centered differences, as in lbm_d3q19.</span>
 def sx c q = q + c*hx*∂_x q + hx^2*∂^2_x q/2
@@ -5040,6 +5046,20 @@ macro diagonal cx cy q =
 
 def equilibrium w cx cy r u v = w*r*(1 + 3*(cx*u + cy*v) + (9/2)*(cx*u + cy*v)^2 - (3/2)*(u^2 + v^2))
 def forcing w cx cy r u v = (1 - 1/(2*tau))*w*r*(0 - gravity)*(3*(cy-v) + 9*(cx*u+cy*v)*cy)
+<span class="c">-- Generate all nine components at normalization time, using the same tables.</span>
+def equilibriumPopulations r u v =
+  generateTensor (\[q] -&gt; equilibrium weights_q cx_q cy_q r u v) [9]
+def forcePopulations r u v =
+  generateTensor (\[q] -&gt; forcing weights_q cx_q cy_q r u v) [9]
+def reconstruct neighbor incoming opposite forwardEq backwardEq = if neighbor &gt; 2.5 then opposite else if neighbor &lt; 0.5 then forwardEq + backwardEq - opposite else incoming
+def streamPopulations neighbors_a incoming_a opposite_a u v =
+  generateTensor
+    (\[q] -&gt; if q = 1 then incoming_q else
+      reconstruct neighbors_q incoming_q opposite_q
+        (equilibrium weights_q cx_q cy_q 1 u v)
+        (equilibrium weights_q (0-cx_q) (0-cy_q) 1 u v))
+    [9]
+
 <span class="c">-- Antisymmetric interface exchange; unequal classes transfer in one direction.</span>
 def surfaceExchange here there incoming outgoing = if here &lt; there then 0-outgoing else if here &gt; there then incoming else incoming-outgoing
 
@@ -5079,9 +5099,6 @@ field bulkFront : scalar
 
 field f_a
 
-field savedRho : scalar
-field savedU_i
-field savedEps : scalar
 field savedG_a
 field savedS_a
 field savedNr : scalar
@@ -5111,20 +5128,8 @@ init:
   bankMagnitude := 0
   rawFraction := if active initialType &gt; 0.5 then fill else 0
   bulkFront := if active initialType &gt; 0.5 &amp;&amp; y+1 &lt; height &amp;&amp; y-1 &lt; bed then x else 0
-  f_a := [|
-    equilibrium (4/9) (0) (0) initialDensity initialU 0,
-    equilibrium (1/9) (1) (0) initialDensity initialU 0,
-    equilibrium (1/9) (-1) (0) initialDensity initialU 0,
-    equilibrium (1/9) (0) (1) initialDensity initialU 0,
-    equilibrium (1/9) (0) (-1) initialDensity initialU 0,
-    equilibrium (1/36) (1) (1) initialDensity initialU 0,
-    equilibrium (1/36) (-1) (-1) initialDensity initialU 0,
-    equilibrium (1/36) (1) (-1) initialDensity initialU 0,
-    equilibrium (1/36) (-1) (1) initialDensity initialU 0 |]_a
+  f_a := (equilibriumPopulations initialDensity initialU 0)_a
 
-  savedRho := 1
-  savedU_i := [| 0,0 |]_i
-  savedEps := 0
   savedG_a := 0*ones_a
   savedS_a := 0*ones_a
   savedNr := 1
@@ -5143,67 +5148,40 @@ step:
   local rho = ones~a . f_a
   local u_i = (directions~a_i . f_a)/rho - [| 0,gravity/2 |]_i
   local eps = bounded (mass/rho)
-  local g_a = [|
-    f_1 + (equilibrium (4/9) (0) (0) rho u_1 u_2 - f_1)/tau + forcing (4/9) (0) (0) rho u_1 u_2,
-    f_2 + (equilibrium (1/9) (1) (0) rho u_1 u_2 - f_2)/tau + forcing (1/9) (1) (0) rho u_1 u_2,
-    f_3 + (equilibrium (1/9) (-1) (0) rho u_1 u_2 - f_3)/tau + forcing (1/9) (-1) (0) rho u_1 u_2,
-    f_4 + (equilibrium (1/9) (0) (1) rho u_1 u_2 - f_4)/tau + forcing (1/9) (0) (1) rho u_1 u_2,
-    f_5 + (equilibrium (1/9) (0) (-1) rho u_1 u_2 - f_5)/tau + forcing (1/9) (0) (-1) rho u_1 u_2,
-    f_6 + (equilibrium (1/36) (1) (1) rho u_1 u_2 - f_6)/tau + forcing (1/36) (1) (1) rho u_1 u_2,
-    f_7 + (equilibrium (1/36) (-1) (-1) rho u_1 u_2 - f_7)/tau + forcing (1/36) (-1) (-1) rho u_1 u_2,
-    f_8 + (equilibrium (1/36) (1) (-1) rho u_1 u_2 - f_8)/tau + forcing (1/36) (1) (-1) rho u_1 u_2,
-    f_9 + (equilibrium (1/36) (-1) (1) rho u_1 u_2 - f_9)/tau + forcing (1/36) (-1) (1) rho u_1 u_2 |]_a
-  savedRho' = if stage &lt; 0.5 &amp;&amp; stage &gt; -0.5 then rho else savedRho
-  savedU'_i = [|
-    if stage &lt; 0.5 &amp;&amp; stage &gt; -0.5 then u_1 else savedU_1,
-    if stage &lt; 0.5 &amp;&amp; stage &gt; -0.5 then u_2 else savedU_2 |]_i
-  savedEps' = if stage &lt; 0.5 &amp;&amp; stage &gt; -0.5 then eps else savedEps
-  savedG'_a = [|
-    if stage &lt; 0.5 &amp;&amp; stage &gt; -0.5 then g_1 else savedG_1,
-    if stage &lt; 0.5 &amp;&amp; stage &gt; -0.5 then g_2 else savedG_2,
-    if stage &lt; 0.5 &amp;&amp; stage &gt; -0.5 then g_3 else savedG_3,
-    if stage &lt; 0.5 &amp;&amp; stage &gt; -0.5 then g_4 else savedG_4,
-    if stage &lt; 0.5 &amp;&amp; stage &gt; -0.5 then g_5 else savedG_5,
-    if stage &lt; 0.5 &amp;&amp; stage &gt; -0.5 then g_6 else savedG_6,
-    if stage &lt; 0.5 &amp;&amp; stage &gt; -0.5 then g_7 else savedG_7,
-    if stage &lt; 0.5 &amp;&amp; stage &gt; -0.5 then g_8 else savedG_8,
-    if stage &lt; 0.5 &amp;&amp; stage &gt; -0.5 then g_9 else savedG_9 |]_a
+  -- f, mass and kind stay unchanged until stage 3: recompute rho, u and eps.
+  local g_a = f_a + ((equilibriumPopulations rho u_1 u_2)_a - f_a)/tau + (forcePopulations rho u_1 u_2)_a
+  savedG'_a = if stage &lt; 0.5 &amp;&amp; stage &gt; -0.5 then g_a else savedG_a
 
   -- Stage 1: streaming, mass flux and proposed cell types.
   local k1 = sx (-1) kind
-  local e1 = sx (-1) savedEps
+  local e1 = sx (-1) eps
   local incoming1 = sx (-1) savedG_2
   local k2 = sx (1) kind
-  local e2 = sx (1) savedEps
+  local e2 = sx (1) eps
   local incoming2 = sx (1) savedG_3
   local k3 = sy (-1) kind
-  local e3 = sy (-1) savedEps
+  local e3 = sy (-1) eps
   local incoming3 = sy (-1) savedG_4
   local k4 = sy (1) kind
-  local e4 = sy (1) savedEps
+  local e4 = sy (1) eps
   local incoming4 = sy (1) savedG_5
   local k5 = diagonal (-1) (-1) kind
-  local e5 = diagonal (-1) (-1) savedEps
+  local e5 = diagonal (-1) (-1) eps
   local incoming5 = diagonal (-1) (-1) savedG_6
   local k6 = diagonal (1) (1) kind
-  local e6 = diagonal (1) (1) savedEps
+  local e6 = diagonal (1) (1) eps
   local incoming6 = diagonal (1) (1) savedG_7
   local k7 = diagonal (-1) (1) kind
-  local e7 = diagonal (-1) (1) savedEps
+  local e7 = diagonal (-1) (1) eps
   local incoming7 = diagonal (-1) (1) savedG_8
   local k8 = diagonal (1) (-1) kind
-  local e8 = diagonal (1) (-1) savedEps
+  local e8 = diagonal (1) (-1) eps
   local incoming8 = diagonal (1) (-1) savedG_9
-  local s_a = [|
-    savedG_1,
-    if k1 &gt; 2.5 then savedG_3 else if k1 &lt; 0.5 then equilibrium (1/9) (1) (0) 1 savedU_1 savedU_2 + equilibrium (1/9) (-1) (0) 1 savedU_1 savedU_2 - savedG_3 else incoming1,
-    if k2 &gt; 2.5 then savedG_2 else if k2 &lt; 0.5 then equilibrium (1/9) (-1) (0) 1 savedU_1 savedU_2 + equilibrium (1/9) (1) (0) 1 savedU_1 savedU_2 - savedG_2 else incoming2,
-    if k3 &gt; 2.5 then savedG_5 else if k3 &lt; 0.5 then equilibrium (1/9) (0) (1) 1 savedU_1 savedU_2 + equilibrium (1/9) (0) (-1) 1 savedU_1 savedU_2 - savedG_5 else incoming3,
-    if k4 &gt; 2.5 then savedG_4 else if k4 &lt; 0.5 then equilibrium (1/9) (0) (-1) 1 savedU_1 savedU_2 + equilibrium (1/9) (0) (1) 1 savedU_1 savedU_2 - savedG_4 else incoming4,
-    if k5 &gt; 2.5 then savedG_7 else if k5 &lt; 0.5 then equilibrium (1/36) (1) (1) 1 savedU_1 savedU_2 + equilibrium (1/36) (-1) (-1) 1 savedU_1 savedU_2 - savedG_7 else incoming5,
-    if k6 &gt; 2.5 then savedG_6 else if k6 &lt; 0.5 then equilibrium (1/36) (-1) (-1) 1 savedU_1 savedU_2 + equilibrium (1/36) (1) (1) 1 savedU_1 savedU_2 - savedG_6 else incoming6,
-    if k7 &gt; 2.5 then savedG_9 else if k7 &lt; 0.5 then equilibrium (1/36) (1) (-1) 1 savedU_1 savedU_2 + equilibrium (1/36) (-1) (1) 1 savedU_1 savedU_2 - savedG_9 else incoming7,
-    if k8 &gt; 2.5 then savedG_8 else if k8 &lt; 0.5 then equilibrium (1/36) (-1) (1) 1 savedU_1 savedU_2 + equilibrium (1/36) (1) (-1) 1 savedU_1 savedU_2 - savedG_8 else incoming8 |]_a
+  local s_a = (streamPopulations
+    [| kind,k1,k2,k3,k4,k5,k6,k7,k8 |]
+    [| savedG_1,incoming1,incoming2,incoming3,incoming4,incoming5,incoming6,incoming7,incoming8 |]
+    [| savedG_1,savedG_3,savedG_2,savedG_5,savedG_4,savedG_7,savedG_6,savedG_9,savedG_8 |]
+    u_1 u_2)_a
   -- Thuerey (2007), section 4.4: drain interfaces without liquid
   -- neighbours and fill those without gas neighbours using pairwise fluxes.
   local fluidNeighbors = liquid k1 + liquid k2 + liquid k3 + liquid k4 + liquid k5 + liquid k6 + liquid k7 + liquid k8
@@ -5217,27 +5195,18 @@ step:
   local class6 = diagonal (1) (1) surfaceClass
   local class7 = diagonal (-1) (1) surfaceClass
   local class8 = diagonal (1) (-1) surfaceClass
-  local dm1 = if active kind &lt; 0.5 || active k1 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid k1 &gt; 0.5 then incoming1 - savedG_3 else (savedEps + e1)*(surfaceExchange surfaceClass class1 incoming1 savedG_3)/2
-  local dm2 = if active kind &lt; 0.5 || active k2 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid k2 &gt; 0.5 then incoming2 - savedG_2 else (savedEps + e2)*(surfaceExchange surfaceClass class2 incoming2 savedG_2)/2
-  local dm3 = if active kind &lt; 0.5 || active k3 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid k3 &gt; 0.5 then incoming3 - savedG_5 else (savedEps + e3)*(surfaceExchange surfaceClass class3 incoming3 savedG_5)/2
-  local dm4 = if active kind &lt; 0.5 || active k4 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid k4 &gt; 0.5 then incoming4 - savedG_4 else (savedEps + e4)*(surfaceExchange surfaceClass class4 incoming4 savedG_4)/2
-  local dm5 = if active kind &lt; 0.5 || active k5 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid k5 &gt; 0.5 then incoming5 - savedG_7 else (savedEps + e5)*(surfaceExchange surfaceClass class5 incoming5 savedG_7)/2
-  local dm6 = if active kind &lt; 0.5 || active k6 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid k6 &gt; 0.5 then incoming6 - savedG_6 else (savedEps + e6)*(surfaceExchange surfaceClass class6 incoming6 savedG_6)/2
-  local dm7 = if active kind &lt; 0.5 || active k7 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid k7 &gt; 0.5 then incoming7 - savedG_9 else (savedEps + e7)*(surfaceExchange surfaceClass class7 incoming7 savedG_9)/2
-  local dm8 = if active kind &lt; 0.5 || active k8 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid k8 &gt; 0.5 then incoming8 - savedG_8 else (savedEps + e8)*(surfaceExchange surfaceClass class8 incoming8 savedG_8)/2
+  local dm1 = if active kind &lt; 0.5 || active k1 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid k1 &gt; 0.5 then incoming1 - savedG_3 else (eps + e1)*(surfaceExchange surfaceClass class1 incoming1 savedG_3)/2
+  local dm2 = if active kind &lt; 0.5 || active k2 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid k2 &gt; 0.5 then incoming2 - savedG_2 else (eps + e2)*(surfaceExchange surfaceClass class2 incoming2 savedG_2)/2
+  local dm3 = if active kind &lt; 0.5 || active k3 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid k3 &gt; 0.5 then incoming3 - savedG_5 else (eps + e3)*(surfaceExchange surfaceClass class3 incoming3 savedG_5)/2
+  local dm4 = if active kind &lt; 0.5 || active k4 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid k4 &gt; 0.5 then incoming4 - savedG_4 else (eps + e4)*(surfaceExchange surfaceClass class4 incoming4 savedG_4)/2
+  local dm5 = if active kind &lt; 0.5 || active k5 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid k5 &gt; 0.5 then incoming5 - savedG_7 else (eps + e5)*(surfaceExchange surfaceClass class5 incoming5 savedG_7)/2
+  local dm6 = if active kind &lt; 0.5 || active k6 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid k6 &gt; 0.5 then incoming6 - savedG_6 else (eps + e6)*(surfaceExchange surfaceClass class6 incoming6 savedG_6)/2
+  local dm7 = if active kind &lt; 0.5 || active k7 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid k7 &gt; 0.5 then incoming7 - savedG_9 else (eps + e7)*(surfaceExchange surfaceClass class7 incoming7 savedG_9)/2
+  local dm8 = if active kind &lt; 0.5 || active k8 &lt; 0.5 then 0 else if liquid kind &gt; 0.5 || liquid k8 &gt; 0.5 then incoming8 - savedG_8 else (eps + e8)*(surfaceExchange surfaceClass class8 incoming8 savedG_8)/2
   local nr = ones~a . s_a
   local transported = mass + dm1 + dm2 + dm3 + dm4 + dm5 + dm6 + dm7 + dm8
   local proposal = if interface kind &gt; 0.5 then (if transported &gt; (1+threshold)*nr || (airNeighbors &lt; 0.5 &amp;&amp; transported &gt; (1-lonelyThreshold)*nr) then 2 else if transported &lt; (0-threshold)*nr || (fluidNeighbors &lt; 0.5 &amp;&amp; transported &lt; lonelyThreshold*nr) then 0 else 1) else kind
-  savedS'_a = [|
-    if stage &lt; 1.5 &amp;&amp; stage &gt; 0.5 then s_1 else savedS_1,
-    if stage &lt; 1.5 &amp;&amp; stage &gt; 0.5 then s_2 else savedS_2,
-    if stage &lt; 1.5 &amp;&amp; stage &gt; 0.5 then s_3 else savedS_3,
-    if stage &lt; 1.5 &amp;&amp; stage &gt; 0.5 then s_4 else savedS_4,
-    if stage &lt; 1.5 &amp;&amp; stage &gt; 0.5 then s_5 else savedS_5,
-    if stage &lt; 1.5 &amp;&amp; stage &gt; 0.5 then s_6 else savedS_6,
-    if stage &lt; 1.5 &amp;&amp; stage &gt; 0.5 then s_7 else savedS_7,
-    if stage &lt; 1.5 &amp;&amp; stage &gt; 0.5 then s_8 else savedS_8,
-    if stage &lt; 1.5 &amp;&amp; stage &gt; 0.5 then s_9 else savedS_9 |]_a
+  savedS'_a = if stage &lt; 1.5 &amp;&amp; stage &gt; 0.5 then s_a else savedS_a
   savedNr' = if stage &lt; 1.5 &amp;&amp; stage &gt; 0.5 then nr else savedNr
   savedTransported' = if stage &lt; 1.5 &amp;&amp; stage &gt; 0.5 then transported else savedTransported
   savedProposal' = if stage &lt; 1.5 &amp;&amp; stage &gt; 0.5 then proposal else savedProposal
@@ -5271,9 +5240,9 @@ step:
   local baseMass = if liquid nextKind &gt; 0.5 then savedNr else if interface nextKind &gt; 0.5 then savedTransported else 0
   local excess = savedTransported - baseMass + bank
   local act = active kind
-  local arho = act*savedRho
-  local ax = act*savedU_1
-  local ay = act*savedU_2
+  local arho = act*rho
+  local ax = act*u_1
+  local ay = act*u_2
   local act1 = sx (-1) act
   local ar1 = sx (-1) arho
   local ax1 = sx (-1) ax
@@ -5316,9 +5285,7 @@ step:
   savedBaseMass' = if stage &lt; 2.5 &amp;&amp; stage &gt; 1.5 then baseMass else savedBaseMass
   savedExcess' = if stage &lt; 2.5 &amp;&amp; stage &gt; 1.5 then excess else savedExcess
   savedAverageRho' = if stage &lt; 2.5 &amp;&amp; stage &gt; 1.5 then averageRho else savedAverageRho
-  savedAverage'_i = [|
-    if stage &lt; 2.5 &amp;&amp; stage &gt; 1.5 then average_1 else savedAverage_1,
-    if stage &lt; 2.5 &amp;&amp; stage &gt; 1.5 then average_2 else savedAverage_2 |]_i
+  savedAverage'_i = if stage &lt; 2.5 &amp;&amp; stage &gt; 1.5 then average_i else savedAverage_i
 
   -- Stage 3: conservative redistribution and the physical state update.
   local receiver = interface savedNextKind
@@ -5346,16 +5313,10 @@ step:
   mass' = if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then nextMass else mass
   bank' = if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then nextBank else bank
   water' = if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then nextMass + nextBank else water
-  f'_a = [|
-    if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then (4/9) else if kind &lt; 0.5 then equilibrium (4/9) (0) (0) savedAverageRho savedAverage_1 savedAverage_2 else savedS_1) else f_1,
-    if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then (1/9) else if kind &lt; 0.5 then equilibrium (1/9) (1) (0) savedAverageRho savedAverage_1 savedAverage_2 else savedS_2) else f_2,
-    if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then (1/9) else if kind &lt; 0.5 then equilibrium (1/9) (-1) (0) savedAverageRho savedAverage_1 savedAverage_2 else savedS_3) else f_3,
-    if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then (1/9) else if kind &lt; 0.5 then equilibrium (1/9) (0) (1) savedAverageRho savedAverage_1 savedAverage_2 else savedS_4) else f_4,
-    if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then (1/9) else if kind &lt; 0.5 then equilibrium (1/9) (0) (-1) savedAverageRho savedAverage_1 savedAverage_2 else savedS_5) else f_5,
-    if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then (1/36) else if kind &lt; 0.5 then equilibrium (1/36) (1) (1) savedAverageRho savedAverage_1 savedAverage_2 else savedS_6) else f_6,
-    if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then (1/36) else if kind &lt; 0.5 then equilibrium (1/36) (-1) (-1) savedAverageRho savedAverage_1 savedAverage_2 else savedS_7) else f_7,
-    if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then (1/36) else if kind &lt; 0.5 then equilibrium (1/36) (1) (-1) savedAverageRho savedAverage_1 savedAverage_2 else savedS_8) else f_8,
-    if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (if active savedNextKind &lt; 0.5 then (1/36) else if kind &lt; 0.5 then equilibrium (1/36) (-1) (1) savedAverageRho savedAverage_1 savedAverage_2 else savedS_9) else f_9 |]_a
+  f'_a = if stage &gt; 2.5 &amp;&amp; stage &lt; 3.5 then (
+    if active savedNextKind &lt; 0.5 then weights_a
+    else if kind &lt; 0.5 then (equilibriumPopulations savedAverageRho savedAverage_1 savedAverage_2)_a
+    else savedS_a) else f_a
 
   -- Stage 4: diagnostics read only the completed state.
   local newRho = ones~a . f_a

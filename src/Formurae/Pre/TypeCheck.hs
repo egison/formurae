@@ -221,7 +221,7 @@ infer model shadowed environment source expression
     TENumber _ -> pure StaticScalar
     TEIdent name parts
       | not (null parts), all numericIndex parts
-      , Just field <- fieldDeclOf model (dropNextPrime name)
+      , Just field <- componentStorage (dropNextPrime name)
       , length parts == componentRank (fdKind field) -> pure StaticScalar
       -- A fully numeric component of an ambient geometry tensor (for
       -- example @g_1_1@ or @coordinates~2@) is a scalar coefficient.
@@ -297,6 +297,17 @@ infer model shadowed environment source expression
     lookupValue name =
       lookup name environment
       `orElseMaybe` lookup (dropNextPrime name) environment
+
+    -- Step locals have the same declared component shape as persistent
+    -- fields. Only locals already in the current environment are visible.
+    componentStorage name = fieldDeclOf model name `orElseMaybe`
+      lookup name
+        [ (ldName local, localDeclAsField local)
+        | step <- mSteps model
+        , Just local <- [sLocalDecl step]
+        , ldName local `notElem` shadowed
+        , lookup (ldName local) environment /= Nothing
+        ]
 
     -- Selecting every axis of a declared tensor by an integer gives a scalar.
     -- Symbolic or partial indexing must retain the tensor kind.

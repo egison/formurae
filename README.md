@@ -82,6 +82,21 @@ def chooseByDimension X =
    in apply choose X
 ```
 
+`generateTensor` は `def` の本体で使えます。例えば、9成分の平衡分布を
+1つの式から作り、初期化で利用できます（`weights`・`cx`・`cy` は重みと移動方向の表です）。
+
+```formurae
+def equilibriumPopulations r u v =
+  generateTensor (\[q] -> equilibrium weights_q cx_q cy_q r u v) [9]
+
+init:
+  f_a := (equilibriumPopulations initialDensity initialU 0)_a
+```
+
+`q` は1〜9の整数で、`_a` は生成した9成分に付ける添字記号です。
+生成はEgisonでの正規化時に行われ、実行時のテンソル生成処理は増えません。
+完全な使用例は [二次元の波](examples/breaking_wave/breaking_wave.fme) にあります。
+
 `dimension`、`coordinates`、`volume`、`epsilon`、`metric`、`inverseMetric`はmodelのambient
 Egison環境にあり、ユーザ定義と`Formurae.*`標準演算子はこれらを直接参照します。
 そのためユーザがcontext引数を渡す必要はありません。`metric g`を宣言すると、同じ実計量を
