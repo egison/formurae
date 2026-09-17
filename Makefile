@@ -261,3 +261,11 @@ breaking-wave3d-verify:
 .PHONY: kinetic-fv-verify
 kinetic-fv-verify:
 	python3 examples/kinetic_fv/run.py
+
+.PHONY: kinetic-fv-gallery
+kinetic-fv-gallery:
+	$(PRE_FEC_RUN) examples/kinetic_fv/kinetic_fv.fme > examples/kinetic_fv/kinetic_fv.egi
+	$(EGISON_NORMALIZE) $(abspath examples/kinetic_fv/kinetic_fv.egi) > examples/kinetic_fv/kinetic_fv.feir
+	$(POST_FEC_RUN) examples/kinetic_fv/kinetic_fv.feir > examples/kinetic_fv/kinetic_fv.fmr
+	$(PLOT_PYTHON) examples/kinetic_fv/render.py
+	python3 examples/kinetic_fv/gallery.py
