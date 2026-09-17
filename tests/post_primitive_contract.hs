@@ -55,6 +55,17 @@ testResample = do
     (parseResampleRequest 2
       (replaceAttribute "target-placement"
         (AttributeValues [AttributeNatural 0, AttributeNatural 1]) request))
+  assertEqual "ordinary resample remains interpolation" Nothing (resampleSide parsed)
+  let withSide value = request { opaqueDiscreteAttributes =
+        opaqueDiscreteAttributes request ++ [Attribute (AttributeId "side") value] }
+  mapM_ (\(number, side) -> do
+    selected <- assertRight "side selection" (parseResampleRequest 2
+      (withSide (AttributeNatural number)))
+    assertEqual "side contract" (Just side) (resampleSide selected))
+    [(0, SampleLower), (1, SampleUpper)]
+  assertLeft "unknown side is rejected"
+    (== ContractInvalidAttribute (AttributeId "side") (AttributeNatural 2))
+    (parseResampleRequest 2 (withSide (AttributeNatural 2)))
   where
     isTargetPlacementError problem =
       case problem of

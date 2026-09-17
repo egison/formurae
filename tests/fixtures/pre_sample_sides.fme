@@ -1,0 +1,32 @@
+dimension 2
+axes x, y
+index a : 9
+extern sin
+extern cos
+field u
+field face_i @ primal
+field lower_i @ primal
+field upper_i @ primal
+field backLower_i
+field backUpper_i
+field f_a
+field populations_i_a @ primal
+def zeros = generateTensor (\[q,k] -> 0) [2,9]
+init:
+  u := sin x+cos y
+  face_i := [| sin x+cos y, sin x+cos y |]_i
+  lower_i := [| 0,0 |]_i
+  upper_i := [| 0,0 |]_i
+  backLower_i := [| 0,0 |]_i
+  backUpper_i := [| 0,0 |]_i
+  f_a := [| 1,2,3,4,5,6,7,8,9 |]_a*(sin x+cos y)
+  populations_i_a := zeros_i_a
+step:
+  u' = u
+  face'_i = face_i
+  lower'_i = [| sampleLower(u*cos(x),1,0), sampleLower(u*cos(y),0,1) |]_i
+  upper'_i = [| sampleUpper(u*cos(x),1,0), sampleUpper(u*cos(y),0,1) |]_i
+  backLower'_i = [| sampleLower(face_1,0,0), sampleLower(face_2,0,0) |]_i
+  backUpper'_i = [| sampleUpper(face_1,0,0), sampleUpper(face_2,0,0) |]_i
+  f'_a = f_a
+  populations'_i_a = [| sampleLower(f,1,0), sampleUpper(f,0,1) |]_i_a

@@ -337,6 +337,9 @@ rawPrimitiveOperation _model name =
       , ("FormuraeInternalOrderedDerivative",
           Primitives.derivativeOrderedOpId)
       , ("resampleExplicit", Primitives.resampleExplicitOpId)
+      , ("sampleSideExplicit", Primitives.resampleExplicitOpId)
+      , ("FormuraeInternalSampleLower", Primitives.resampleExplicitOpId)
+      , ("FormuraeInternalSampleUpper", Primitives.resampleExplicitOpId)
       , ("FormuraeInternalResampleExplicit",
           Primitives.resampleExplicitOpId)
       ]
@@ -509,7 +512,7 @@ namedHeadEffect environment name parts =
 
 surfacePrimitiveOperation :: String -> Maybe OpId
 surfacePrimitiveOperation name
-  | name == "resample" =
+  | name `elem` ["resample", "sampleLower", "sampleUpper"] =
       Just Primitives.resampleExplicitOpId
   -- The discrete exterior derivative and the adjoint divergence carry
   -- placement-directed grid derivatives, so the derivative-nesting rules

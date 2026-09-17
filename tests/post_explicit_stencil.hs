@@ -3,12 +3,14 @@ module Main where
 import Formurae.FEIR.Syntax (AxisId(..))
 import Formurae.Post.ExplicitStencil
 import Formurae.Post.Location
+import Formurae.Post.PrimitiveContract (SampleSide(..))
 
 main :: IO ()
 main = do
   testOrderedCollocated
   testOrderedStaggered
   testResample
+  testSampleSide
   putStrLn "post explicit stencil tests: ok"
 
 testOrderedCollocated :: IO ()
@@ -67,3 +69,22 @@ assertEqual label expected actual
   | expected == actual = pure ()
   | otherwise = fail (label ++ ": expected " ++ show expected
       ++ ", got " ++ show actual)
+
+testSampleSide :: IO ()
+testSampleSide = do
+  let cell = Placement [IntegerPoint, IntegerPoint]
+      face = Placement [HalfPoint, IntegerPoint]
+      corner = Placement [HalfPoint, HalfPoint]
+  mapM_ (\(side, source, target, offsets) ->
+    assertEqual "direct side sample" (Right [(offsets, 1)])
+      (sampleSideStencil side source target))
+    [ (SampleLower, cell, face, [0, 0])
+    , (SampleUpper, cell, face, [1, 0])
+    , (SampleLower, face, cell, [-1, 0])
+    , (SampleUpper, face, cell, [0, 0])
+    , (SampleUpper, face, corner, [0, 1])
+    , (SampleLower, corner, face, [0, -1])
+    ]
+  mapM_ (\target -> assertEqual "ambiguous side is rejected"
+    (Left (ExplicitStencilSideNeedsOneChangedAxis cell target))
+    (sampleSideStencil SampleLower cell target)) [cell, corner]

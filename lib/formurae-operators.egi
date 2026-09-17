@@ -219,6 +219,20 @@ def Formurae.resampleExplicit
           formuraeOpaqueBarrier
             (functionSymbol Formurae.opaqueResampleHead (value :: bits))
 
+-- The side is relative to the increasing computational coordinate.
+-- Post lowering requires exactly one differing source/target placement bit.
+def Formurae.sampleSideExplicit
+      (side: Integer) (placementBits: Vector Integer) (value: MathValue) : MathValue :=
+  let bits := tensorToList placementBits
+   in match assert "side sampling needs side 0/1 and one 0/1 bit per model axis"
+                   ((side = 0 || side = 1) && length bits = dimension
+                    && all (\bit -> bit = 0 || bit = 1) bits)
+            && Formurae.requireOpaqueManifest
+        as bool with
+      | #True ->
+          formuraeOpaqueBarrier
+            (functionSymbol "FormuraeInternalOpaqueSampleSide" (side :: value :: bits))
+
 def Formurae.diff
       (value: Tensor MathValue) : Tensor MathValue :=
   ∂/∂ value coordinates

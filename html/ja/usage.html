@@ -527,6 +527,15 @@ step:
 物理境界条件はFormura側のYAML・boundary設定(ghost充填)が権威で、
 有界領域で境界まで含めた保証が要る場合は上のSBP+SATを使います。</p>
 
+<p>面の両側の値を個別に選ぶには，次の操作を使います．<code>q</code> が整数点にある場合，
+小さい／大きい計算座標側のセル値を，補間せず選びます．</p>
+<pre>sampleLower(q, 1, 0)   <span class="c">-- x方向の面の小さい座標側</span>
+sampleUpper(q, 1, 0)   <span class="c">-- x方向の面の大きい座標側</span></pre>
+<p>ビットは軸順の絶対配置（0が整数点，1が半整数点）です．元の配置と先の配置は
+ちょうど1軸で異なる必要があります．同じ配置，複数軸の同時変更，配置のない式はエラーです．
+係数を含む式全体を選んだ元の位置で評価します．共通化には <code>macro</code> を使います．
+SBP境界での半整数点から整数点への操作は未対応です．</p>
+
 <h2 id="tensor">7. Tensor、form、placement</h2>
 
 <p><code>Collocated</code>はcell位置を保ちます。<code>Primal</code>/<code>Dual</code>では、policyとcomponent basisの

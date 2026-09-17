@@ -40,7 +40,8 @@ effect、source trace、normalizationをraw fallbackに逃がさない。
 
 step-local storageは`local q_i @ primal = ...`の宣言に型・variance・policyを持たせる。
 face fluxは`local q_i @ primal = [| ... |]_i`で保存し、通常の`divg q`と合成する。
-暗黙のplacement変換は行わず、明示補間は`resample(value, bit...)`のみとする。
+暗黙のplacement変換は行わず，線形補間は`resample(value, bit...)`，
+片側の値の選択は`sampleLower(value, bit...)`／`sampleUpper(value, bit...)`とする。
 telescopingによる保存保証は周期境界またはfluxと整合するboundary処理の下で成り立ち、
 物理境界条件自体はFormura/YAML側が権威である。
 
@@ -796,6 +797,27 @@ FEIRの通常のテンソル形状は任意の正の成分数を持てる。場�
 三段を一つの更新へ展開すると生成が重いため，中間状態を既存の場へ保存する．
 今後の構文検討では，幾何定義の共有，保存形の移動の共通演算子，数値解法の指定を
 この実験の記述と生成コストに照らして評価する．
+
+**v2.37(2026-09-17): 面の両側の値の明示的な選択** —
+有限体積法（セル内の量を共有面の流量で更新する方法）で必要な，面の両側の値を
+`sampleLower(value, bit...)` と `sampleUpper(value, bit...)` で表す．
+ビットは軸順に0が整数点，1が半整数点．小さい／大きい**計算座標**側を選ぶ．
+元の配置と先の配置はちょうど1軸で異なる必要がある．同じ配置，複数軸の同時変更，
+配置を持たない式を拒否する．整数→半整数は配列のずれ0／+1，半整数→整数は−1／0となり，
+選んだ位置で式全体を評価する．補間や微分の組合せによる近傍値の復元は行わない．
+
+FEIRの `resample.explicit` の属性 `target-placement` に加え，片側の選択では
+`side` をnatural値0（lower）または1（upper）として記録する．`side` がない場合は
+線形補間である．未知の値・重複属性を拒否する．同じ既存のscalar入力・scalar出力・
+明示配置の契約の範囲なので，primitive manifestの演算一覧は変えない．
+離散操作を含むため，共通化には既存の `macro` を使い，連続式用の `def` には入れない．
+SBP境界での半整数→整数の禁止は線形補間と同様に維持する．
+通常のFormura配列参照へ変換し，Formura本体の拡張は行わない．
+
+`pre_sample_sides` は生成Cを用い，両軸・両側，元の位置での係数評価，9成分，
+周期境界，時間方向のブロッキングを検査する．
+`examples/kinetic_fv` で，座標写像・面の流量・物理的な9方向を分離した輸送実験を行う．
+詳細な設計と測定結果は同例のREADMEに記録する．
 
 **v2.28(2026-09-10): 最新 Egison の型検査への対応** —
 Egison の `87cbb478c845e9760ecfc1d0518b464df10a72cf` に対応した．

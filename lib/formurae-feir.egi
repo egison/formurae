@@ -579,7 +579,8 @@ def FEIR.encodeOrderedDerivativeOpaque
     | _ -> FEIR.unsupportedScalar
              "ordered derivative payload needs one operand and an axis sequence"
 
-def FEIR.encodeResampleOpaque
+def FEIR.encodeResampleWithAttributes
+      (extraAttributes: [FEIRSExpr])
       (parameters: [(MathValue, Integer)])
       (coordinates: [(MathValue, Integer)])
       (fields: [(MathValue, Integer, String, [Integer])])
@@ -598,14 +599,28 @@ def FEIR.encodeResampleOpaque
                        && all (\bit -> bit = 0 || bit = 1) bits)
               then FEIR.opaqueNode
                      Formurae.Primitives.resampleExplicitOpId
-                     [] [operandNF] [
+                     [] [operandNF] ([
                    FEIR.attribute "target-placement"
                      (FEIR.attributeValues
                        (map (\bit -> FEIR.attributeBoolean (bit = 1)) bits))
-                 ]
+                 ] ++ extraAttributes)
               else FEIR.unsupportedScalar "invalid resample placement bits"
     | _ -> FEIR.unsupportedScalar
              "resample payload needs one operand and absolute placement bits"
+
+def FEIR.encodeResampleOpaque parameters coordinates fields intrinsics analytics arguments :=
+  FEIR.encodeResampleWithAttributes [] parameters coordinates fields intrinsics analytics arguments
+
+def FEIR.encodeSampleSideOpaque parameters coordinates fields intrinsics analytics arguments :=
+  match arguments as list mathValue with
+    | $sideValue :: $rest ->
+        let side := FEIR.requireInteger "sample side" sideValue
+         in if assert "sample side must be 0 or 1" (side = 0 || side = 1)
+              then FEIR.encodeResampleWithAttributes
+                     [FEIR.attribute "side" (FEIR.attributeNatural side)]
+                     parameters coordinates fields intrinsics analytics rest
+              else FEIR.unsupportedScalar "invalid sample side"
+    | _ -> FEIR.unsupportedScalar "sample side payload is missing"
 
 def FEIR.encodeOpaqueRef
       (parameters: [(MathValue, Integer)])
@@ -630,7 +645,9 @@ def FEIR.encodeOpaqueRef
                         then FEIR.encodeOrderedDerivativeOpaque parameters coordinates fields intrinsics analytics arguments
                         else if name = "FormuraeInternalOpaqueResample"
                           then FEIR.encodeResampleOpaque parameters coordinates fields intrinsics analytics arguments
-                          else FEIR.unsupportedScalar "unknown reserved opaque head"
+                          else if name = "FormuraeInternalOpaqueSampleSide"
+                            then FEIR.encodeSampleSideOpaque parameters coordinates fields intrinsics analytics arguments
+                            else FEIR.unsupportedScalar "unknown reserved opaque head"
           | _ -> FEIR.unsupportedScalar "opaque payload head must be a symbol"
     | _ -> FEIR.unsupportedScalar "opaque barrier must contain FunctionData"
 

@@ -14,6 +14,7 @@ main = do
   testOrderedAndResample
   testSourceAwarePlacementError
   testSourceAwareMetadataError
+  testSideErrors
   putStrLn "post compile ordered/resample tests: ok"
 
 testOrderedAndResample :: IO ()
@@ -158,3 +159,22 @@ assertNotContains label needle haystack
   | needle `isInfixOf` haystack = fail
       (label ++ ": unexpectedly found " ++ show needle)
   | otherwise = pure ()
+
+testSideErrors :: IO ()
+testSideErrors = do
+  let withSide request = request { opaqueDiscreteAttributes =
+        opaqueDiscreteAttributes request ++ [Attribute (AttributeId "side") (AttributeNatural 0)] }
+      request bits = withSide (resampleOpaque "side" sourceJet bits)
+      fieldless = (request [True, True]) { opaqueDiscreteOperands =
+        [ScalarValue (Coordinate (AxisId 1))] }
+      run field req = compileProgram fixture { feProgramStepActions =
+        [update (EquationId 1) field (OpaqueDiscrete req)] }
+  mapM_ (\(label, field, req) -> case run field req of
+    Left postError -> case stripOrigin postError of
+      PostExplicitStencilError _ _ -> pure ()
+      e -> fail (label ++ ": unexpected error " ++ show e)
+    Right _ -> fail (label ++ ": accepted ambiguous side selection"))
+    [ ("same placement", FieldId 1, request [False, False])
+    , ("two changed axes", FieldId 2, request [True, True])
+    , ("no source placement", FieldId 2, fieldless)
+    ]

@@ -546,6 +546,16 @@ ghost/boundary handling consistent with the flux.
 Physical boundary conditions are authoritatively Formura's YAML boundary settings (ghost fill);
 when a bounded domain needs guarantees up to and including the boundary, use the SBP+SAT above.</p>
 
+<p>Use the following operations to select either source value next to a face. With <code>q</code>
+at integer points, they select the cell on the lower or upper computational-coordinate side without interpolation.</p>
+<pre>sampleLower(q, 1, 0)   <span class="c">-- lower-coordinate side of an x face</span>
+sampleUpper(q, 1, 0)   <span class="c">-- upper-coordinate side of an x face</span></pre>
+<p>The bits specify absolute placement in axis order: 0 for integer points and 1 for half points.
+Exactly one axis must differ between source and target. Equal placements, changes in multiple axes,
+and expressions without a source placement are errors. The entire expression, including its coefficients,
+is evaluated at the selected source position. Use <code>macro</code> to share these discrete operations.
+Half-to-integer sampling across an SBP boundary is unsupported.</p>
+
 <h2 id="tensor">7. Tensor, form, placement</h2>
 
 <p><code>Collocated</code> keeps cell positions. Under <code>Primal</code>/<code>Dual</code>, the half-cell

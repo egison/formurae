@@ -35,7 +35,7 @@ standardNames =
   [ ".", "wedge", "trace", "sym", "antisym", "norm2"
   , "hessian", "grad", "dGrad", "divg", "curl", "lap", "Δ"
   , "d", "δ", "hodge", "ΔH"
-  , "resample"
+  , "resample", "sampleLower", "sampleUpper"
   , "epsilon"
   , "π", "pi"
   ]

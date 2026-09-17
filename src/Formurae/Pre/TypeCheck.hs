@@ -397,7 +397,7 @@ infer model shadowed environment source expression
           -- unknown kind so it cannot cross a typed canonical boundary.
           | name == "divg"
           , [_] <- argumentKinds -> StaticUnknown
-          | name == "resample"
+          | name `elem` ["resample", "sampleLower", "sampleUpper"]
           , kind : _ <- argumentKinds -> kind
           | Just _ <- derivativeOpParts name
           , [kind] <- argumentKinds -> kind

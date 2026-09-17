@@ -8,16 +8,20 @@ module Formurae.Post.ExplicitStencil
   , OrderedStencilPlan(..)
   , orderedFirstDerivativeStencil
   , resampleLinearStencil
+  , sampleSideStencil
   ) where
 
 import Formurae.FEIR.Syntax (AxisId(..))
 import Formurae.Post.Location
+import Formurae.Post.PrimitiveContract (SampleSide(..))
 
 data ExplicitStencilError
   = ExplicitStencilLocationError LocationError
   | ExplicitStencilAxisOutOfRange AxisId Int
   | ExplicitStencilPlacementDimensionMismatch Int Int
   | ExplicitStencilTargetMismatch Placement Placement
+  | ExplicitStencilSideNeedsOneChangedAxis Placement Placement
+  | ExplicitStencilSideNeedsLocatedOperand
   deriving (Eq, Ord, Show)
 
 data OrderedStencilPlan = OrderedStencilPlan
@@ -81,6 +85,27 @@ resampleLinearStencil source target
       (axis, [(0, 1 / 2), (1, 1 / 2)])
     weights axis HalfPoint IntegerPoint =
       (axis, [(-1, 1 / 2), (0, 1 / 2)])
+
+-- | Select exactly one source value adjacent to the target. The side is
+-- defined by increasing computational coordinate, not physical orientation.
+sampleSideStencil
+    :: SampleSide -> Placement -> Placement
+    -> Either ExplicitStencilError [([Int], Rational)]
+sampleSideStencil side source target
+  | length sourceBits /= length targetBits =
+      Left (ExplicitStencilPlacementDimensionMismatch
+        (length sourceBits) (length targetBits))
+  | length changed /= 1 =
+      Left (ExplicitStencilSideNeedsOneChangedAxis source target)
+  | otherwise = Right [(zipWith offset sourceBits targetBits, 1)]
+  where
+    sourceBits = placementBits source
+    targetBits = placementBits target
+    changed = filter (uncurry (/=)) (zip sourceBits targetBits)
+    offset a b
+      | a == b = 0
+      | a == IntegerPoint = if side == SampleLower then 0 else 1
+      | otherwise = if side == SampleLower then -1 else 0
 
 yeeWeights
     :: Placement -> AxisId

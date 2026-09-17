@@ -257,3 +257,7 @@ breaking-wave3d-demo:
 
 breaking-wave3d-verify:
 	python3 examples/breaking_wave3d/verify.py --require-overhang --reference-cases
+
+.PHONY: kinetic-fv-verify
+kinetic-fv-verify:
+	python3 examples/kinetic_fv/run.py

@@ -53,3 +53,20 @@ assertEqual "ordered derivative preserves noncanonical axis sequence"
 assertEqual "resample preserves absolute placement bits"
   (FEIR.render (encodeRemaining resampleRequest))
   (FEIR.render expectedResample)
+
+def expectedSide side :=
+  FEIR.opaqueNode "resample.explicit" []
+    [FEIR.scalarValue encodedRemainingU]
+    [ FEIR.attribute "target-placement"
+        (FEIR.attributeValues
+          [FEIR.attributeBoolean False, FEIR.attributeBoolean True])
+    , FEIR.attribute "side" (FEIR.attributeNatural side)
+    ]
+
+assertEqual "lower source selection remains an opaque request"
+  (FEIR.render (encodeRemaining (Formurae.sampleSideExplicit 0 [|0, 1|] remainingU)))
+  (FEIR.render (expectedSide 0))
+
+assertEqual "upper source selection differs in its semantic payload"
+  (FEIR.render (encodeRemaining (Formurae.sampleSideExplicit 1 [|0, 1|] remainingU)))
+  (FEIR.render (expectedSide 1))

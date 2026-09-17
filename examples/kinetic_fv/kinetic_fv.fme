@@ -1,0 +1,87 @@
+-- Collisionless D2Q9 finite-volume transport on mapped quadrilateral cells.
+-- X=x+warpX*sin(x)*sin(y), Y=y+warpY*sin(x)*sin(y).
+-- scenario 0: uniform, 1: smooth, 2: sharp/vacuum; method 0: upwind, 1: centered.
+dimension 2
+axes x, y
+index a : 9
+param warpX = 0.2
+param warpY = 0.15
+param scenario = 1
+param method = 0
+param hx = dx
+param hy = dy
+param dt = 0.2*hx*hy/(hx+hy)
+param cell = hx*hy
+param domainArea = 39.47841760435743
+extern sin
+extern cos
+extern fvConfig
+
+def mapX u v = u+warpX*sin(u)*sin(v)
+def mapY u v = v+warpY*sin(u)*sin(v)
+def weights = [| 4/9,1/9,1/9,1/9,1/9,1/36,1/36,1/36,1/36 |]
+def ex = [| 0,1,-1,0,0,1,-1,1,-1 |]
+def ey = [| 0,0,0,1,-1,1,-1,-1,1 |]
+def bigger p q = if p > q then p else q
+def maxPopulation T_a = bigger (bigger (bigger (T_1) (T_2)) (bigger (T_3) (T_4))) (bigger (bigger (T_5) (T_6)) (bigger (T_7) (bigger (T_8) (T_9))))
+def minPopulation T_a = 0-maxPopulation (0-T_a)
+def absval v = if v >= 0 then v else 0-v
+def positive v = (v+absval(v))/2
+-- Shoelace area of the mapped four-corner polygon divided by hx*hy.
+-- This simplified expression is algebraically equal to that polygon area.
+def areaDensity = 1+warpX*(2*sin(hx/2)/hx)*cos(hy/2)*cos(x)*sin(y)+warpY*(2*sin(hy/2)/hy)*cos(hx/2)*sin(x)*cos(y)
+static field volumeCell := areaDensity
+-- Oriented edge normals divided by computational edge length, from endpoints.
+def faceX cx cy = ((mapY x (y+hy/2)-mapY x (y-hy/2))*cx-(mapX x (y+hy/2)-mapX x (y-hy/2))*cy)/hy
+def faceY cx cy = ((mapX (x+hx/2) y-mapX (x-hx/2) y)*cy-(mapY (x+hx/2) y-mapY (x-hx/2) y)*cx)/hx
+def speeds = generateTensor (\[k,q] -> if k = 1 then faceX ex_q ey_q else faceY ex_q ey_q) [2,9]
+static field B~i_a @ primal := (speeds)~i_a
+-- Midpoint quadrature for initial/reference cell averages, second-order in h.
+-- It is sufficiently accurate to measure first-order transport convergence.
+def referenceAt cx cy t = if scenario < 0.5 then 1 else if scenario < 1.5 then 1+0.2*cos(mapX x y+2*mapY x y-(cx+2*cy)*t) else if cos(mapX x y+2*mapY x y) > 0 then 1 else 0
+def reference t = generateTensor (\[q] -> weights_q*referenceAt ex_q ey_q t) [9]
+
+-- Numerical transport: source-cell selection is explicit; all charts use it.
+macro transport Q =
+  local lower~i_a @ primal = [| sampleLower(Q,1,0), sampleLower(Q,0,1) |]~i_a
+  local upper~i_a @ primal = [| sampleUpper(Q,1,0), sampleUpper(Q,0,1) |]~i_a
+  local flux~i_a @ primal = (B~i_a*(lower~i_a+upper~i_a)-(1-method)*absval(B~i_a)*(upper~i_a-lower~i_a))/2
+  in (0-∂_i flux~i_a)/volumeCell
+
+field f_a
+field elapsed
+field mass_a
+field error
+field lowest
+field highest
+field cfl
+field closure
+field minArea
+init:
+  f_a := (reference 0)_a
+  elapsed := 0
+  mass_a := cell*volumeCell*(reference 0)_a/domainArea
+  error := 0
+  lowest := referenceAt 0 0 0
+  highest := referenceAt 0 0 0
+  cfl := 0
+  closure := 0
+  minArea := cell*volumeCell
+step:
+  local rate_a = transport f
+  f'_a = f_a+dt*rate_a
+  elapsed' = elapsed+dt
+  mass'_a = cell*volumeCell*f'_a/domainArea
+  local populationError_a = absval(f'_a/weights_a-(reference elapsed')_a/weights_a)
+  error' = maxPopulation populationError
+  local relative_a = f'_a/weights_a
+  local low = minPopulation relative
+  local high = maxPopulation relative
+  lowest' = if low < lowest then low else lowest
+  highest' = if high > highest then high else highest
+  local outgoingX_a = positive(sampleUpper(B~1_a,0,0))+positive(0-sampleLower(B~1_a,0,0))
+  local outgoingY_a = positive(sampleUpper(B~2_a,0,0))+positive(0-sampleLower(B~2_a,0,0))
+  cfl' = maxPopulation (dt*(outgoingX_a/hx+outgoingY_a/hy)/volumeCell)
+  local divergence_a = ∂_i B~i_a
+  closure' = maxPopulation (absval divergence)
+  minArea' = cell*volumeCell

@@ -233,6 +233,12 @@ D3Q19へ拡張し，奥行きによって波高と波の位置が変わる水槽
 実行し，一様流，移動の厳密解，粘性で減衰する流れを比較します．
 `make kinetic-coordinates-verify` で三つの格子サイズの計算と検証を再現できます．
 
+[有限体積法によるD2Q9の輸送](examples/kinetic_fv/README.md)では，
+面の両側を明示的に選ぶ `sampleLower`／`sampleUpper` を使い，一次風上法を検証します．
+同じ更新式を直交格子と曲がった格子で実行し，9方向それぞれの総量保存，
+全ステップでの非負性，滑らかな移動問題の収束を確認します．
+`make kinetic-fv-verify` で24条件の検証を再現できます．
+
 ## 材料則と座標変換を変更する応用デモ
 
 [三つの比較デモ](examples/application_demos/README.md)では，利用者が定義した演算子を
@@ -317,11 +323,23 @@ static field twiceJ : scalar @ collocated := 2 * J
 `` `(x - cx) ``のように中心をずらした座標を原子にしておくと、正規化が数分から1分程度になります
 （`examples/transformation_optics`）。
 
-配置変換を意図的に行う場合の明示surfaceは`resample`です。
+配置を変えて線形補間する場合は `resample` を使います。
 
 ```formurae
 resample(q, 0, 1)   -- 2Dの絶対placement (integer, half) へ線形補間
 ```
+
+面の両側の値を個別に選ぶ場合は，次の操作を使います．`q` が整数点にある場合，
+小さい／大きい計算座標側のセル値をそのまま選びます．
+
+```formurae
+sampleLower(q, 1, 0)   -- x方向の面に接する小さい座標側の値
+sampleUpper(q, 1, 0)   -- 同じ面に接する大きい座標側の値
+```
+
+配置が変わる軸は1つに限ります．定数だけの式，同じ配置，複数軸の同時変更は
+エラーになります．係数を含め，式全体を選んだ元の位置で評価します．
+これらを共通化する場合は離散演算を記述できる `macro` を使います．
 
 中間storageは型付き`local`で指定します。face fluxを明示する保存形は、
 次のように通常の`divg`と合成できます。

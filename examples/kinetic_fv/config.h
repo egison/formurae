@@ -1,0 +1,1 @@
+double fvConfig(double key);

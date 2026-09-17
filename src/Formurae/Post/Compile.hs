@@ -584,6 +584,11 @@ lowerResample environment targetPlacement sampleOffsets opaque = do
       (ExplicitStencilTargetMismatch targetPlacement explicitTarget))
   location <- inferScalarLocation environment
     (opaqueDiscreteSemanticKey opaque) (resampleOperand request)
+  case (resampleSide request, scalarLocationCapability location) of
+    (Just _, LocatedCapability _) -> Right ()
+    (Just _, _) -> mapExplicitStencil opaque
+      (Left ExplicitStencilSideNeedsLocatedOperand)
+    _ -> Right ()
   case scalarLocationCapability location of
     ConstantCapability ->
       lowerScalarShifted environment explicitTarget sampleOffsets
@@ -601,7 +606,9 @@ lowerResample environment targetPlacement sampleOffsets opaque = do
         (zip [1 ..] (zip (placementBits sourcePlacement)
           (placementBits explicitTarget)))
       stencil <- mapExplicitStencil opaque
-        (resampleLinearStencil sourcePlacement explicitTarget)
+        (case resampleSide request of
+          Nothing -> resampleLinearStencil sourcePlacement explicitTarget
+          Just side -> sampleSideStencil side sourcePlacement explicitTarget)
       samples <- mapM (lowerSample sourcePlacement (resampleOperand request))
         stencil
       Right (normalizeExpr (FAdd samples))

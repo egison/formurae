@@ -87,6 +87,12 @@ main = do
     badBitsSource
   badBits <- emitNormalizationUnit Primitives.primitiveManifestId badBitsModel
   assertLeft "resample requires dimension-many literal bits" isBadBits badBits
+  sidesModel <- parseModel "sides.fme" "sides" (unlines
+    ["dimension 2", "axes x, y", "field u", "field v_i @ primal", "step:"
+    , "  v'_i = [| sampleLower(u,1,0), sampleUpper(u,0,1) |]_i"])
+  sidesUnit <- requireRight =<< emitNormalizationUnit Primitives.primitiveManifestId sidesModel
+  assertContains "lower sample bridge" "FormuraeInternalSampleLower [| 1, 0 |] u" sidesUnit
+  assertContains "upper sample bridge" "FormuraeInternalSampleUpper [| 0, 1 |] u" sidesUnit
   putStrLn "formurae-pre remaining primitive emitter tests: ok"
 
 indexedTargetSource :: String

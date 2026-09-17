@@ -13,6 +13,7 @@ module Formurae.Post.PrimitiveContract
   ( PrimitiveContractError(..)
   , OrderedDerivativeRequest(..)
   , ResampleRequest(..)
+  , SampleSide(..)
   , SbpTraceRequest(..)
   , parseOrderedDerivativeRequest
   , parseResampleRequest
@@ -46,7 +47,11 @@ data OrderedDerivativeRequest = OrderedDerivativeRequest
 data ResampleRequest = ResampleRequest
   { resampleOperand :: ScalarNF
   , resampleTargetBits :: [Bool]
+  , resampleSide :: Maybe SampleSide
   } deriving (Eq, Ord, Show)
+
+data SampleSide = SampleLower | SampleUpper
+  deriving (Eq, Ord, Show)
 
 data SbpTraceRequest = SbpTraceRequest
   { sbpTraceOperand :: ScalarNF
@@ -118,8 +123,19 @@ parseResampleRequest dimension opaque = do
   requireScalarResult opaque
   operand <- requireScalarOperand
     "resample.explicit expects exactly one scalar operand" opaque
-  requireAttributeSet [targetPlacementAttribute]
+  let sideAttribute = AttributeId "side"
+      hasSide = any ((== sideAttribute) . attributeId)
+        (opaqueDiscreteAttributes opaque)
+  requireAttributeSet (targetPlacementAttribute : [sideAttribute | hasSide])
     (opaqueDiscreteAttributes opaque)
+  side <- if hasSide
+    then do
+      value <- requireAttribute sideAttribute opaque
+      case value of
+        AttributeNatural 0 -> Right (Just SampleLower)
+        AttributeNatural 1 -> Right (Just SampleUpper)
+        _ -> Left (ContractInvalidAttribute sideAttribute value)
+    else Right Nothing
   placementValue <- requireAttribute targetPlacementAttribute opaque
   bits <- case placementValue of
     AttributeValues values -> mapM placementBit values
@@ -128,6 +144,7 @@ parseResampleRequest dimension opaque = do
     then Right ResampleRequest
       { resampleOperand = operand
       , resampleTargetBits = bits
+      , resampleSide = side
       }
     else Left (ContractInvalidAttribute targetPlacementAttribute placementValue)
 

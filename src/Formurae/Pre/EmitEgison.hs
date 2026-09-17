@@ -1029,13 +1029,16 @@ contextualize model userDefinitions shadowedNames boundNames expression
       Left (EmitExpressionError
         ("quoted derivative coordinate index must be covariant: ~" ++ axis))
     contextualizeExplicitPrimitive name parts arguments
-      | name == "resample" =
+      | isExplicitPrimitiveName name =
           case (parts, arguments) of
             ([], value : bits) -> do
               value' <- walk value
               bitValues <- mapM (explicitPlacementBit name) bits
               if length bitValues == Surface.mDim model
-                then Right (TEApply (TEIdent "FormuraeInternalResampleExplicit" [])
+                then Right (TEApply (TEIdent (case name of
+                    "sampleLower" -> "FormuraeInternalSampleLower"
+                    "sampleUpper" -> "FormuraeInternalSampleUpper"
+                    _ -> "FormuraeInternalResampleExplicit") [])
                   [integerVector bitValues,
                    applicationArgument value'])
                 else Left (EmitExpressionError
@@ -1075,7 +1078,7 @@ predicateBinaryConstructor operator = lookup operator
   ]
 
 isExplicitPrimitiveName :: String -> Bool
-isExplicitPrimitiveName name = name == "resample"
+isExplicitPrimitiveName name = name `elem` ["resample", "sampleLower", "sampleUpper"]
 
 continuumOperators :: [(String, String)]
 continuumOperators =
@@ -1266,6 +1269,10 @@ renderUnit model registry geometryDeclarations definitions dynamics program = un
           ["def FormuraeInternalOrderedDerivative axes value := Formurae.gridDerivativeChain axes value"]
       , whenUsed "FormuraeInternalResampleExplicit"
           ["def FormuraeInternalResampleExplicit bits value := Formurae.resampleExplicit bits value"]
+      , whenUsed "FormuraeInternalSampleLower"
+          ["def FormuraeInternalSampleLower bits value := Formurae.sampleSideExplicit 0 bits value"]
+      , whenUsed "FormuraeInternalSampleUpper"
+          ["def FormuraeInternalSampleUpper bits value := Formurae.sampleSideExplicit 1 bits value"]
       -- Direct analytic calls are emitted as Egison's ∂/∂.  A function
       -- value (including one in a raw Egison body) keeps the parser's
       -- atomic spelling and therefore needs a binding as well.
