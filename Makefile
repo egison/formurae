@@ -280,3 +280,14 @@ kinetic-viscosity-gallery:
 	$(POST_FEC_RUN) examples/kinetic_viscosity/kinetic_viscosity.feir > examples/kinetic_viscosity/kinetic_viscosity.fmr
 	$(PLOT_PYTHON) examples/kinetic_viscosity/render.py
 	python3 examples/kinetic_viscosity/gallery.py
+
+.PHONY: kinetic-hydrostatic-verify kinetic-hydrostatic-gallery
+kinetic-hydrostatic-verify:
+	python3 examples/kinetic_hydrostatic/run.py
+
+kinetic-hydrostatic-gallery:
+	$(PRE_FEC_RUN) examples/kinetic_hydrostatic/kinetic_hydrostatic.fme > examples/kinetic_hydrostatic/kinetic_hydrostatic.egi
+	$(EGISON_NORMALIZE) $(abspath examples/kinetic_hydrostatic/kinetic_hydrostatic.egi) > examples/kinetic_hydrostatic/kinetic_hydrostatic.feir
+	$(POST_FEC_RUN) examples/kinetic_hydrostatic/kinetic_hydrostatic.feir > examples/kinetic_hydrostatic/kinetic_hydrostatic.fmr
+	$(PLOT_PYTHON) examples/kinetic_hydrostatic/render.py
+	python3 examples/kinetic_hydrostatic/gallery.py

@@ -249,6 +249,13 @@ D3Q19へ拡張し，奥行きによって波高と波の位置が変わる水槽
 `make kinetic-viscosity-verify` で50条件の検証，`make kinetic-viscosity-gallery` で
 日英のギャラリー更新を再現できます．
 
+[重力と静水の検証](examples/kinetic_hydrostatic/README.md)では，上下の反射壁と
+重力を加え，静水状態からの差を計算することで重力と圧力のつり合いを保ちます．
+静水・密度の小さな乱れ・水平加速度による運動量の変化を，直交格子と曲がった格子で
+調べます．壁は流体を通さず，接線方向には滑る条件です．領域を流体で満たした試験で，
+水面と傾斜した海底への結合は次の段階です．`make kinetic-hydrostatic-verify` で
+検証を，`make kinetic-hydrostatic-gallery` で日英のギャラリー更新を再現できます．
+
 ## 材料則と座標変換を変更する応用デモ
 
 [三つの比較デモ](examples/application_demos/README.md)では，利用者が定義した演算子を

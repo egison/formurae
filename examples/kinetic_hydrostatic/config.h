@@ -1,0 +1,1 @@
+double hydrostaticConfig(double key);

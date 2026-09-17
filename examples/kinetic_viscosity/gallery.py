@@ -82,7 +82,7 @@ def generate(lang,report):
         code_title='座標の定義と分離した衝突モデル（実際のソースから抜粋）'
         code_note='aは九方向の番号，pは物理空間の正規直交基底（互いに直角な単位ベクトル）の二成分です。frameは格子の座標と独立に固定した九方向を表します。曲がった格子でもこの内積と平衡分布の式を変えません。'
         scope=f'全条件で質量の相対変化は最大{mass}，運動量の絶対変化は最大{momentum}。輸送と衝突の両方を含めた，非負性を保つ時間刻みの十分条件を満たしました。平均前のEuler候補と平衡分布も非負であり，値の切り詰めは行っていません。'
-        limits='この参照値は九方向の方程式の有限波長での減衰率です。長波長での動粘性係数 ν=τ/3 とは区別して比較します。初期条件・時間積分・診断値もすべてFormuraeで計算しています。重力・壁・水面を加えた波の計算は次の段階です。'
+        limits='この参照値は九方向の方程式の有限波長での減衰率です。長波長での動粘性係数 ν=τ/3 とは区別して比較します。初期条件・時間積分・診断値もすべてFormuraeで計算しています。重力と水平な壁は<a href="#kinetic-hydrostatic">静水の検証</a>へ進め，水面を加えた波の計算につなげます。'
         previous='<a href="#kinetic-fv">輸送の高精度化</a>を粘性のある流れへ進めた実験です。<a href="#breaking-wave">巻き込む波と引き波</a>の動画への組込みは今後行います。'
         more,checks,vector='式の導出と再現手順','50条件の検証結果','拡大できるグラフ（SVG）'
     else:
@@ -97,7 +97,7 @@ def generate(lang,report):
         code_title='Collision model separated from grid geometry (actual source excerpt)'
         code_note='a labels the nine populations; p labels the two components in a fixed physical orthonormal basis. frame contains the physical velocity directions independently of grid coordinates. These inner products and equilibrium expressions are unchanged on mapped grids.'
         scope=f'Across all cases, maximum relative mass drift was {mass} and absolute momentum drift was {momentum}. The sufficient time-step condition for positivity, including both transport and collisions, was satisfied. Euler candidates before averaging and equilibrium populations remained nonnegative, without clipping.'
-        limits='The reference uses the finite-wavelength decay rate of the nine-velocity equations, distinguished from the long-wavelength kinematic viscosity ν=τ/3. Initial conditions, time integration and diagnostics are all calculated in Formurae. Gravity, walls and a free surface remain the next stage.'
+        limits='The reference uses the finite-wavelength decay rate of the nine-velocity equations, distinguished from the long-wavelength kinematic viscosity ν=τ/3. Initial conditions, time integration and diagnostics are all calculated in Formurae. Gravity and horizontal walls are examined in the <a href="#kinetic-hydrostatic">hydrostatic experiment</a>, toward wave simulations with a free surface.'
         previous='This extends the <a href="#kinetic-fv">higher-order transport test</a> to viscous flow. Integration into the <a href="#breaking-wave">breaking-wave and backwash simulation</a> is still ahead.'
         more,checks,vector='Derivation and reproduction','All 50 verification cases','Scalable graph (SVG)'
     rows=[]
