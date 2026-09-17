@@ -222,10 +222,17 @@ application-demos-gallery:
 	python3 examples/application_demos/gallery.py
 
 # Coordinate-independent discrete-velocity transport, with sequential builds.
-.PHONY: kinetic-coordinates-verify
+.PHONY: kinetic-coordinates-verify kinetic-coordinates-gallery
 kinetic-coordinates-verify:
 	python3 examples/kinetic_coordinates/run.py
 	python3 examples/kinetic_coordinates/verify.py
+
+kinetic-coordinates-gallery:
+	$(PRE_FEC_RUN) examples/kinetic_coordinates/kinetic_coordinates.fme > examples/kinetic_coordinates/kinetic_coordinates.egi
+	$(EGISON_NORMALIZE) $(abspath examples/kinetic_coordinates/kinetic_coordinates.egi) > examples/kinetic_coordinates/kinetic_coordinates.feir
+	$(POST_FEC_RUN) examples/kinetic_coordinates/kinetic_coordinates.feir > examples/kinetic_coordinates/kinetic_coordinates.fmr
+	$(PLOT_PYTHON) examples/kinetic_coordinates/render.py
+	python3 examples/kinetic_coordinates/gallery.py
 
 # A free-surface water tank; builds and runs through the normal FME pipeline.
 .PHONY: breaking-wave-demo breaking-wave-verify

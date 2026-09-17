@@ -147,6 +147,14 @@ C生成は格子サイズごとに1回行い，同じ実行ファイルへ座標
 python3 examples/kinetic_coordinates/render.py
 ```
 
+検証済みの結果を日英のギャラリーへ反映するには，リポジトリ直下で
+`make kinetic-coordinates-gallery` を実行する．ソースの変換を再実行して
+`.egi`・`.feir`・`.fmr` を保存し，グラフ・検証値・ソース全文を掲載する．
+シミュレーションの結果は保存済みの検証JSONから読み，FMEと一致することを確認する．
+HTMLだけを更新する場合は `python3 examples/kinetic_coordinates/gallery.py` を使う．
+[日本語ギャラリー](../../html/ja/gallery.html#kinetic-coordinates)・
+[英語ギャラリー](../../html/en/gallery.html#kinetic-coordinates)から閲覧できる．
+
 添字と計量の変換に関する回帰検査も通過した．再現する場合は直列で実行する．
 
 ```sh
