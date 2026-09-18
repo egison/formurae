@@ -1,0 +1,1 @@
+double surfaceConfig(double key);

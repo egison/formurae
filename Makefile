@@ -302,3 +302,11 @@ wave-visualizations:
 # Redraw existing field archives without running a simulation.
 wave-visualizations-render:
 	$(PLOT_PYTHON) gallery/tools/wave_movies.py
+
+.PHONY: kinetic-surface-verify kinetic-surface-gallery
+kinetic-surface-verify:
+	$(PLOT_PYTHON) examples/kinetic_surface/run.py
+
+kinetic-surface-gallery:
+	$(PLOT_PYTHON) examples/kinetic_surface/render.py
+	$(PLOT_PYTHON) examples/kinetic_surface/gallery.py

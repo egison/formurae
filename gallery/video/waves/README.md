@@ -19,6 +19,10 @@
 `shallowwater` 以外の5件は水面を持たない流体の計算です。
 浅水波も水面の高さを求めるモデルであり，巻き込みや飛沫の計算ではありません。
 
+別の[小振幅の水面とD2Q9を結合する実験](../../../examples/kinetic_surface/README.md)では，
+流体とともに計算した水面の高さを表示します。その動画は同例の `results/` に保存し，
+`make kinetic-surface-verify` と `make kinetic-surface-gallery` で再現します。
+
 ## 再現
 
 リポジトリのルートで実行します。通常の Formurae / Egison / Formura の環境と，
@@ -62,6 +66,11 @@ comparison panels use fixed color and arrow scales. Only `shallowwater` has a
 surface height: it shows a vertically enlarged surface cross-section and a full
 depth view. The other five movies show populations, velocity, or absolute density
 deviations in fluid without a free surface. They do not depict a water–air boundary.
+
+The separate [D2Q9 small-amplitude free-surface experiment](../../../examples/kinetic_surface/README.md)
+shows surface height computed together with the fluid. Its movie lives in that
+example's `results/` directory. Use `make kinetic-surface-verify` followed by
+`make kinetic-surface-gallery` to reproduce it.
 
 Run `make wave-visualizations` from the repository root with the usual
 Formurae/Egison/Formura toolchain, NumPy, Matplotlib and an H.264-capable ffmpeg.
