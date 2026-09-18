@@ -1,0 +1,154 @@
+-- Conservative bounded transport of the water volume fraction.
+-- Prescribed incompressible flow: this is an interface-transport test,
+-- not yet a coupled free-surface fluid solver. No state clipping is used.
+dimension 2
+axes x, y
+param warpX = 0.06
+param warpY = 0.045
+param motion = 2
+param shape = 2
+param method = 1
+param timeScale = 1
+param duration = 4
+param piValue = 3.141592653589793
+param width = 0.025
+param radius = 0.15
+param gauss = 0.5773502691896258
+param hx = dx
+param hy = dy
+param dt = timeScale*0.1*hx*hy/(hx+hy)
+param cell = hx*hy
+extern sin
+extern cos
+extern sqrt
+extern interfaceConfig
+
+def xi = x+hx/2
+def eta = y+hy/2
+def mapX u v = u+warpX*sin(2*piValue*u)*sin(2*piValue*v)
+def mapY u v = v+warpY*sin(2*piValue*u)*sin(2*piValue*v)
+def smaller first second = if first < second then first else second
+def bigger first second = if first > second then first else second
+def absval v = if v >= 0 then v else 0-v
+def positive v = (v+absval v)/2
+-- This bounded profile defines the initial transition only; not an update clamp.
+def initialRamp v = if v <= 0 then 0 else if v >= 1 then 1 else v
+def sourceProfile xx yy = if shape < 0.5 then 0.37 else if shape < 1.5 then initialRamp ((0.5+0.12*cos(2*piValue*xx)-yy)/width+0.5) else initialRamp ((radius-sqrt((xx-0.5)^2+(yy-0.75)^2))/width+0.5)
+def exactVolume = if shape < 0.5 then 0.37 else if shape < 1.5 then 0.5 else piValue*(radius^2+width^2/12)
+def areaDensity = 1+warpX*(2*sin(piValue*hx)/hx)*cos(piValue*hy)*cos(2*piValue*xi)*sin(2*piValue*eta)+warpY*(2*sin(piValue*hy)/hy)*cos(piValue*hx)*sin(2*piValue*xi)*cos(2*piValue*eta)
+static field volumeCell := areaDensity
+-- Positive four-point quadrature on the bilinear physical quadrilateral.
+def mapMean = sin(2*piValue*xi)*cos(piValue*hx)*sin(2*piValue*eta)*cos(piValue*hy)
+def mapXi = cos(2*piValue*xi)*sin(piValue*hx)*sin(2*piValue*eta)*cos(piValue*hy)
+def mapEta = sin(2*piValue*xi)*cos(piValue*hx)*cos(2*piValue*eta)*sin(piValue*hy)
+def mapXiEta = cos(2*piValue*xi)*sin(piValue*hx)*cos(2*piValue*eta)*sin(piValue*hy)
+def quadMap first second = mapMean+mapXi*first+mapEta*second+mapXiEta*first*second
+def quadX first second = xi+hx*first/2+warpX*quadMap first second
+def quadY first second = eta+hy*second/2+warpY*quadMap first second
+def quadJacobian first second = cell/4+warpX*hy*(mapXi+mapXiEta*second)/2+warpY*hx*(mapEta+mapXiEta*first)/2
+-- Materialize quadrature coordinates before the piecewise profile.
+-- This keeps the same four-point average without repeatedly expanding the map.
+static field quadratureXPP := quadX gauss gauss
+static field quadratureYPP := quadY gauss gauss
+static field quadratureJPP := quadJacobian gauss gauss
+static field quadratureFPP := sourceProfile quadratureXPP quadratureYPP
+static field quadratureXMP := quadX (0-gauss) gauss
+static field quadratureYMP := quadY (0-gauss) gauss
+static field quadratureJMP := quadJacobian (0-gauss) gauss
+static field quadratureFMP := sourceProfile quadratureXMP quadratureYMP
+static field quadratureXPM := quadX gauss (0-gauss)
+static field quadratureYPM := quadY gauss (0-gauss)
+static field quadratureJPM := quadJacobian gauss (0-gauss)
+static field quadratureFPM := sourceProfile quadratureXPM quadratureYPM
+static field quadratureXMM := quadX (0-gauss) (0-gauss)
+static field quadratureYMM := quadY (0-gauss) (0-gauss)
+static field quadratureJMM := quadJacobian (0-gauss) (0-gauss)
+static field quadratureFMM := sourceProfile quadratureXMM quadratureYMM
+static field initialFraction := (quadratureJPP*quadratureFPP+quadratureJMP*quadratureFMP+quadratureJPM*quadratureFPM+quadratureJMM*quadratureFMM)/(cell*volumeCell)
+-- Streamfunction differences give physical flow across each mapped face.
+-- Taking their discrete divergence cancels the four corner values exactly.
+def streamValue u v = if motion < 0.5 then 0 else if motion < 1.5 then mapY u v else sin(piValue*mapX u v)^2*sin(piValue*mapY u v)^2/piValue
+def flowX = (streamValue xi (eta+hy/2)-streamValue xi (eta-hy/2))/hy
+def flowY = (streamValue (xi-hx/2) eta-streamValue (xi+hx/2) eta)/hx
+static field flow~i @ primal := [| flowX,flowY |]~i
+
+def minmod first second = if first*second <= 0 then 0 else if first > 0 then smaller first second else 0-smaller (0-first) (0-second)
+def mcSlope back forward = minmod ((back+forward)/2) (2*minmod back forward)
+macro waterFlux Q A =
+  local advecting~i @ primal = A
+  local lower~i @ primal = [| sampleLower(Q,1,0),sampleLower(Q,0,1) |]~i
+  local upper~i @ primal = [| sampleUpper(Q,1,0),sampleUpper(Q,0,1) |]~i
+  local jump~i @ primal = upper~i-lower~i
+  local slopeX = if method > 0.5 then mcSlope (sampleLower(jump~1,0,0)) (sampleUpper(jump~1,0,0)) else 0
+  local slopeY = if method > 0.5 then mcSlope (sampleLower(jump~2,0,0)) (sampleUpper(jump~2,0,0)) else 0
+  local left~i @ primal = lower~i+[| sampleLower(slopeX,1,0),sampleLower(slopeY,0,1) |]~i/2
+  local right~i @ primal = upper~i-[| sampleUpper(slopeX,1,0),sampleUpper(slopeY,0,1) |]~i/2
+  in (advecting~i*(left~i+right~i)-absval(advecting~i)*(right~i-left~i))/2
+
+field fraction
+field original
+field stage
+field elapsed
+field waterVolume
+field initialVolumeError
+field lowest
+field highest
+field mixing
+field returnedL1
+field returnedMaximum
+field stationaryError
+field movedArea
+field boundCourant
+field closure
+field boundaryFlow
+field minArea
+init:
+  fraction := initialFraction
+  original := initialFraction
+  stage := 0
+  elapsed := 0
+  waterVolume := cell*volumeCell*initialFraction
+  initialVolumeError := cell*volumeCell*(initialFraction-exactVolume)
+  lowest := initialFraction
+  highest := initialFraction
+  mixing := cell*volumeCell*initialFraction*(1-initialFraction)
+  returnedL1 := 0
+  returnedMaximum := 0
+  stationaryError := 0
+  movedArea := 0
+  boundCourant := 0
+  closure := 0
+  boundaryFlow := 0
+  minArea := cell*volumeCell
+step:
+  local evaluationTime = if stage < 0.5 then elapsed else elapsed+dt
+  local reversal = if motion > 1.5 then cos(piValue*evaluationTime/duration) else 1
+  -- Time reversal changes the upwind direction as well as the flux sign.
+  -- The clock is uniform; explicitly select its value at each shared face.
+  local reversalFace~i @ primal = [| sampleLower(reversal,1,0),sampleLower(reversal,0,1) |]~i
+  local currentFlow~i @ primal = reversalFace~i*flow~i
+  local flux~i @ primal = waterFlux fraction currentFlow~i
+  local euler = fraction-dt*(∂_i flux~i)/volumeCell
+  original' = if stage < 0.5 then fraction else original
+  fraction' = if stage < 0.5 then euler else (original+euler)/2
+  stage' = if stage < 0.5 then 1 else 0
+  elapsed' = if stage < 0.5 then elapsed else elapsed+dt
+  waterVolume' = cell*volumeCell*fraction'
+  initialVolumeError' = initialVolumeError
+  lowest' = smaller lowest (smaller euler fraction')
+  highest' = bigger highest (bigger euler fraction')
+  mixing' = cell*volumeCell*fraction'*(1-fraction')
+  local atReturn = if stage > 0.5 && absval(elapsed'-duration) < dt/4 then 1 else 0
+  local fractionDifference = absval(fraction'-initialFraction)
+  returnedL1' = if atReturn > 0.5 then cell*volumeCell*fractionDifference else returnedL1
+  returnedMaximum' = if atReturn > 0.5 then fractionDifference else returnedMaximum
+  stationaryError' = if motion < 0.5 || shape < 0.5 then bigger stationaryError fractionDifference else 0
+  movedArea' = cell*volumeCell*absval((if fraction' > 0.5 then 1 else 0)-(if initialFraction > 0.5 then 1 else 0))
+  local outRight = positive(sampleUpper(currentFlow~1,0,0))/hx
+  local outLeft = positive(0-sampleLower(currentFlow~1,0,0))/hx
+  local outTop = positive(sampleUpper(currentFlow~2,0,0))/hy
+  local outBottom = positive(0-sampleLower(currentFlow~2,0,0))/hy
+  boundCourant' = bigger boundCourant (4*dt*bigger (bigger outRight outLeft) (bigger outTop outBottom)/volumeCell)
+  closure' = bigger closure (absval(∂_i currentFlow~i))
+  boundaryFlow' = bigger boundaryFlow (if eta < hy then absval(sampleLower(currentFlow~2,0,0)) else if eta > 1-hy then absval(sampleUpper(currentFlow~2,0,0)) else 0)
+  minArea' = cell*volumeCell

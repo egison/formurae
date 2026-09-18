@@ -23,6 +23,11 @@
 流体とともに計算した水面の高さを表示します。その動画は同例の `results/` に保存し，
 `make kinetic-surface-verify` と `make kinetic-surface-gallery` で再現します。
 
+[水の占有率の保存輸送](../../../examples/surface_transport/README.md)では，水がセルを
+占める割合を表示します。波形の横移動と渦による変形・反転の二つの動画は，同例の
+`results/` に保存します。流れを指定した試験で，D2Q9・重力との結合は次の段階です。
+`make surface-transport-verify` と `make surface-transport-gallery` で再現します。
+
 ## 再現
 
 リポジトリのルートで実行します。通常の Formurae / Egison / Formura の環境と，
@@ -71,6 +76,12 @@ The separate [D2Q9 small-amplitude free-surface experiment](../../../examples/ki
 shows surface height computed together with the fluid. Its movie lives in that
 example's `results/` directory. Use `make kinetic-surface-verify` followed by
 `make kinetic-surface-gallery` to reproduce it.
+
+The [conservative volume-fraction transport experiment](../../../examples/surface_transport/README.md)
+shows fractions of cells occupied by water. Two movies in that example's `results/`
+directory show translation of a wavy interface and deformation in a reversing vortex.
+Flow is prescribed; D2Q9 and gravity coupling remain subsequent work. Reproduce them
+with `make surface-transport-verify` and `make surface-transport-gallery`.
 
 Run `make wave-visualizations` from the repository root with the usual
 Formurae/Egison/Formura toolchain, NumPy, Matplotlib and an H.264-capable ffmpeg.

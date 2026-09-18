@@ -310,3 +310,11 @@ kinetic-surface-verify:
 kinetic-surface-gallery:
 	$(PLOT_PYTHON) examples/kinetic_surface/render.py
 	$(PLOT_PYTHON) examples/kinetic_surface/gallery.py
+
+.PHONY: surface-transport-verify surface-transport-gallery
+surface-transport-verify:
+	$(PLOT_PYTHON) examples/surface_transport/run.py
+
+surface-transport-gallery:
+	$(PLOT_PYTHON) examples/surface_transport/render.py
+	$(PLOT_PYTHON) examples/surface_transport/gallery.py

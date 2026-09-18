@@ -1,0 +1,27 @@
+{
+  "source_sha256": "228657500c3a2edd52b2e8dfa8089d4fdb99cdfb339362286b0a1d5a759d769c",
+  "verification_sha256": "06c1da85dbc5bb3eb475c827031eb2e6ace3a59bcd7c9e2ba35a19386128ff3e",
+  "renderer_sha256": "b225ba1ac1993ea70d67e1b7a54261bd4f60906fb4a7f58d4f9f9361baea1af3",
+  "movies": {
+    "wave": {
+      "grid": 320,
+      "frames": 81,
+      "fps": 15,
+      "duration": 1.0,
+      "media": {
+        "mp4": "23717228d8f3e62d0656c0da932a50223df52a4bec9d75a92e84e8179b145efd",
+        "png": "1ba713d882885bf00d561fae3481d0fe33c6c6d6fc0ecdeab29ee37c3a47fca0"
+      }
+    },
+    "vortex": {
+      "grid": 128,
+      "frames": 321,
+      "fps": 30,
+      "duration": 4.0,
+      "media": {
+        "mp4": "182eef47dd425b7e7d9fc63afa2e8d1fb0d0d3c20e1fe62684f18248f865bf80",
+        "png": "83247a08178b0a26c1dc65919d325c11109c6dd794817f7cc9eea149f74806dc"
+      }
+    }
+  }
+}
