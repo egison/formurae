@@ -318,3 +318,11 @@ surface-transport-verify:
 surface-transport-gallery:
 	$(PLOT_PYTHON) examples/surface_transport/render.py
 	$(PLOT_PYTHON) examples/surface_transport/gallery.py
+
+.PHONY: kinetic-transport-verify kinetic-transport-gallery
+kinetic-transport-verify:
+	$(PLOT_PYTHON) examples/kinetic_transport/run.py
+
+kinetic-transport-gallery:
+	$(PLOT_PYTHON) examples/kinetic_transport/render.py
+	$(PLOT_PYTHON) examples/kinetic_transport/gallery.py

@@ -1,0 +1,13 @@
+{
+  "source_sha256": "7bcf6e08685dede1d65232be4c995badd82a4b98fc3e2dcb70872efcb86cd9ae",
+  "verification_sha256": "890cead5e15c2f7b2083037368ad5a25c651d025f4543e9afd0bebb07aef2728",
+  "renderer_sha256": "c7e73f7f86c493ed9a4a3f8dafc64e90dae9ff0ef1b6bb9fdfbbdec45b5d55d9",
+  "grid": 64,
+  "frames": 81,
+  "fps": 15,
+  "duration": 2.0,
+  "media": {
+    "mp4": "0a0e8a246ab014021c81e487723e8c32b33807b2f657acf99f4bf2900549ce1b",
+    "png": "91d23b3abbb16ba8a74f6535a4eb7c604c77b59fa7e392b83cc39aa24e7fda34"
+  }
+}

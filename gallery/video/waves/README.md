@@ -25,7 +25,7 @@
 
 [水の占有率の保存輸送](../../../examples/surface_transport/README.md)では，水がセルを
 占める割合を表示します。波形の横移動と渦による変形・反転の二つの動画は，同例の
-`results/` に保存します。流れを指定した試験で，D2Q9・重力との結合は次の段階です。
+`results/` に保存します。流れを指定した試験です。D2Q9の質量輸送との結合は下記の別例で検証し，重力・水面の圧力条件は引き続き次の段階です。
 `make surface-transport-verify` と `make surface-transport-gallery` で再現します。
 
 ## 再現
@@ -64,6 +64,11 @@ make wave-visualizations-render
 4件の `examples/kinetic_*/gallery.py` も同じ動画挿入処理を呼ぶので，
 カードを再生成しても動画は失われません。
 
+[D2Q9の質量輸送との結合](../../../examples/kinetic_transport/README.md)は，流体の密度と
+水を表す領域の質量に同じ面流束を使います。割合・流速・密度の動画は同例の `results/` に
+置き，`make kinetic-transport-verify` と `make kinetic-transport-gallery` で再現できます。
+全セルを同じ流体で満たした輸送試験であり，水面の大気圧条件は次の段階です。
+
 ## English
 
 These six movies draw saved simulation fields on both wave pages. All frames and
@@ -80,8 +85,14 @@ example's `results/` directory. Use `make kinetic-surface-verify` followed by
 The [conservative volume-fraction transport experiment](../../../examples/surface_transport/README.md)
 shows fractions of cells occupied by water. Two movies in that example's `results/`
 directory show translation of a wavy interface and deformation in a reversing vortex.
-Flow is prescribed; D2Q9 and gravity coupling remain subsequent work. Reproduce them
+Flow is prescribed. A separate example below couples transport to D2Q9; gravity and surface-pressure conditions remain subsequent work. Reproduce them
 with `make surface-transport-verify` and `make surface-transport-gallery`.
+
+The [shared D2Q9 mass transport experiment](../../../examples/kinetic_transport/README.md)
+uses the same face mass flux for fluid density and labelled mass. Its movie shows
+fraction, velocity and density in the example's `results/` directory. Reproduce it
+with `make kinetic-transport-verify` and `make kinetic-transport-gallery`. All cells
+contain the same fluid; a free-surface pressure boundary remains subsequent work.
 
 Run `make wave-visualizations` from the repository root with the usual
 Formurae/Egison/Formura toolchain, NumPy, Matplotlib and an H.264-capable ffmpeg.

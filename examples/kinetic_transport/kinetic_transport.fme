@@ -1,0 +1,254 @@
+-- Continuous-time D2Q9 BGK with conservative transport of a material label.
+-- Both equations share the actual numerical mass flux. All cells contain fluid;
+-- the labelled fraction does not yet impose a free-surface pressure boundary.
+dimension 2
+axes x, y
+index a : 9
+index p : 2
+param warpX = 0.06
+param warpY = 0.045
+param scenario = 2
+param shape = 1
+param method = 1
+param timeScale = 1
+param tau = 0.01
+param piValue = 3.141592653589793
+param width = 0.04
+param gauss = 0.5773502691896258
+param hx = dx
+param hy = dy
+param dt = timeScale*0.1*hx*hy/(hx+hy)
+param cell = hx*hy
+extern sin
+extern cos
+extern sqrt
+extern transportConfig
+
+def xi = x+hx/2
+def eta = y+hy/2
+def mapX u v = u+warpX*sin(2*piValue*u)*sin(2*piValue*v)
+def mapY u v = v+warpY*sin(2*piValue*u)*sin(2*piValue*v)
+def smaller first second = if first < second then first else second
+def bigger first second = if first > second then first else second
+def absval v = if v >= 0 then v else 0-v
+def positive v = (v+absval v)/2
+-- This bounded profile defines the initial transition only; not an update clamp.
+def initialRamp v = if v <= 0 then 0 else if v >= 1 then 1 else v
+-- shape 0: constant label; 1: wave-shaped layer; 2: smooth translation test.
+def sourceProfile xx yy = if shape < 0.5 then 0.37 else if shape < 1.5 then initialRamp ((0.5+0.1*cos(2*piValue*xx)-yy)/width+0.5) else 0.5+0.3*sin(2*piValue*xx)*cos(2*piValue*yy)
+def areaDensity = 1+warpX*(2*sin(piValue*hx)/hx)*cos(piValue*hy)*cos(2*piValue*xi)*sin(2*piValue*eta)+warpY*(2*sin(piValue*hy)/hy)*cos(piValue*hx)*sin(2*piValue*xi)*cos(2*piValue*eta)
+static field volumeCell := areaDensity
+-- Positive four-point quadrature on the bilinear physical quadrilateral.
+def mapMean = sin(2*piValue*xi)*cos(piValue*hx)*sin(2*piValue*eta)*cos(piValue*hy)
+def mapXi = cos(2*piValue*xi)*sin(piValue*hx)*sin(2*piValue*eta)*cos(piValue*hy)
+def mapEta = sin(2*piValue*xi)*cos(piValue*hx)*cos(2*piValue*eta)*sin(piValue*hy)
+def mapXiEta = cos(2*piValue*xi)*sin(piValue*hx)*cos(2*piValue*eta)*sin(piValue*hy)
+def quadMap first second = mapMean+mapXi*first+mapEta*second+mapXiEta*first*second
+def quadX first second = xi+hx*first/2+warpX*quadMap first second
+def quadY first second = eta+hy*second/2+warpY*quadMap first second
+def quadJacobian first second = cell/4+warpX*hy*(mapXi+mapXiEta*second)/2+warpY*hx*(mapEta+mapXiEta*first)/2
+-- Materialize quadrature coordinates before the piecewise profile.
+-- This keeps the same four-point average without repeatedly expanding the map.
+static field quadratureXPP := quadX gauss gauss
+static field quadratureYPP := quadY gauss gauss
+static field quadratureJPP := quadJacobian gauss gauss
+static field quadratureFPP := sourceProfile quadratureXPP quadratureYPP
+static field quadratureXMP := quadX (0-gauss) gauss
+static field quadratureYMP := quadY (0-gauss) gauss
+static field quadratureJMP := quadJacobian (0-gauss) gauss
+static field quadratureFMP := sourceProfile quadratureXMP quadratureYMP
+static field quadratureXPM := quadX gauss (0-gauss)
+static field quadratureYPM := quadY gauss (0-gauss)
+static field quadratureJPM := quadJacobian gauss (0-gauss)
+static field quadratureFPM := sourceProfile quadratureXPM quadratureYPM
+static field quadratureXMM := quadX (0-gauss) (0-gauss)
+static field quadratureYMM := quadY (0-gauss) (0-gauss)
+static field quadratureJMM := quadJacobian (0-gauss) (0-gauss)
+static field quadratureFMM := sourceProfile quadratureXMM quadratureYMM
+static field initialFraction := (quadratureJPP*quadratureFPP+quadratureJMP*quadratureFMP+quadratureJPM*quadratureFPM+quadratureJMM*quadratureFMM)/(cell*volumeCell)
+
+def weights = [| 4/9,1/9,1/9,1/9,1/9,1/36,1/36,1/36,1/36 |]
+def ex = [| 0,1,-1,0,0,1,-1,1,-1 |]
+def ey = [| 0,0,0,1,-1,1,-1,-1,1 |]
+def ones = [| 1,1,1,1,1,1,1,1,1 |]
+def maxPopulation T_a = bigger (bigger (bigger (T_1) (T_2)) (bigger (T_3) (T_4))) (bigger (bigger (T_5) (T_6)) (bigger (T_7) (bigger (T_8) (T_9))))
+def minPopulation T_a = 0-maxPopulation (0-T_a)
+
+-- p labels a fixed physical orthonormal frame, not the grid coordinates i.
+-- Changing the grid map changes B and cell geometry, not this collision model.
+def frame = generateTensor (\[k,q] -> if k = 1 then ex_q else ey_q) [2,9]
+macro equilibrium Q =
+  local state_a = Q
+  local rho = ones~a . state_a
+  local u~p = (frame~p~a . state_a)/rho
+  local cu_a = frame_p_a . u~p
+  local uu = u~p . u_p
+  in weights_a*rho*(1+3*cu_a+(9/2)*cu_a^2-(3/2)*uu)
+
+-- Density and velocity sampled by the same positive quadrature as the label.
+def averageValues pp mp pm mm = (quadratureJPP*pp+quadratureJMP*mp+quadratureJPM*pm+quadratureJMM*mm)/(cell*volumeCell)
+def densityValue xx yy = if scenario > 1.5 then 1+0.08*cos(2*piValue*xx) else 1
+def velocityXValue xx yy = if scenario < 0.5 then 0 else if scenario < 1.5 then 0.15 else 0.12*sin(2*piValue*xx)*cos(2*piValue*yy)
+def velocityYValue xx yy = if scenario > 1.5 then 0-0.12*cos(2*piValue*xx)*sin(2*piValue*yy) else 0
+def quadratureMean fn = averageValues (fn quadratureXPP quadratureYPP) (fn quadratureXMP quadratureYMP) (fn quadratureXPM quadratureYPM) (fn quadratureXMM quadratureYMM)
+static field initialRho := quadratureMean densityValue
+static field initialUx := quadratureMean velocityXValue
+static field initialUy := quadratureMean velocityYValue
+-- Cell equilibrium has exactly the specified density and momentum moments.
+def initialComponent w cx cy = w*initialRho*(1+3*(cx*initialUx+cy*initialUy)+(9/2)*(cx*initialUx+cy*initialUy)^2-(3/2)*(initialUx^2+initialUy^2))
+def initial = generateTensor (\[q] -> initialComponent weights_q ex_q ey_q) [9]
+def faceX cx cy = ((mapY xi (eta+hy/2)-mapY xi (eta-hy/2))*cx-(mapX xi (eta+hy/2)-mapX xi (eta-hy/2))*cy)/hy
+def faceY cx cy = ((mapX (xi+hx/2) eta-mapX (xi-hx/2) eta)*cy-(mapY (xi+hx/2) eta-mapY (xi-hx/2) eta)*cx)/hx
+def speeds = generateTensor (\[k,q] -> if k = 1 then faceX ex_q ey_q else faceY ex_q ey_q) [2,9]
+static field B~i_a @ primal := (speeds)~i_a
+def mcSlopeFactor = 1
+-- Analytic reference used only in the uniform-translation accuracy test.
+def referenceProfile xx yy t = 0.5+0.3*sin(2*piValue*(xx-0.15*t))*cos(2*piValue*yy)
+def referenceFraction t = averageValues (referenceProfile quadratureXPP quadratureYPP t) (referenceProfile quadratureXMP quadratureYMP t) (referenceProfile quadratureXPM quadratureYPM t) (referenceProfile quadratureXMM quadratureYMM t)
+
+def minmod first second = if first*second <= 0 then 0 else if first > 0 then smaller first second else 0-smaller (0-first) (0-second)
+def mcSlope back forward = minmod ((back+forward)/2) (2*minmod back forward)
+macro waterFlux Q A =
+  local advecting~i @ primal = A
+  local lower~i @ primal = [| sampleLower(Q,1,0),sampleLower(Q,0,1) |]~i
+  local upper~i @ primal = [| sampleUpper(Q,1,0),sampleUpper(Q,0,1) |]~i
+  local jump~i @ primal = upper~i-lower~i
+  local slopeX = if method > 0.5 then mcSlope (sampleLower(jump~1,0,0)) (sampleUpper(jump~1,0,0)) else 0
+  local slopeY = if method > 0.5 then mcSlope (sampleLower(jump~2,0,0)) (sampleUpper(jump~2,0,0)) else 0
+  local left~i @ primal = lower~i+[| sampleLower(slopeX,1,0),sampleLower(slopeY,0,1) |]~i/2
+  local right~i @ primal = upper~i-[| sampleUpper(slopeX,1,0),sampleUpper(slopeY,0,1) |]~i/2
+  in (advecting~i*(left~i+right~i)-absval(advecting~i)*(right~i-left~i))/2
+
+macro populationFlux Q =
+  local lower~i_a @ primal = [| sampleLower(Q,1,0), sampleLower(Q,0,1) |]~i_a
+  local upper~i_a @ primal = [| sampleUpper(Q,1,0), sampleUpper(Q,0,1) |]~i_a
+  local jump~i_a @ primal = upper~i_a-lower~i_a
+  local backwardX_a = sampleLower(jump~1_a,0,0)
+  local forwardX_a = sampleUpper(jump~1_a,0,0)
+  local backwardY_a = sampleLower(jump~2_a,0,0)
+  local forwardY_a = sampleUpper(jump~2_a,0,0)
+  local slopeX_a = mcSlopeFactor*mcSlope backwardX_a forwardX_a
+  local slopeY_a = mcSlopeFactor*mcSlope backwardY_a forwardY_a
+  local left~i_a @ primal = lower~i_a+[| sampleLower(slopeX,1,0), sampleLower(slopeY,0,1) |]~i_a/2
+  local right~i_a @ primal = upper~i_a-[| sampleUpper(slopeX,1,0), sampleUpper(slopeY,0,1) |]~i_a/2
+  local flux~i_a @ primal = (B~i_a*(left~i_a+right~i_a)-absval(B~i_a)*(right~i_a-left~i_a))/2
+  in flux~i_a
+
+field f_a
+field original_a
+field water
+field waterOriginal
+field fraction
+field stage
+field elapsed
+field density
+field velocityX
+field velocityY
+field totalMass
+field waterMass
+field waterVolume
+field momentumX
+field momentumY
+field lowest
+field highest
+field densityLowest
+field densityHighest
+field populationLowest
+field equilibriumLowest
+field collisionResidual
+field consistencyError
+field fractionCourant
+field populationCourant
+field stationaryError
+field translationL1
+field translationMaximum
+field movedAmount
+field mixing
+field velocityChange
+field minArea
+init:
+  f_a := (initial)_a
+  original_a := (initial)_a
+  water := initialFraction*initialRho
+  waterOriginal := initialFraction*initialRho
+  fraction := initialFraction
+  stage := 0
+  elapsed := 0
+  density := initialRho
+  velocityX := initialUx
+  velocityY := initialUy
+  totalMass := cell*volumeCell*initialRho
+  waterMass := cell*volumeCell*initialFraction*initialRho
+  waterVolume := cell*volumeCell*initialFraction
+  momentumX := cell*volumeCell*initialRho*initialUx
+  momentumY := cell*volumeCell*initialRho*initialUy
+  lowest := initialFraction
+  highest := initialFraction
+  densityLowest := initialRho
+  densityHighest := initialRho
+  populationLowest := minPopulation ((initial)_a/weights_a)
+  equilibriumLowest := minPopulation ((initial)_a/weights_a)
+  collisionResidual := 0
+  consistencyError := 0
+  fractionCourant := 0
+  populationCourant := 0
+  stationaryError := 0
+  translationL1 := 0
+  translationMaximum := 0
+  movedAmount := 0
+  mixing := cell*volumeCell*initialRho*initialFraction*(1-initialFraction)
+  velocityChange := 0
+  minArea := cell*volumeCell
+step:
+  local rho = ones~a . f_a
+  local alpha = water/rho
+  local kineticFlux~i_a @ primal = populationFlux f
+  -- The sum of these same population fluxes advances total density.
+  local massFlux~i @ primal = kineticFlux~i_a . ones~a
+  local labelledFlux~i @ primal = waterFlux alpha massFlux~i
+  local feq_a = equilibrium f
+  local collision_a = (feq_a-f_a)/tau
+  local euler_a = f_a+dt*((0-∂_i kineticFlux~i_a)/volumeCell+collision_a)
+  local rhoEuler = ones~a . euler_a
+  local waterEuler = water-dt*(∂_i labelledFlux~i)/volumeCell
+  original'_a = if stage < 0.5 then f_a else original_a
+  waterOriginal' = if stage < 0.5 then water else waterOriginal
+  f'_a = if stage < 0.5 then euler_a else (original_a+euler_a)/2
+  water' = if stage < 0.5 then waterEuler else (waterOriginal+waterEuler)/2
+  stage' = if stage < 0.5 then 1 else 0
+  elapsed' = if stage < 0.5 then elapsed else elapsed+dt
+  density' = ones~a . f'_a
+  fraction' = water'/density'
+  velocityX' = (ex~a . f'_a)/density'
+  velocityY' = (ey~a . f'_a)/density'
+  totalMass' = cell*volumeCell*density'
+  waterMass' = cell*volumeCell*water'
+  waterVolume' = cell*volumeCell*fraction'
+  momentumX' = cell*volumeCell*(ex~a . f'_a)
+  momentumY' = cell*volumeCell*(ey~a . f'_a)
+  lowest' = smaller lowest (smaller fraction' (waterEuler/rhoEuler))
+  highest' = bigger highest (bigger fraction' (waterEuler/rhoEuler))
+  densityLowest' = smaller densityLowest (smaller rhoEuler density')
+  densityHighest' = bigger densityHighest (bigger rhoEuler density')
+  populationLowest' = smaller populationLowest (smaller (minPopulation (euler_a/weights_a)) (minPopulation (f'_a/weights_a)))
+  equilibriumLowest' = smaller equilibriumLowest (minPopulation (feq_a/weights_a))
+  collisionResidual' = bigger collisionResidual (bigger (absval(ones~a . collision_a)) (bigger (absval(ex~a . collision_a)) (absval(ey~a . collision_a))))
+  consistencyError' = bigger consistencyError (absval(rhoEuler-(rho-dt*(∂_i massFlux~i)/volumeCell)))
+  -- Four bounded reconstructed face values sum to 4*alpha in each cell.
+  -- 4*dt*outgoingMass/(cellArea*rho) <= 1 suffices for both water and its complement.
+  local outRight = positive(sampleUpper(massFlux~1,0,0))/hx
+  local outLeft = positive(0-sampleLower(massFlux~1,0,0))/hx
+  local outTop = positive(sampleUpper(massFlux~2,0,0))/hy
+  local outBottom = positive(0-sampleLower(massFlux~2,0,0))/hy
+  fractionCourant' = bigger fractionCourant (4*dt*bigger (bigger outRight outLeft) (bigger outTop outBottom)/(volumeCell*rho))
+  local outgoingX_a = positive(sampleUpper(B~1_a,0,0))+positive(0-sampleLower(B~1_a,0,0))
+  local outgoingY_a = positive(sampleUpper(B~2_a,0,0))+positive(0-sampleLower(B~2_a,0,0))
+  populationCourant' = bigger populationCourant (2*maxPopulation (dt*(outgoingX_a/hx+outgoingY_a/hy)/volumeCell)+dt/tau)
+  stationaryError' = if scenario < 0.5 || shape < 0.5 then bigger stationaryError (bigger (absval(fraction'-initialFraction)) (absval(waterEuler/rhoEuler-initialFraction))) else 0
+  local exactFraction = referenceFraction elapsed'
+  translationL1' = if scenario > 0.5 && scenario < 1.5 && shape > 1.5 then cell*volumeCell*absval(fraction'-exactFraction) else 0
+  translationMaximum' = if scenario > 0.5 && scenario < 1.5 && shape > 1.5 then absval(fraction'-exactFraction) else 0
+  movedAmount' = cell*volumeCell*absval(fraction'-initialFraction)
+  mixing' = cell*volumeCell*water'*(1-fraction')
+  velocityChange' = bigger velocityChange (bigger (absval(velocityX'-initialUx)) (absval(velocityY'-initialUy)))
+  minArea' = cell*volumeCell

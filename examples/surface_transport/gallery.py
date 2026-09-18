@@ -52,7 +52,7 @@ def card(lang,r):
     ratio=max(r['checks'][chart+'-high-to-upwind-ratios']['returnedL1'] for chart in ['cartesian','mapped'])
     if lang=='ja':
         title='水面をセルの間で運ぶ：水量と0〜1の範囲を保つ'
-        description='各セルを水が占める割合を運び，水面がセルをまたいで移動・変形する過程を検証します。流れをあらかじめ指定した輸送試験です。D2Q9で流速を求める処理や，重力・水面の圧力条件との結合は次の段階です。'
+        description='各セルを水が占める割合を運び，水面がセルをまたいで移動・変形する過程を検証します。流れをあらかじめ指定した輸送試験です。D2Q9が計算した流れとの結合は，続く「D2Q9の流れで水の領域を運ぶ」で検証します。重力・水面の圧力条件との結合は引き続き次の課題です。'
         captions={'wave':'320²セルで，波形の境界を一定の流れで横へ一周させます。直交格子と曲線格子で同じ初期形状・流れを使っています。この波形は流れに運ばれるもので，自由に伝わる重力波ではありません。',
                   'vortex':'128²セルで，円形の水領域を渦で伸ばし，流れを反転して戻します。左と中央は傾きを制限した直線でセル内を近似するMUSCL法，右はセル内を一定値とする一次風上法です。後者は輪郭がよりぼけます。'}
         legend='青は保存した占有率，実線は0.5の等値線，破線は初期の境界です。下段は中間の占有率の広がりを示す指標で，物理的な混合ではありません。描画で水の形や動きを付け加えていません。'
@@ -63,7 +63,7 @@ def card(lang,r):
         read,results='モデル・範囲と水量を保つ条件・再現手順','28条件の検証記録'
     else:
         title='Transporting an interface across cells while preserving volume and bounds'
-        description='A cell-averaged water volume fraction is transported across cells through translation and deformation. Flow is prescribed in this test. Computing velocity with D2Q9 and coupling gravity and surface pressure remain subsequent steps.'
+        description='A cell-averaged water volume fraction is transported across cells through translation and deformation. Flow is prescribed in this test. Coupling to computed D2Q9 flow is tested in the following transport example. Gravity and surface-pressure coupling remain subsequent steps.'
         captions={'wave':'A wave-shaped interface travels once around the domain in a uniform flow on 320² cells. Cartesian and mapped grids share the initial shape and physical flow. This is an advected shape, not a freely propagating gravity wave.',
                   'vortex':'A circular water region stretches in a vortex and returns as flow reverses on 128² cells. Left and middle: MUSCL, a slope-limited linear approximation within each cell. Right: first-order upwind with constant cell values, which smears the interface more.'}
         legend='Blue shows the saved fraction; solid lines mark 0.5 and dashed lines the initial interface. The lower plot measures intermediate fractions, not physical mixing. Rendering does not prescribe interface motion.'
