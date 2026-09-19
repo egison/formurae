@@ -70,8 +70,13 @@ def FEIR.escapeChar (char: Char) : String :=
               then S.concat ["\\u{", FEIR.hex (ctoi char), "}"]
               else pack [char]
 
+-- Egison's show quotes a string with the same escapes for quote, backslash,
+-- newline, carriage return and tab; only control characters differ (named
+-- escapes instead of \u{..}), so those strings take the per-character path.
 def FEIR.quoteString (value: String) : String :=
-  S.concat ["\"", S.concat (map FEIR.escapeChar (unpack value)), "\""]
+  if regex "[[:cntrl:]]" value = []
+    then show value
+    else S.concat ["\"", S.concat (map FEIR.escapeChar (unpack value)), "\""]
 
 def FEIR.render (expression: FEIRSExpr) : String :=
   match expression as feirSExpr with
@@ -81,24 +86,33 @@ def FEIR.render (expression: FEIRSExpr) : String :=
         S.concat ["(", S.intercalate " " (map FEIR.render values), ")"]
 
 -- Insert by rendered canonical bytes without requiring an Ord instance for
--- the wire ADT itself.
-def FEIR.insertSExpr (value: FEIRSExpr) (values: [FEIRSExpr]) : [FEIRSExpr] :=
-  match values as list something with
-    | [] -> [value]
+-- the wire ADT itself. Every value is rendered once; the sorted list keeps
+-- the rendered key beside the value, so comparisons never render again.
+def FEIR.insertRendered
+      (pair: (String, FEIRSExpr)) (pairs: [(String, FEIRSExpr)]) : [(String, FEIRSExpr)] :=
+  match pairs as list something with
+    | [] -> [pair]
     | $head :: $tail ->
-        if FEIR.render value <= FEIR.render head
-          then value :: head :: tail
-          else head :: FEIR.insertSExpr value tail
+        if fst pair <= fst head
+          then pair :: head :: tail
+          else head :: FEIR.insertRendered pair tail
+
+def FEIR.insertSExpr (value: FEIRSExpr) (values: [FEIRSExpr]) : [FEIRSExpr] :=
+  map snd
+    (FEIR.insertRendered (FEIR.render value, value)
+      (map (\other -> (FEIR.render other, other)) values))
 
 def FEIR.sortSExprs (values: [FEIRSExpr]) : [FEIRSExpr] :=
-  foldl (\sorted value -> FEIR.insertSExpr value sorted) [] values
+  map snd
+    (foldl (\sorted pair -> FEIR.insertRendered pair sorted) []
+      (map (\value -> (FEIR.render value, value)) values))
 
 def FEIR.uniqueSortedSExprs (values: [FEIRSExpr]) : [FEIRSExpr] :=
   match values as list something with
     | [] -> []
     | $value :: [] -> [value]
     | $value :: $next :: $rest ->
-        if FEIR.render value = FEIR.render next
+        if value = next
           then FEIR.uniqueSortedSExprs (next :: rest)
           else value :: FEIR.uniqueSortedSExprs (next :: rest)
 
@@ -147,10 +161,15 @@ def FEIR.compareNode
       (operator: String) (lhs: FEIRSExpr) (rhs: FEIRSExpr) : FEIRSExpr :=
   FEIRList [FEIRAtom "compare", FEIRAtom operator, lhs, rhs]
 
+-- The constant predicates are compared structurally; the wire ADT has
+-- structural equality, so this agrees with comparing rendered bytes.
+def FEIR.isBoolNode (value: Bool) (predicate: FEIRSExpr) : Bool :=
+  predicate = FEIR.boolNode value
+
 def FEIR.notNode (predicate: FEIRSExpr) : FEIRSExpr :=
-  if FEIR.render predicate = "(bool true)"
+  if FEIR.isBoolNode True predicate
     then FEIR.boolNode False
-    else if FEIR.render predicate = "(bool false)"
+    else if FEIR.isBoolNode False predicate
       then FEIR.boolNode True
       else match predicate as feirSExpr with
         | feirList $values ->
@@ -161,10 +180,10 @@ def FEIR.notNode (predicate: FEIRSExpr) : FEIRSExpr :=
 
 def FEIR.andNode (predicates: [FEIRSExpr]) : FEIRSExpr :=
   let sorted := FEIR.uniqueSortedSExprs (FEIR.sortSExprs predicates)
-   in if any (\predicate -> FEIR.render predicate = "(bool false)") sorted
+   in if any (FEIR.isBoolNode False) sorted
         then FEIR.boolNode False
         else let terms := filter (\predicate ->
-                   not (FEIR.render predicate = "(bool true)")) sorted
+                   not (FEIR.isBoolNode True predicate)) sorted
               in match terms as list something with
                    | [] -> FEIR.boolNode True
                    | $term :: [] -> term
@@ -172,10 +191,10 @@ def FEIR.andNode (predicates: [FEIRSExpr]) : FEIRSExpr :=
 
 def FEIR.orNode (predicates: [FEIRSExpr]) : FEIRSExpr :=
   let sorted := FEIR.uniqueSortedSExprs (FEIR.sortSExprs predicates)
-   in if any (\predicate -> FEIR.render predicate = "(bool true)") sorted
+   in if any (FEIR.isBoolNode True) sorted
         then FEIR.boolNode True
         else let terms := filter (\predicate ->
-                   not (FEIR.render predicate = "(bool false)")) sorted
+                   not (FEIR.isBoolNode False predicate)) sorted
               in match terms as list something with
                    | [] -> FEIR.boolNode False
                    | $term :: [] -> term
@@ -263,10 +282,31 @@ def FEIR.functionHead (value: MathValue) : MathValue :=
           then value
           else value
 
+-- A registry entry carries its head's base name, whether the head is free
+-- of user (derivative) indices, and its index list, so that the encoder can
+-- match an occurrence by a string comparison instead of decomposing every
+-- registered head symbol at every function occurrence.
 def FEIR.fieldEntry
       (fieldId: Integer) (timeSlot: String) (basis: [Integer])
-      (value: MathValue) : (MathValue, Integer, String, [Integer]) :=
-  (FEIR.functionHead value, fieldId, timeSlot, basis)
+      (value: MathValue) : (MathValue, Integer, String, [Integer], String, Bool, [TensorIndex]) :=
+  let headValue := FEIR.functionHead value
+      name := FEIR.symbolBaseName headValue
+      indices := if name = "" then [] else symbolIndices headValue
+   in (headValue, fieldId, timeSlot, basis, name, filter FEIR.isUserIndex indices = [], indices)
+
+-- Base name of a bare symbol, or the empty string for any other value.
+def FEIR.symbolBaseName (value: MathValue) : String :=
+  match value as mathValue with
+    | symbol $name _ -> name
+    | _ -> ""
+
+-- Whether a value is a bare symbol; only such values can be a parameter,
+-- a coordinate, or the constant pi, so the encoder consults those registries
+-- only for them (the comparisons normalize both sides).
+def FEIR.isBareSymbol (value: MathValue) : Bool :=
+  match value as mathValue with
+    | symbol _ _ -> True
+    | _ -> False
 
 def FEIR.analyticEntry
       (functionId: Integer) (value: MathValue) : (MathValue, Integer) :=
@@ -469,7 +509,7 @@ def FEIR.encodeExact (value: MathValue) : FEIRSExpr :=
 def FEIR.encodeCoordinateWideOpaque
       (parameters: [(MathValue, Integer)])
       (coordinates: [(MathValue, Integer)])
-      (fields: [(MathValue, Integer, String, [Integer])])
+      (fields: [(MathValue, Integer, String, [Integer], String, Bool, [TensorIndex])])
       (intrinsics: [(String, Integer)])
       (analytics: [(MathValue, Integer)])
       (arguments: [MathValue]) : FEIRSExpr :=
@@ -500,7 +540,7 @@ def FEIR.encodeCoordinateWideOpaque
 def FEIR.encodeGridWholeOpaque
       (parameters: [(MathValue, Integer)])
       (coordinates: [(MathValue, Integer)])
-      (fields: [(MathValue, Integer, String, [Integer])])
+      (fields: [(MathValue, Integer, String, [Integer], String, Bool, [TensorIndex])])
       (intrinsics: [(String, Integer)])
       (analytics: [(MathValue, Integer)])
       (arguments: [MathValue]) : FEIRSExpr :=
@@ -525,7 +565,7 @@ def FEIR.encodeGridWholeOpaque
 def FEIR.encodeSbpTraceOpaque
       (parameters: [(MathValue, Integer)])
       (coordinates: [(MathValue, Integer)])
-      (fields: [(MathValue, Integer, String, [Integer])])
+      (fields: [(MathValue, Integer, String, [Integer], String, Bool, [TensorIndex])])
       (intrinsics: [(String, Integer)])
       (analytics: [(MathValue, Integer)])
       (arguments: [MathValue]) : FEIRSExpr :=
@@ -549,7 +589,7 @@ def FEIR.encodeSbpTraceOpaque
 def FEIR.encodeOrderedDerivativeOpaque
       (parameters: [(MathValue, Integer)])
       (coordinates: [(MathValue, Integer)])
-      (fields: [(MathValue, Integer, String, [Integer])])
+      (fields: [(MathValue, Integer, String, [Integer], String, Bool, [TensorIndex])])
       (intrinsics: [(String, Integer)])
       (analytics: [(MathValue, Integer)])
       (arguments: [MathValue]) : FEIRSExpr :=
@@ -583,7 +623,7 @@ def FEIR.encodeResampleWithAttributes
       (extraAttributes: [FEIRSExpr])
       (parameters: [(MathValue, Integer)])
       (coordinates: [(MathValue, Integer)])
-      (fields: [(MathValue, Integer, String, [Integer])])
+      (fields: [(MathValue, Integer, String, [Integer], String, Bool, [TensorIndex])])
       (intrinsics: [(String, Integer)])
       (analytics: [(MathValue, Integer)])
       (arguments: [MathValue]) : FEIRSExpr :=
@@ -625,7 +665,7 @@ def FEIR.encodeSampleSideOpaque parameters coordinates fields intrinsics analyti
 def FEIR.encodeOpaqueRef
       (parameters: [(MathValue, Integer)])
       (coordinates: [(MathValue, Integer)])
-      (fields: [(MathValue, Integer, String, [Integer])])
+      (fields: [(MathValue, Integer, String, [Integer], String, Bool, [TensorIndex])])
       (intrinsics: [(String, Integer)])
       (analytics: [(MathValue, Integer)])
       (payload: MathValue) : FEIRSExpr :=
@@ -654,7 +694,7 @@ def FEIR.encodeOpaqueRef
 def FEIR.encodeApply
       (parameters: [(MathValue, Integer)])
       (coordinates: [(MathValue, Integer)])
-      (fields: [(MathValue, Integer, String, [Integer])])
+      (fields: [(MathValue, Integer, String, [Integer], String, Bool, [TensorIndex])])
       (intrinsics: [(String, Integer)])
       (analytics: [(MathValue, Integer)])
       (name: String) (arguments: [MathValue]) : FEIRSExpr :=
@@ -737,7 +777,7 @@ def FEIR.flattenPredicateValue
 def FEIR.encodePredicate
       (parameters: [(MathValue, Integer)])
       (coordinates: [(MathValue, Integer)])
-      (fields: [(MathValue, Integer, String, [Integer])])
+      (fields: [(MathValue, Integer, String, [Integer], String, Bool, [TensorIndex])])
       (intrinsics: [(String, Integer)])
       (analytics: [(MathValue, Integer)])
       (predicate: MathValue) : FEIRSExpr :=
@@ -781,7 +821,7 @@ def FEIR.encodePredicate
 def FEIR.encodeSelect
       (parameters: [(MathValue, Integer)])
       (coordinates: [(MathValue, Integer)])
-      (fields: [(MathValue, Integer, String, [Integer])])
+      (fields: [(MathValue, Integer, String, [Integer], String, Bool, [TensorIndex])])
       (intrinsics: [(String, Integer)])
       (analytics: [(MathValue, Integer)])
       (arguments: [MathValue]) : FEIRSExpr :=
@@ -796,21 +836,31 @@ def FEIR.encodeSelect
 def FEIR.encodeFunctionData
       (parameters: [(MathValue, Integer)])
       (coordinates: [(MathValue, Integer)])
-      (fields: [(MathValue, Integer, String, [Integer])])
+      (fields: [(MathValue, Integer, String, [Integer], String, Bool, [TensorIndex])])
       (intrinsics: [(String, Integer)])
       (analytics: [(MathValue, Integer)])
       (headValue: MathValue) (arguments: [MathValue]) : FEIRSExpr :=
   let reservedName := FEIR.unindexedSymbolName headValue
+      occurrenceName := FEIR.symbolBaseName headValue
+      occurrenceIndices :=
+        if occurrenceName = ""
+          then []
+          else filter (\index -> not (FEIR.isUserIndex index)) (symbolIndices headValue)
       fieldMatches :=
-        filter
-          (\(candidate, _, _, _) -> FEIR.fieldHeadMatches candidate headValue)
-          fields
+        if occurrenceName = ""
+          then []
+          else filter
+                 (\(_, _, _, _, registeredName, plainHead, registeredIndices) ->
+                   registeredName = occurrenceName
+                   && plainHead
+                   && registeredIndices = occurrenceIndices)
+                 fields
    in if reservedName = "FormuraeInternalSelect"
         then FEIR.encodeSelect parameters coordinates fields intrinsics analytics arguments
         else if FEIR.isPredicateHeadName reservedName
           then FEIR.unsupportedScalar "predicate value may only appear as the condition of Select"
         else if length fieldMatches = 1
-        then let (_, fieldId, timeSlot, basis) := head fieldMatches
+        then let (_, fieldId, timeSlot, basis, _, _, _) := head fieldMatches
                  canonicalArguments :=
                    FEIR.requireCanonicalFieldArguments coordinates arguments
               in FEIR.record "field-jet"
@@ -844,14 +894,15 @@ def FEIR.encodeFunctionData
 def FEIR.encodeFactor
       (parameters: [(MathValue, Integer)])
       (coordinates: [(MathValue, Integer)])
-      (fields: [(MathValue, Integer, String, [Integer])])
+      (fields: [(MathValue, Integer, String, [Integer], String, Bool, [TensorIndex])])
       (intrinsics: [(String, Integer)])
       (analytics: [(MathValue, Integer)])
       (value: MathValue) : FEIRSExpr :=
-  if value = π
+  if FEIR.isBareSymbol value && value = π
     then FEIR.piConstant
-    else let parameterId := FEIR.lookupSymbolId value parameters
-             coordinateId := FEIR.lookupSymbolId value coordinates
+    else let bare := FEIR.isBareSymbol value
+             parameterId := if bare then FEIR.lookupSymbolId value parameters else 0
+             coordinateId := if bare then FEIR.lookupSymbolId value coordinates else 0
           in if parameterId > 0
                then FEIRList [FEIRAtom "parameter", FEIR.int parameterId]
                else if coordinateId > 0
@@ -884,7 +935,7 @@ def FEIR.encodeFactor
 def FEIR.encodePoweredFactor
       (parameters: [(MathValue, Integer)])
       (coordinates: [(MathValue, Integer)])
-      (fields: [(MathValue, Integer, String, [Integer])])
+      (fields: [(MathValue, Integer, String, [Integer], String, Bool, [TensorIndex])])
       (intrinsics: [(String, Integer)])
       (analytics: [(MathValue, Integer)])
       (factor: MathValue) (power: Integer) : FEIRSExpr :=
@@ -896,7 +947,7 @@ def FEIR.encodePoweredFactor
 def FEIR.encodeTerm
       (parameters: [(MathValue, Integer)])
       (coordinates: [(MathValue, Integer)])
-      (fields: [(MathValue, Integer, String, [Integer])])
+      (fields: [(MathValue, Integer, String, [Integer], String, Bool, [TensorIndex])])
       (intrinsics: [(String, Integer)])
       (analytics: [(MathValue, Integer)])
       (termValue: MathValue) : FEIRSExpr :=
@@ -919,7 +970,7 @@ def FEIR.encodeTerm
 def FEIR.encodePolynomial
       (parameters: [(MathValue, Integer)])
       (coordinates: [(MathValue, Integer)])
-      (fields: [(MathValue, Integer, String, [Integer])])
+      (fields: [(MathValue, Integer, String, [Integer], String, Bool, [TensorIndex])])
       (intrinsics: [(String, Integer)])
       (analytics: [(MathValue, Integer)])
       (polynomial: MathValue) : FEIRSExpr :=
@@ -936,16 +987,17 @@ def FEIR.encodePolynomial
 def FEIR.encodeScalar
       (parameters: [(MathValue, Integer)])
       (coordinates: [(MathValue, Integer)])
-      (fields: [(MathValue, Integer, String, [Integer])])
+      (fields: [(MathValue, Integer, String, [Integer], String, Bool, [TensorIndex])])
       (intrinsics: [(String, Integer)])
       (analytics: [(MathValue, Integer)])
       (value: MathValue) : FEIRSExpr :=
   if isPureFraction value
     then FEIR.encodeExact value
-    else if value = π
+    else if FEIR.isBareSymbol value && value = π
       then FEIR.piConstant
-      else let parameterId := FEIR.lookupSymbolId value parameters
-               coordinateId := FEIR.lookupSymbolId value coordinates
+      else let bare := FEIR.isBareSymbol value
+               parameterId := if bare then FEIR.lookupSymbolId value parameters else 0
+               coordinateId := if bare then FEIR.lookupSymbolId value coordinates else 0
             in if parameterId > 0
                  then FEIRList [FEIRAtom "parameter", FEIR.int parameterId]
                  else if coordinateId > 0
@@ -1002,7 +1054,7 @@ def FEIR.varianceAtom (variance: String) : FEIRSExpr :=
 def FEIR.encodeTensorWithMetadata
       (parameters: [(MathValue, Integer)])
       (coordinates: [(MathValue, Integer)])
-      (fields: [(MathValue, Integer, String, [Integer])])
+      (fields: [(MathValue, Integer, String, [Integer], String, Bool, [TensorIndex])])
       (intrinsics: [(String, Integer)])
       (analytics: [(MathValue, Integer)])
       (variances: [String]) (differentialFormOrder: Integer)
@@ -1079,7 +1131,7 @@ def FEIR.deferredLocalFieldDecl
 
 def FEIR.deferredFieldEntries
       (fieldId: Integer) (raw: Tensor MathValue) (value: Tensor MathValue)
-      : [(MathValue, Integer, String, [Integer])] :=
+      : [(MathValue, Integer, String, [Integer], String, Bool, [TensorIndex])] :=
   if tensorShape value = []
     then [FEIR.fieldEntry fieldId "current" [] raw]
     else map (\basis -> FEIR.fieldEntry fieldId "current" basis

@@ -1595,3 +1595,25 @@ step:
    geometry 側の将来拡張として、非対角 metric、一般 rank の musical map、cochain 用
    de Rham/reconstruction、DEC vector aliases が残る。Formurae の新規性は「Egison の数式記法と
    CAS を、座標文脈つきの分散ステンシルコード生成へ接続する薄い表層言語」に集中する。
+
+## 7. 正規化性能の改善(2026-09-19)
+
+Egison 正規化の所要時間を計測したところ、時間の 97% が FEIR を組み立てる評価段階で、
+CAS 本体(`casNormalize` など)は 0.1% 未満だった。遅さの主因は
+`lib/formurae-feir.egi` のアルゴリズムと Egison インタプリタの関数呼び出しコストである。
+ライブラリ側で次を変更した(kinetic_transport・kinetic_surface・elastic_shell の FEIR は
+変更前後でバイト単位に同一、compiler suite と各ライブラリ検査も通過)。
+
+- 場の登録簿(`FEIR.fieldEntry` の組)に頭記号の名前・利用者添字の有無・添字列を前計算して持たせ、
+  関数出現ごとの照合を文字列比較にした。以前は 1,220 件の登録簿を出現ごとにマッチャで分解していた。
+- `FEIR.encodeScalar`/`encodeFactor` は、値が単独の記号のときだけ `π`・パラメータ・座標と照合する
+  (`=` は両辺を正規化して比べるため、大きな多項式との比較は無駄だった)。
+- s 式の並べ替え(`insertSExpr`/`sortSExprs`/`uniqueSortedSExprs`)は各要素を一度だけ描画した鍵で比較し、
+  述語の定数判定(`notNode`/`andNode`/`orNode`)は構造比較にした。
+- `FEIR.quoteString` は制御文字を含まない文字列に Egison の `show` を使う(逃がし方は同一)。
+- `tools/run_egison_machine.sh` は `EGISON_RTS_OPTS` で実行時オプション(例 `-A512M`)を渡せる。
+
+Egison 側の変更(関数名スタックの更新の厳格化と INLINE、`--profile-calls`、
+`concatString`/`intercalateString` プリミティブ)と合わせ、kinetic_transport の正規化は
+270 秒から 68 秒、elastic_shell は 48 秒から 9 秒になった。詳細と残る熱点は
+`egison/design/interpreter-performance-20260919.md` に記す。

@@ -15,9 +15,12 @@ egison_dir=$1
 shift
 
 # Stop excessive allocation before it exhausts system memory. Larger models
-# can choose a different limit through EGISON_HEAP_LIMIT.
+# can choose a different limit through EGISON_HEAP_LIMIT. Further runtime
+# options (allocation area, parallel garbage collection) pass through
+# EGISON_RTS_OPTS unquoted, so several options may be listed.
 heap_limit=${EGISON_HEAP_LIMIT:-4G}
-set -- "$@" +RTS "-M$heap_limit" -RTS
+# shellcheck disable=SC2086
+set -- "$@" +RTS "-M$heap_limit" ${EGISON_RTS_OPTS:-} -RTS
 
 temporary=${TMPDIR:-/tmp}/formurae-egison-machine.$$
 stdout_file=$temporary.stdout
