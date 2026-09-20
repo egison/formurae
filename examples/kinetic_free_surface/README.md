@@ -625,7 +625,7 @@ cells that expansion produced roundoff garbage and a 0/0 in the diagnostic.
 
 For a layer whose end cells hold at least `1/K` of a cell this reproduces the
 exact one-dimensional transport (the emulation gives 0.375 | 0.225 and a resolved
-centroid error of 0.00%). On the 32x32 build (source SHA-256 prefix `2bf62a6a`)
+centroid error of 0.00%). On the 32x32 build (source SHA-256 prefix `c70ea9bc`, identical numbers on the earlier `2bf62a6a`)
 the falling suite passes all four required layers: momentum errors 7.4e-3,
 6.1e-3, 3.4e-3 and 1.8e-6, centroid errors 0.79% and 1.77% (plain moment, thin
 layers) and 0.23% and 0.084% (resolved moment, three-cell and thick layers). The
@@ -708,7 +708,50 @@ the recorded speed 1.21, and the surface at t=10 is chaotic with 348 overhang
 cells. The next experiment starts the stronger wave without the vertical
 velocity (the older example started from rest vertically) so that the criteria
 are met from the first step, and treats the spout as an initial-condition
-artifact to be removed before any breaking is judged. Thinner end cells drain at a rate proportional to their
+artifact to be removed before any breaking is judged. `verticalStart=0`
+(parameter 28, `--vertical-start 0`) starts scenario 4 with zero vertical
+velocity; at the default 1 the reference expression is unchanged. The runs
+`strong-vertical0-launch1` and `strong-vertical0-launch2.5` use it with the
+`method=3` transport. Removing the vertical velocity does not rescue the
+stronger wave: the speed record exceeds 0.3 at t=0.25 and populations turn
+negative by t=3.9 (lowest -0.23, speed record 0.66). The first violation is
+located in a cell on the rear flank of the hump (X=0.18, Y=0.23) that has just
+become wet: at t=0.39 its fraction is 0.011, its density 2.19 and its speed
+0.65, while its full neighbours have densities 1.0-1.1. A newly wetted cell
+takes the transported candidate state, and on a steep, fast flank that state
+carries far more mass than the cell's water; the excess pressure then ejects
+the water. This wetting initialization, not the incoming wave itself, is what
+the stronger wave exposes, and it is the next defect to correct (for example by
+initializing a newly wetted cell from its liquid neighbours' equilibrium).
+Qualitatively this run is the closest to breaking so far: without the spout,
+the hump steepens at its front and by t=2.8 the crest at X about 0.35 leans
+forward with the 0.5 contour beginning to curl, after which the crest smears
+and small spurious bumps from the wetting defect appear ahead of it; by t=4
+the surface is fragmented and it stays irregular to t=10 (density range
+0.44-2.20, lowest population -0.23, speed record 0.66, 109 overhang cells at
+t=10, mass conserved to 6e-15). It is shown on the wave page as a development
+result with its failed criteria. `strong-vertical0-launch2.5` (the older
+example's horizontal launch factor, no vertical velocity) fails the same way
+from t=0.15 (lowest population -0.43, speed record 0.70, density 0.41-2.52).
+
+The standing-wave period checks were repeated on the 64x64 four-process build
+with `method=3` and `heightMethod=5` (`reference-wave`, `reference-small-wave`):
+the amplitude-0.03 wave now measures 18.119 against 17.758 (2.04%, within the
+5% limit), the amplitude-0.003 wave 20.425 (15.0%, failing). The small wave's
+period is measured from a gauge column whose deflection is a few thousandths of
+a cell, so its failure needs a refinement study before it says anything about
+the dynamics; the criterion is unchanged and the case stays open. Both
+standing-wave runs also fail the basic checks: speed records 0.47 and 0.80,
+density up to 1.89 and 2.76, and a lowest population of -0.10 for the small
+wave. As in the stronger wave, these spikes sit in cells that the moving
+surface has just wetted, so the wetting initialization defect affects every
+case whose surface crosses cells, not only steep waves. The reference beach
+run with `method=3` and `heightMethod=5` (`beach-reference`, 45 minutes)
+conserves mass to 4.8e-15 with fractions in [0, 1+2.2e-12] and positive
+populations, but its speed record 0.330 (first above 0.3 at t=15.6, when the
+front wets the slope) fails the 0.3 limit; its retreat criteria fail as before
+(waterline and thin layer at the far wall). The wave page shows these runs as
+development results with the failed criteria listed. Thinner end cells drain at a rate proportional to their
 fraction, and isolated layers without a full neighbour keep the constant
 reconstruction of `method=3`. Face values stay within `K*alpha` of zero and within
 `K*(1-alpha)` of one, so the explicit sufficient condition for positivity becomes

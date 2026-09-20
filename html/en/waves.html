@@ -60,6 +60,7 @@
   <p>Simulations of a wave overturning, breaking and returning offshore, together with the fluid-model experiments supporting their development. Each example includes videos, graphs, measured results and source code. Alongside water-surface waves, the fluid-model experiments animate water fractions, populations and velocity.</p>
   <nav aria-label="Pages"><p><a href="gallery.html">Gallery</a> · <a href="usage.html">Usage guide</a> · <a href="../ja/waves.html" lang="ja" hreflang="ja">日本語</a></p></nav>
   <p><a href="#breaking-wave">2D wave and backwash</a> · <a href="#breaking-wave3d">3D wave</a> · <a href="#shallow-water">Shallow-water waves</a></p>
+<!-- kinetic-free-surface:nav:begin --><p><a href="#kinetic-free-surface">Moving free surface and sloping beach: testing breaking and backwash</a></p><!-- kinetic-free-surface:nav:end -->
   <!-- kinetic-surface:nav:begin --><p><a href="#kinetic-surface">Small surface waves coupled to the D2Q9 differential equations</a></p><!-- kinetic-surface:nav:end -->
   <details class="wave-index"><summary>Browse the fluid-model experiments</summary><nav aria-label="Fluid-model experiments">
 <!-- surface-transport:nav:begin --><p><a href="#surface-transport">Transporting an interface across cells while preserving volume and bounds</a></p><!-- surface-transport:nav:end -->
@@ -77,6 +78,706 @@
 <section aria-labelledby="water-waves">
 <h2 id="water-waves">Water surface waves</h2>
 <div class="grid">
+<!-- kinetic-free-surface:begin -->
+<article class="card featured" id="kinetic-free-surface">
+<h3>Moving free surface and sloping beach: testing breaking and backwash</h3>
+<p class="description">The nine velocity populations of D2Q9 are transported by a differential equation and coupled to atmospheric pressure at a moving surface. A mesh fitted to the bed uses the same face-flux and fluid equations. Initialization, gravity, walls, the surface, time integration and physical diagnostics are all computed in Formurae.</p>
+<p class="facts"><b>Under development. A connected curling crest, cavity and impact (stage 5), and retreat including thin water (stage 6), are assessed separately below. Failed criteria remain open.</b> The retained speed record 0.330 exceeds the 0.3 limit (conservation, bounds and positivity pass).</p>
+<div class="imgs"><video controls loop muted playsinline preload="none" width="1200" height="800" poster="../../examples/kinetic_free_surface/results/beach.png" aria-label="Moving free surface and sloping beach: testing breaking and backwash"><source src="../../examples/kinetic_free_surface/results/beach.mp4" type="video/mp4"><a href="../../examples/kinetic_free_surface/results/beach.mp4">MP4</a></video></div>
+<p class="cap">Color shows computed water fraction and arrows show velocity. Solid contours mark 0.5; dashed contours mark 0.01. The overview is above the surface close-up. Right: shoreline positions and all water mass beyond the initial shoreline, including thin layers.</p>
+<p class="description">Visual review of the saved frames of the beach wave (160x64, amplitude 0.12, slope 0.1, transport method=3): the crest forms no connected curl or cavity, the blunt front runs up the slope and the thin water reaches the far wall. The packed transport (method=4) produced no curl either and left an uncollapsing vertical step behind the wave, so the reference transport is used for the wave.</p>
+<table style="width:100%;font-size:13px;text-align:left"><tr><th scope="row">Maximum relative water-mass drift</th><td>4.822e-15</td></tr><tr><th scope="row">Retreat of fraction-0.5 shoreline</th><td>0.08101</td></tr><tr><th scope="row">Retreat of fraction-0.01 thin front</th><td>0.00000</td></tr><tr><th scope="row">Mass beyond initial shore: peak → final</th><td>0.054667 → 0.050570</td></tr></table>
+<details><summary>Numerical backwash checks</summary><ul><li>runup: <b>Passed</b></li><li>shoreline retreat: <b>Open</b></li><li>bulk retreat: <b>Passed</b></li><li>offshore flow: <b>Passed</b></li><li>overturning candidate: <b>Open</b></li><li>thin layer retreat: <b>Open</b></li><li>water arrived above shore: <b>Passed</b></li><li>water returned from shore: <b>Open</b></li><li>waterline avoids far wall: <b>Passed</b></li><li>thin layer avoids far wall: <b>Open</b></li></ul></details>
+<h4>Stronger wave (height ratio 0.77, slope 0.2, 256x64, no initial vertical velocity)</h4><div class="imgs"><video controls loop muted playsinline preload="none" width="1200" height="800" poster="../../examples/kinetic_free_surface/results/strong.png" aria-label="Stronger wave (height ratio 0.77, slope 0.2, 256x64, no initial vertical velocity)"><source src="../../examples/kinetic_free_surface/results/strong.mp4" type="video/mp4"><a href="../../examples/kinetic_free_surface/results/strong.mp4">MP4</a></video></div><p class="description">Development result for the stronger wave under the older example&#x27;s conditions, started without vertical velocity. The crest leans forward at t=2.8 and the 0.5 contour begins to curl, but at t=0.25 a cell that has just become wet on the rear flank reaches density 2.19 (its neighbours 1.0-1.1) and speed 0.65, so the fixed positivity and 0.3-speed criteria fail. The initialization of newly wetted cells is the next defect to correct; this run is not counted as a result.</p>
+<p class="description">Ten foundation cases passed: Cartesian/curved-grid rest and translation, collision relaxation and viscous decay. Still water on the fitted bed and viscosity at the beach grid and timestep also passed.</p><p class="facts">Standing-wave period tests have open criteria: discrepancies are A=0.03: 2.04%, speed 0.47, lowest population 0.12, A=0.003: 15.02%, speed 0.80, lowest population -0.10, with a 5% limit. Four falling-layer tests passed; the momentum and centroid-displacement limits are 2%. Air inertia, surface tension and bubble compression are not included.</p>
+<p class="description"><a href="../../examples/kinetic_free_surface/README.md">Equations and reproduction</a> · <a href="../../examples/kinetic_free_surface/results/verification.json">JSON</a> · <a href="../../examples/kinetic_free_surface/results/surface-review.json">Surface review</a> · <a href="../../examples/kinetic_free_surface/kinetic_free_surface.fme">Formurae</a><br><code>160×64</code>, H=0.2, A=0.12, slope=0.1, t=40.0</p>
+<details class="codebox" data-fme="kinetic_free_surface/kinetic_free_surface.fme"><summary>Formurae (kinetic_free_surface.fme)</summary><pre>-- Continuous-time discrete-velocity free surface, finite-volume transport.
+-- All geometry, boundary states, wetting, time integration and diagnostics
+-- are expressed here, through the normal Formurae compilation pipeline.
+dimension 2
+axes x, y
+index a : 9
+index p : 2
+index s : 4
+param lengthX = 1
+param lengthY = 1
+param warpX = 0
+param warpY = 0
+param scenario = 0
+param gravity = 0.02
+param level = 0.5
+param amplitude = 0.03
+param waveCenter = 0.3
+param waveWidth = 0.12
+param bedStart = 0.6
+param bedSlope = 0
+param speed = 0.1
+param tau = 0.02
+param timeScale = 1
+param periodic = 0
+param method = 1
+param surfacePosition = 1
+param fittedBed = 1
+param wetFraction = 0.01
+param heightMethod = 1
+param wallSlip = 1
+param boundarySlope = 1
+param collisionImplicit = 1
+param compression = 5
+param launch = 1
+param alignmentFloor = 0.000000000001
+param verticalStart = 1
+param piValue = 3.141592653589793
+param hx = dx
+param hy = dy
+param dt = timeScale*0.1*hx*hy/(hx+hy)
+param cell = hx*hy
+param originX = hx*(1-periodic)
+param originY = hy*(1-periodic)
+param spanX = lengthX-2*originX
+param spanY = lengthY-2*originY
+param scaleX = lengthX/spanX
+param scaleY = lengthY/spanY
+param physicalDx = hx*scaleX
+param physicalDy = hy*scaleY
+param stillDepth = level
+extern sin
+extern cos
+extern cosh
+extern exp
+extern log
+extern sqrt
+extern surfaceConfig
+
+def smaller first second = if first &lt; second then first else second
+def bigger first second = if first &gt; second then first else second
+def absval v = if v &gt;= 0 then v else 0-v
+def positive v = bigger v 0
+def ramp v = if v &lt; 0 then 0 else if v &gt; 1 then 1 else v
+def xi = x+hx/2
+def eta = y+hy/2
+def mapX u v = (u-originX)*scaleX+warpX*sin(2*piValue*(u-originX)/spanX)*sin(2*piValue*(v-originY)/spanY)
+def bedAt xx = bedSlope*positive(xx-bedStart)
+def mapY u v = (if fittedBed &gt; 0.5 then bedAt(mapX u v)+(lengthY-bedAt(mapX u v))*(v-originY)/spanY else (v-originY)*scaleY)+warpY*sin(2*piValue*(u-originX)/spanX)*sin(2*piValue*(v-originY)/spanY)
+static field physicalX := mapX xi eta
+static field physicalY := mapY xi eta
+static field tangentXX := scaleX+warpX*(2*piValue/spanX)*cos(2*piValue*(xi-originX)/spanX)*sin(2*piValue*(eta-originY)/spanY)
+static field tangentXY := warpX*(2*piValue/spanY)*sin(2*piValue*(xi-originX)/spanX)*cos(2*piValue*(eta-originY)/spanY)
+static field xSW := mapX (xi-hx/2) (eta-hy/2)
+static field xSE := mapX (xi+hx/2) (eta-hy/2)
+static field xNE := mapX (xi+hx/2) (eta+hy/2)
+static field xNW := mapX (xi-hx/2) (eta+hy/2)
+static field ySW := mapY (xi-hx/2) (eta-hy/2)
+static field ySE := mapY (xi+hx/2) (eta-hy/2)
+static field yNE := mapY (xi+hx/2) (eta+hy/2)
+static field yNW := mapY (xi-hx/2) (eta+hy/2)
+static field volumeCell := ((xNE-xSW)*(yNW-ySE)-(yNE-ySW)*(xNW-xSE))/(2*cell)
+static field cellHeight := bigger (absval(mapY xi (eta+hy/2)-mapY xi (eta-hy/2))) 0.000000000001
+-- Physical extents of a cell along each computational axis, for scaling
+-- fraction differences into physical gradients on anisotropic or curved grids.
+static field spanAlongX := bigger (sqrt(((xSE+xNE-xSW-xNW)/2)^2+((ySE+yNE-ySW-yNW)/2)^2)) 0.000000000001
+static field spanAlongY := bigger (sqrt(((xNW+xNE-xSW-xSE)/2)^2+((yNW+yNE-ySW-ySE)/2)^2)) 0.000000000001
+-- Alignment of the fraction gradient with each axis (squared cosine).
+-- Alignment weight of an axis: exactly one when the other gradient component
+-- is below a hundredth of this one (so an axis-aligned interface is packed
+-- exactly and rounding noise cannot leak water), otherwise the squared cosine.
+-- The floor is a runtime parameter: a literal this small is folded away by the
+-- code generator, and the quotient is generated as a product with a
+-- reciprocal, which overflows when the denominator underflows in the tails.
+def alignmentWeight own other = if 100*other^2 &lt;= own^2 then (if own^2 &gt; 0 then 1 else 0) else own^2/(own^2+other^2+alignmentFloor)
+-- Vertical offset of the water centre inside an interface cell whose water
+-- is held against a fuller vertical neighbour (solid counts as full). It is
+-- a diagnostic reconstruction with the same geometric rule as method=4. The
+-- alignment weight is passed in, computed from stored gradient values: a
+-- squared difference written inline is expanded by the CAS into cancelling
+-- terms, which left roundoff (even 0/0) in nearly full cells.
+def packedOffset Q weight south north deltaSouth deltaNorth = if Q &lt;= 0 || Q &gt;= 1 then 0 else weight*(1-Q)/2*((if south &lt; Q then ramp (2*north-1) else 0)*deltaNorth-(if north &lt; Q then ramp (2*south-1) else 0)*deltaSouth)
+def solidAt u v = if periodic &gt; 0.5 then 0 else if u &lt; hx then 1 else if u &gt; lengthX-hx then 1 else if v &lt; hy then 1 else if v &gt; lengthY-hy then 1 else if fittedBed &gt; 0.5 then 0 else if mapY u v &lt; bedSlope*positive(mapX u v-bedStart) then 1 else 0
+static field solid := if periodic &gt; 0.5 then 0 else if xi &lt; hx then 1 else if xi &gt; lengthX-hx then 1 else if eta &lt; hy then 1 else if eta &gt; lengthY-hy then 1 else if fittedBed &gt; 0.5 then 0 else if physicalY &lt; bedSlope*positive(physicalX-bedStart) then 1 else 0
+static field referenceDensity := exp(3*gravity*(level-physicalY))
+def weights = [|4/9,1/9,1/9,1/9,1/9,1/36,1/36,1/36,1/36|]
+def ex = [|0,1,-1,0,0,1,-1,1,-1|]
+def ey = [|0,0,0,1,-1,1,-1,-1,1|]
+def ones = [|1,1,1,1,1,1,1,1,1|]
+def columnOnes = [|1,1,1,1|]
+def frame = generateTensor (\[k,q] -&gt; if k = 1 then ex_q else ey_q) [2,9]
+def opposite T_a = [|T_1,T_3,T_2,T_5,T_4,T_7,T_6,T_9,T_8|]
+def maxPopulation T_a = bigger (bigger (bigger T_1 T_2) (bigger T_3 T_4)) (bigger (bigger T_5 T_6) (bigger T_7 (bigger T_8 T_9)))
+def minPopulation T_a = 0-maxPopulation (0-T_a)
+macro equilibrium R U V =
+  local cu_a = ex_a*U+ey_a*V
+  in weights_a*R*(1+3*cu_a+4.5*cu_a^2-1.5*(U^2+V^2))
+
+def faceX cx cy = ((mapY xi (eta+hy/2)-mapY xi (eta-hy/2))*cx-(mapX xi (eta+hy/2)-mapX xi (eta-hy/2))*cy)/hy
+def faceY cx cy = ((mapX (xi+hx/2) eta-mapX (xi-hx/2) eta)*cy-(mapY (xi+hx/2) eta-mapY (xi-hx/2) eta)*cx)/hx
+def speeds = generateTensor (\[k,q] -&gt; if k = 1 then faceX ex_q ey_q else faceY ex_q ey_q) [2,9]
+static field B~i_a @ primal := (speeds)~i_a
+static field faceCoordinateY~i @ primal := [|mapY xi eta,mapY xi eta|]~i
+static field faceReference~i @ primal := [|exp(3*gravity*(level-mapY xi eta)),exp(3*gravity*(level-mapY xi eta))|]~i
+
+def bump xx = amplitude*exp(0-((xx-waveCenter)/waveWidth)^2)
+def heightAt xx = if scenario &lt; 1.5 then level else if scenario &lt; 2.5 then level+amplitude*cos(2*piValue*xx/lengthX) else if scenario &lt; 3.5 then (if xx &lt; waveCenter then level+amplitude else level) else level+bump xx
+def initialHeight = heightAt physicalX
+def fractionAt xx yy = if scenario &gt; 6.5 then ramp ((level+amplitude/2-yy)/cellHeight+0.5)-ramp ((level-amplitude/2-yy)/cellHeight+0.5) else if scenario &gt; 4.5 then 1 else if scenario &lt; 0.5 then (if yy &lt; level then 1 else 0) else if scenario &lt; 1.5 then ramp ((level-xx)/physicalDx+0.5) else ramp ((heightAt xx-yy)/cellHeight+0.5)
+static field initialFraction := if solid &gt; 0.5 then 0 else fractionAt physicalX physicalY
+static field initialTopFraction := fractionAt (mapX xi (eta+hy)) (mapY xi (eta+hy))
+def initialFilledAt u v = if solidAt u v &gt; 0.5 then 1 else fractionAt (mapX u v) (mapY u v)
+-- The neighbouring initial fractions are stored fields: inlining the four
+-- coverage expressions into one formula multiplied the generated code.
+static field initialFilledWest := initialFilledAt (xi-hx) eta
+static field initialFilledEast := initialFilledAt (xi+hx) eta
+static field initialFilledSouth := initialFilledAt xi (eta-hy)
+static field initialFilledNorth := initialFilledAt xi (eta+hy)
+static field initialGradX := (initialFilledEast-initialFilledWest)/spanAlongX
+static field initialGradY := (initialFilledNorth-initialFilledSouth)/spanAlongY
+static field initialShift := packedOffset initialFraction (alignmentWeight initialGradY initialGradX) initialFilledSouth initialFilledNorth (physicalY-mapY xi (eta-hy)) (mapY xi (eta+hy)-physicalY)
+static field gaugeReference := mapY xi (eta+hy/2)-level
+static field waveGaugeCell := if scenario &lt; 1.5 || scenario &gt; 2.5 then 0 else if absval(physicalX-lengthX/2) &lt; physicalDx then (if physicalY &lt; level &amp;&amp; mapY xi (eta+hy) &gt;= level then 1 else 0) else 0
+static field initialShore := if bedSlope &gt; 0 then bedStart+level/bedSlope else lengthX
+static field initialGround := if periodic &gt; 0.5 then 0 else if eta &lt; 2*hy then 1 else if fittedBed &gt; 0.5 then 0 else if mapY xi (eta-hy) &lt; bedSlope*positive(mapX xi (eta-hy)-bedStart) then 1 else 0
+-- launch scales the incoming wave's initial velocity (scenario 4 only). At
+-- the default 1 the reference expressions below are used unchanged.
+-- verticalStart=0 starts the incoming wave without the divergence-free
+-- vertical velocity (the older lattice example started from rest vertically);
+-- at the default 1 the reference expression is used unchanged.
+static field initialUx := if scenario &gt; 3.5 &amp;&amp; scenario &lt; 4.5 &amp;&amp; absval(launch-1) &gt; 0.000000000001 then launch*sqrt(gravity*(stillDepth+amplitude))*bump physicalX/(stillDepth+bump physicalX) else if scenario &gt; 5.5 then 0 else if scenario &gt; 4.5 then speed*sin(2*piValue*physicalY/lengthY) else if scenario &lt; 0.5 then 0 else if scenario &lt; 1.5 then speed else if scenario &gt; 3.5 then sqrt(gravity*(stillDepth+amplitude))*bump physicalX/(stillDepth+bump physicalX) else 0
+static field initialUy := if scenario &gt; 3.5 &amp;&amp; scenario &lt; 4.5 &amp;&amp; verticalStart &lt; 0.5 then 0 else if scenario &gt; 3.5 &amp;&amp; scenario &lt; 4.5 &amp;&amp; absval(launch-1) &gt; 0.000000000001 then launch*2*(smaller physicalY initialHeight)*sqrt(gravity*(stillDepth+amplitude))*stillDepth*(physicalX-waveCenter)*bump physicalX/(waveWidth^2*(stillDepth+bump physicalX)^2) else if scenario &gt; 3.5 &amp;&amp; scenario &lt; 4.5 then 2*(smaller physicalY initialHeight)*sqrt(gravity*(stillDepth+amplitude))*stillDepth*(physicalX-waveCenter)*bump physicalX/(waveWidth^2*(stillDepth+bump physicalX)^2) else 0
+-- A small standing gravity wave starts with its linear pressure profile,
+-- rather than hydrostatic pressure beneath an undulating column. The latter
+-- also excites an acoustic adjustment. Other scenarios retain their data.
+def normalModeDensity = referenceDensity*(1+3*gravity*amplitude*cos(2*piValue*physicalX/lengthX)*cosh(2*piValue*physicalY/lengthX)/cosh(2*piValue*level/lengthX))
+static field initialDensity := if scenario &gt; 4.5 then 1 else if initialFraction &lt; wetFraction then 1 else if scenario &lt; 1.5 then referenceDensity else if scenario &lt; 2.5 then normalModeDensity else exp(3*gravity*(initialHeight-physicalY))
+
+def initialComponent w cx cy = w*initialDensity*(1+3*(cx*initialUx+cy*initialUy)+4.5*(cx*initialUx+cy*initialUy)^2-1.5*(initialUx^2+initialUy^2))+(if scenario &gt; 5.5 &amp;&amp; scenario &lt; 6.5 then amplitude*w*cx*cy else 0)
+def initial = generateTensor (\[q] -&gt; initialComponent weights_q ex_q ey_q) [9]
+
+def minmod first second = if first*second &lt;= 0 then 0 else if first &gt; 0 then smaller first second else 0-smaller (0-first) (0-second)
+def mcSlope back forward = minmod ((back+forward)/2) (2*minmod back forward)
+-- method=2 changes only fraction reconstruction. Populations keep MC.
+-- method=3 additionally uses constant reconstruction if neither the cell nor
+-- any face neighbour is full; an unresolved isolated layer has no resolved
+-- interior from which to extrapolate a fraction slope.
+-- Symmetric face values still sum to twice the cell value in each axis.
+def superbeeSlope back forward = if back &gt;= 0 then bigger (minmod (2*back) forward) (minmod back (2*forward)) else smaller (minmod (2*back) forward) (minmod back (2*forward))
+def fractionSlope back forward = if method &gt; 1.5 then superbeeSlope back forward else mcSlope back forward
+macro reconstructLeft Q =
+  local lower~i @ primal = [|sampleLower(Q,1,0),sampleLower(Q,0,1)|]~i
+  local upper~i @ primal = [|sampleUpper(Q,1,0),sampleUpper(Q,0,1)|]~i
+  local jump~i @ primal = upper~i-lower~i
+  local fullSupport = bigger Q (bigger (bigger (sampleLower(lower~1,0,0)) (sampleUpper(upper~1,0,0))) (bigger (sampleLower(lower~2,0,0)) (sampleUpper(upper~2,0,0))))
+  local sx = if method &lt; 0.5 || (method &gt; 2.5 &amp;&amp; fullSupport &lt; 0.999) then 0 else fractionSlope (sampleLower(jump~1,0,0)) (sampleUpper(jump~1,0,0))
+  local sy = if method &lt; 0.5 || (method &gt; 2.5 &amp;&amp; fullSupport &lt; 0.999) then 0 else fractionSlope (sampleLower(jump~2,0,0)) (sampleUpper(jump~2,0,0))
+  in lower~i+[|sampleLower(sx,1,0),sampleLower(sy,0,1)|]~i/2
+macro reconstructRight Q =
+  local lower~i @ primal = [|sampleLower(Q,1,0),sampleLower(Q,0,1)|]~i
+  local upper~i @ primal = [|sampleUpper(Q,1,0),sampleUpper(Q,0,1)|]~i
+  local jump~i @ primal = upper~i-lower~i
+  local fullSupport = bigger Q (bigger (bigger (sampleLower(lower~1,0,0)) (sampleUpper(upper~1,0,0))) (bigger (sampleLower(lower~2,0,0)) (sampleUpper(upper~2,0,0))))
+  local sx = if method &lt; 0.5 || (method &gt; 2.5 &amp;&amp; fullSupport &lt; 0.999) then 0 else fractionSlope (sampleLower(jump~1,0,0)) (sampleUpper(jump~1,0,0))
+  local sy = if method &lt; 0.5 || (method &gt; 2.5 &amp;&amp; fullSupport &lt; 0.999) then 0 else fractionSlope (sampleLower(jump~2,0,0)) (sampleUpper(jump~2,0,0))
+  in upper~i-[|sampleUpper(sx,1,0),sampleUpper(sy,0,1)|]~i/2
+macro populationLeft Q Active =
+  -- At a water/air or water/wall boundary, extrapolate the outgoing state
+  -- from the liquid interior. The projected air is not a second liquid cell.
+  local lower~i_a @ primal = [|sampleLower(Q,1,0),sampleLower(Q,0,1)|]~i_a
+  local upper~i_a @ primal = [|sampleUpper(Q,1,0),sampleUpper(Q,0,1)|]~i_a
+  local jump~i_a @ primal = upper~i_a-lower~i_a
+  local activeLeft~i @ primal = [|sampleLower(Active,1,0),sampleLower(Active,0,1)|]~i
+  local activeRight~i @ primal = [|sampleUpper(Active,1,0),sampleUpper(Active,0,1)|]~i
+  local activeWest = sampleLower(activeLeft~1,0,0)
+  local activeEast = sampleUpper(activeRight~1,0,0)
+  local activeSouth = sampleLower(activeLeft~2,0,0)
+  local activeNorth = sampleUpper(activeRight~2,0,0)
+  local sx_a = if method &lt; 0.5 then 0 else if boundarySlope &gt; 0.5 &amp;&amp; Active &gt; 0.5 &amp;&amp; activeWest &gt; 0.5 &amp;&amp; activeEast &lt; 0.5 then sampleLower(jump~1_a,0,0) else if boundarySlope &gt; 0.5 &amp;&amp; Active &gt; 0.5 &amp;&amp; activeEast &gt; 0.5 &amp;&amp; activeWest &lt; 0.5 then sampleUpper(jump~1_a,0,0) else mcSlope (sampleLower(jump~1_a,0,0)) (sampleUpper(jump~1_a,0,0))
+  local sy_a = if method &lt; 0.5 then 0 else if boundarySlope &gt; 0.5 &amp;&amp; Active &gt; 0.5 &amp;&amp; activeSouth &gt; 0.5 &amp;&amp; activeNorth &lt; 0.5 then sampleLower(jump~2_a,0,0) else if boundarySlope &gt; 0.5 &amp;&amp; Active &gt; 0.5 &amp;&amp; activeNorth &gt; 0.5 &amp;&amp; activeSouth &lt; 0.5 then sampleUpper(jump~2_a,0,0) else mcSlope (sampleLower(jump~2_a,0,0)) (sampleUpper(jump~2_a,0,0))
+  in lower~i_a+[|sampleLower(sx,1,0),sampleLower(sy,0,1)|]~i_a/2
+macro populationRight Q Active =
+  local lower~i_a @ primal = [|sampleLower(Q,1,0),sampleLower(Q,0,1)|]~i_a
+  local upper~i_a @ primal = [|sampleUpper(Q,1,0),sampleUpper(Q,0,1)|]~i_a
+  local jump~i_a @ primal = upper~i_a-lower~i_a
+  local activeLeft~i @ primal = [|sampleLower(Active,1,0),sampleLower(Active,0,1)|]~i
+  local activeRight~i @ primal = [|sampleUpper(Active,1,0),sampleUpper(Active,0,1)|]~i
+  local activeWest = sampleLower(activeLeft~1,0,0)
+  local activeEast = sampleUpper(activeRight~1,0,0)
+  local activeSouth = sampleLower(activeLeft~2,0,0)
+  local activeNorth = sampleUpper(activeRight~2,0,0)
+  local sx_a = if method &lt; 0.5 then 0 else if boundarySlope &gt; 0.5 &amp;&amp; Active &gt; 0.5 &amp;&amp; activeWest &gt; 0.5 &amp;&amp; activeEast &lt; 0.5 then sampleLower(jump~1_a,0,0) else if boundarySlope &gt; 0.5 &amp;&amp; Active &gt; 0.5 &amp;&amp; activeEast &gt; 0.5 &amp;&amp; activeWest &lt; 0.5 then sampleUpper(jump~1_a,0,0) else mcSlope (sampleLower(jump~1_a,0,0)) (sampleUpper(jump~1_a,0,0))
+  local sy_a = if method &lt; 0.5 then 0 else if boundarySlope &gt; 0.5 &amp;&amp; Active &gt; 0.5 &amp;&amp; activeSouth &gt; 0.5 &amp;&amp; activeNorth &lt; 0.5 then sampleLower(jump~2_a,0,0) else if boundarySlope &gt; 0.5 &amp;&amp; Active &gt; 0.5 &amp;&amp; activeNorth &gt; 0.5 &amp;&amp; activeSouth &lt; 0.5 then sampleUpper(jump~2_a,0,0) else mcSlope (sampleLower(jump~2_a,0,0)) (sampleUpper(jump~2_a,0,0))
+  in upper~i_a-[|sampleUpper(sx,1,0),sampleUpper(sy,0,1)|]~i_a/2
+-- Neighbour averaging is explicitly a cell/face sampling operation.
+macro nearby Q =
+  local pair~i @ primal = [|sampleLower(Q,1,0)+sampleUpper(Q,1,0),sampleLower(Q,0,1)+sampleUpper(Q,0,1)|]~i
+  in sampleLower(pair~1,0,0)+sampleUpper(pair~1,0,0)+sampleLower(pair~2,0,0)+sampleUpper(pair~2,0,0)
+
+-- A height column ends at the first solid cell. Continuing that solid
+-- prevents the four-cell query from wrapping through the outer wall into air.
+def extendSolid profile_s wall_s = [|if wall_1 &gt; 0.5 then 1 else profile_1,if wall_1+wall_2 &gt; 0.5 then 1 else profile_2,if wall_1+wall_2+wall_3 &gt; 0.5 then 1 else profile_3,if wall_1+wall_2+wall_3+wall_4 &gt; 0.5 then 1 else profile_4|]
+
+macro columnLeft Q =
+  local first~i @ primal = [|sampleLower(Q,1,0),sampleLower(Q,0,1)|]~i
+  local horizontal1 = sampleLower(first~1,0,0)
+  local vertical1 = sampleLower(first~2,0,0)
+  local second~i @ primal = [|sampleLower(horizontal1,1,0),sampleLower(vertical1,0,1)|]~i
+  local horizontal2 = sampleLower(second~1,0,0)
+  local vertical2 = sampleLower(second~2,0,0)
+  local third~i @ primal = [|sampleLower(horizontal2,1,0),sampleLower(vertical2,0,1)|]~i
+  local horizontal3 = sampleLower(third~1,0,0)
+  local vertical3 = sampleLower(third~2,0,0)
+  local fourth~i @ primal = [|sampleLower(horizontal3,1,0),sampleLower(vertical3,0,1)|]~i
+  in [|[|first~1,second~1,third~1,fourth~1|],[|first~2,second~2,third~2,fourth~2|]|]~i_s
+macro columnRight Q =
+  local first~i @ primal = [|sampleUpper(Q,1,0),sampleUpper(Q,0,1)|]~i
+  local horizontal1 = sampleUpper(first~1,0,0)
+  local vertical1 = sampleUpper(first~2,0,0)
+  local second~i @ primal = [|sampleUpper(horizontal1,1,0),sampleUpper(vertical1,0,1)|]~i
+  local horizontal2 = sampleUpper(second~1,0,0)
+  local vertical2 = sampleUpper(second~2,0,0)
+  local third~i @ primal = [|sampleUpper(horizontal2,1,0),sampleUpper(vertical2,0,1)|]~i
+  local horizontal3 = sampleUpper(third~1,0,0)
+  local vertical3 = sampleUpper(third~2,0,0)
+  local fourth~i @ primal = [|sampleUpper(horizontal3,1,0),sampleUpper(vertical3,0,1)|]~i
+  in [|[|first~1,second~1,third~1,fourth~1|],[|first~2,second~2,third~2,fourth~2|]|]~i_s
+
+field h_a
+field candidate_a
+field candidateWater
+field original_a
+field water
+field waterOriginal
+field originalFraction
+field stage
+field estimatedHeight
+field estimatedHeightValid
+field estimatedHeightSense
+field estimatedPressureSlope
+field faceFractionWest
+field faceFractionEast
+field faceFractionSouth
+field faceFractionNorth
+field elapsed
+field fraction
+field density
+field velocityX
+field velocityY
+field waterMass
+field waterVolume
+field lowest
+field highest
+field densityLowest
+field densityHighest
+field populationLowest
+field peakSpeed
+field restingError
+field wetting
+field drying
+field movedAmount
+field waterMomentumX
+field waterMomentumY
+field kineticEnergy
+field surfaceHeight
+field wetFront
+field shoreFlux
+field minimumArea
+field overhangCells
+field bulkFront
+field fractionCourant
+field pressureResidual
+field surfaceMassResidual
+field expectedFallingMomentum
+field expectedFallingCentroid
+field waveMoment
+field gravityEnergy
+field waterCentroidX
+field waterCentroidY
+field resolvedCentroidY
+field collisionResidual
+field stateConsistencyError
+field thinFront
+field shoreWaterMass
+field thinWaterMass
+field surfaceGauge
+field firstCrossing
+field wavePeriod
+field expectedPeriod
+field heightReconstructions
+field surfaceReconstructions
+field wallMassResidual
+field wallSlipResidual
+field relaxationError
+field shearError
+field shearProjection
+field shearExpected
+init:
+  h_a := (initial)_a-weights_a*referenceDensity
+  candidate_a := (initial)_a-weights_a*referenceDensity
+  candidateWater := initialFraction*initialDensity
+  original_a := (initial)_a-weights_a*referenceDensity
+  water := initialFraction*initialDensity
+  waterOriginal := initialFraction*initialDensity
+  originalFraction := initialFraction
+  stage := 0
+  estimatedHeight := 0
+  estimatedHeightValid := 0
+  estimatedHeightSense := 0
+  estimatedPressureSlope := 0-3*gravity
+  faceFractionWest := 0
+  faceFractionEast := 0
+  faceFractionSouth := 0
+  faceFractionNorth := 0
+  elapsed := 0
+  fraction := initialFraction
+  density := initialDensity
+  velocityX := initialUx
+  velocityY := initialUy
+  waterMass := cell*volumeCell*water
+  waterVolume := cell*volumeCell*initialFraction
+  lowest := initialFraction
+  highest := initialFraction
+  densityLowest := initialDensity
+  densityHighest := initialDensity
+  populationLowest := minPopulation ((initial)_a/weights_a)
+  peakSpeed := if initialFraction &gt;= wetFraction then sqrt(initialUx^2+initialUy^2) else 0
+  restingError := 0
+  wetting := 0
+  drying := 0
+  movedAmount := 0
+  waterMomentumX := cell*volumeCell*water*initialUx
+  waterMomentumY := cell*volumeCell*water*initialUy
+  kineticEnergy := cell*volumeCell*water*(initialUx^2+initialUy^2)/2
+  surfaceHeight := if initialFraction &gt; 0.5 then physicalY else 0
+  wetFront := if initialFraction &gt; 0.5 &amp;&amp; initialGround &gt; 0.5 then physicalX else 0
+  shoreFlux := 0
+  minimumArea := cell*volumeCell
+  overhangCells := 0
+  bulkFront := if initialFraction &gt;= 0.5 &amp;&amp; initialTopFraction &gt;= 0.5 &amp;&amp; initialGround &gt; 0.5 then physicalX else 0
+  fractionCourant := 0
+  pressureResidual := 0
+  surfaceMassResidual := 0
+  expectedFallingMomentum := 0
+  expectedFallingCentroid := if scenario &gt; 6.5 then cell*volumeCell*initialFraction*physicalY else 0
+  waveMoment := cell*volumeCell*initialFraction*cos(2*piValue*physicalX/lengthX)
+  gravityEnergy := cell*volumeCell*water*gravity*physicalY
+  waterCentroidX := cell*volumeCell*water*physicalX
+  waterCentroidY := cell*volumeCell*water*physicalY
+  resolvedCentroidY := cell*volumeCell*water*(physicalY+initialShift)
+  collisionResidual := 0
+  stateConsistencyError := 0
+  thinFront := if initialFraction &gt; 0.01 &amp;&amp; initialGround &gt; 0.5 then physicalX else 0
+  shoreWaterMass := if physicalX &gt; initialShore then cell*volumeCell*water else 0
+  thinWaterMass := if initialFraction &gt; 0 &amp;&amp; initialFraction &lt; 0.5 then cell*volumeCell*water else 0
+  surfaceGauge := 0
+  firstCrossing := 0
+  wavePeriod := 0
+  expectedPeriod := if gravity &gt; 0 then 2*piValue/sqrt(gravity*(2*piValue/lengthX)*(exp(4*piValue*level/lengthX)-1)/(exp(4*piValue*level/lengthX)+1)) else 0
+  heightReconstructions := 0
+  surfaceReconstructions := 0
+  wallMassResidual := 0
+  wallSlipResidual := 0
+  relaxationError := 0
+  shearError := 0
+  shearProjection := if scenario &gt; 4.5 &amp;&amp; scenario &lt; 5.5 then 2*cell*volumeCell*initialUx*sin(2*piValue*physicalY/lengthY)/(lengthX*lengthY) else 0
+  shearExpected := if scenario &gt; 4.5 &amp;&amp; scenario &lt; 5.5 then speed else 0
+step:
+  -- Predictor and corrector each use four generated phases: estimate
+  -- surface heights, form the right-hand side, solve collision/project air,
+  -- and refresh moments. Height estimates are cached once per stage.
+  -- collisionImplicit=0 retains explicit SSPRK2. The implicit option uses
+  -- an Euler predictor and a trapezoidal corrector for BGK collision,
+  -- with explicit Heun transport and force. Collision conserves moments,
+  -- so its nonlinear equilibrium is known from the stored right-hand side.
+  local locating = if stage &lt; 0.5 || (stage &gt; 3.5 &amp;&amp; stage &lt; 4.5) then 1 else 0
+  local preparing = if (stage &gt; 0.5 &amp;&amp; stage &lt; 1.5) || (stage &gt; 4.5 &amp;&amp; stage &lt; 5.5) then 1 else 0
+  local projecting = if (stage &gt; 1.5 &amp;&amp; stage &lt; 2.5) || (stage &gt; 5.5 &amp;&amp; stage &lt; 6.5) then 1 else 0
+  local refreshing = if (stage &gt; 2.5 &amp;&amp; stage &lt; 3.5) || stage &gt; 6.5 then 1 else 0
+  local observedRho = referenceDensity+(ones~a . h_a)
+  local observedFraction = water/observedRho
+  local observedUx = (ex~a . h_a)/observedRho
+  local observedUy = (ey~a . h_a)/observedRho
+  -- These derived states were updated from h and water in the preceding
+  -- generated step. Reusing them avoids repeatedly expanding their moments.
+  local rho = density
+  local ux = velocityX
+  local uy = velocityY
+  local alpha = fraction
+  local wet = if solid &gt; 0.5 then 0 else if alpha &gt;= wetFraction then 1-solid else 0
+  local wetL~i @ primal = [|sampleLower(wet,1,0),sampleLower(wet,0,1)|]~i
+  local wetR~i @ primal = [|sampleUpper(wet,1,0),sampleUpper(wet,0,1)|]~i
+  local solidL~i @ primal = [|sampleLower(solid,1,0),sampleLower(solid,0,1)|]~i
+  local solidR~i @ primal = [|sampleUpper(solid,1,0),sampleUpper(solid,0,1)|]~i
+  local left~i_a @ primal = populationLeft h wet
+  local right~i_a @ primal = populationRight h wet
+  local reverseL~i_a @ primal = [|(opposite(left~1_a))_a,(opposite(left~2_a))_a|]~i_a
+  local reverseR~i_a @ primal = [|(opposite(right~1_a))_a,(opposite(right~2_a))_a|]~i_a
+  local uxL~i @ primal = [|sampleLower(ux,1,0),sampleLower(ux,0,1)|]~i
+  local uxR~i @ primal = [|sampleUpper(ux,1,0),sampleUpper(ux,0,1)|]~i
+  local uyL~i @ primal = [|sampleLower(uy,1,0),sampleLower(uy,0,1)|]~i
+  local uyR~i @ primal = [|sampleUpper(uy,1,0),sampleUpper(uy,0,1)|]~i
+  local cuL~i_a @ primal = ex_a*uxL~i+ey_a*uyL~i
+  local cuR~i_a @ primal = ex_a*uxR~i+ey_a*uyR~i
+  -- The signed within-cell offset supplies a hydrostatic extension of
+  -- atmospheric pressure from the moving interface to the numerical face.
+  -- surfacePosition=0 is the face-centred control used in validation.
+  local cellAlphaL~i @ primal = [|sampleLower(alpha,1,0),sampleLower(alpha,0,1)|]~i
+  local cellAlphaR~i @ primal = [|sampleUpper(alpha,1,0),sampleUpper(alpha,0,1)|]~i
+  local centerDeltaY~i @ primal = [|sampleUpper(physicalY,1,0)-sampleLower(physicalY,1,0),sampleUpper(physicalY,0,1)-sampleLower(physicalY,0,1)|]~i
+  -- A monotone column with full/empty ends gives a height from all its
+  -- fractions. Other faces retain the two-cell reconstruction.
+  local rawProfileL~i_s @ primal = columnLeft (alpha+solid)
+  local rawProfileR~i_s @ primal = columnRight (alpha+solid)
+  local solidProfileL~i_s @ primal = columnLeft solid
+  local solidProfileR~i_s @ primal = columnRight solid
+  local profileL~i_s @ primal = if heightMethod &gt; 2.5 then [|(extendSolid (rawProfileL~1_s) (solidProfileL~1_s))_s,(extendSolid (rawProfileL~2_s) (solidProfileL~2_s))_s|]~i_s else rawProfileL~i_s
+  local profileR~i_s @ primal = if heightMethod &gt; 2.5 then [|(extendSolid (rawProfileR~1_s) (solidProfileR~1_s))_s,(extendSolid (rawProfileR~2_s) (solidProfileR~2_s))_s|]~i_s else rawProfileR~i_s
+  local columnSum~i @ primal = (profileL~i_s+profileR~i_s) . columnOnes~s
+  local columnL~i @ primal = [|if profileL~1_4 &gt; 0.999 &amp;&amp; profileR~1_4 &lt; 0.001 &amp;&amp; profileL~1_4+0.000000001 &gt;= profileL~1_3 &amp;&amp; profileL~1_3+0.000000001 &gt;= profileL~1_2 &amp;&amp; profileL~1_2+0.000000001 &gt;= profileL~1_1 &amp;&amp; profileL~1_1+0.000000001 &gt;= profileR~1_1 &amp;&amp; profileR~1_1+0.000000001 &gt;= profileR~1_2 &amp;&amp; profileR~1_2+0.000000001 &gt;= profileR~1_3 &amp;&amp; profileR~1_3+0.000000001 &gt;= profileR~1_4 then 1-solidL~1 else 0,if profileL~2_4 &gt; 0.999 &amp;&amp; profileR~2_4 &lt; 0.001 &amp;&amp; profileL~2_4+0.000000001 &gt;= profileL~2_3 &amp;&amp; profileL~2_3+0.000000001 &gt;= profileL~2_2 &amp;&amp; profileL~2_2+0.000000001 &gt;= profileL~2_1 &amp;&amp; profileL~2_1+0.000000001 &gt;= profileR~2_1 &amp;&amp; profileR~2_1+0.000000001 &gt;= profileR~2_2 &amp;&amp; profileR~2_2+0.000000001 &gt;= profileR~2_3 &amp;&amp; profileR~2_3+0.000000001 &gt;= profileR~2_4 then 1-solidL~2 else 0|]~i
+  local columnR~i @ primal = [|if profileR~1_4 &gt; 0.999 &amp;&amp; profileL~1_4 &lt; 0.001 &amp;&amp; profileR~1_4+0.000000001 &gt;= profileR~1_3 &amp;&amp; profileR~1_3+0.000000001 &gt;= profileR~1_2 &amp;&amp; profileR~1_2+0.000000001 &gt;= profileR~1_1 &amp;&amp; profileR~1_1+0.000000001 &gt;= profileL~1_1 &amp;&amp; profileL~1_1+0.000000001 &gt;= profileL~1_2 &amp;&amp; profileL~1_2+0.000000001 &gt;= profileL~1_3 &amp;&amp; profileL~1_3+0.000000001 &gt;= profileL~1_4 then 1-solidR~1 else 0,if profileR~2_4 &gt; 0.999 &amp;&amp; profileL~2_4 &lt; 0.001 &amp;&amp; profileR~2_4+0.000000001 &gt;= profileR~2_3 &amp;&amp; profileR~2_3+0.000000001 &gt;= profileR~2_2 &amp;&amp; profileR~2_2+0.000000001 &gt;= profileR~2_1 &amp;&amp; profileR~2_1+0.000000001 &gt;= profileL~2_1 &amp;&amp; profileL~2_1+0.000000001 &gt;= profileL~2_2 &amp;&amp; profileL~2_2+0.000000001 &gt;= profileL~2_3 &amp;&amp; profileL~2_3+0.000000001 &gt;= profileL~2_4 then 1-solidR~2 else 0|]~i
+  local usableColumn~i @ primal = [|if wetL~1 &gt; 0.5 then columnL~1 else columnR~1,if wetL~2 &gt; 0.5 then columnL~2 else columnR~2|]~i
+  local offsetY~i @ primal = [|if heightMethod &gt; 0.5 &amp;&amp; usableColumn~1 &gt; 0.5 then (columnSum~1-4)*centerDeltaY~1 else (cellAlphaL~1+cellAlphaR~1-1)*centerDeltaY~1,if heightMethod &gt; 0.5 &amp;&amp; usableColumn~2 &gt; 0.5 then (columnSum~2-4)*centerDeltaY~2 else (cellAlphaL~2+cellAlphaR~2-1)*centerDeltaY~2|]~i
+  local faceAtmosphere~i @ primal = [|exp(3*gravity*surfacePosition*(if wetL~1 &gt; 0.5 then offsetY~1 else 0-offsetY~1)),exp(3*gravity*surfacePosition*(if wetL~2 &gt; 0.5 then offsetY~2 else 0-offsetY~2))|]~i
+  -- Select columns using their physical alignment with gravity. The same
+  -- rule applies after exchanging or deforming the computational axes.
+  local centerDeltaX~i @ primal = [|sampleUpper(physicalX,1,0)-sampleLower(physicalX,1,0),sampleUpper(physicalX,0,1)-sampleLower(physicalX,0,1)|]~i
+  local verticalAlignment~i @ primal = centerDeltaY~i^2/(centerDeltaX~i^2+centerDeltaY~i^2+0.000000000000001)
+  local columnSense~i @ primal = [|if columnL~1 &gt; 0.5 then 1-solidL~1*solidR~1 else if columnR~1 &gt; 0.5 then solidL~1*solidR~1-1 else wetL~1-wetR~1,if columnL~2 &gt; 0.5 then 1-solidL~2*solidR~2 else if columnR~2 &gt; 0.5 then solidL~2*solidR~2-1 else wetL~2-wetR~2|]~i
+  local heightUsable~i @ primal = [|if verticalAlignment~1 &gt; 0.5 &amp;&amp; (columnL~1+columnR~1 &gt; 0.5 || (heightMethod &lt; 2.5 &amp;&amp; wetL~1+wetR~1 &gt; 0.5 &amp;&amp; wetL~1+wetR~1 &lt; 1.5 &amp;&amp; solidL~1+solidR~1 &lt; 0.5)) then 1-solidL~1*solidR~1 else 0,if verticalAlignment~2 &gt; 0.5 &amp;&amp; (columnL~2+columnR~2 &gt; 0.5 || (heightMethod &lt; 2.5 &amp;&amp; wetL~2+wetR~2 &gt; 0.5 &amp;&amp; wetL~2+wetR~2 &lt; 1.5 &amp;&amp; solidL~2+solidR~2 &lt; 0.5)) then 1-solidL~2*solidR~2 else 0|]~i
+  local columnOffset~i @ primal = [|if columnL~1+columnR~1 &gt; 0.5 then columnSense~1*(columnSum~1-4)*centerDeltaY~1 else columnSense~1*(cellAlphaL~1+cellAlphaR~1-1)*centerDeltaY~1,if columnL~2+columnR~2 &gt; 0.5 then columnSense~2*(columnSum~2-4)*centerDeltaY~2 else columnSense~2*(cellAlphaL~2+cellAlphaR~2-1)*centerDeltaY~2|]~i
+  local heightOnFace~i @ primal = faceCoordinateY~i+columnOffset~i
+  local upwardSense~i @ primal = columnSense~i*centerDeltaY~i
+  local weightX = sampleLower(heightUsable~1,0,0)+sampleUpper(heightUsable~1,0,0)
+  local weightY = sampleLower(heightUsable~2,0,0)+sampleUpper(heightUsable~2,0,0)
+  local availableX = if weightX &gt; 0.5 &amp;&amp; (sampleLower(heightUsable~1,0,0) &lt; 0.5 || sampleUpper(heightUsable~1,0,0) &lt; 0.5 || sampleLower(upwardSense~1,0,0)*sampleUpper(upwardSense~1,0,0) &gt; 0) then 1-solid else 0
+  local availableY = if weightY &gt; 0.5 &amp;&amp; (sampleLower(heightUsable~2,0,0) &lt; 0.5 || sampleUpper(heightUsable~2,0,0) &lt; 0.5 || sampleLower(upwardSense~2,0,0)*sampleUpper(upwardSense~2,0,0) &gt; 0) then 1-solid else 0
+  local heightX = (sampleLower(heightUsable~1*heightOnFace~1,0,0)+sampleUpper(heightUsable~1*heightOnFace~1,0,0))/(bigger weightX 1)
+  local heightY = (sampleLower(heightUsable~2*heightOnFace~2,0,0)+sampleUpper(heightUsable~2*heightOnFace~2,0,0))/(bigger weightY 1)
+  local orientationX = sampleLower(heightUsable~1*upwardSense~1,0,0)+sampleUpper(heightUsable~1*upwardSense~1,0,0)
+  local orientationY = sampleLower(heightUsable~2*upwardSense~2,0,0)+sampleUpper(heightUsable~2*upwardSense~2,0,0)
+  local alignmentX = sampleLower(verticalAlignment~1,0,0)+sampleUpper(verticalAlignment~1,0,0)
+  local alignmentY = sampleLower(verticalAlignment~2,0,0)+sampleUpper(verticalAlignment~2,0,0)
+  local heightValid = if availableX+availableY &gt; 0.5 then 1-solid else 0
+  local heightValue = if availableX &gt; 0.5 &amp;&amp; (availableY &lt; 0.5 || alignmentX &gt; alignmentY) then heightX else heightY
+  local heightOrientation = if availableX &gt; 0.5 &amp;&amp; (availableY &lt; 0.5 || alignmentX &gt; alignmentY) then orientationX else orientationY
+  estimatedHeight' = if locating &gt; 0.5 then heightValue else estimatedHeight
+  estimatedHeightValid' = if locating &gt; 0.5 then heightValid else estimatedHeightValid
+  estimatedHeightSense' = if locating &gt; 0.5 then heightOrientation else estimatedHeightSense
+  -- Fit log(rho) to an affine function of physical X,Y using liquid samples.
+  -- The intercept is free: a geometric error in the height estimate must not
+  -- turn an exactly hydrostatic density gradient into a different gradient.
+  -- The centre has weight four and each cardinal neighbour weight one.
+  local pressureWeight = nearby wet
+  local pressureWeightSafe = bigger pressureWeight 1
+  local pressureX = nearby(wet*physicalX)
+  local pressureY = nearby(wet*physicalY)
+  local pressureXX = nearby(wet*physicalX^2)-pressureX^2/pressureWeightSafe
+  local pressureXY = nearby(wet*physicalX*physicalY)-pressureX*pressureY/pressureWeightSafe
+  local pressureYY = nearby(wet*physicalY^2)-pressureY^2/pressureWeightSafe
+  local logDensity = log rho
+  local pressureLog = nearby(wet*logDensity)
+  local pressureXLog = nearby(wet*physicalX*logDensity)-pressureX*pressureLog/pressureWeightSafe
+  local pressureYLog = nearby(wet*physicalY*logDensity)-pressureY*pressureLog/pressureWeightSafe
+  local pressureDet = pressureXX*pressureYY-pressureXY^2
+  local pressureSpread = pressureYY-pressureXY^2/(if pressureXX &gt; 0 then pressureXX else 1)
+  local pressureFitValid = if pressureWeight &gt; 0.5 &amp;&amp; pressureXX &gt; 0.000001*pressureWeight*physicalDx^2 &amp;&amp; pressureDet &gt; 0.00000001*pressureXX*pressureYY &amp;&amp; pressureSpread &gt; 0.0625*pressureWeight*cellHeight^2 then 1-solid else 0
+  local pressureSlope = (pressureXX*pressureYLog-pressureXY*pressureXLog)/(if pressureFitValid &gt; 0.5 then pressureDet else 1)
+  estimatedPressureSlope' = if locating &gt; 0.5 then (if pressureFitValid &gt; 0.5 then pressureSlope else 0-3*gravity) else estimatedPressureSlope
+  local validL~i @ primal = [|sampleLower(estimatedHeightValid,1,0),sampleLower(estimatedHeightValid,0,1)|]~i
+  local validR~i @ primal = [|sampleUpper(estimatedHeightValid,1,0),sampleUpper(estimatedHeightValid,0,1)|]~i
+  local heightL~i @ primal = [|sampleLower(estimatedHeight,1,0),sampleLower(estimatedHeight,0,1)|]~i
+  local heightR~i @ primal = [|sampleUpper(estimatedHeight,1,0),sampleUpper(estimatedHeight,0,1)|]~i
+  local senseL~i @ primal = [|sampleLower(estimatedHeightSense,1,0),sampleLower(estimatedHeightSense,0,1)|]~i
+  local senseR~i @ primal = [|sampleUpper(estimatedHeightSense,1,0),sampleUpper(estimatedHeightSense,0,1)|]~i
+  local faceHeight~i @ primal = (validL~i*heightL~i+validR~i*heightR~i)/(bigger (validL~i+validR~i) 1)
+  local useHeight~i @ primal = [|if validL~1+validR~1 &gt; 0.5 &amp;&amp; (validL~1 &lt; 0.5 || validR~1 &lt; 0.5 || senseL~1*senseR~1 &gt; 0) then 1-solidL~1*solidR~1 else 0,if validL~2+validR~2 &gt; 0.5 &amp;&amp; (validL~2 &lt; 0.5 || validR~2 &lt; 0.5 || senseL~2*senseR~2 &gt; 0) then 1-solidL~2*solidR~2 else 0|]~i
+  local heightAtmosphere~i @ primal = [|faceReference~1*exp(3*gravity*(faceHeight~1-level)),faceReference~2*exp(3*gravity*(faceHeight~2-level))|]~i
+  local pressureSlopeL~i @ primal = [|sampleLower(estimatedPressureSlope,1,0),sampleLower(estimatedPressureSlope,0,1)|]~i
+  local pressureSlopeR~i @ primal = [|sampleUpper(estimatedPressureSlope,1,0),sampleUpper(estimatedPressureSlope,0,1)|]~i
+  local liquidPressureSlope~i @ primal = [|if wetL~1 &gt; 0.5 then pressureSlopeL~1 else pressureSlopeR~1,if wetL~2 &gt; 0.5 then pressureSlopeL~2 else pressureSlopeR~2|]~i
+  local dynamicAtmosphere~i @ primal = exp(liquidPressureSlope~i*(faceCoordinateY~i-faceHeight~i))
+  -- Mode 3 requires a resolved monotone column. An unsupported detached
+  -- layer keeps atmospheric pressure on its faces instead of inventing
+  -- two opposite hydrostatic continuations within the same thin layer.
+  local atmosphericDensity~i @ primal = [|if heightMethod &gt; 3.5 &amp;&amp; useHeight~1 &gt; 0.5 then dynamicAtmosphere~1 else if heightMethod &gt; 1.5 &amp;&amp; useHeight~1 &gt; 0.5 then heightAtmosphere~1 else if heightMethod &gt; 2.5 then 1 else faceAtmosphere~1,if heightMethod &gt; 3.5 &amp;&amp; useHeight~2 &gt; 0.5 then dynamicAtmosphere~2 else if heightMethod &gt; 1.5 &amp;&amp; useHeight~2 &gt; 0.5 then heightAtmosphere~2 else if heightMethod &gt; 2.5 then 1 else faceAtmosphere~2|]~i
+  local ghostL~i_a @ primal = 2*weights_a*(atmosphericDensity~i*(1+4.5*cuR~i_a^2-1.5*(uxR~i^2+uyR~i^2))-faceReference~i)-reverseR~i_a
+  local ghostR~i_a @ primal = 2*weights_a*(atmosphericDensity~i*(1+4.5*cuL~i_a^2-1.5*(uxL~i^2+uyL~i^2))-faceReference~i)-reverseL~i_a
+  -- Incoming wall populations satisfy zero normal mass flux. A tangential
+  -- correction additionally cancels shear flux when wallSlip=1, for any
+  -- physical face normal (no reflected-velocity lattice lookup is needed).
+  local wallTangent~i_a @ primal = B~i_2*ey_a-B~i_4*ex_a
+  local wallDenominator~i @ primal = (positive(B~i_a)*weights_a*wallTangent~i_a^2) . ones~a
+  local leftWallMoment~i @ primal = (positive(B~i_a)*wallTangent~i_a*left~i_a) . ones~a
+  local rightWallMoment~i @ primal = (positive(0-B~i_a)*wallTangent~i_a*right~i_a) . ones~a
+  local wallL~i_a @ primal = reverseR~i_a+2*wallSlip*weights_a*wallTangent~i_a*rightWallMoment~i/wallDenominator~i
+  local wallR~i_a @ primal = reverseL~i_a+2*wallSlip*weights_a*wallTangent~i_a*leftWallMoment~i/wallDenominator~i
+  local boundaryL~i_a @ primal = [| if solidL~1 &gt; 0.5 then wallL~1_a else if wetL~1 &lt; 0.5 then (if wetR~1 &gt; 0.5 then ghostL~1_a else left~1_a) else left~1_a, if solidL~2 &gt; 0.5 then wallL~2_a else if wetL~2 &lt; 0.5 then (if wetR~2 &gt; 0.5 then ghostL~2_a else left~2_a) else left~2_a |]~i_a
+  local boundaryR~i_a @ primal = [| if solidR~1 &gt; 0.5 then wallR~1_a else if wetR~1 &lt; 0.5 then (if wetL~1 &gt; 0.5 then ghostR~1_a else right~1_a) else right~1_a, if solidR~2 &gt; 0.5 then wallR~2_a else if wetR~2 &lt; 0.5 then (if wetL~2 &gt; 0.5 then ghostR~2_a else right~2_a) else right~2_a |]~i_a
+  local incomingFlux~i_a @ primal = (B~i_a*(boundaryL~i_a+boundaryR~i_a)-absval(B~i_a)*(boundaryR~i_a-boundaryL~i_a))/2
+  local freeFace~i @ primal = [|if solidL~1+solidR~1 &lt; 0.5 &amp;&amp; wetL~1+wetR~1 &gt; 0.5 &amp;&amp; wetL~1+wetR~1 &lt; 1.5 then 1-solidL~1 else 0,if solidL~2+solidR~2 &lt; 0.5 &amp;&amp; wetL~2+wetR~2 &gt; 0.5 &amp;&amp; wetL~2+wetR~2 &lt; 1.5 then 1-solidL~2 else 0|]~i
+  local uxBoundary~i @ primal = [|if wetL~1 &gt; 0.5 then uxL~1 else uxR~1,if wetL~2 &gt; 0.5 then uxL~2 else uxR~2|]~i
+  local uyBoundary~i @ primal = [|if wetL~1 &gt; 0.5 then uyL~1 else uyR~1,if wetL~2 &gt; 0.5 then uyL~2 else uyR~2|]~i
+  local cuBoundary~i_a @ primal = ex_a*uxBoundary~i+ey_a*uyBoundary~i
+  local freeEquilibrium~i_a @ primal = weights_a*atmosphericDensity~i*(1+3*cuBoundary~i_a+4.5*cuBoundary~i_a^2-1.5*(uxBoundary~i^2+uyBoundary~i^2))
+  local freeFlux~i_a @ primal = B~i_a*(freeEquilibrium~i_a-weights_a*faceReference~i)
+  local kineticFlux~i_a @ primal = [|if heightMethod &gt; 4.5 &amp;&amp; freeFace~1 &gt; 0.5 then freeFlux~1_a else incomingFlux~1_a,if heightMethod &gt; 4.5 &amp;&amp; freeFace~2 &gt; 0.5 then freeFlux~2_a else incomingFlux~2_a|]~i_a
+  local rawMassFlux~i @ primal = kineticFlux~i_a . ones~a
+  local massFlux~i @ primal = [|if solidL~1+solidR~1 &gt; 0.5 then 0 else rawMassFlux~1, if solidL~2+solidR~2 &gt; 0.5 then 0 else rawMassFlux~2|]~i
+  local baseL~i @ primal = reconstructLeft alpha
+  local baseR~i @ primal = reconstructRight alpha
+  -- method=4: an interface cell beside a full cell holds its water against
+  -- that cell. Toward the full neighbour the face value is min(1,K*alpha),
+  -- on the opposite face max(0,1-K*(1-alpha)), K = compression. Face values
+  -- stay within K*alpha, so explicit positivity needs K*fractionCourant &lt;= 1.
+  -- The rule is weighted by the alignment of the fraction gradient with the
+  -- axis, so an interface parallel to the flow keeps the limited slopes, and
+  -- it fades in with the neighbour's fraction above one half. Solid cells
+  -- count as full, as in the height columns. Methods 0-3 are unchanged.
+  local filledWest = sampleLower(cellAlphaL~1,0,0)+sampleLower(solidL~1,0,0)
+  local filledEast = sampleUpper(cellAlphaR~1,0,0)+sampleUpper(solidR~1,0,0)
+  local filledSouth = sampleLower(cellAlphaL~2,0,0)+sampleLower(solidL~2,0,0)
+  local filledNorth = sampleUpper(cellAlphaR~2,0,0)+sampleUpper(solidR~2,0,0)
+  local interfaceCell = if solid &lt; 0.5 &amp;&amp; alpha &gt; 0 &amp;&amp; alpha &lt; 1 then 1 else 0
+  local packWest = if interfaceCell &gt; 0.5 &amp;&amp; filledEast &lt; alpha then ramp (2*filledWest-1) else 0
+  local packEast = if interfaceCell &gt; 0.5 &amp;&amp; filledWest &lt; alpha then ramp (2*filledEast-1) else 0
+  local packSouth = if interfaceCell &gt; 0.5 &amp;&amp; filledNorth &lt; alpha then ramp (2*filledSouth-1) else 0
+  local packNorth = if interfaceCell &gt; 0.5 &amp;&amp; filledSouth &lt; alpha then ramp (2*filledNorth-1) else 0
+  local gradX = (filledEast-filledWest)/spanAlongX
+  local gradY = (filledNorth-filledSouth)/spanAlongY
+  local alongX = alignmentWeight gradX gradY
+  local alongY = alignmentWeight gradY gradX
+  local nearFace = smaller 1 (compression*alpha)
+  local farFace = bigger 0 (1-compression*(1-alpha))
+  local baseWest = sampleLower(baseR~1,0,0)
+  local baseEast = sampleUpper(baseL~1,0,0)
+  local baseSouth = sampleLower(baseR~2,0,0)
+  local baseNorth = sampleUpper(baseL~2,0,0)
+  local westValue = if method &gt; 3.5 then alongX*(packWest*nearFace+packEast*farFace)+(1-alongX*(packWest+packEast))*baseWest else baseWest
+  local eastValue = if method &gt; 3.5 then alongX*(packEast*nearFace+packWest*farFace)+(1-alongX*(packWest+packEast))*baseEast else baseEast
+  local southValue = if method &gt; 3.5 then alongY*(packSouth*nearFace+packNorth*farFace)+(1-alongY*(packSouth+packNorth))*baseSouth else baseSouth
+  local northValue = if method &gt; 3.5 then alongY*(packNorth*nearFace+packSouth*farFace)+(1-alongY*(packSouth+packNorth))*baseNorth else baseNorth
+  -- The four face fractions of a cell are stored in the locating phase, like
+  -- the surface heights; the fraction is unchanged until the refresh, so the
+  -- transport samples stored values instead of expanding the reconstruction
+  -- at every face of every flux evaluation (the code generator inlines locals).
+  faceFractionWest' = if locating &gt; 0.5 then westValue else faceFractionWest
+  faceFractionEast' = if locating &gt; 0.5 then eastValue else faceFractionEast
+  faceFractionSouth' = if locating &gt; 0.5 then southValue else faceFractionSouth
+  faceFractionNorth' = if locating &gt; 0.5 then northValue else faceFractionNorth
+  local alphaL~i @ primal = [|sampleLower(faceFractionEast,1,0),sampleLower(faceFractionNorth,0,1)|]~i
+  local alphaR~i @ primal = [|sampleUpper(faceFractionWest,1,0),sampleUpper(faceFractionSouth,0,1)|]~i
+  local waterFlux~i @ primal = (massFlux~i*(alphaL~i+alphaR~i)-absval(massFlux~i)*(alphaR~i-alphaL~i))/2
+  local feq_a = equilibrium rho ux uy
+  local source_a = weights_a*(0-3*gravity*(rho-referenceDensity)*ey_a-9*gravity*(ex_a*ux+ey_a*uy)*rho*ey_a+3*gravity*rho*uy)
+  local transport_a = (0-∂_i kineticFlux~i_a)/volumeCell+source_a
+  local collision_a = (feq_a-weights_a*referenceDensity-h_a)/tau
+  local euler_a = h_a+dt*(transport_a+(1-collisionImplicit)*collision_a)
+  local waterEuler = water-dt*(∂_i waterFlux~i)/volumeCell
+  original'_a = if preparing &gt; 0.5 &amp;&amp; stage &lt; 4.5 then (if collisionImplicit &gt; 0.5 then h_a+dt*(transport_a+collision_a)/2 else h_a) else original_a
+  waterOriginal' = if preparing &gt; 0.5 &amp;&amp; stage &lt; 4.5 then water else waterOriginal
+  originalFraction' = if preparing &gt; 0.5 &amp;&amp; stage &lt; 4.5 then fraction else originalFraction
+  candidate'_a = if preparing &lt; 0.5 then candidate_a else if stage &lt; 4.5 then euler_a else if collisionImplicit &gt; 0.5 then original_a+dt*transport_a/2 else (original_a+euler_a)/2
+  candidateWater' = if preparing &lt; 0.5 then candidateWater else if stage &lt; 4.5 then waterEuler else (waterOriginal+waterEuler)/2
+  local candidateDensity = referenceDensity+(ones~a . candidate_a)
+  local candidateUx = (ex~a . candidate_a)/candidateDensity
+  local candidateUy = (ey~a . candidate_a)/candidateDensity
+  local candidateEquilibrium_a = equilibrium candidateDensity candidateUx candidateUy
+  -- This is an algebraic per-cell solve, not a global pressure solve.
+  local collisionRatio = collisionImplicit*(if stage &lt; 3.5 then dt/tau else dt/(2*tau))
+  local relaxedCandidate_a = (candidate_a+collisionRatio*(candidateEquilibrium_a-weights_a*referenceDensity))/(1+collisionRatio)
+  water' = if projecting &gt; 0.5 then candidateWater else water
+  local averagedWeight = nearby wet
+  local extensionUx = if averagedWeight &gt; 0.1 then (nearby(wet*ux))/averagedWeight else ux
+  local extensionUy = if averagedWeight &gt; 0.1 then (nearby(wet*uy))/averagedWeight else uy
+  local ghostEquilibrium_a = equilibrium 1 extensionUx extensionUy
+  h'_a = if projecting &lt; 0.5 then h_a else if solid &gt; 0.5 then 0 else if candidateWater/candidateDensity &lt; wetFraction then ghostEquilibrium_a-weights_a*referenceDensity else relaxedCandidate_a
+  stage' = if stage &gt; 6.5 then 0 else stage+1
+  elapsed' = if stage &gt; 6.5 then elapsed+dt else elapsed
+  density' = if refreshing &gt; 0.5 then observedRho else density
+  fraction' = if refreshing &gt; 0.5 then observedFraction else fraction
+  velocityX' = if refreshing &gt; 0.5 then observedUx else velocityX
+  velocityY' = if refreshing &gt; 0.5 then observedUy else velocityY
+  waterMass' = cell*volumeCell*water
+  waterVolume' = cell*volumeCell*observedFraction
+  lowest' = smaller lowest observedFraction
+  highest' = bigger highest observedFraction
+  densityLowest' = smaller densityLowest observedRho
+  densityHighest' = bigger densityHighest observedRho
+  populationLowest' = smaller populationLowest (minPopulation ((h_a+weights_a*referenceDensity)/weights_a))
+  peakSpeed' = bigger peakSpeed (if observedFraction &gt;= wetFraction then sqrt(observedUx^2+observedUy^2) else 0)
+  restingError' = bigger restingError (if observedFraction &gt;= wetFraction then bigger (absval(observedRho-referenceDensity)) (sqrt(observedUx^2+observedUy^2)) else 0)
+  local alphaOriginal = originalFraction
+  wetting' = wetting+(if stage &gt; 6.5 then (if alphaOriginal &lt; wetFraction then (if observedFraction &gt;= wetFraction then 1 else 0) else 0) else 0)
+  drying' = drying+(if stage &gt; 6.5 then (if alphaOriginal &gt;= wetFraction then (if observedFraction &lt; wetFraction then 1 else 0) else 0) else 0)
+  movedAmount' = cell*volumeCell*absval(observedFraction-initialFraction)
+  waterMomentumX' = cell*volumeCell*water*observedUx
+  waterMomentumY' = cell*volumeCell*water*observedUy
+  kineticEnergy' = cell*volumeCell*water*(observedUx^2+observedUy^2)/2
+  surfaceHeight' = if observedFraction &gt;= 0.5 then physicalY else 0
+  local groundFace~i @ primal = [|sampleLower(solid,1,0),sampleLower(solid,0,1)|]~i
+  local ground = sampleLower(groundFace~2,0,0)
+  wetFront' = if observedFraction &gt;= 0.5 &amp;&amp; ground &gt; 0.5 then physicalX else 0
+  thinFront' = if observedFraction &gt; 0.01 &amp;&amp; ground &gt; 0.5 then physicalX else 0
+  shoreWaterMass' = if physicalX &gt; initialShore then cell*volumeCell*water else 0
+  thinWaterMass' = if observedFraction &gt; 0 &amp;&amp; observedFraction &lt; 0.5 then cell*volumeCell*water else 0
+  shoreFlux' = if absval(physicalX-bedStart) &lt; physicalDx/2 then cell*volumeCell*water*observedUx/physicalDx else 0
+  minimumArea' = cell*volumeCell
+  local alphaAboveFace~i @ primal = [|sampleUpper(observedFraction,1,0),sampleUpper(observedFraction,0,1)|]~i
+  local alphaAbove = sampleUpper(alphaAboveFace~2,0,0)
+  local verticalFractionGradient = (tangentXX*∂_y observedFraction-tangentXY*∂_x observedFraction)/volumeCell
+  local wallNeighbours = nearby solid
+  overhangCells' = if wallNeighbours &lt; 0.5 &amp;&amp; solid &lt; 0.5 &amp;&amp; observedFraction &gt; 0.05 &amp;&amp; observedFraction &lt; 0.95 &amp;&amp; verticalFractionGradient &gt; 0.000001 then 1 else 0
+  bulkFront' = if observedFraction &gt;= 0.5 &amp;&amp; alphaAbove &gt;= 0.5 &amp;&amp; ground &gt; 0.5 then physicalX else 0
+  -- Gauges sample complete physical states at the start of a timestep.
+  local gaugeNow = sampleUpper((columnSum~2-4)*centerDeltaY~2,0,0)+gaugeReference
+  surfaceGauge' = if stage &lt; 0.5 then (if waveGaugeCell &gt; 0.5 then gaugeNow else 0) else surfaceGauge
+  local crossingTime = if absval(gaugeNow-surfaceGauge) &gt; 0.00000000000001 then elapsed-dt*gaugeNow/(gaugeNow-surfaceGauge) else elapsed
+  firstCrossing' = if stage &lt; 0.5 &amp;&amp; waveGaugeCell &gt; 0.5 &amp;&amp; firstCrossing &lt; 0.000000000001 &amp;&amp; surfaceGauge &lt; 0 &amp;&amp; gaugeNow &gt;= 0 then crossingTime else firstCrossing
+  wavePeriod' = if stage &lt; 0.5 &amp;&amp; waveGaugeCell &gt; 0.5 &amp;&amp; firstCrossing &gt; 0 &amp;&amp; wavePeriod &lt; 0.000000000001 &amp;&amp; surfaceGauge &gt; 0 &amp;&amp; gaugeNow &lt;= 0 then 2*(crossingTime-firstCrossing) else wavePeriod
+  expectedPeriod' = expectedPeriod
+  local outRight = positive(sampleUpper(massFlux~1,0,0))/hx
+  local outLeft = positive(0-sampleLower(massFlux~1,0,0))/hx
+  local outTop = positive(sampleUpper(massFlux~2,0,0))/hy
+  local outBottom = positive(0-sampleLower(massFlux~2,0,0))/hy
+  fractionCourant' = if preparing &gt; 0.5 then bigger fractionCourant (4*dt*bigger (bigger outRight outLeft) (bigger outTop outBottom)/(volumeCell*rho)) else fractionCourant
+  local normalVelocity~i @ primal = uxBoundary~i*B~i_2+uyBoundary~i*B~i_4
+  local freeMassError~i @ primal = freeFace~i*absval(massFlux~i-atmosphericDensity~i*normalVelocity~i)
+  surfaceMassResidual' = if preparing &gt; 0.5 then bigger surfaceMassResidual (bigger (sampleUpper(freeMassError~1,0,0)) (sampleUpper(freeMassError~2,0,0))) else surfaceMassResidual
+  local momentumFluxX~i @ primal = kineticFlux~i_a . ex~a
+  local momentumFluxY~i @ primal = kineticFlux~i_a . ey~a
+  local stressX~i @ primal = momentumFluxX~i-(atmosphericDensity~i-faceReference~i)*B~i_2/3-atmosphericDensity~i*uxBoundary~i*normalVelocity~i
+  local stressY~i @ primal = momentumFluxY~i-(atmosphericDensity~i-faceReference~i)*B~i_4/3-atmosphericDensity~i*uyBoundary~i*normalVelocity~i
+  local stressError~i @ primal = [|if solidL~1+solidR~1 &lt; 0.5 &amp;&amp; wetL~1+wetR~1 &gt; 0.5 &amp;&amp; wetL~1+wetR~1 &lt; 1.5 then bigger (absval(stressX~1)) (absval(stressY~1)) else 0,if solidL~2+solidR~2 &lt; 0.5 &amp;&amp; wetL~2+wetR~2 &gt; 0.5 &amp;&amp; wetL~2+wetR~2 &lt; 1.5 then bigger (absval(stressX~2)) (absval(stressY~2)) else 0|]~i
+  pressureResidual' = if preparing &gt; 0.5 then bigger pressureResidual (bigger (sampleUpper(stressError~1,0,0)) (sampleUpper(stressError~2,0,0))) else pressureResidual
+  waveMoment' = cell*volumeCell*observedFraction*cos(2*piValue*physicalX/lengthX)
+  local fallingTime = elapsed+(if stage &gt; 6.5 then dt else 0)
+  expectedFallingMomentum' = if scenario &gt; 6.5 then (0-gravity*fallingTime)*cell*volumeCell*initialFraction else 0
+  expectedFallingCentroid' = if scenario &gt; 6.5 then cell*volumeCell*initialFraction*(physicalY-gravity*fallingTime^2/2) else 0
+  gravityEnergy' = cell*volumeCell*water*gravity*physicalY
+  waterCentroidX' = cell*volumeCell*water*physicalX
+  waterCentroidY' = cell*volumeCell*water*physicalY
+  local packedShift = if solid &gt; 0.5 then 0 else packedOffset alpha alongY filledSouth filledNorth (sampleLower(centerDeltaY~2,0,0)) (sampleUpper(centerDeltaY~2,0,0))
+  resolvedCentroidY' = cell*volumeCell*water*(physicalY+packedShift)
+  collisionResidual' = if preparing &gt; 0.5 then bigger collisionResidual (absval(ones~a . (feq_a-weights_a*referenceDensity-h_a))) else collisionResidual
+  local stateRhoError = absval(density-referenceDensity-(ones~a . h_a))
+  local stateWaterError = absval(water-fraction*density)
+  local stateVelocityError = bigger (absval(density*velocityX-(ex~a . h_a))) (absval(density*velocityY-(ey~a . h_a)))
+  stateConsistencyError' = if preparing &gt; 0.5 then bigger stateConsistencyError (bigger stateRhoError (bigger stateWaterError stateVelocityError)) else stateConsistencyError
+
+  local surfaceFace~i @ primal = [|if solidL~1+solidR~1 &lt; 0.5 &amp;&amp; wetL~1+wetR~1 &gt; 0.5 &amp;&amp; wetL~1+wetR~1 &lt; 1.5 then 1-solidL~1 else 0,if solidL~2+solidR~2 &lt; 0.5 &amp;&amp; wetL~2+wetR~2 &gt; 0.5 &amp;&amp; wetL~2+wetR~2 &lt; 1.5 then 1-solidL~2 else 0|]~i
+  surfaceReconstructions' = surfaceReconstructions+(if preparing &gt; 0.5 then sampleUpper(surfaceFace~1,0,0)+sampleUpper(surfaceFace~2,0,0) else 0)
+  heightReconstructions' = heightReconstructions+(if preparing &gt; 0.5 &amp;&amp; heightMethod &gt; 0.5 then sampleUpper(surfaceFace~1*usableColumn~1,0,0)+sampleUpper(surfaceFace~2*usableColumn~2,0,0) else 0)
+  local wallShear~i @ primal = (kineticFlux~i_a*wallTangent~i_a) . ones~a
+  local wallMassError~i @ primal = [|if solidL~1+solidR~1 &gt; 0.5 &amp;&amp; solidL~1+solidR~1 &lt; 1.5 then absval(rawMassFlux~1) else 0,if solidL~2+solidR~2 &gt; 0.5 &amp;&amp; solidL~2+solidR~2 &lt; 1.5 then absval(rawMassFlux~2) else 0|]~i
+  local wallShearError~i @ primal = [|if solidL~1+solidR~1 &gt; 0.5 &amp;&amp; solidL~1+solidR~1 &lt; 1.5 then absval(wallShear~1)/(B~1_2^2+B~1_4^2) else 0,if solidL~2+solidR~2 &gt; 0.5 &amp;&amp; solidL~2+solidR~2 &lt; 1.5 then absval(wallShear~2)/(B~2_2^2+B~2_4^2) else 0|]~i
+  wallMassResidual' = if preparing &gt; 0.5 then bigger wallMassResidual (bigger (sampleUpper(wallMassError~1,0,0)) (sampleUpper(wallMassError~2,0,0))) else wallMassResidual
+  wallSlipResidual' = if preparing &gt; 0.5 &amp;&amp; wallSlip &gt; 0.5 then bigger wallSlipResidual (bigger (sampleUpper(wallShearError~1,0,0)) (sampleUpper(wallShearError~2,0,0))) else wallSlipResidual
+
+  -- Independent continuous-time references for collision and a weak shear wave.
+  -- Compare only complete physical states; the final refresh advances time by dt.
+  local shearAmplitude = speed*exp(0-tau*(2*piValue/lengthY)^2*(elapsed+dt)/3)
+  relaxationError' = if stage &gt; 6.5 &amp;&amp; scenario &gt; 5.5 &amp;&amp; scenario &lt; 6.5 then absval(((ex~a*ey~a) . h_a)-amplitude*exp(0-(elapsed+dt)/tau)/9) else relaxationError
+  shearError' = if stage &gt; 6.5 &amp;&amp; scenario &gt; 4.5 &amp;&amp; scenario &lt; 5.5 then absval(observedUx-shearAmplitude*sin(2*piValue*physicalY/lengthY)) else shearError
+  shearProjection' = if stage &gt; 6.5 &amp;&amp; scenario &gt; 4.5 &amp;&amp; scenario &lt; 5.5 then 2*cell*volumeCell*observedUx*sin(2*piValue*physicalY/lengthY)/(lengthX*lengthY) else shearProjection
+  shearExpected' = if stage &gt; 6.5 &amp;&amp; scenario &gt; 4.5 &amp;&amp; scenario &lt; 5.5 then shearAmplitude else shearExpected</pre></details>
+</article>
+<!-- kinetic-free-surface:end -->
 <article class="card featured" id="breaking-wave">
 <h3>A breaking wave and backwash — one wave returning from the beach</h3>
 <p class="description">One initial wave advances into shallow water, its crest collapses, and the water runs up the beach before returning offshore. Tracking the water fraction in each cell allows an overhanging surface. The simulation uses D2Q9, a two-dimensional lattice Boltzmann model with nine velocity populations. Initial conditions, walls, gravity, surface motion and mass transfer are all written in Formurae.</p>

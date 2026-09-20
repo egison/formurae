@@ -33,6 +33,7 @@ param collisionImplicit = 1
 param compression = 5
 param launch = 1
 param alignmentFloor = 0.000000000001
+param verticalStart = 1
 param piValue = 3.141592653589793
 param hx = dx
 param hy = dy
@@ -143,8 +144,11 @@ static field initialShore := if bedSlope > 0 then bedStart+level/bedSlope else l
 static field initialGround := if periodic > 0.5 then 0 else if eta < 2*hy then 1 else if fittedBed > 0.5 then 0 else if mapY xi (eta-hy) < bedSlope*positive(mapX xi (eta-hy)-bedStart) then 1 else 0
 -- launch scales the incoming wave's initial velocity (scenario 4 only). At
 -- the default 1 the reference expressions below are used unchanged.
+-- verticalStart=0 starts the incoming wave without the divergence-free
+-- vertical velocity (the older lattice example started from rest vertically);
+-- at the default 1 the reference expression is used unchanged.
 static field initialUx := if scenario > 3.5 && scenario < 4.5 && absval(launch-1) > 0.000000000001 then launch*sqrt(gravity*(stillDepth+amplitude))*bump physicalX/(stillDepth+bump physicalX) else if scenario > 5.5 then 0 else if scenario > 4.5 then speed*sin(2*piValue*physicalY/lengthY) else if scenario < 0.5 then 0 else if scenario < 1.5 then speed else if scenario > 3.5 then sqrt(gravity*(stillDepth+amplitude))*bump physicalX/(stillDepth+bump physicalX) else 0
-static field initialUy := if scenario > 3.5 && scenario < 4.5 && absval(launch-1) > 0.000000000001 then launch*2*(smaller physicalY initialHeight)*sqrt(gravity*(stillDepth+amplitude))*stillDepth*(physicalX-waveCenter)*bump physicalX/(waveWidth^2*(stillDepth+bump physicalX)^2) else if scenario > 3.5 && scenario < 4.5 then 2*(smaller physicalY initialHeight)*sqrt(gravity*(stillDepth+amplitude))*stillDepth*(physicalX-waveCenter)*bump physicalX/(waveWidth^2*(stillDepth+bump physicalX)^2) else 0
+static field initialUy := if scenario > 3.5 && scenario < 4.5 && verticalStart < 0.5 then 0 else if scenario > 3.5 && scenario < 4.5 && absval(launch-1) > 0.000000000001 then launch*2*(smaller physicalY initialHeight)*sqrt(gravity*(stillDepth+amplitude))*stillDepth*(physicalX-waveCenter)*bump physicalX/(waveWidth^2*(stillDepth+bump physicalX)^2) else if scenario > 3.5 && scenario < 4.5 then 2*(smaller physicalY initialHeight)*sqrt(gravity*(stillDepth+amplitude))*stillDepth*(physicalX-waveCenter)*bump physicalX/(waveWidth^2*(stillDepth+bump physicalX)^2) else 0
 -- A small standing gravity wave starts with its linear pressure profile,
 -- rather than hydrostatic pressure beneath an undulating column. The latter
 -- also excites an acoustic adjustment. Other scenarios retain their data.

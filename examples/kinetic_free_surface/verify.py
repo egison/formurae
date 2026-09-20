@@ -27,9 +27,9 @@ def basic(record):
     relative=record['mass_drift']/rows[0]['waterMass']
     assert relative<5e-10, ('water mass drift',relative)
     assert f['lowest']>=-2e-10 and f['highest']<=1+2e-10, ('fraction bounds',f['lowest'],f['highest'])
-    assert f['densityLowest']>.5 and f['densityHighest']<1.5
-    assert f['populationLowest']>0
-    assert f['peakSpeed']<.3
+    assert f['densityLowest']>.5 and f['densityHighest']<1.5, ('density range',f['densityLowest'],f['densityHighest'])
+    assert f['populationLowest']>0, ('population positivity',f['populationLowest'])
+    assert f['peakSpeed']<.3, ('retained speed',f['peakSpeed'])
     assert f['minimumArea']>0
     assert f['fractionCourant']<1
     if record['parameters']['method']>=4:

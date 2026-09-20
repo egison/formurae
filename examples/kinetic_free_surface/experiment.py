@@ -33,7 +33,7 @@ def execute(args):
     output.mkdir(exist_ok=True)
     for name in ['result.json','frames.npz','snapshots.png']:
         (output/name).unlink(missing_ok=True)
-    values=dict(lengthX=args.length[0],lengthY=args.length[1],warpX=args.warp[0],warpY=args.warp[1],scenario=args.scenario,gravity=args.gravity,level=args.level,amplitude=args.amplitude,waveCenter=args.center,waveWidth=args.width,bedStart=args.bed_start,bedSlope=args.bed_slope,speed=args.speed,tau=args.tau,timeScale=args.time_scale,periodic=int(args.periodic),method=args.method,surfacePosition=args.surface_position,fittedBed=args.fitted_bed,wetFraction=args.wet_fraction,heightMethod=args.height_method,wallSlip=args.wall_slip,boundarySlope=args.boundary_slope,collisionImplicit=args.collision_implicit,compression=args.compression,launch=args.launch,alignmentFloor=args.alignment_floor)
+    values=dict(lengthX=args.length[0],lengthY=args.length[1],warpX=args.warp[0],warpY=args.warp[1],scenario=args.scenario,gravity=args.gravity,level=args.level,amplitude=args.amplitude,waveCenter=args.center,waveWidth=args.width,bedStart=args.bed_start,bedSlope=args.bed_slope,speed=args.speed,tau=args.tau,timeScale=args.time_scale,periodic=int(args.periodic),method=args.method,surfacePosition=args.surface_position,fittedBed=args.fitted_bed,wetFraction=args.wet_fraction,heightMethod=args.height_method,wallSlip=args.wall_slip,boundarySlope=args.boundary_slope,collisionImplicit=args.collision_implicit,compression=args.compression,launch=args.launch,alignmentFloor=args.alignment_floor,verticalStart=args.vertical_start)
     # Step count is run configuration, not a model update.
     hx,hy=[l/n for l,n in zip(args.length,args.grid)]
     dt=args.time_scale*.1*hx*hy/(hx+hy)
@@ -137,6 +137,7 @@ if __name__=='__main__':
     p.add_argument('--compression',type=float,default=5)
     p.add_argument('--launch',type=float,default=1)
     p.add_argument('--alignment-floor',type=float,default=1e-12)
+    p.add_argument('--vertical-start',type=int,choices=[0,1],default=1)
     p.add_argument('--fitted-bed',type=int,choices=[0,1],default=1)
     p.add_argument('--wet-fraction',type=float,default=.01)
     p.add_argument('--height-method',type=int,choices=[0,1,2,3,4,5],default=1)

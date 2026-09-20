@@ -1,0 +1,13 @@
+{
+  "source_sha256": "c70ea9bc87c924d23b88f26d835caffbb8894aeb96055fdb513a2fa3ad71f206",
+  "frames_sha256": "dd36b464dd52698b935b24d8f678e58dc2f2973fe802be6d0abe29e933c75d96",
+  "strong_frames_sha256": "2d6b2e7e2f26454540d8661a62bfd97b4b2e574b4140121527a6086e820f6ee4",
+  "reviewed_on": "2026-09-20",
+  "connected_crest_cavity_impact": false,
+  "ja": "海岸の波（160×64，波高 0.12，勾配 0.1，旧輸送 method=3）の保存フレームを目視で確認した結果，波頭は連続した巻き込みや空洞を作らず，前面は鈍いまま斜面を駆け上がり，薄い水が右端の壁に達した．満杯の隣接セル側へ水を詰める新しい輸送（method=4）でも巻き込みは生じず，波の背後に崩れない鉛直の段差が残ったため，波の計算には旧輸送を用いている．",
+  "en": "Visual review of the saved frames of the beach wave (160x64, amplitude 0.12, slope 0.1, transport method=3): the crest forms no connected curl or cavity, the blunt front runs up the slope and the thin water reaches the far wall. The packed transport (method=4) produced no curl either and left an uncollapsing vertical step behind the wave, so the reference transport is used for the wave.",
+  "strong_title_ja": "強い波（波高比 0.77，勾配 0.2，256×64，初期の鉛直速度なし）",
+  "strong_title_en": "Stronger wave (height ratio 0.77, slope 0.2, 256x64, no initial vertical velocity)",
+  "strong_ja": "旧例の条件に合わせた強い波を初期の鉛直速度なしで計算した開発結果．t≈2.8 で波頭が前方へ傾き，割合0.5の等値線が巻き始めるが，t=0.25 に背面の斜面で新しく濡れたセルの密度が 2.19（周囲は 1.0〜1.1）となり流速 0.65 に達するため，分布の正値性と流速 0.3 未満の固定基準を満たさない．新しく濡れるセルの初期化が次に直す欠陥であり，この計算は成果に数えない．",
+  "strong_en": "Development result for the stronger wave under the older example's conditions, started without vertical velocity. The crest leans forward at t=2.8 and the 0.5 contour begins to curl, but at t=0.25 a cell that has just become wet on the rear flank reaches density 2.19 (its neighbours 1.0-1.1) and speed 0.65, so the fixed positivity and 0.3-speed criteria fail. The initialization of newly wetted cells is the next defect to correct; this run is not counted as a result."
+}

@@ -1,0 +1,56 @@
+{
+  "result_sha256": "8644e5a230354b336fa9fbf9376321ab037d171a2410b2e70145cf305bf52e94",
+  "source_sha256": "c70ea9bc87c924d23b88f26d835caffbb8894aeb96055fdb513a2fa3ad71f206",
+  "renderer_sha256": "a7ed0689264fa363f2e291ff643027358929114fa278b660af1123ceebad9439",
+  "frames_sha256": "dd36b464dd52698b935b24d8f678e58dc2f2973fe802be6d0abe29e933c75d96",
+  "grid": [
+    160,
+    64
+  ],
+  "parameters": {
+    "lengthX": 6.4,
+    "lengthY": 0.8,
+    "warpX": 0,
+    "warpY": 0,
+    "scenario": 4,
+    "gravity": 0.08,
+    "level": 0.2,
+    "amplitude": 0.12,
+    "waveCenter": 0.85,
+    "waveWidth": 0.3,
+    "bedStart": 1.6,
+    "bedSlope": 0.1,
+    "speed": 0.1,
+    "tau": 0.0006,
+    "timeScale": 2.0,
+    "periodic": 0,
+    "method": 3,
+    "surfacePosition": 1,
+    "fittedBed": 1,
+    "wetFraction": 0.01,
+    "heightMethod": 5,
+    "wallSlip": 1,
+    "boundarySlope": 1,
+    "collisionImplicit": 1,
+    "compression": 5,
+    "launch": 1,
+    "alignmentFloor": 1e-12,
+    "verticalStart": 1
+  },
+  "frame_count": 243,
+  "fps": 20,
+  "kind": "beach",
+  "title": "Reference transport: runup without curling",
+  "pixels": [
+    1200,
+    800
+  ],
+  "simulation_time": [
+    0.0,
+    39.99999999998845
+  ],
+  "media": {
+    "png": "cb2007f85d3789f463dea05a1060d1f61677366a208513407fe3c7e38cb54860",
+    "mp4": "722e80df1834e89812ff9bbe02bfc2796cda7021febe3f46847808b7aff4633b"
+  }
+}

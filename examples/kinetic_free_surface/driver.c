@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "kinetic_free_surface.h"
-double surfaceConfiguration[27];
+double surfaceConfiguration[28];
 int surfaceFrameInterval;
 static double real(const char *s) {
   char *end; errno=0; double v=strtod(s,&end);
@@ -66,12 +66,12 @@ static void report(Formura_Navi *n) {
   putchar('\n');
 }
 int main(int argc,char **argv) {
-  if(argc!=30) return 2;
+  if(argc!=31) return 2;
   double requested=real(argv[1]);
   if(requested<0 || requested>1000000 || requested!=floor(requested)) return 2;
   double interval=real(argv[2]);
   if(interval<1 || interval!=floor(interval)) return 2;
-  for(int k=0;k<27;++k) surfaceConfiguration[k]=real(argv[k+3]);
+  for(int k=0;k<28;++k) surfaceConfiguration[k]=real(argv[k+3]);
   if(surfaceConfiguration[14]<=0) return 2;
   surfaceFrameInterval=8*(int)interval;
   setvbuf(stdout,NULL,_IOLBF,0);

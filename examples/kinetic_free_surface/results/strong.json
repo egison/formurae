@@ -1,0 +1,56 @@
+{
+  "result_sha256": "99843fe6cd156b09592881091cc23f55f99d37d475a7bb9f191ee990ec3abf49",
+  "source_sha256": "c70ea9bc87c924d23b88f26d835caffbb8894aeb96055fdb513a2fa3ad71f206",
+  "renderer_sha256": "a7ed0689264fa363f2e291ff643027358929114fa278b660af1123ceebad9439",
+  "frames_sha256": "2d6b2e7e2f26454540d8661a62bfd97b4b2e574b4140121527a6086e820f6ee4",
+  "grid": [
+    256,
+    64
+  ],
+  "parameters": {
+    "lengthX": 2.25,
+    "lengthY": 0.5625,
+    "warpX": 0,
+    "warpY": 0,
+    "scenario": 4,
+    "gravity": 0.02,
+    "level": 0.2,
+    "amplitude": 0.1544,
+    "waveCenter": 0.3,
+    "waveWidth": 0.1059,
+    "bedStart": 0.52,
+    "bedSlope": 0.2,
+    "speed": 0.1,
+    "tau": 0.0005,
+    "timeScale": 2.0,
+    "periodic": 0,
+    "method": 3,
+    "surfacePosition": 1,
+    "fittedBed": 1,
+    "wetFraction": 0.01,
+    "heightMethod": 5,
+    "wallSlip": 1,
+    "boundarySlope": 1,
+    "collisionImplicit": 1,
+    "compression": 5,
+    "launch": 1.0,
+    "alignmentFloor": 1e-12,
+    "verticalStart": 0
+  },
+  "frame_count": 205,
+  "fps": 20,
+  "kind": "beach",
+  "title": "Stronger wave without initial vertical velocity",
+  "pixels": [
+    1200,
+    800
+  ],
+  "simulation_time": [
+    0.0,
+    10.00019531249786
+  ],
+  "media": {
+    "png": "8b5e051fb713b82fb06f8d572d8df29d1120138d0fcfbfc973e9bc256c290f18",
+    "mp4": "9535cace9ffd9305135971ae3778b5d18eedc1be862245664dc3bb387fd3d567"
+  }
+}
