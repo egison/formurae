@@ -700,9 +700,15 @@ run under the unchanged positivity and 0.3 criteria. The transient decays:
 at t=3.4 the largest speed anywhere is 0.128 and 0.103 in wet cells, and the
 crest at X about 0.5 leans forward over a diffuse tongue, which is closer to an
 overturning crest than anything the wide wave produced but cannot be counted
-while the criteria fail. The next experiment starts the stronger wave without
-the vertical velocity (the older example started from rest vertically) so
-that the criteria are met from the first step. Thinner end cells drain at a rate proportional to their
+while the criteria fail. The run reached t=10 in 45 minutes with mass conserved
+to 5.6e-15, but it is not a physical result: at t=4 the crest had become a
+vertical spout at X about 0.45, which collapsed into spray by t=6, the density
+left the [0.5, 1.5] range, the lowest population reached -1.6 of its weight and
+the recorded speed 1.21, and the surface at t=10 is chaotic with 348 overhang
+cells. The next experiment starts the stronger wave without the vertical
+velocity (the older example started from rest vertically) so that the criteria
+are met from the first step, and treats the spout as an initial-condition
+artifact to be removed before any breaking is judged. Thinner end cells drain at a rate proportional to their
 fraction, and isolated layers without a full neighbour keep the constant
 reconstruction of `method=3`. Face values stay within `K*alpha` of zero and within
 `K*(1-alpha)` of one, so the explicit sufficient condition for positivity becomes
