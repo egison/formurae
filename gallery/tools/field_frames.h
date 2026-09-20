@@ -92,7 +92,13 @@ static void frame_dump(Formura_Navi *n) {
   const double *values = frame_values;
 #endif
   for (size_t p = 0; p < FRAME_FIELDS * plane; ++p)
-    if (!isfinite(values[p])) frame_fail("missing or nonfinite field value");
+    if (!isfinite(values[p])) {
+      char message[160];
+      snprintf(message, sizeof(message),
+               "missing or nonfinite field value: field %zu, cell %zu of %zu",
+               p / plane, p % plane, plane);
+      frame_fail(message);
+    }
   char path[4096];
   int count = snprintf(path, sizeof(path), "%s/%08d.bin", frame_directory, n->time_step);
   if (count < 0 || (size_t)count >= sizeof(path)) frame_fail("output path too long");
