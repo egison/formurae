@@ -690,7 +690,19 @@ and populations turn negative before t=2.9. Both runs were stopped and are not
 physical results; the older example started with zero vertical velocity, so a
 launch factor must not multiply the vertical component. The stronger wave is
 therefore run with `launch=1` and the previous `method=3` transport
-(`strong-launch1-method3`); its result is recorded below when available. Thinner end cells drain at a rate proportional to their
+(`strong-launch1-method3`). That run also fails the fixed criteria, for a
+different reason: scenario 4 gives the hump a divergence-free vertical
+velocity proportional to `1/waveWidth^2`, and with the narrow width 0.1059 that
+initial field is about eight times stronger than on the wide beach wave. Within
+t=0.24 wet cells reach a speed of 0.35 and populations become negative, so the
+running `peakSpeed` (0.71) and `populationLowest` (-0.25) records exclude the
+run under the unchanged positivity and 0.3 criteria. The transient decays:
+at t=3.4 the largest speed anywhere is 0.128 and 0.103 in wet cells, and the
+crest at X about 0.5 leans forward over a diffuse tongue, which is closer to an
+overturning crest than anything the wide wave produced but cannot be counted
+while the criteria fail. The next experiment starts the stronger wave without
+the vertical velocity (the older example started from rest vertically) so
+that the criteria are met from the first step. Thinner end cells drain at a rate proportional to their
 fraction, and isolated layers without a full neighbour keep the constant
 reconstruction of `method=3`. Face values stay within `K*alpha` of zero and within
 `K*(1-alpha)` of one, so the explicit sufficient condition for positivity becomes
